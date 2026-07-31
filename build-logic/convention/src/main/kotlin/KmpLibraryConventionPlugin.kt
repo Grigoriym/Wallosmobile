@@ -1,5 +1,7 @@
 import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension
 import com.grappim.wallosmobile.buildlogic.configureKmp
+import com.grappim.wallosmobile.buildlogic.configureLinting
+import com.grappim.wallosmobile.buildlogic.configureTests
 import com.grappim.wallosmobile.buildlogic.libs
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -24,9 +26,22 @@ class KmpLibraryConventionPlugin : Plugin<Project> {
                     compileSdk = libs.findVersion("compileSdk").get().toString().toInt()
                     minSdk = libs.findVersion("minSdk").get().toString().toInt()
                     namespace = "com.grappim.wallosmobile" + path.replace(':', '.').replace("-", "")
+
+                    // `com.android.kotlin.multiplatform.library` creates no host-test
+                    // compilation unless asked. Without this, `commonTest` belongs to no
+                    // compilation, the test dependencies from `configureTests()` are inert,
+                    // and there is no test task to run. The reference projects don't need it
+                    // because they get their test task from a `jvm()` target — WallosMobile
+                    // is Android-only, so `testDebugUnitTest` is it.
+                    withHostTestBuilder {}.configure {
+                        isReturnDefaultValues = true
+                        isIncludeAndroidResources = true
+                    }
                 }
 
             configureKmp()
+            configureTests()
+            configureLinting()
         }
     }
 }

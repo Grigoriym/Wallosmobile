@@ -23,11 +23,15 @@ aren't ticked, and don't expand scope beyond the step.
 ## Build commands
 
 ```bash
-./gradlew :androidApp:assembleDebug        # build
-./gradlew jvmTest                          # all KMP module tests
-./gradlew :module:path:testDebugUnitTest   # one module
-./gradlew detekt ktlintCheck               # must pass before ticking a step
-./gradlew koverHtmlReport                  # coverage
+./gradlew :androidApp:assembleDebug          # build
+./gradlew allTests                           # all KMP module tests
+./gradlew :module:path:testAndroidHostTest   # one module
+./gradlew detekt ktlintCheck                 # must pass before ticking a step
+./gradlew koverHtmlReport                    # coverage
+
+# There is no `jvmTest` and no `testDebugUnitTest`. WallosMobile declares no `jvm()` target, so
+# the only unit test task is the AGP KMP host test — `testAndroidHostTest`, source set
+# `commonTest`, enabled by `withHostTestBuilder` in `KmpLibraryConventionPlugin`.
 
 # Force the Koin compiler plugin to re-run after DI changes ("no definition found" crashes).
 # Koin here is a Kotlin compiler plugin, NOT classic KSP — there is no build/generated/ksp/**

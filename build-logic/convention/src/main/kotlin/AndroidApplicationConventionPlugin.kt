@@ -1,5 +1,7 @@
 import com.android.build.api.dsl.ApplicationExtension
 import com.grappim.wallosmobile.buildlogic.configureKotlinAndroid
+import com.grappim.wallosmobile.buildlogic.configureLinting
+import com.grappim.wallosmobile.buildlogic.configureTests
 import com.grappim.wallosmobile.buildlogic.libs
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -58,6 +60,11 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
 
                 configureKotlinAndroid(this)
             }
+
+            // `:androidApp` holds MainActivity and the Koin startup glue — real Kotlin that
+            // the gates have to cover, even though it is not a KMP module.
+            configureTests()
+            configureLinting()
         }
     }
 }

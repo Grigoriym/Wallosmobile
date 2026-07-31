@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `4/7` · M1 `0/11` · M2 `0/7`
-**Current step:** 0.5
+**Progress:** M0 `5/7` · M1 `0/11` · M2 `0/7`
+**Current step:** 0.6
 
 ---
 
@@ -109,12 +109,35 @@ Goal: an empty but correctly-structured project that builds, lints and tests.
   All five plugins were verified together on `composeApp` (deps resolved: nav3, savedstate, Koin BOM,
   ktor okhttp, serialization-json), then it was reverted to the two it actually needs.
 
-- [ ] **0.5 — Quality gates**
+- [x] **0.5 — Quality gates**
   detekt + ktlint + compose-rules + kover, `config/detekt/`, `.editorconfig`. Wire `configureTests()`
   and `configureLinting()` into the convention plugins — `configureTests()` adds `kotlin("test")`,
   Turbine and `project(":testing")` to every `commonTest`, so no module declares them by hand.
   Kover `excludes` for DTOs, DI modules, screens and widgets (plan §6.1).
   *Verify:* `./gradlew detekt ktlintCheck koverXmlReport`
+  *Note:* **the unit test task is `testAndroidHostTest`, not `testDebugUnitTest` or `jvmTest`** —
+  every later verify line was rewritten. Two things had to be fixed for the gates to be real, both
+  latent in TaigaMobileNova too:
+  (a) `com.android.kotlin.multiplatform.library` creates **no** host-test compilation unless asked,
+  so `KmpLibraryConventionPlugin` now calls `withHostTestBuilder {}.configure { … }`. Without it
+  `commonTest` belongs to no compilation and no test task exists at all — the reference projects
+  never hit this because they get their test task from `jvm()`.
+  (b) detekt's default source set is `src/main/{java,kotlin}`, which no KMP module has, so every
+  `:module:detekt` was `NO-SOURCE`; `configureLinting()` now sets `source.setFrom(src/)`.
+  Also: Taiga's `detekt.yml` carries a stale `potential-bugs>Deprecation>excludeImportStatements`
+  key that detekt 2.0.0-alpha.5 rejects — dropped from our copy.
+  `configureTests()` deliberately adds **only** the three deps the step names;
+  `kotlinx-coroutines-test` (needed for `runTest`) is **not** among them — it must arrive as
+  `api(libs.kotlinx.coroutines.test)` in `:testing`, as in Taiga. **Wire that in 0.6**, or the first
+  ViewModel test in 1.10 fails to compile.
+  `configureTests()`/`configureLinting()` were also wired into `AndroidApplicationConventionPlugin`
+  (Taiga doesn't) — `:androidApp` holds `MainActivity` and the Koin startup glue, and would
+  otherwise be the one module the gates never see. `configureTests()` no-ops its `commonTest` block
+  when there is no KMP extension. Kover is applied per-module in `configureKmp()` with **no**
+  `disabledForTestTasks` (Taiga disables the Android unit test tasks because it measures `jvmTest`;
+  Android host tests are our only coverage source). Root aggregates `kover(project(":composeApp"))`
+  — **0.6 must add every new module there**, or it is silently absent from coverage.
+  `settings.gradle.kts` was missing a trailing newline; ktlint caught it.
 
 - [ ] **0.6 — Module skeletons**
   Create every module directory with its `build.gradle.kts` and `.gitignore`, all empty, using the
@@ -127,7 +150,7 @@ Goal: an empty but correctly-structured project that builds, lints and tests.
   *Verify:* `./gradlew build`  ·  *Ref:* plan §2 (skip `core:crud` and the catalog features — not v1)
 
 - [ ] **0.7 — CI**
-  GitHub Actions: assemble + `jvmTest`/`testDebugUnitTest` + detekt + ktlintCheck on push and PR.
+  GitHub Actions: assemble + `allTests` + detekt + ktlintCheck on push and PR.
   *Verify:* workflow green.
 
 ---
@@ -139,14 +162,14 @@ Goal: username + password → the app holds a validated API key and shows the dr
 - [ ] **1.1 — core:logger, core:async-kmp, core:domain**
   `logcat()` + `LogPriority` + Timber-backed Android logger. Dispatcher qualifiers
   (`@IoDispatcher` etc). `resultOf {}` / `mapResult` extensions and the `WallosError` sealed class.
-  *Verify:* `./gradlew :core:domain:testDebugUnitTest`  ·  *Ref:* plan §4.3
+  *Verify:* `./gradlew :core:domain:testAndroidHostTest`  ·  *Ref:* plan §4.3
 
 - [ ] **1.2 — core:api: envelope parser + FormParams** ⭐
   `WallosEnvelopeParser` (404 → `UnsupportedEndpoint`; strip any prefix before the first `{` and
   log it; `success != true` → map by title; else decode) and `FormParams` with
   `flag()`/`literalTrue()`/`date()`. Pure classes, no Ktor. **Write the tests in the same step**,
   including the auth-title table from `WALLOS_API.md` §5.3 as a parameterized test.
-  *Verify:* `./gradlew :core:api:testDebugUnitTest`  ·  *Ref:* plan §4.2, §4.3, §4.4
+  *Verify:* `./gradlew :core:api:testAndroidHostTest`  ·  *Ref:* plan §4.2, §4.3, §4.4
   *This is the highest-value step in M1 — everything downstream trusts it.*
 
 - [ ] **1.3 — core:api: HTTP clients**
@@ -158,12 +181,12 @@ Goal: username + password → the app holds a validated API key and shows the dr
   root** (not `/api/`) with trailing-slash and subpath normalization. Plus `WallosApiClient`
   injecting `api_key` into every form POST, and the `@WebSessionHttpClient` **`@Factory`**
   (`followRedirects = false`, `HttpCookies`, no key injection).
-  *Verify:* `./gradlew :core:api:testDebugUnitTest`  ·  *Ref:* plan §4.1, §1.1
+  *Verify:* `./gradlew :core:api:testAndroidHostTest`  ·  *Ref:* plan §4.1, §1.1
 
 - [ ] **1.4 — core:storage**
   DataStore for base URL + API key, Keystore-backed. `ApiKeyStorage` with `isConnected: Flow<Boolean>`,
   `getKey()`, `setKey()`, `clear()`. No Room, no NetworkMonitor.
-  *Verify:* `./gradlew :core:storage:testDebugUnitTest`
+  *Verify:* `./gradlew :core:storage:testAndroidHostTest`
 
 - [ ] **1.5 — strings + uikit theme**
   `:strings` with `strings.xml` + the `RString` type alias. `:uikit` with the M3 theme, colour
@@ -183,7 +206,7 @@ Goal: username + password → the app holds a validated API key and shows the dr
   — taking `SavedStateConfiguration` as a **parameter** so this module imports no routes. Note
   `NavBackStack<NavKey>` is generic and `rememberViewModelStoreNavEntryDecorator<NavKey>()` needs
   its type argument. Port `NavigatorTest` too.
-  *Verify:* `./gradlew :core:navigation:testDebugUnitTest`  ·  *Ref:* plan §5.2, §5.5
+  *Verify:* `./gradlew :core:navigation:testAndroidHostTest`  ·  *Ref:* plan §5.2, §5.5
 
 - [ ] **1.8 — composeApp: drawer shell**
   `DrawerDestination`, `DrawerItem`, `IconSource`, `DrawerItemsBuilder`, `RouteConfig(Provider)`,
@@ -197,14 +220,14 @@ Goal: username + password → the app holds a validated API key and shows the dr
   200 → `InvalidCredentials`), `GET /profile.php`, extract `id="apikey"` by regex. `SetupRepository`:
   login → scrape → **validate via `api/status/version.php`** → persist key, discard session and
   password. **Tests in this step**, over recorded HTML fixtures.
-  *Verify:* `./gradlew :feature:setup:data:testDebugUnitTest`  ·  *Ref:* plan §1.1, `WALLOS_API.md` §9
+  *Verify:* `./gradlew :feature:setup:data:testAndroidHostTest`  ·  *Ref:* plan §1.1, `WALLOS_API.md` §9
 
 - [ ] **1.10 — feature:setup ui**
   `LoginRoute` (`@Serializable ... : NavKey`), `LoginScreen`, `LoginState` (data + callbacks),
   `LoginViewModel`. Fields: server URL, username, password + visibility toggle, Connect. Secondary
   "I have an API key" reveal. Errors attributed by failure layer (§1.1). `NeedsTotp` → message
   pointing at the key field. No top bar, no drawer.
-  *Verify:* `./gradlew :feature:setup:ui:testDebugUnitTest`
+  *Verify:* `./gradlew :feature:setup:ui:testAndroidHostTest`
 
 - [ ] **1.11 — Wire it up end to end**
   Startup branch: stored key → shell, else login. Login success → shell.
@@ -223,32 +246,32 @@ Goal: the list of real subscriptions, and a detail screen.
   `SubscriptionDTO` per `WALLOS_API.md` §3.1 (model `cancellation_date`, *not* the misspelled
   `cancelation_date`). Domain `Subscription` + `BillingCycle` enum (`DAYS/WEEKS/MONTHS/YEARS/ONE_TIME`,
   `ONE_TIME` read-only). `CurrencyDTO` + domain `Currency`.
-  *Verify:* `./gradlew :feature:subscriptions:domain:testDebugUnitTest`
+  *Verify:* `./gradlew :feature:subscriptions:domain:testAndroidHostTest`
 
 - [ ] **2.2 — utils:formatter**
   `decimal`: currency formatting, and parsing `monthly_cost`-style strings with thousands
   separators. `datetime`: `YYYY-MM-DD` parse/format, and cycle + frequency → "every 6 months".
   Tests in this step.
-  *Verify:* `./gradlew :utils:formatter:decimal:testDebugUnitTest :utils:formatter:datetime:testDebugUnitTest`
+  *Verify:* `./gradlew :utils:formatter:decimal:testAndroidHostTest :utils:formatter:datetime:testAndroidHostTest`
 
 - [ ] **2.3 — feature:subscriptions data**
   `SubscriptionsApi` (`get_subscriptions.php`, `get_currencies.php`, `get_subscription.php`),
   mappers, `SubscriptionsRepository` returning subscriptions already joined to their currency
   symbol. Fetch-on-demand, no cache. **Never** send filters together with `all-user-subscription`.
   Fake api + repository in `:testing`.
-  *Verify:* `./gradlew :feature:subscriptions:data:testDebugUnitTest`  ·  *Ref:* plan §7.1
+  *Verify:* `./gradlew :feature:subscriptions:data:testAndroidHostTest`  ·  *Ref:* plan §7.1
 
 - [ ] **2.4 — feature:subscriptions ui: list**
   `SubscriptionsRoute`, screen, state, ViewModel. Cards: logo (Coil,
   `{base}/images/uploads/logos/{logo}`), name, price + symbol, next payment, cycle text, inactive
   badge. Loading / empty / error states, pull-to-refresh. Top bar: title + `Menu`.
-  *Verify:* `./gradlew :feature:subscriptions:ui:testDebugUnitTest`
+  *Verify:* `./gradlew :feature:subscriptions:ui:testAndroidHostTest`
 
 - [ ] **2.5 — feature:subscriptions ui: detail**
   `SubscriptionDetailRoute(subscriptionId: Int)`, screen, state, ViewModel via
   `koinViewModel(parameters = { parametersOf(id) })`. All fields read-only. Top bar: name + `Back`,
   drawer gestures disabled.
-  *Verify:* `./gradlew :feature:subscriptions:ui:testDebugUnitTest`
+  *Verify:* `./gradlew :feature:subscriptions:ui:testAndroidHostTest`
 
 - [ ] **2.6 — Settings stub**
   Minimal settings screen with Disconnect (clear key → login). Second drawer item.
@@ -269,3 +292,8 @@ structural into the plan itself.
 | Step | What changed | Why |
 |---|---|---|
 | 0.2 | Gradle wrapper 9.1.0 → 9.6.1 (plan §3.2 only mentioned AGP) | AGP 9.3.1 requires Gradle ≥ 9.5.0 |
+| 0.5 | Unit test task is `testAndroidHostTest`; all verify lines rewritten | Dropping `jvm()` (0.3) left the AGP KMP host test as the only test task |
+| 0.5 | `KmpLibraryConventionPlugin` enables host tests via `withHostTestBuilder` | AGP's KMP library plugin creates no test compilation by default — `commonTest` was orphaned |
+| 0.5 | `configureLinting()` sets detekt's `source` to `src/` | detekt defaults to `src/main/kotlin`, so every KMP module was `NO-SOURCE` |
+| 0.5 | Kover keeps Android unit test instrumentation enabled | Taiga disables it because it measures `jvmTest`; we have no jvm target |
+| 0.5 | `:androidApp` gets `configureTests()`/`configureLinting()` (Taiga doesn't) | Otherwise `MainActivity` and the Koin startup glue are never linted |

@@ -1,6 +1,8 @@
 import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension
 import com.grappim.wallosmobile.buildlogic.configureKmp
 import com.grappim.wallosmobile.buildlogic.configureKmpCompose
+import com.grappim.wallosmobile.buildlogic.configureLinting
+import com.grappim.wallosmobile.buildlogic.configureTests
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.ExtensionAware
@@ -17,6 +19,8 @@ class KmpLibraryComposeConventionPlugin : Plugin<Project> {
             }
             configureKmp()
             configureKmpCompose()
+            configureTests()
+            configureLinting()
             enableAndroidResources()
         }
     }

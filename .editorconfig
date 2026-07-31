@@ -1,0 +1,43 @@
+root = true
+
+[*]
+indent_size = 4
+
+[*.{kt,kts}]
+ktlint_code_style=android_studio
+ktlint_function_naming_ignore_when_annotated_with = Composable, Test
+ij_kotlin_imports_layout=*,java.**,javax.**,kotlin.**,^
+ktlint_compose_lambda-param-in-effect=disabled
+ktlint_compose_multiple-emitters-check=disabled
+compose_allowed_composition_locals = LocalTopBarConfig
+max_line_length = 120
+ktlint_standard_kdoc = disabled
+
+[**/*Screen.kt]
+ktlint_compose_modifier-missing-check=disabled
+
+[**/*Content.kt]
+ktlint_compose_modifier-missing-check=disabled
+
+[**/uikit/theme/Colors.kt]
+ktlint_standard_property-naming = disabled
+
+[**/Theme.kt]
+ktlint_compose_modifier-missing-check=disabled
+
+[**/Modifiers.kt]
+ktlint_compose_modifier-composed-check=disabled
+
+[**/generated/**]
+generated_code = true
+ij_formatter_enabled = false
+ktlint = disabled
+
+[**/testing/**]
+ktlint = disabled
+
+[**/MainScreen.kt]
+ktlint_compose_vm-forwarding-check=disabled
+
+[**/Koin.android.kt]
+ktlint_standard_filename=disabled
