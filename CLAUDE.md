@@ -41,7 +41,12 @@ aren't ticked, and don't expand scope beyond the step.
 ./gradlew allTests                           # all KMP module tests
 ./gradlew :module:path:testAndroidHostTest   # one module
 ./gradlew detekt ktlintCheck                 # must pass before ticking a step
+./gradlew :module:path:ktlintFormat          # fix style — don't hand-format
 ./gradlew koverHtmlReport                    # coverage
+
+# ktlint's `standard:function-signature` rule collapses any signature that fits in 120 chars back
+# onto one line, so hand-wrapping a parameter list "for readability" fails `ktlintCheck`. Write it
+# either way and let `ktlintFormat` decide.
 
 # There is no `jvmTest` and no `testDebugUnitTest`. WallosMobile declares no `jvm()` target, so
 # the only unit test task is the AGP KMP host test — `testAndroidHostTest`, source set
@@ -88,7 +93,8 @@ vertical slices, **all source in `commonMain`**.
   Every new route must also be registered in the polymorphic `SerializersModule` in
   `NavKeySerializers.kt`, or back-stack restore breaks silently on process death.
 - **Tests use hand-written fakes in `:testing`. No mocking library — no MockK, no Mockito,
-  anywhere.** `kotlin.test` + Turbine. Fake/fixture shape: plan §6.1.
+  anywhere.** `kotlin.test` + Turbine. Fake/fixture shape: plan §6.1. `:testing` is for doubles
+  **other** modules need; a double used by exactly one test file stays private in that file.
 
 ## UI state and events
 
@@ -140,6 +146,10 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
 - **Never use bare `try/catch (Exception)` in coroutines** — it swallows `CancellationException`
   and breaks structured concurrency. Use `resultOf` from `core.domain`.
 - **Never swallow an exception silently.** Every `catch` at minimum logs.
+- `logcat { }` from `core:logger` has two overloads, and **inside a class body it always resolves
+  to the `Any.logcat` extension**, which tags the line with the receiver's `simpleName`. The
+  receiverless overload (tag stays `null`) is only reachable from top-level code — passing
+  `tag = "…"` is the only way to override it from a class.
 - Repository/use-case calls go through `resultOf`; errors reach UI state as `NativeText` via
   `getErrorMessage()`.
 

@@ -32,7 +32,7 @@ class KmpLibraryConventionPlugin : Plugin<Project> {
                     // compilation, the test dependencies from `configureTests()` are inert,
                     // and there is no test task to run. The reference projects don't need it
                     // because they get their test task from a `jvm()` target — WallosMobile
-                    // is Android-only, so `testDebugUnitTest` is it.
+                    // is Android-only, so `testAndroidHostTest` is it.
                     withHostTestBuilder {}.configure {
                         isReturnDefaultValues = true
                         isIncludeAndroidResources = true

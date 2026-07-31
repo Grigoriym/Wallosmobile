@@ -436,8 +436,10 @@ It implements, in order:
 
 ### 4.3 Error mapping
 
-`WallosError` as a sealed class in `core:domain`, mapped by title per §5.6 of the API doc. Two
-rules are worth encoding as tests, because getting either wrong is a user-visible bug:
+`WallosError` as a sealed class in `core:domain`, mapped by title per §5.6 of the API doc. The
+**mapping function is not in `core:domain`** — it ships next to `WallosEnvelopeParser` in
+`core:api`, the only caller, so `core:domain` stays free of API knowledge. Two rules are worth
+encoding as tests, because getting either wrong is a user-visible bug:
 
 - `Invalid API key`, `Unauthorized`, `Missing API key` → **`Unauthenticated`**: clear the stored
   key and return to setup.
@@ -447,6 +449,11 @@ rules are worth encoding as tests, because getting either wrong is a user-visibl
 
 Turn the auth-failure table (API doc §5.3) into a parameterized test — it is eleven rows of
 endpoint-specific inconsistency and the only defense against regression is asserting it directly.
+
+`resultOf` and `mapResult` (also `core:domain`) are Taiga's with two fixes: `mapResult` goes
+through `fold`, because Taiga's `getOrNull() != null` check turns a *successful* `null` into a
+failure; and there is no separate `catch (TimeoutCancellationException)`, since it is a
+`CancellationException` and the earlier clause already rethrows it.
 
 ### 4.4 Encoding quirks worth a type
 

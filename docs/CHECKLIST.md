@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `0/11` · M2 `0/7`
-**Current step:** 1.1
+**Progress:** M0 `7/7` · M1 `1/11` · M2 `0/7`
+**Current step:** 1.2
 
 ---
 
@@ -185,10 +185,29 @@ Goal: an empty but correctly-structured project that builds, lints and tests.
 
 Goal: username + password → the app holds a validated API key and shows the drawer shell.
 
-- [ ] **1.1 — core:logger, core:async-kmp, core:domain**
+- [x] **1.1 — core:logger, core:async-kmp, core:domain**
   `logcat()` + `LogPriority` + Timber-backed Android logger. Dispatcher qualifiers
   (`@IoDispatcher` etc). `resultOf {}` / `mapResult` extensions and the `WallosError` sealed class.
   *Verify:* `./gradlew :core:domain:testAndroidHostTest`  ·  *Ref:* plan §4.3
+  *Note:* **`TimberLogger.install()` exists but nothing calls it**, so every `logcat` is still a
+  no-op — `androidApp` has `MainActivity` and no `Application` class. Wire it in with the Koin
+  startup glue (1.11), or the whole app logs nothing and no test will catch it.
+  Taiga's `TaigaLogger` is `WallosLogger` here; `logcat`'s two overloads survive unchanged, but
+  **inside a class body `logcat { … }` always resolves to the `Any.logcat` extension** (tag =
+  receiver's `simpleName`) — the receiverless one is only reachable from top-level code. A test
+  asserting `tag == null` from inside a test class fails; that's the resolution working, not a bug.
+  Two divergences from Taiga's `ResultExtension.kt`, both proven by test: `mapResult` uses
+  `fold` instead of `getOrNull() != null`, which was wrong for a `Result` whose success value is
+  `null`; and the separate `catch (TimeoutCancellationException)` clause is gone, since it is a
+  `CancellationException` subclass and therefore unreachable.
+  `mapError(title, detail)` is **not** in this step — the sealed class lives in `core:domain`
+  (plan §4.3) but the title→error mapping ships with the parser in `core:api` (1.2), which is where
+  the §5.3 table test belongs. `UnsupportedEndpoint` is a `data object`, so logs get a real
+  `toString()`.
+  No new plugins were needed: `core:domain` stays `kmp.library` alone (no injected use cases yet),
+  `core:async-kmp` already had `kmp.di` from 0.6, and Taiga's `ThreadSafeMap` + `atomicfu` were
+  **not** ported — nothing needs them yet. `core:logger` is the one non-feature module with an
+  `androidMain` (Timber), as in Taiga.
 
 - [ ] **1.2 — core:api: envelope parser + FormParams** ⭐
   `WallosEnvelopeParser` (404 → `UnsupportedEndpoint`; strip any prefix before the first `{` and
@@ -326,3 +345,4 @@ structural into the plan itself.
 | 0.6 | `uikit` also takes `api(compose.components.resources)`, not just `strings` | `generateResClass = always` emits a `Res` class that won't compile without it — *folded into plan §3.3* |
 | 0.6 | `core:serialization` (plan §2) not created | Not in this step's module list; no custom serializer needed until 1.2 |
 | 0.7 | CI runs no Kover/Codecov step (Taiga's `code_analysis.yml` does) | Step names four tasks; the upload needs a `CODECOV_TOKEN` this repo doesn't have — *now in plan §3.5* |
+| 1.1 | `mapResult` uses `fold`; no `TimeoutCancellationException` catch clause | Taiga's null-check loses a `null` success value, and the extra clause is unreachable — *now in plan §4.3* |

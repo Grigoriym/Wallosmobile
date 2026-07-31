@@ -13,7 +13,7 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
  * here, and nowhere else, when those apps arrive.
  */
 fun Project.configureKmp() {
-    // Android-only, so `testDebugUnitTest` is the *only* source of coverage — unlike
+    // Android-only, so `testAndroidHostTest` is the *only* source of coverage — unlike
     // TaigaMobileNova, which disables instrumentation for the Android unit test tasks
     // because it measures coverage on `jvmTest`.
     pluginManager.apply("org.jetbrains.kotlinx.kover")
