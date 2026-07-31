@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `1/7` · M1 `0/11` · M2 `0/7`
-**Current step:** 0.2
+**Progress:** M0 `3/7` · M1 `0/11` · M2 `0/7`
+**Current step:** 0.4
 
 ---
 
@@ -52,19 +52,44 @@ Goal: an empty but correctly-structured project that builds, lints and tests.
   the two iOS targets and a `Shared` framework — 0.3 replaces that file. `MainActivity.setContent`
   is empty until 1.8.
 
-- [ ] **0.2 — Version catalog**
+- [x] **0.2 — Version catalog**
   Replace `gradle/libs.versions.toml` with TaigaMobileNova's, plus MealieMobile's nav3 entries
   (`jetbrainsNav3 = "1.1.1"`, `jetbrains-navigation3-ui`, `jetbrains-lifecycle-viewmodelNavigation3`,
   `jetbrains-androidx-savedstate`). Drop Taiga's `jetbrainsNavigationCompose` — that's nav2. Set
   `app-pkg = "com.grappim.wallosmobile"`, JDK 21, `minSdk` 24.
   *Verify:* `./gradlew :androidApp:assembleDebug`  ·  *Ref:* plan §3.2, §5.1
+  *Note:* AGP 9.3.1 needs Gradle ≥ 9.5, so the wrapper went 9.1.0 → **9.6.1** (both reference
+  projects are on 9.6.1). The wizard's `build.gradle.kts` files now use Taiga's alias names
+  (`libs.plugins.android.application`, `libs.jetbrains.compose.*`, `libs.versions.compileSdk`) and
+  `JVM_21` / `VERSION_21` — 0.3 replaces them anyway. `jetbrains-lifecycle-viewmodelNavigation3`
+  reuses Taiga's `jetbrainsAndroidxLifecycle = "2.11.0"` (same value as Mealie's
+  `jetbrainsComposeLifecycle`), so no second lifecycle version entry. Koin's
+  `koin-compose-navigation3` is **not** in the catalog yet — add it when 1.8 needs `koinViewModel`
+  inside nav3 entries.
 
-- [ ] **0.3 — build-logic: base plugins**
+- [x] **0.3 — build-logic: base plugins**
   Create `build-logic/` with `convention/build.gradle.kts` and `settings.gradle.kts`; port
   `KmpConfiguration.kt`, `KotlinConfiguration.kt`, `ProjectExtensions.kt`,
   `AndroidApplicationConventionPlugin`, `KmpLibraryConventionPlugin`. **`configureKmp()` declares
   `androidTarget()` only** — no `jvm()`, no iOS. Register as `wallosmobile.*` plugin ids.
   *Verify:* `./gradlew :androidApp:assembleDebug`  ·  *Ref:* plan §3.1
+  *Note:* there is **no literal `androidTarget()` call** — for KMP library modules the Android
+  target is declared by `com.android.kotlin.multiplatform.library` (configured in
+  `KmpLibraryConventionPlugin` via `KotlinMultiplatformAndroidLibraryExtension`), so Android-only
+  means `configureKmp()` adds *no* targets at all. Kover, `configureTests()` and
+  `configureLinting()` were deliberately left out — 0.5 owns them, and `convention/build.gradle.kts`
+  so far declares only `android.gradlePlugin` + `kotlin.gradlePlugin`; 0.4/0.5 add the compose,
+  detekt, ktlint and kover `compileOnly` deps. `configureKmp()`'s `core:logger` dependency is
+  wrapped in a `findProject(":core:logger") != null` guard because the module doesn't exist until
+  0.6 — **drop the guard once it does**, or a mis-typed path fails silently.
+  `AndroidApplicationConventionPlugin` drops Taiga's flavors, signing configs and
+  `configureAndroidOutputNaming` (WallosMobile has none of those), but does apply the Koin compiler
+  plugin, so root `build.gradle.kts` gained `alias(libs.plugins.koin.compiler) apply false` — it
+  compiles fine with no Koin dependency present, only warning that Koin plugin 1.0.2's newest
+  tested Kotlin is 2.4.0 vs our 2.4.10. `composeApp/build.gradle.kts` is now nothing but
+  `alias(libs.plugins.wallosmobile.kmp.library)`; its Compose plugins and deps were dropped rather
+  than hand-rolled, since the module is source-less and **0.4 gives it Compose back** via
+  `kmp.library.compose`.
 
 - [ ] **0.4 — build-logic: feature plugins**
   Port `KmpLibraryComposeConventionPlugin` (incl. the `androidResources.enable = true` fix),
@@ -231,4 +256,4 @@ structural into the plan itself.
 
 | Step | What changed | Why |
 |---|---|---|
-| | | |
+| 0.2 | Gradle wrapper 9.1.0 → 9.6.1 (plan §3.2 only mentioned AGP) | AGP 9.3.1 requires Gradle ≥ 9.5.0 |

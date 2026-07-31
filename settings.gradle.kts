@@ -1,6 +1,7 @@
 rootProject.name = "Wallosmobile"
 
 pluginManagement {
+    includeBuild("build-logic")
     repositories {
         google {
             mavenContent {
