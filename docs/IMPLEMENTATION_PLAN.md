@@ -174,9 +174,27 @@ Port the six from TaigaMobileNova, renamed to a `wallosmobile.*` prefix:
 | `wallosmobile.kmp.serialization` | kotlinx.serialization |
 
 The **single edit point for platform targets** is `configureKmp()` in
-`build-logic/convention/src/main/kotlin/.../KmpConfiguration.kt`. For the Android-only phase it
-declares `androidTarget()` alone; `jvm()`, `iosArm64()` and `iosSimulatorArm64()` go in when those
-apps come back. Nothing outside `build-logic` mentions a target.
+`build-logic/convention/src/main/kotlin/.../KmpConfiguration.kt`. `jvm()`, `iosArm64()` and
+`iosSimulatorArm64()` go there, and nowhere else, when those apps come back. Nothing outside
+`build-logic` mentions a target.
+
+For the Android-only phase there is **no literal `androidTarget()` call**: KMP library modules get
+their Android target from `com.android.kotlin.multiplatform.library`, applied and configured in
+`KmpLibraryConventionPlugin`. So "Android-only" means `configureKmp()` declares *no* targets at
+all — it is still the single edit point, but the Android one arrives via the AGP plugin.
+
+Two things that plugin does **not** do for free, both of which silently disable a quality gate
+rather than failing (and both latent in the reference projects, which don't hit them because they
+have a `jvm()` target):
+
+- **It creates no host-test compilation.** Without `withHostTestBuilder {}.configure { … }` in
+  `KmpLibraryConventionPlugin`, `commonTest` belongs to no compilation, the test dependencies are
+  inert, and **no test task exists at all** — not a failing one, none. The unit test task is
+  `testAndroidHostTest`; there is no `jvmTest` and no `testDebugUnitTest`.
+- **detekt's default source set is `src/main/{java,kotlin}`**, which no KMP module has, so every
+  `:module:detekt` reports `NO-SOURCE` and lints nothing. `configureLinting()` sets
+  `source.setFrom(layout.projectDirectory.dir("src"))` to cover `commonMain`, `commonTest` and any
+  platform source set.
 
 **Discipline that makes this cheap:** no `androidMain` source set in feature modules. If a feature
 needs a platform capability, it declares an `expect` in `commonMain` and the `actual` lives in
@@ -189,6 +207,8 @@ Adopt TaigaMobileNova's `libs.versions.toml` wholesale rather than the wizard's 
 the conventions are written against it. Notable deltas from the current scaffold:
 
 - AGP `9.0.1` → `9.3.1`, Java 11 → **JDK 21** (`jvmToolchain(21)`), `compileSdk` 36 → 37
+- **Gradle wrapper `9.1.0` → `9.6.1`** — AGP 9.3.1 requires Gradle ≥ 9.5, and both reference
+  projects are already on 9.6.1
 - Add: Koin + koin-compiler-plugin, Ktor, Room + BundledSQLiteDriver, DataStore, Coil 3,
   BuildKonfig, Timber, detekt, ktlint, kover, compose-rules
 - **Navigation 3 comes from MealieMobile's catalog, not Taiga's** — Taiga is on nav2. Take
@@ -261,8 +281,11 @@ Three details that are easy to miss and annoying to diagnose:
       publicResClass = true
   }
   ```
-  `strings` additionally uses `api(libs.jetbrains.compose.components.resources)` — `api`, not
-  `implementation`, so consumers can resolve `StringResource`.
+  **Both** modules additionally need `api(libs.jetbrains.compose.components.resources)`, and `api`
+  rather than `implementation` so consumers can resolve `StringResource` / `DrawableResource`
+  themselves. It is not optional in either module: `generateResClass = always` emits a `Res` class
+  referencing `org.jetbrains.compose.resources.*`, so without the dependency the module fails to
+  compile on its own *generated* source.
 - **`core:navigation` takes the Compose plugin here**, unlike Taiga's (which holds only
   extension functions). Ours holds `NavigationState` and `toEntries()`, which are `@Composable`.
 
@@ -805,7 +828,9 @@ Restructure the wizard scaffold: delete `desktopApp`/`iosApp`/sample files, rena
 nav3 wired into `configureKmpCompose()` (§5.1). Adopt Taiga's version catalog plus Mealie's nav3
 entries. Stand up empty `core:*`, `utils:*`, `uikit`, `strings`, `testing`.
 Wire detekt + ktlint + kover + compose-rules, and a GitHub Actions build/test workflow.
-*Done when:* `./gradlew :androidApp:assembleDebug` and `./gradlew jvmTest` both pass on a stub app.
+*Done when:* `./gradlew build` and `./gradlew allTests` both pass on a stub app. (There is no
+`jvmTest` — see §3.1; the per-module unit test task is `testAndroidHostTest`, and `allTests`
+fans out to it.)
 
 ### Phase 1 — Login (screen 1)
 `core:api`: `WallosApiClient`, `WallosEnvelopeParser`, `WallosError` mapping, `FormParams`.
@@ -897,8 +922,8 @@ Re-enable the iOS and Desktop targets in `configureKmp()` and restore the entry-
 - **DI mechanism** — `io.insert-koin.compiler.plugin`, never KSP for DI. Confirmed: both
   TaigaMobileNova and MealieMobile use it, with identical `KmpDiConventionPlugin`s. The
   `koin-ksp-compiler` entry in Mealie's catalog is unused. (KSP is still needed for Room.)
-- **Android-only targets** — `configureKmp()` declares `androidTarget()` only. iOS and Desktop
-  return in Phase 6.
+- **Android-only targets** — `configureKmp()` declares no targets at all; the Android one comes
+  from the AGP KMP library plugin (§3.1). iOS and Desktop return in Phase 6.
 - **nav3 placement** — `NavigationState`/`Navigator`/`toEntries()` live in `core:navigation`
   (§5.2), not in `composeApp` as MealieMobile has them, so `Navigator` stays unit-testable.
 - **Shell** — `ModalNavigationDrawer`, not bottom navigation, matching both reference apps (§5.4).
