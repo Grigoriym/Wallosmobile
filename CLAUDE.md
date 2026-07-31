@@ -53,6 +53,10 @@ aren't ticked, and don't expand scope beyond the step.
 ./gradlew :androidApp:compileDebugKotlin --rerun-tasks
 ```
 
+CI (`.github/workflows/ci.yml`, plan §3.5) runs assemble + `allTests` + `detekt ktlintCheck` on
+push and PR to `master`, but `paths-ignore` skips `**.md` and `docs/**` — a docs-only commit
+produces **no run**, which is not a failure. Kover is local-only.
+
 ## Architecture
 
 `androidApp/` → `composeApp/` (DI root, drawer shell, nav) → `feature/` → `core/` → `utils/`.

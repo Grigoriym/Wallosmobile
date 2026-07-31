@@ -321,6 +321,27 @@ Each feature supplies its endpoint path, ID parameter alias and DTO. This keeps 
 data layers at roughly 30 lines each instead of 150, and gives one place to encode the
 "deleting an in-use item fails with `<Resource> in use`" rule.
 
+### 3.5 CI
+
+One workflow — `.github/workflows/ci.yml`, one job, on push and PR to `master`:
+
+```
+./gradlew :androidApp:assembleDebug
+./gradlew allTests
+./gradlew detekt ktlintCheck
+```
+
+Setup is JDK 21 (temurin) + `gradle/actions/setup-gradle` (cache *and* wrapper validation in one
+action, unlike Taiga's separate `wrapper-validation` + `actions/cache` steps) +
+`android-actions/setup-android`. No composite action: Taiga extracts one because it runs two
+workflows, and there is nothing here to share it with. No secrets either — WallosMobile has no
+flavors, no signing configs and no `google-services.json`, so a debug build needs nothing
+restored.
+
+Two deliberate omissions: **Kover/Codecov is not in CI** (the upload wants a `CODECOV_TOKEN` this
+repo doesn't have; `koverXmlReport` stays a local command), and `paths-ignore` skips `**.md` and
+`docs/**`, so a **docs-only commit produces no run** — an absent run is not a failed one.
+
 ---
 
 ## 4. `core:api` — the load-bearing module
@@ -827,7 +848,7 @@ Restructure the wizard scaffold: delete `desktopApp`/`iosApp`/sample files, rena
 `composeApp`. Port `build-logic` with the six convention plugins and Android-only targets, with
 nav3 wired into `configureKmpCompose()` (§5.1). Adopt Taiga's version catalog plus Mealie's nav3
 entries. Stand up empty `core:*`, `utils:*`, `uikit`, `strings`, `testing`.
-Wire detekt + ktlint + kover + compose-rules, and a GitHub Actions build/test workflow.
+Wire detekt + ktlint + kover + compose-rules, and a GitHub Actions build/test workflow (§3.5).
 *Done when:* `./gradlew build` and `./gradlew allTests` both pass on a stub app. (There is no
 `jvmTest` — see §3.1; the per-module unit test task is `testAndroidHostTest`, and `allTests`
 fans out to it.)

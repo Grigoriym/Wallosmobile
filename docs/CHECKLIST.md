@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `6/7` · M1 `0/11` · M2 `0/7`
-**Current step:** 0.7
+**Progress:** M0 `7/7` · M1 `0/11` · M2 `0/7`
+**Current step:** 1.1
 
 ---
 
@@ -167,9 +167,17 @@ Goal: an empty but correctly-structured project that builds, lints and tests.
   adding new modules there. `TYPESAFE_PROJECT_ACCESSORS` was verified live
   (`projects.core.asyncKmp`, `projects.utils.formatter.datetime` both resolve).
 
-- [ ] **0.7 — CI**
+- [x] **0.7 — CI**
   GitHub Actions: assemble + `allTests` + detekt + ktlintCheck on push and PR.
   *Verify:* workflow green.
+  *Note:* one workflow, `.github/workflows/ci.yml`, one job, four gradle steps — no composite
+  action (Taiga needs one because it has two workflows sharing setup) and no secrets, since a
+  debug build signs itself. `gradle/actions/setup-gradle@v6` replaces Taiga's separate
+  `wrapper-validation` + `actions/cache` pair. **`paths-ignore: ['**.md', 'docs/**']` means a
+  docs-only commit gets no CI run at all** — fine for step close-outs, but don't read a missing
+  run as a failure. Kover/Codecov is deliberately *not* in CI (this step names four tasks; Taiga's
+  upload needs a `CODECOV_TOKEN` this repo doesn't have). Cold run ≈ 8 min.
+  **M0 done.**
 
 ---
 
@@ -317,3 +325,4 @@ structural into the plan itself.
 | 0.5 | `:androidApp` gets `configureTests()`/`configureLinting()` (Taiga doesn't) | Otherwise `MainActivity` and the Koin startup glue are never linted |
 | 0.6 | `uikit` also takes `api(compose.components.resources)`, not just `strings` | `generateResClass = always` emits a `Res` class that won't compile without it — *folded into plan §3.3* |
 | 0.6 | `core:serialization` (plan §2) not created | Not in this step's module list; no custom serializer needed until 1.2 |
+| 0.7 | CI runs no Kover/Codecov step (Taiga's `code_analysis.yml` does) | Step names four tasks; the upload needs a `CODECOV_TOKEN` this repo doesn't have — *now in plan §3.5* |
