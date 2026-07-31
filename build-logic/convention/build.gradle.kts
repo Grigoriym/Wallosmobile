@@ -27,6 +27,8 @@ tasks {
 dependencies {
     compileOnly(libs.android.gradlePlugin)
     compileOnly(libs.kotlin.gradlePlugin)
+    compileOnly(libs.compose.gradlePlugin)
+    compileOnly(libs.compose.multiplatform.gradlePlugin)
 }
 
 gradlePlugin {
@@ -38,6 +40,22 @@ gradlePlugin {
         register("kmpLibrary") {
             id = libs.plugins.wallosmobile.kmp.library.asProvider().get().pluginId
             implementationClass = "KmpLibraryConventionPlugin"
+        }
+        register("kmpLibraryCompose") {
+            id = libs.plugins.wallosmobile.kmp.library.compose.get().pluginId
+            implementationClass = "KmpLibraryComposeConventionPlugin"
+        }
+        register("kmpSerialization") {
+            id = libs.plugins.wallosmobile.kmp.serialization.get().pluginId
+            implementationClass = "KmpSerializationConventionPlugin"
+        }
+        register("kmpDi") {
+            id = libs.plugins.wallosmobile.kmp.di.get().pluginId
+            implementationClass = "KmpDiConventionPlugin"
+        }
+        register("kmpNetwork") {
+            id = libs.plugins.wallosmobile.kmp.network.get().pluginId
+            implementationClass = "KmpNetworkConventionPlugin"
         }
     }
 }

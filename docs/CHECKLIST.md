@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `3/7` · M1 `0/11` · M2 `0/7`
-**Current step:** 0.4
+**Progress:** M0 `4/7` · M1 `0/11` · M2 `0/7`
+**Current step:** 0.5
 
 ---
 
@@ -91,11 +91,23 @@ Goal: an empty but correctly-structured project that builds, lints and tests.
   than hand-rolled, since the module is source-less and **0.4 gives it Compose back** via
   `kmp.library.compose`.
 
-- [ ] **0.4 — build-logic: feature plugins**
+- [x] **0.4 — build-logic: feature plugins**
   Port `KmpLibraryComposeConventionPlugin` (incl. the `androidResources.enable = true` fix),
   `KmpDiConventionPlugin`, `KmpNetworkConventionPlugin`, `KmpSerializationConventionPlugin`. Add
   the three nav3 deps to `configureKmpCompose()`.
   *Verify:* `./gradlew :androidApp:assembleDebug`  ·  *Ref:* plan §3.1, §5.1
+  *Note:* `KmpLibraryComposeConventionPlugin` does **not** call `configureTests()`/`configureLinting()`
+  yet — **0.5 must wire them into both `KmpLibraryConventionPlugin` and this one**, or Compose
+  modules get no test deps. Root `build.gradle.kts` gained
+  `alias(libs.plugins.kotlin.serialization) apply false` (same classpath reason as `koin.compiler`).
+  `configureKmpCompose()` drops Taiga's `jvmMain`/desktop block and its `jetbrains.compose.navigation`
+  (nav2); Mealie's extra `ui-graphics`/`animation`/`icons` entries have no catalog aliases here and
+  were not added — add them if a screen needs them. `KmpNetwork` keeps only `commonMain` (ktor-core)
+  + `androidMain` (okhttp). Both `kmp.di` and `kmp.network` configure `androidMain.dependencies`, so
+  **a module must apply `kmp.library` first** (it brings `com.android.kotlin.multiplatform.library`,
+  which creates that source set). `composeApp` is now `kmp.library` + `kmp.library.compose`.
+  All five plugins were verified together on `composeApp` (deps resolved: nav3, savedstate, Koin BOM,
+  ktor okhttp, serialization-json), then it was reverted to the two it actually needs.
 
 - [ ] **0.5 — Quality gates**
   detekt + ktlint + compose-rules + kover, `config/detekt/`, `.editorconfig`. Wire `configureTests()`
