@@ -142,7 +142,7 @@ feature/
   dashboard/      data domain dto ui      Monthly cost, period budget, upcoming payments
   categories/     data domain dto ui      \
   currencies/     data domain dto ui       |  Reference data. Identical CRUD shape —
-  paymentmethods/ data domain dto ui       |  see §3.3 on core:crud
+  paymentmethods/ data domain dto ui       |  see §3.4 on core:crud
   household/      data domain dto ui      /
   settings/       data domain dto ui      Display settings (server) + app settings (local)
   profile/        data domain dto ui      get_user, set_budget
@@ -199,7 +199,78 @@ the conventions are written against it. Notable deltas from the current scaffold
 Keep the `# https://github.com/.../releases` comment above each version — Taiga's catalog does
 this and it makes upgrades a skim rather than a search.
 
-### 3.3 `core:crud` — the one deliberate deviation
+### 3.3 Module templates
+
+Every module of a given layer gets the same plugin set. This is identical in TaigaMobileNova and
+MealieMobile, so it ports verbatim — only the plugin prefix changes.
+
+| Module | Plugins |
+|---|---|
+| `feature:*:ui` | `kmp.library` + `kmp.library.compose` + `kmp.di` + `kmp.serialization` |
+| `feature:*:data` | `kmp.library` + `kmp.di` + `kmp.network` (+ `kmp.serialization` if it builds JSON itself) |
+| `feature:*:domain` | `kmp.library` (+ `kmp.di` only if it holds injected use cases) |
+| `feature:*:dto` | `kmp.library` + `kmp.serialization` |
+| `feature:*:mapper` | `kmp.library` + `kmp.di` |
+| `uikit`, `strings` | `kmp.library` + `kmp.library.compose` |
+| `utils:ui` | `kmp.library` + `kmp.library.compose` + `kmp.di` + `kmp.serialization` |
+| `core:api` | `kmp.library` + `kmp.di` + `kmp.network` + `kmp.serialization` |
+| `core:navigation` | `kmp.library` + `kmp.library.compose` |
+| `testing` | `kmp.library` + `kmp.serialization` + `kmp.network` |
+
+Standard dependency sets:
+
+```kotlin
+// feature/NAME/ui
+commonMain.dependencies {
+    implementation(projects.strings)
+    implementation(projects.uikit)
+    implementation(projects.utils.ui)
+    implementation(projects.core.navigation)
+    implementation(projects.feature.NAME.domain)
+    implementation(libs.jetbrains.compose.icons.extended)   // if using icons
+}
+
+// feature/NAME/data
+commonMain.dependencies {
+    implementation(projects.core.api)
+    implementation(projects.core.domain)
+    implementation(projects.core.storage)
+    implementation(projects.core.asyncKmp)
+    implementation(projects.feature.NAME.domain)
+    implementation(projects.feature.NAME.dto)
+}
+
+// feature/NAME/mapper
+commonMain.dependencies {
+    implementation(projects.core.domain)
+    implementation(projects.feature.NAME.domain)
+    implementation(projects.feature.NAME.dto)
+}
+```
+
+Three details that are easy to miss and annoying to diagnose:
+
+- **`ui` modules need `kmp.serialization`** even when they parse nothing — routes are
+  `@Serializable ... : NavKey`.
+- **`uikit` and `strings` must expose their generated resource class.** Without this, `RDrawable`
+  and `RString` aren't visible to other modules:
+  ```kotlin
+  compose.resources {
+      packageOfResClass = "com.grappim.wallosmobile.uikit.generated.resources"
+      generateResClass = always
+      publicResClass = true
+  }
+  ```
+  `strings` additionally uses `api(libs.jetbrains.compose.components.resources)` — `api`, not
+  `implementation`, so consumers can resolve `StringResource`.
+- **`core:navigation` takes the Compose plugin here**, unlike Taiga's (which holds only
+  extension functions). Ours holds `NavigationState` and `toEntries()`, which are `@Composable`.
+
+Everything else — coroutines, immutable collections, datetime, `core:logger`, `kotlin("test")`,
+Turbine and `:testing` — arrives through `kmp.library`/`configureTests()`. Modules never declare
+those by hand.
+
+### 3.4 `core:crud` — the one deliberate deviation
 
 Categories, currencies, household members and payment methods are four separate feature modules
 (matching Taiga's granularity, since each gets its own screen), but their API contract is
@@ -812,17 +883,28 @@ Re-enable the iOS and Desktop targets in `configureKmp()` and restore the entry-
 
 ## 10. Open decisions
 
-1. **Catalog module granularity.** §3.3 proposes four feature modules over a shared `core:crud`.
-   The alternative is one `feature:catalog` module — less boilerplate, but it diverges from the
-   Taiga structure being mirrored.
-2. **Money representation.** `Double` + careful formatting is enough if the client never does
-   arithmetic beyond summation. If it does, KMP needs an external big-decimal library.
-3. **Android-only target now vs. declaring `jvm()` immediately.** Declaring JVM now costs one
-   line and keeps `commonMain` honest by making platform leakage a compile error rather than a
-   later discovery — at the cost of a slower build. Recommended if the iOS target is a real plan
-   rather than a maybe.
-4. **Splitting nav3 into `core:navigation`** (§5.2) vs. keeping everything in `composeApp/nav/`
-   as MealieMobile does. The split buys unit-testable `Navigator`/`NavigationState`; the cost is
-   one more module and a `SavedStateConfiguration` parameter threaded through
-   `rememberNavigationState`. Staying with Mealie's layout is the lower-friction choice if
-   consistency across the two projects matters more.
+### Still open
+
+1. **Money representation** — *needed at checklist step 2.2.* `Double` + careful formatting is
+   enough if the client never does arithmetic beyond summation. If it does, KMP needs an external
+   big-decimal library.
+2. **Catalog module granularity** — *not needed until Phase 3.* §3.4 proposes four feature modules
+   over a shared `core:crud`. The alternative is one `feature:catalog` module — less boilerplate,
+   but it diverges from the Taiga structure being mirrored.
+
+### Settled
+
+- **DI mechanism** — `io.insert-koin.compiler.plugin`, never KSP for DI. Confirmed: both
+  TaigaMobileNova and MealieMobile use it, with identical `KmpDiConventionPlugin`s. The
+  `koin-ksp-compiler` entry in Mealie's catalog is unused. (KSP is still needed for Room.)
+- **Android-only targets** — `configureKmp()` declares `androidTarget()` only. iOS and Desktop
+  return in Phase 6.
+- **nav3 placement** — `NavigationState`/`Navigator`/`toEntries()` live in `core:navigation`
+  (§5.2), not in `composeApp` as MealieMobile has them, so `Navigator` stays unit-testable.
+- **Shell** — `ModalNavigationDrawer`, not bottom navigation, matching both reference apps (§5.4).
+
+### Superseded
+
+- ~~Declaring `jvm()` immediately to keep `commonMain` honest~~ — replaced by the stricter rule
+  that feature modules have no `androidMain` at all (§3.1), which catches the same leakage without
+  the build cost.

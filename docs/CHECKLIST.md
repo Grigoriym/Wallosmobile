@@ -26,22 +26,17 @@ context, with no memory of previous sessions.
 
 ## Ground rules (apply to every step)
 
-- Package root `com.grappim.wallosmobile`. Module namespace follows the Gradle path.
-- All code in `commonMain` unless it genuinely cannot be. No `androidMain` in feature modules —
-  use `expect`/`actual` if a platform capability is needed.
-- Android is the only enabled target. Targets are declared **only** in `configureKmp()`.
-- DI is Koin with `io.insert-koin.compiler.plugin`. **Never KSP for DI.** One
-  `@Module @Configuration @ComponentScan` class per module.
-- Nav3, not nav2. `org.jetbrains.androidx.navigation3:*` in `commonMain`, never `androidx.navigation3:*`.
-- Strings go in `:strings` as CMP resources; ViewModels expose `NativeText`.
-- **Tests use hand-written fakes in `:testing`. No mocking library — no MockK, no Mockito, in any
-  source set.** `kotlin.test` assertions, Turbine for flows. Fakes expose a settable `xxxResult`,
-  record calls in a `xxxCalls` list, and `error("xxxResult not set")` when unconfigured. Fixtures
-  are `getXxx()` builders with randomized defaults and overridable params. See plan §6.1.
+**`CLAUDE.md` at the repo root holds the coding conventions** — KMP/DI/nav3 rules, Compose rules,
+error handling, strings, and the think-before-coding / simplicity / surgical-changes guidelines.
+It loads automatically; don't duplicate it here. Checklist-specific rules only:
+
+- Do **exactly** the step. Don't pull work forward from a later step because it's convenient.
 - `./gradlew detekt ktlintCheck` must pass before a step is ticked.
-- Reference projects, read them rather than guessing:
+- A step that adds logic adds its tests in the **same** step — hand-written fakes in `:testing`,
+  no mocking library (plan §6.1).
+- Read the reference projects rather than guessing:
   `/home/gregory/proj/grappim/TaigaMobileNova` (structure, build-logic, networking)
-  `/home/gregory/proj/grappim/MealieMobile` (nav3, drawer, top bar)
+  `/home/gregory/proj/grappim/MealieMobile` (nav3, drawer, top bar, templates in its `CLAUDE.md`)
 
 ---
 
@@ -82,8 +77,10 @@ Goal: an empty but correctly-structured project that builds, lints and tests.
   *Verify:* `./gradlew detekt ktlintCheck koverXmlReport`
 
 - [ ] **0.6 — Module skeletons**
-  Create every module directory with its `build.gradle.kts` and `.gitignore`, all empty, and
-  register in `settings.gradle.kts` with `TYPESAFE_PROJECT_ACCESSORS` enabled:
+  Create every module directory with its `build.gradle.kts` and `.gitignore`, all empty, using the
+  **per-layer plugin sets in plan §3.3** (don't invent them — `ui` needs `kmp.serialization` for
+  routes, `uikit`/`strings` need the `compose.resources { publicResClass = true }` block). Register
+  in `settings.gradle.kts` with `TYPESAFE_PROJECT_ACCESSORS` enabled:
   `core:{api,domain,storage,navigation,async-kmp,appinfo-api,logger}`, `utils:{ui,formatter:decimal,formatter:datetime}`,
   `uikit`, `strings`, `testing`, `feature:setup:{data,domain,dto,ui}`,
   `feature:subscriptions:{data,domain,dto,mapper,ui}`.
@@ -129,8 +126,10 @@ Goal: username + password → the app holds a validated API key and shows the dr
   *Verify:* `./gradlew :core:storage:testDebugUnitTest`
 
 - [ ] **1.5 — strings + uikit theme**
-  `:strings` with `strings.xml` + `RString`. `:uikit` with the M3 theme, colour scheme and
-  typography. (No apostrophe escaping in `strings.xml` — CMP doesn't apply AAPT rules.)
+  `:strings` with `strings.xml` + the `RString` type alias. `:uikit` with the M3 theme, colour
+  scheme, typography, the `RDrawable` alias, plus **`WallosMobilePreviewTheme` and the
+  `@PreviewWallosDarkLight` annotation** — every later step's previews depend on these.
+  (No apostrophe escaping in `strings.xml` — CMP doesn't apply AAPT rules.)
   *Verify:* `./gradlew :uikit:assemble`
 
 - [ ] **1.6 — uikit: top app bar**
