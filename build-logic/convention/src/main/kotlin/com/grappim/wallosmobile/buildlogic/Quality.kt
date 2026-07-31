@@ -39,9 +39,6 @@ fun Project.configureTests() {
 // Every KMP module gets the same three test dependencies, so no module declares them by hand.
 private fun Project.configureCommonTestDependencies() {
     val projectPath = path
-    // `:testing` doesn't exist until the module skeletons are created; the null check is what
-    // lets this plugin be used before then.
-    val testing = findProject(":testing")
 
     extensions.findByType<KotlinMultiplatformExtension>()?.apply {
         sourceSets.apply {
@@ -49,8 +46,9 @@ private fun Project.configureCommonTestDependencies() {
                 implementation(kotlin("test"))
                 implementation(libs.findLibrary("turbine").get())
 
-                if (testing != null && projectPath != ":testing") {
-                    implementation(testing)
+                // Guarded only against `:testing` depending on itself.
+                if (projectPath != ":testing") {
+                    implementation(project(":testing"))
                 }
             }
         }

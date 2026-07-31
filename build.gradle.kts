@@ -61,8 +61,36 @@ kover {
     }
 }
 
+// Every module has to be listed here or it is silently absent from the aggregated report.
+// `:testing` is not: it holds fakes and fixtures, not production code.
 dependencies {
     kover(project(":composeApp"))
+
+    kover(project(":core:api"))
+    kover(project(":core:domain"))
+    kover(project(":core:storage"))
+    kover(project(":core:navigation"))
+    kover(project(":core:async-kmp"))
+    kover(project(":core:appinfo-api"))
+    kover(project(":core:logger"))
+
+    kover(project(":utils:ui"))
+    kover(project(":utils:formatter:decimal"))
+    kover(project(":utils:formatter:datetime"))
+
+    kover(project(":uikit"))
+    kover(project(":strings"))
+
+    kover(project(":feature:setup:data"))
+    kover(project(":feature:setup:domain"))
+    kover(project(":feature:setup:dto"))
+    kover(project(":feature:setup:ui"))
+
+    kover(project(":feature:subscriptions:data"))
+    kover(project(":feature:subscriptions:domain"))
+    kover(project(":feature:subscriptions:dto"))
+    kover(project(":feature:subscriptions:mapper"))
+    kover(project(":feature:subscriptions:ui"))
 }
 
 tasks.register<Delete>("clean") {

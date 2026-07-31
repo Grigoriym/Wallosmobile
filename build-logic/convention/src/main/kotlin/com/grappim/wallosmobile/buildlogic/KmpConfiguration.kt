@@ -30,11 +30,11 @@ fun Project.configureKmp() {
                 implementation(libs.findLibrary("kotlinx.collections").get())
                 implementation(libs.findLibrary("kotlinx.date.time").get())
 
-                // `core:logger` doesn't exist until the module skeletons are created;
-                // the null check is what lets this plugin be used before then.
-                val logger = findProject(":core:logger")
-                if (logger != null && project.path != ":core:logger") {
-                    implementation(logger)
+                // Logging is available everywhere without a per-module declaration.
+                // Guarded only against the module depending on itself — a mis-typed path
+                // must fail the build, not be silently skipped.
+                if (project.path != ":core:logger") {
+                    implementation(project(":core:logger"))
                 }
             }
         }

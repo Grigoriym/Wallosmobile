@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `5/7` · M1 `0/11` · M2 `0/7`
-**Current step:** 0.6
+**Progress:** M0 `6/7` · M1 `0/11` · M2 `0/7`
+**Current step:** 0.7
 
 ---
 
@@ -139,7 +139,7 @@ Goal: an empty but correctly-structured project that builds, lints and tests.
   — **0.6 must add every new module there**, or it is silently absent from coverage.
   `settings.gradle.kts` was missing a trailing newline; ktlint caught it.
 
-- [ ] **0.6 — Module skeletons**
+- [x] **0.6 — Module skeletons**
   Create every module directory with its `build.gradle.kts` and `.gitignore`, all empty, using the
   **per-layer plugin sets in plan §3.3** (don't invent them — `ui` needs `kmp.serialization` for
   routes, `uikit`/`strings` need the `compose.resources { publicResClass = true }` block). Register
@@ -148,6 +148,24 @@ Goal: an empty but correctly-structured project that builds, lints and tests.
   `uikit`, `strings`, `testing`, `feature:setup:{data,domain,dto,ui}`,
   `feature:subscriptions:{data,domain,dto,mapper,ui}`.
   *Verify:* `./gradlew build`  ·  *Ref:* plan §2 (skip `core:crud` and the catalog features — not v1)
+  *Note:* **`uikit` needs `api(libs.jetbrains.compose.components.resources)` too**, not just
+  `strings` — plan §3.3 only mentions it for `strings`, but `generateResClass = always` emits a
+  `Res` class that references `org.jetbrains.compose.resources.*`, so without the dependency
+  `:uikit:compileAndroidMain` fails on the *generated* file. Both guards from 0.3/0.5 are now
+  gone: `configureKmp()` depends on `:core:logger` unconditionally and `configureTests()` on
+  `:testing`, each keeping only the "not myself" check, so a mis-typed path fails loudly.
+  `:testing` got `api(libs.kotlinx.coroutines.test)` as 0.5 required. Modules are **build files
+  only, no `src/`** — the standard `implementation(projects.…)` blocks from plan §3.3 arrive with
+  the code in M1/M2, so nothing here declares an inter-module dependency yet.
+  Plugin sets deliberately at the floor: `feature:*:domain` and `core:{domain,appinfo-api,logger}`
+  are `kmp.library` alone (**add `kmp.di` when a module gains an injected use case** — 1.1's
+  `core:domain` may need it); `core:storage` is `kmp.library` + `kmp.di`, with DataStore added in
+  1.4; `feature:*:data` is `kmp.library` + `kmp.di` + `kmp.network`, no serialization.
+  `core:serialization` from plan §2 was **not** created — this step's module list omits it; if
+  1.2's `FormParams.date()` wants a custom serializer, create it then.
+  Root kover lists all 22 new modules but **not `:testing`** (fakes, not production code) — keep
+  adding new modules there. `TYPESAFE_PROJECT_ACCESSORS` was verified live
+  (`projects.core.asyncKmp`, `projects.utils.formatter.datetime` both resolve).
 
 - [ ] **0.7 — CI**
   GitHub Actions: assemble + `allTests` + detekt + ktlintCheck on push and PR.
@@ -297,3 +315,5 @@ structural into the plan itself.
 | 0.5 | `configureLinting()` sets detekt's `source` to `src/` | detekt defaults to `src/main/kotlin`, so every KMP module was `NO-SOURCE` |
 | 0.5 | Kover keeps Android unit test instrumentation enabled | Taiga disables it because it measures `jvmTest`; we have no jvm target |
 | 0.5 | `:androidApp` gets `configureTests()`/`configureLinting()` (Taiga doesn't) | Otherwise `MainActivity` and the Koin startup glue are never linted |
+| 0.6 | `uikit` also takes `api(compose.components.resources)`, not just `strings` (plan §3.3) | `generateResClass = always` emits a `Res` class that won't compile without it |
+| 0.6 | `core:serialization` (plan §2) not created | Not in this step's module list; no custom serializer needed until 1.2 |
