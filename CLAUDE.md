@@ -152,6 +152,12 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   `tag = "…"` is the only way to override it from a class.
 - Repository/use-case calls go through `resultOf`; errors reach UI state as `NativeText` via
   `getErrorMessage()`.
+- **Everything that leaves `core:api` is a `WallosError`.** A decode failure becomes
+  `Malformed`, not a leaked `SerializationException`, so repositories only ever match one type.
+- To catch a kotlinx.serialization failure without a bare `catch (Exception)`:
+  **`SerializationException` extends `IllegalArgumentException`**, as does the failure of the
+  `.jsonObject` accessor — one `catch (e: IllegalArgumentException)` covers both and cannot
+  swallow a `CancellationException`.
 
 ## Strings and resources
 

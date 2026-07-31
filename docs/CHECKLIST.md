@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `1/11` · M2 `0/7`
-**Current step:** 1.2
+**Progress:** M0 `7/7` · M1 `2/11` · M2 `0/7`
+**Current step:** 1.3
 
 ---
 
@@ -209,13 +209,32 @@ Goal: username + password → the app holds a validated API key and shows the dr
   **not** ported — nothing needs them yet. `core:logger` is the one non-feature module with an
   `androidMain` (Timber), as in Taiga.
 
-- [ ] **1.2 — core:api: envelope parser + FormParams** ⭐
+- [x] **1.2 — core:api: envelope parser + FormParams** ⭐
   `WallosEnvelopeParser` (404 → `UnsupportedEndpoint`; strip any prefix before the first `{` and
   log it; `success != true` → map by title; else decode) and `FormParams` with
   `flag()`/`literalTrue()`/`date()`. Pure classes, no Ktor. **Write the tests in the same step**,
   including the auth-title table from `WALLOS_API.md` §5.3 as a parameterized test.
   *Verify:* `./gradlew :core:api:testAndroidHostTest`  ·  *Ref:* plan §4.2, §4.3, §4.4
   *This is the highest-value step in M1 — everything downstream trusts it.*
+  *Note:* **the parse entry point is `parse(statusCode, body, DeserializationStrategy<T>)`, plus a
+  top-level `inline fun <reified T> WallosEnvelopeParser.parse(statusCode, body)`** — a public
+  `inline` *member* may not read the class's private `json`, so the reified form has to sit
+  outside the class. **1.3's `WallosApiClient.post` hits the same wall**: an `inline reified`
+  member can't touch a private `httpClient`/`apiKeyStorage`/`envelopeParser`, so those
+  constructor properties need `@PublishedApi internal`, or `post` splits into a non-inline core
+  taking the deserializer. Plan §4.1's sketch doesn't compile as written.
+  The parser owns a **private** `Json { ignoreUnknownKeys = true; isLenient = true }`: with
+  `ContentNegotiation` dropped (plan §4.1) it is the only JSON consumer in the app, so **1.3's
+  `NetworkModule` should not define a second `Json`** — Mealie's `@HttpJson` qualifier exists to
+  feed `ContentNegotiation` and has nothing to feed here.
+  `mapError` is `internal` and lives in `WallosErrorMapper.kt` next to the parser; nothing outside
+  `core:api` maps titles. `WallosEnvelopeParser` is `@Single`, but `core:api` still has **no
+  `@Module @Configuration @ComponentScan` class** — 1.3's `NetworkModule` is that class and must
+  scan `com.grappim.wallosmobile.core.api`.
+  `FormParams` exposes `put`/`flag`/`literalTrue`/`date`/`asMap()`, all chainable. **`withApiKey()`
+  and `build()` are not here** — they return Ktor `Parameters`, so they belong to 1.3.
+  `literalTrue(k, false)` writes `"false"` rather than omitting the key (§3.2: "anything else =
+  false"), and `date()` goes through `LocalDate.Formats.ISO`, not `toString()`.
 
 - [ ] **1.3 — core:api: HTTP clients**
   `NetworkModule` modelled on `MealieMobile/core/api/.../NetworkModule.kt` (`@HttpJson` qualifier,
@@ -343,6 +362,9 @@ structural into the plan itself.
 | 0.5 | Kover keeps Android unit test instrumentation enabled | Taiga disables it because it measures `jvmTest`; we have no jvm target |
 | 0.5 | `:androidApp` gets `configureTests()`/`configureLinting()` (Taiga doesn't) | Otherwise `MainActivity` and the Koin startup glue are never linted |
 | 0.6 | `uikit` also takes `api(compose.components.resources)`, not just `strings` | `generateResClass = always` emits a `Res` class that won't compile without it — *folded into plan §3.3* |
-| 0.6 | `core:serialization` (plan §2) not created | Not in this step's module list; no custom serializer needed until 1.2 |
+| 0.6 | `core:serialization` (plan §2) not created | Not in this step's module list; 1.2 needed none either — `LocalDate.Formats.ISO` covers `date()` and the parser reads `notes` as a raw `JsonElement` — *now in plan §4.4* |
 | 0.7 | CI runs no Kover/Codecov step (Taiga's `code_analysis.yml` does) | Step names four tasks; the upload needs a `CODECOV_TOKEN` this repo doesn't have — *now in plan §3.5* |
 | 1.1 | `mapResult` uses `fold`; no `TimeoutCancellationException` catch clause | Taiga's null-check loses a `null` success value, and the extra clause is unreachable — *now in plan §4.3* |
+| 1.2 | `parse` takes a `DeserializationStrategy`; the `reified` form is a top-level extension | A public `inline` member can't read the parser's private `Json` — *now in plan §4.2* |
+| 1.2 | The parser owns its `Json`; no `@HttpJson` instance in DI | Dropping `ContentNegotiation` leaves the parser as the only JSON consumer — *now in plan §4.1, §4.2* |
+| 1.2 | A body that parses but doesn't match the model → `Malformed` (plan §5.6 lets it escape) | Keeps everything leaving `core:api` a `WallosError`, so repositories catch one type — *now in plan §4.2* |

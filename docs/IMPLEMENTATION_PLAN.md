@@ -373,6 +373,12 @@ class WallosApiClient(
 }
 ```
 
+**That sketch doesn't compile as written.** A public `inline` member cannot touch `private`
+constructor properties, so `httpClient`, `apiKeyStorage` and `envelopeParser` must be
+`@PublishedApi internal val`, or `post` must split into a non-inline core taking a
+`DeserializationStrategy<T>` with a thin reified wrapper. `WallosEnvelopeParser` hit the same
+wall in 1.2 and took the second route (§4.2).
+
 Everything is a form-encoded POST — one shape for the whole API, and the key never reaches
 server access logs, browser history or referrers.
 
@@ -432,7 +438,21 @@ It implements, in order:
    where valid JSON follows an HTML warning. No `{` at all → `WallosError.Malformed`.
 3. `success != true` → build the detail as `message ?: notes?.firstOrNull() ?: title` (the field
    carrying the human-readable text differs per endpoint) and map via §4.3.
-4. Otherwise decode `T` from the envelope.
+4. Otherwise decode `T` from the envelope. A body that parses as JSON but doesn't match `T` —
+   a self-hosted instance at an older migration level, say — becomes `WallosError.Malformed` as
+   well, so that **everything leaving `core:api` is a `WallosError`** and no raw
+   `SerializationException` reaches a repository.
+
+The signature is `parse(statusCode: Int, body: String, deserializer: DeserializationStrategy<T>)`,
+with a top-level `inline fun <reified T> WallosEnvelopeParser.parse(statusCode, body)` for the
+call sites. The reified form cannot be a *member*: a public `inline` function may not read the
+class's private state, and the parser holds its `Json` privately. The same constraint applies to
+`WallosApiClient.post` in §4.1.
+
+That `Json { ignoreUnknownKeys = true; isLenient = true }` belongs to the parser and is not a DI
+binding. With `ContentNegotiation` dropped (§4.1), the parser is the only JSON consumer in the
+app — Mealie's `@HttpJson` qualifier exists to configure `ContentNegotiation` and has nothing to
+configure here.
 
 ### 4.3 Error mapping
 
@@ -467,7 +487,13 @@ class FormParams {
 }
 ```
 
-`Boolean.toString()` is never correct for this API. Similarly in `core:serialization`: `notes` is
+`Boolean.toString()` is never correct for this API — except, by coincidence, for `literalTrue`,
+which writes `"false"` rather than omitting the key (the API doc reads anything but `"true"` as
+false). Alongside those three: a plain `put(key, value)`, and `asMap()`. `withApiKey()` and
+`build()` from §4.1 are **not** part of this class in `core:api`'s pure layer — they return Ktor
+`Parameters`, so they arrive with the HTTP clients.
+
+Similarly on the decoding side (no `core:serialization` module exists — 1.2 needed none): `notes` is
 an array everywhere except `get_user.php`, where it is `""` — either a lenient serializer or
 `ignoreUnknownKeys` plus not modelling it. `Json { ignoreUnknownKeys = true; isLenient = true }`
 is **mandatory**, not a nicety: responses are raw DB rows and self-hosted instances sit at
