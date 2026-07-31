@@ -21,7 +21,7 @@ kotlin {
     jvm()
     
     android {
-       namespace = "com.grappim.wallosmobile.shared"
+       namespace = "com.grappim.wallosmobile.composeapp"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
        minSdk = libs.versions.android.minSdk.get().toInt()
     

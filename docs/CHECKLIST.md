@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `0/7` · M1 `0/11` · M2 `0/7`
-**Current step:** 0.1
+**Progress:** M0 `1/7` · M1 `0/11` · M2 `0/7`
+**Current step:** 0.2
 
 ---
 
@@ -44,10 +44,13 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 
 Goal: an empty but correctly-structured project that builds, lints and tests.
 
-- [ ] **0.1 — Strip the wizard scaffold**
+- [x] **0.1 — Strip the wizard scaffold**
   Delete `desktopApp/`, `iosApp/`, and the `Greeting`/`Platform`/`App` sample files. Rename
   `shared/` → `composeApp/` (directory, `settings.gradle.kts`, namespace). Delete stale `build/`.
   *Verify:* `./gradlew :androidApp:assembleDebug`  ·  *Ref:* plan §2
+  *Note:* `composeApp/` is now source-less and its `build.gradle.kts` still declares `jvm()` +
+  the two iOS targets and a `Shared` framework — 0.3 replaces that file. `MainActivity.setContent`
+  is empty until 1.8.
 
 - [ ] **0.2 — Version catalog**
   Replace `gradle/libs.versions.toml` with TaigaMobileNova's, plus MealieMobile's nav3 entries
