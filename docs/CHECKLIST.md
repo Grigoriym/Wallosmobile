@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `2/11` · M2 `0/7`
-**Current step:** 1.3
+**Progress:** M0 `7/7` · M1 `3/11` · M2 `0/7`
+**Current step:** 1.4
 
 ---
 
@@ -236,7 +236,7 @@ Goal: username + password → the app holds a validated API key and shows the dr
   `literalTrue(k, false)` writes `"false"` rather than omitting the key (§3.2: "anything else =
   false"), and `date()` goes through `LocalDate.Formats.ISO`, not `toString()`.
 
-- [ ] **1.3 — core:api: HTTP clients**
+- [x] **1.3 — core:api: HTTP clients**
   `NetworkModule` modelled on `MealieMobile/core/api/.../NetworkModule.kt` (`@HttpJson` qualifier,
   `@Module @Configuration @ComponentScan`, `expectSuccess = false`, `defaultRequest` off
   `BaseUrlProvider`), with the **five Wallos deltas from plan §4.1** — no `AuthHeaderPlugin`, **no
@@ -246,10 +246,41 @@ Goal: username + password → the app holds a validated API key and shows the dr
   injecting `api_key` into every form POST, and the `@WebSessionHttpClient` **`@Factory`**
   (`followRedirects = false`, `HttpCookies`, no key injection).
   *Verify:* `./gradlew :core:api:testAndroidHostTest`  ·  *Ref:* plan §4.1, §1.1
+  *Note:* this step had to reach into two modules it doesn't own, because `core:api` cannot
+  compile without them. **`core:storage` gained the `ApiKeyStorage` (`getKey()` only) and
+  `ServerUrlStorage` (`val serverUrl`) *interfaces*; 1.4 owns the DataStore impls and the rest of
+  the surface** (`isConnected`, `setKey`, `clear`, `saveServerUrl`). `ServerUrlStorage.serverUrl`
+  is deliberately **not** `suspend` — Ktor's `defaultRequest` block is not a suspend context, so
+  **1.4 must keep the URL cached** rather than reading DataStore per request. `core:appinfo-api`
+  gained `AppInfoProvider` with `isDebug()` alone (the §4.1 log-level gate). Neither module has an
+  implementation yet, so **the Koin graph cannot be instantiated until 1.11** wires 1.4's storage
+  and an `AppInfoProvider` in `androidApp`.
+  Ktor 3.5.1 vs plan §4.1: `retryOnExceptionIf` takes **no `retryOnTimeout`** and hands the block
+  an `HttpRequestBuilder`, whose `url` is a `URLBuilder` — there is **no `encodedPath`**, only
+  `encodedPathSegments`. The predicate is extracted as `internal fun isReadEndpoint(pathSegments)`
+  so it can be tested at all: Kover and testability both stop at `NetworkModule` (excluded by the
+  root `*Module` filter, and its client config is only exercised at runtime).
+  `WallosApiClient.post` took the same route as the parser — non-inline member taking a
+  `DeserializationStrategy`, plus a top-level `inline reified` extension. `withApiKey(null)`
+  **omits** `api_key` rather than sending an empty one, so the server answers `Missing API key` →
+  `Unauthenticated` → setup. Useful corollary for **1.9**: with no key stored yet, a
+  `FormParams().put("api_key", scrapedKey)` survives `withApiKey`, so the scraped key can be
+  validated through `WallosApiClient` before it is persisted.
+  Paths passed to `post` are **relative, no leading slash** (`api/status/version.php`) —
+  `BaseUrlProviderImpl` appends the trailing slash that Ktor's `DefaultRequest` requires before it
+  will append a relative path, and a leading slash discards the user's subpath.
+  `HttpClient { }` uses engine autodiscovery (plan §4.1's v1 choice) and okhttp is `androidMain`
+  only, so host tests build their own `HttpClient(MockEngine)`. `:testing` therefore gained
+  `api(libs.ktor.client.mock)`, reaching every module's `commonTest` the way `coroutines-test`
+  does — **1.9's recorded-HTML fixtures need it**. `core:api` declares `libs.ktor.logging` itself;
+  it is not in `kmp.network` because no other module installs the plugin. `postMultipart`
+  (plan §4.1) was **not** written — nothing in v1 uploads a file.
 
 - [ ] **1.4 — core:storage**
   DataStore for base URL + API key, Keystore-backed. `ApiKeyStorage` with `isConnected: Flow<Boolean>`,
-  `getKey()`, `setKey()`, `clear()`. No Room, no NetworkMonitor.
+  `getKey()`, `setKey()`, `clear()`. No Room, no NetworkMonitor. **The interfaces already exist**
+  (1.3) — this step adds the impls and the missing members; keep `ServerUrlStorage.serverUrl`
+  non-suspending and cached.
   *Verify:* `./gradlew :core:storage:testAndroidHostTest`
 
 - [ ] **1.5 — strings + uikit theme**
@@ -368,3 +399,7 @@ structural into the plan itself.
 | 1.2 | `parse` takes a `DeserializationStrategy`; the `reified` form is a top-level extension | A public `inline` member can't read the parser's private `Json` — *now in plan §4.2* |
 | 1.2 | The parser owns its `Json`; no `@HttpJson` instance in DI | Dropping `ContentNegotiation` leaves the parser as the only JSON consumer — *now in plan §4.1, §4.2* |
 | 1.2 | A body that parses but doesn't match the model → `Malformed` (plan §5.6 lets it escape) | Keeps everything leaving `core:api` a `WallosError`, so repositories catch one type — *now in plan §4.2* |
+| 1.3 | `ApiKeyStorage`/`ServerUrlStorage` interfaces created here, in 1.4's module | `core:api` can't compile without them; 1.4 keeps the DataStore impls — *now in plan §4.1* |
+| 1.3 | `AppInfoProvider` created in `core:appinfo-api`, which no step owns | §4.1's log-level gate needs `isDebug()`; the impl lands with the 1.11 startup glue — *now in plan §4.1* |
+| 1.3 | Retry predicate reads `URLBuilder.encodedPathSegments`, and there is no `retryOnTimeout` | Ktor 3.5.1's `retryOnExceptionIf` differs from the plan's sketch — *now in plan §4.1* |
+| 1.3 | `withApiKey(null)` omits `api_key` instead of sending an empty value | The server's `Missing API key` → `Unauthenticated` → setup is the right destination for a caller with no key — *now in plan §4.1* |

@@ -377,10 +377,17 @@ class WallosApiClient(
 constructor properties, so `httpClient`, `apiKeyStorage` and `envelopeParser` must be
 `@PublishedApi internal val`, or `post` must split into a non-inline core taking a
 `DeserializationStrategy<T>` with a thin reified wrapper. `WallosEnvelopeParser` hit the same
-wall in 1.2 and took the second route (§4.2).
+wall in 1.2 and took the second route (§4.2); `WallosApiClient` followed it.
 
 Everything is a form-encoded POST — one shape for the whole API, and the key never reaches
 server access logs, browser history or referrers.
+
+`path` is **relative and carries no leading slash** (`api/status/version.php`) — a leading slash
+discards whatever subpath the user's install lives under. `withApiKey(null)` **omits** the
+parameter rather than sending an empty one, so a caller with no stored key gets the server's
+`Missing API key` → `Unauthenticated` → back to setup, which is where it belongs. A corollary the
+onboarding bridge depends on: while nothing is stored, a `FormParams` carrying its own `api_key`
+survives, so a freshly scraped key can be validated through this client before it is persisted.
 
 The `NetworkModule` itself follows MealieMobile's
 (`MealieMobile/core/api/.../core/api/NetworkModule.kt`) — `@HttpJson` and client qualifiers,
@@ -415,11 +422,25 @@ if it's copied over unaltered:
 4. **Scope `HttpRequestRetry` to reads.** Mealie retries every request once on exception. For
    Wallos that is unsafe: `set_subscriptions.php` with `action=add` is a non-idempotent POST, and
    a retry after a response-side failure creates a duplicate subscription. Restrict the retry
-   predicate to `get_*.php` paths, or install it only where reads happen.
+   predicate to `get_*.php` paths, or install it only where reads happen. In Ktor 3.5.1 that is
+   `retryOnExceptionIf(maxRetries = 1) { request, _ -> … }` — it has **no `retryOnTimeout`**
+   parameter, and `request` is an `HttpRequestBuilder` whose `url` is a `URLBuilder`, which
+   exposes `encodedPathSegments` and **not** `encodedPath`. Keep the predicate in a top-level
+   `internal` function: the `NetworkModule` itself is untestable and Kover-excluded, so anything
+   left inside the config lambda is unverifiable.
 
 5. **`BaseUrlProvider` returns the instance root**, not an `/api/` prefix — the login bridge hits
    `/login.php` and `/profile.php` at the root while API calls use `api/…` paths. Normalize
-   trailing slashes and preserve subpaths (`https://host/wallos/`).
+   trailing slashes and preserve subpaths (`https://host/wallos/`). The **trailing slash is
+   load-bearing**: Ktor's `DefaultRequest` only appends a relative request path to the default
+   URL's path when that path ends in `/`, so without it `https://host/wallos` + `api/…` resolves
+   to `https://host/api/…`.
+
+`core:api` therefore depends on `core:storage` for two interfaces — `ApiKeyStorage.getKey()` and
+`ServerUrlStorage.serverUrl` — and on `core:appinfo-api` for `AppInfoProvider.isDebug()`.
+`serverUrl` cannot be `suspend`, because `defaultRequest`'s block is not a suspend context; the
+DataStore implementation has to keep it cached. `ktor-client-logging` is declared by this module
+rather than by the `kmp.network` convention plugin, since nothing else installs `Logging`.
 
 The explicit platform engine (`HttpClient(createPlatformHttpClientEngine(...))`, as in Taiga
 rather than Mealie's autodiscovery) is only needed once certificate trust lands — Phase 2b. v1 can
@@ -796,7 +817,11 @@ tested; `uikit` widgets, screens, DI modules and DTOs are excluded from Kover (�
 `excludes` block).
 
 `:testing` is added to every module's `commonTest` automatically by the convention plugin, so no
-module declares it by hand.
+module declares it by hand. That makes it the home for test-only *libraries* as well as doubles:
+it re-exports `kotlinx-coroutines-test` (for `runTest`) and `ktor-client-mock` (for `MockEngine`)
+as `api`, so neither is ever declared per module. `MockEngine` matters because `HttpClient { }`
+uses engine autodiscovery and the real engine is `androidMain`-only — a host test that wants an
+`HttpClient` has to build one itself.
 
 ### Domain modelling notes
 

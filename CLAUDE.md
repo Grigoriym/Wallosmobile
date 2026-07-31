@@ -95,6 +95,10 @@ vertical slices, **all source in `commonMain`**.
 - **Tests use hand-written fakes in `:testing`. No mocking library — no MockK, no Mockito,
   anywhere.** `kotlin.test` + Turbine. Fake/fixture shape: plan §6.1. `:testing` is for doubles
   **other** modules need; a double used by exactly one test file stays private in that file.
+  Ktor's **`MockEngine` is not a mocking library** and is fine — it's the only way to get an
+  `HttpClient` in a host test, since `HttpClient { }` autodiscovers an engine and okhttp is
+  `androidMain`-only. It reaches every `commonTest` as `api(libs.ktor.client.mock)` in `:testing`,
+  alongside `kotlinx-coroutines-test`; never declare either per module.
 
 ## UI state and events
 
