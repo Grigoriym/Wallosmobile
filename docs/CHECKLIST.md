@@ -432,7 +432,12 @@ Goal: username + password → the app holds a validated API key and shows the dr
 
 - [ ] **1.11 — Wire it up end to end**
   Startup branch: stored key → shell, else login. Login success → shell.
-  *Verify:* fresh install → log in against `https://demo.wallosapp.com` (demo/demo) → drawer shell
+  Plus the **Koin graph test**: `koin-test` is in the catalog and unused; this is the first step
+  where every definition resolves, so add a host test that runs `checkModules()`/`verify()` over
+  the app's module set. Missing definitions are otherwise a launch-time crash no gate catches —
+  and `composeApp` picks up `kmp.di` here anyway, for `DrawerItemsBuilder` (1.8).
+  *Verify:* the graph test passes, **and** fresh install → log in against
+  `https://demo.wallosapp.com` (demo/demo) → drawer shell
   appears; kill and relaunch → still logged in; enable "Don't keep activities" → process death
   restores the right screen (this is what proves `NavKeySerializers` is complete).
   **M1 done.**
@@ -482,6 +487,16 @@ Goal: the list of real subscriptions, and a detail screen.
   *Verify:* fresh install → log in → see real subscriptions → tap one → see detail → back →
   drawer → Settings → Disconnect → login. Offline shows an error, not a crash.
   **v1 done.** Next: plan §8, Phase 2b (Room, cert trust, TOTP, filters) or Phase 3 (writes).
+
+  **Two things are deliberately deferred to here rather than done early:**
+  - **Delete the pre-v1 backward-compatibility bullet from `CLAUDE.md`'s Non-negotiables** the
+    moment this app is installed by anyone but us. From then on the stored API key and the
+    serialized nav back stack are real user state: a renamed DataStore key or a moved route class
+    needs a migration, not a shrug.
+  - **Verification we chose to grow into, not front-load** (one per step that needs it, never a
+    big-bang): a Kover floor that fails under the current number, and a Compose UI test setup —
+    Robolectric vs. instrumentation vs. staying on previews. That last one is a real fork with
+    real cost; decide it when a screen's logic first outgrows its ViewModel test, not before.
 
 ---
 

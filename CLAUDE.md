@@ -112,6 +112,12 @@ vertical slices, **all source in `commonMain`**.
 ## Non-negotiables
 
 - Package root `com.grappim.wallosmobile`. Module namespace follows the Gradle path.
+- **Pre-v1, there is nothing to be backward compatible with.** No installs exist, so don't write
+  a DataStore migration, a deprecated overload, or a compatibility shim — change the thing and
+  say in the commit that stored state is discarded. The serialized nav back stack and the
+  DataStore contents are both disposable; a moved route class or a renamed key is free. This
+  expires the day the app ships: the stored API key and the back stack are then the two things
+  that need real care.
 - **No `androidMain` in feature modules** — use `expect`/`actual`. Platform targets are declared
   **only** in `configureKmp()` in `build-logic`.
 - **`commonMain` is not enforced platform-neutral here.** Android being the only target,
