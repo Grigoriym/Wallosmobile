@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `4/11` · M2 `0/7`
-**Current step:** 1.5
+**Progress:** M0 `7/7` · M1 `5/11` · M2 `0/7`
+**Current step:** 1.6
 
 ---
 
@@ -303,12 +303,30 @@ Goal: username + password → the app holds a validated API key and shows the dr
   in `commonTest`: the real store wants a filesystem path, which `commonTest` has no portable way
   to produce.
 
-- [ ] **1.5 — strings + uikit theme**
+- [x] **1.5 — strings + uikit theme**
   `:strings` with `strings.xml` + the `RString` type alias. `:uikit` with the M3 theme, colour
   scheme, typography, the `RDrawable` alias, plus **`WallosMobilePreviewTheme` and the
   `@PreviewWallosDarkLight` annotation** — every later step's previews depend on these.
   (No apostrophe escaping in `strings.xml` — CMP doesn't apply AAPT rules.)
   *Verify:* `./gradlew :uikit:assemble`
+  *Note:* **`WallosMobilePreviewTheme` is only `WallosMobileTheme` + `Surface` today — 1.6 must add
+  `LocalTopBarConfig provides TopBarController()` to it**, or every screen preview from 1.10 on
+  crashes on a missing composition local. (Mealie also provides `LocalIsOffline`; we have no such
+  local.)
+  **No dynamic colour, so `uikit` has no `androidMain`**: Mealie's `expect fun colorScheme()` exists
+  to reach `dynamicDarkColorScheme(LocalContext)`, which is Android-only. A static palette seeded
+  from the logo navy `#233E67` (sampled from `art/wallos_logo_original.png`) keeps the brand and the
+  whole module in `commonMain` — `core:logger` is still the only non-feature module with an
+  `androidMain`. Reinstating dynamic colour means adding the `expect`/`actual` back.
+  The generated `Res` declares **empty `drawable`/`string`/`array`/`plurals`/`font` objects
+  unconditionally**, so `RDrawable` compiles with no drawable in the module at all — no icon asset
+  is needed until a screen wants one (drop it in `uikit/src/commonMain/composeResources/drawable/`).
+  `strings.xml` holds **only `app_name`** — later steps add their own; nothing speculative here.
+  Note the launcher label is *not* this one: `androidApp/src/main/res/values/strings.xml` still says
+  "Wallosmobile", and CMP resources can't feed the manifest. Rename it in 1.11 if it matters.
+  `Typography` is M3's default scale, named `WallosTypography` purely as the one edit point for a
+  future font. `DARK_BACKGROUND_COLOR_FOR_PREVIEW` is UPPER_SNAKE because detekt's
+  `TopLevelPropertyNaming.constantPattern` demands it — Mealie `@Suppress`es the rule instead.
 
 - [ ] **1.6 — uikit: top app bar**
   Port `TopBarConfig`, `TopBarController` + `LocalTopBarConfig`, `NavigationIconConfig`,
@@ -426,3 +444,4 @@ structural into the plan itself.
 | 1.4 | Keystore access is a `SecretCipher` interface, not encryption inside the storage impl | The Keystore doesn't exist in a host test; as a seam the impls stay in `commonMain` and testable — *now in plan §4.7* |
 | 1.4 | `core:storage`'s Koin module class lives in `androidMain` | The DataStore path needs `Context`, and Android being the only target leaves exactly one `@ComponentScan` — *now in plan §4.7* |
 | 1.4 | One DataStore file for URL + key; `clear()` removes only the key | Disconnect shouldn't wipe the server the user just typed — *now in plan §4.7* |
+| 1.5 | No dynamic colour, so no `expect`/`actual` `colorScheme()` and no `androidMain` in `uikit` | Mealie's only reason for the `expect` is `dynamicDarkColorScheme(LocalContext)`; a static palette seeded from the logo navy keeps the brand and the module common — *now in plan §3.3* |

@@ -268,7 +268,7 @@ commonMain.dependencies {
 }
 ```
 
-Three details that are easy to miss and annoying to diagnose:
+Four details that are easy to miss and annoying to diagnose:
 
 - **`ui` modules need `kmp.serialization`** even when they parse nothing — routes are
   `@Serializable ... : NavKey`.
@@ -288,6 +288,13 @@ Three details that are easy to miss and annoying to diagnose:
   compile on its own *generated* source.
 - **`core:navigation` takes the Compose plugin here**, unlike Taiga's (which holds only
   extension functions). Ours holds `NavigationState` and `toEntries()`, which are `@Composable`.
+- **`uikit` has no `androidMain`.** Mealie's `expect fun colorScheme(darkTheme)` exists only to
+  reach `dynamicDarkColorScheme(LocalContext)`, which is Android-only. WallosMobile takes a static
+  Material 3 palette seeded from the logo navy `#233E67` instead — it keeps the brand, and the
+  whole module stays in `commonMain`. Dynamic colour means putting the `expect`/`actual` back.
+  Note also that the generated `Res` class declares empty `drawable`/`string`/`array`/`plurals`/
+  `font` objects whether or not the module has any such resource, so `RDrawable` compiles in a
+  `uikit` with no drawables at all.
 
 Everything else — coroutines, immutable collections, datetime, `core:logger`, `kotlin("test")`,
 Turbine and `:testing` — arrives through `kmp.library`/`configureTests()`. Modules never declare
