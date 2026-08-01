@@ -497,6 +497,15 @@ Goal: the list of real subscriptions, and a detail screen.
     big-bang): a Kover floor that fails under the current number, and a Compose UI test setup —
     Robolectric vs. instrumentation vs. staying on previews. That last one is a real fork with
     real cost; decide it when a screen's logic first outgrows its ViewModel test, not before.
+  - **Agent guardrails — investigate and pick one or two.** The gates in this repo constrain the
+    *code* an agent writes; nothing yet constrains an agent from weakening a gate to make its own
+    step pass. The tripwire set is small and mechanizable: a step commit touching
+    `.github/workflows/ci.yml`, `build-logic/**`, `config/detekt/**`, `.editorconfig`,
+    `gradle/libs.versions.toml`, or introducing `@Ignore` / `@Suppress` / a detekt baseline /
+    a widened `paths-ignore`, should have to say so out loud. `CLAUDE.md` and this file belong on
+    that list too — they set the rules every future session runs under, so an unannounced edit to
+    them is the highest-leverage change an agent can make. First candidate: a CI job that diffs
+    those paths and fails unless the commit message opts in.
 
 ---
 

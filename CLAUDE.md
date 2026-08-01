@@ -95,6 +95,9 @@ vertical slices, **all source in `commonMain`**.
   ViewModel.
 - **Mappers are classes, not extension functions** — one per file, for testability.
 - **Storage** is DataStore-backed (KMP), interface + impl, keys in a `private companion object`.
+- **A new module must be added to the root `build.gradle.kts` `kover { }` block** — coverage is
+  aggregated by an explicit per-module list, so a module left out of it is silently at 0% and
+  nothing fails. `:testing` is deliberately absent (fakes, not production code).
 - **Every module of a layer gets the same plugin set** — see plan §3.3 for the table and the
   standard dependency blocks. `ui` = `kmp.library` + `library.compose` + `di` + `serialization`;
   `data` = `library` + `di` + `network`; `dto` = `library` + `serialization`;
