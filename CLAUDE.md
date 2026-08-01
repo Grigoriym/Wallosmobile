@@ -185,7 +185,10 @@ vertical slices, **all source in `commonMain`**.
   the shell, so it has no `NavDisplay`, no back-stack entry, and nothing to register. The test is
   whether anything can navigate *back* to it; a screen the app is either on or not is state.
 - **Tests use hand-written fakes in `:testing`. No mocking library — no MockK, no Mockito,
-  anywhere.** `kotlin.test` + Turbine. Fake/fixture shape: plan §6.1. `:testing` is for doubles
+  anywhere.** `kotlin.test` + Turbine. **This extends to the platform: no Robolectric.** Its
+  shadows are mocks of Android, and the same objection applies — when Compose UI tests arrive
+  they will be **instrumented**, on a real runtime. Don't propose Robolectric as the cheaper
+  option; it was weighed and declined, on dependency count as much as on principle. Fake/fixture shape: plan §6.1. `:testing` is for doubles
   **other** modules need; a double used by exactly one test file stays private in that file.
   Ktor's **`MockEngine` is not a mocking library** and is fine — it's the only way to get an
   `HttpClient` in a host test, since `HttpClient { }` autodiscovers an engine and okhttp is

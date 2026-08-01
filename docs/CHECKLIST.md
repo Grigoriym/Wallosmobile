@@ -590,9 +590,14 @@ Goal: the list of real subscriptions, and a detail screen.
     serialized nav back stack are real user state: a renamed DataStore key or a moved route class
     needs a migration, not a shrug.
   - **Verification we chose to grow into, not front-load** (one per step that needs it, never a
-    big-bang): a Kover floor that fails under the current number, and a Compose UI test setup —
-    Robolectric vs. instrumentation vs. staying on previews. That last one is a real fork with
-    real cost; decide it when a screen's logic first outgrows its ViewModel test, not before.
+    big-bang): a Kover floor that fails under the current number, and a Compose UI test setup.
+    The *fork* in that second one is now decided — **instrumentation, not Robolectric** (see
+    `CLAUDE.md`); what is still open is **when**, and it stays parked until a screen's logic
+    first outgrows its ViewModel test. 2.4 (list: loading / empty / error, pull-to-refresh) is
+    the first plausible candidate. Two things to carry into it: instrumented tests need an
+    emulator job in CI or they are a local-only gate like Kover, and
+    `ActivityScenario.recreate()` does **not** cover process death — the `am kill` check in
+    `CLAUDE.md` stays manual whatever gets added.
   - **Agent guardrails — investigate and pick one or two.** The gates in this repo constrain the
     *code* an agent writes; nothing yet constrains an agent from weakening a gate to make its own
     step pass. The tripwire set is small and mechanizable: a step commit touching
