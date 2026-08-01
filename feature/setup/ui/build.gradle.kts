@@ -2,7 +2,8 @@ plugins {
     alias(libs.plugins.wallosmobile.kmp.library)
     alias(libs.plugins.wallosmobile.kmp.library.compose)
     alias(libs.plugins.wallosmobile.kmp.di)
-    alias(libs.plugins.wallosmobile.kmp.serialization)
+    // No `kmp.serialization`: onboarding has no route. The startup branch is state, not
+    // navigation, so login never enters a back stack and needs nothing serialized.
 }
 
 kotlin {

@@ -8,10 +8,12 @@ import com.grappim.wallosmobile.strings.generated.resources.settings_title
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_title
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import org.koin.core.annotation.Factory
 
 /**
  * A class rather than a constant so the item list can later depend on state (plan §5.4).
  */
+@Factory
 class DrawerItemsBuilder {
 
     fun build(): ImmutableList<DrawerItem> = persistentListOf(

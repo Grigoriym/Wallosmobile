@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `10/11` · M2 `0/7`
-**Current step:** 1.11
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `0/7`
+**Current step:** 2.1
 
 ---
 
@@ -495,16 +495,47 @@ Goal: username + password → the app holds a validated API key and shows the dr
   `WallosError`, it hands whatever it caught to `getErrorMessage`; the tests construct them to pin
   the attribution down. `utils:ui` reaches the module through `uikit`'s `api`, as 1.6 set up.
 
-- [ ] **1.11 — Wire it up end to end**
+- [x] **1.11 — Wire it up end to end**
   Startup branch: stored key → shell, else login. Login success → shell.
   Plus the **Koin graph test**: `koin-test` is in the catalog and unused; this is the first step
   where every definition resolves, so add a host test that runs `checkModules()`/`verify()` over
   the app's module set. Missing definitions are otherwise a launch-time crash no gate catches —
   and `composeApp` picks up `kmp.di` here anyway, for `DrawerItemsBuilder` (1.8).
-  *Verify:* the graph test passes, **and** fresh install → log in against
-  `https://demo.wallosapp.com` (demo/demo) → drawer shell
-  appears; kill and relaunch → still logged in; enable "Don't keep activities" → process death
-  restores the right screen (this is what proves `NavKeySerializers` is complete).
+  *Verify:* the graph test passes, **and** fresh install → log in against the local instance in
+  `docs/local-info.txt` → drawer shell appears; kill and relaunch → still logged in; process
+  death restores the right screen (this is what proves `NavKeySerializers` is complete).
+  *Note:* **the startup branch is state, not a route.** 1.10 left the either/or open; login never
+  enters a back stack, so `LoginRoute` was **deleted** (with `kmp.serialization`, which it was the
+  only reason for) and `NavKeySerializers` registers nothing for it. The branch is
+  `ApiKeyStorage.isConnected` collected in `WallosAppContent` — one source of truth, so
+  **2.6's Disconnect needs no navigation at all**: `clear()` flips the flow and the tree swaps.
+  That also made `LoginViewModel.connectedEvent` / `LoginScreen(onConnectSuccess)` redundant, and
+  both are gone; three of 1.10's tests now assert on state instead of a Turbine event.
+  **The branch must render the shell on the *first* composition, and that cost a real bug.**
+  `isConnected` has no value for frame 1, so waiting for it pushed `AuthenticatedMainScreen` into
+  a second pass — and `rememberNavBackStack` only consumes its restored state in the first one.
+  The app survived process death but silently came back to the start destination with the stack
+  gone. Fixed by seeding the branch from `rememberSaveable`. **The checklist's own
+  "Don't keep activities" test passes either way** — only `adb shell am kill` on a backgrounded
+  app catches it, which is the process-death check every later step should use.
+  `verify()` (not `checkModules()`, which instantiates) reads a definition through its *bound
+  type's* constructor, so for `@Single fun provide…` factories it inspects the returned class
+  instead of the function's parameters — hence `HttpClientEngine` in the test's `extraTypes`
+  beside the two types `:androidApp` really does supply. Confirmed the test bites: dropping one
+  `includes` line fails it by name. `AppModule`'s `includes` list is **not** optional — the
+  compiler plugin only auto-gathers `@Configuration` modules from the compilation that calls
+  `startKoin`, which is why `androidApp`'s `AndroidModule` needs no entry and every other module
+  does.
+  Manifest gained `INTERNET` and — flagged, since it is security-relevant and blanket —
+  **`usesCleartextTraffic="true"`**: a self-hosted instance on plain HTTP is the normal case, and
+  without it the app cannot reach one. Plan §9's "warn on non-HTTPS and steer to Path B" is still
+  unowned. `StorageModule` is referenced from `composeApp/commonMain` despite living in
+  `androidMain` (Android-only target); a second target turns that into Mealie's
+  `expect class PlatformStorageModule`.
+  Verified on the emulator against the local instance, both paths: Path A (`login.php` 302 →
+  `profile.php` scrape → `api/status/version.php` validate) and Path B (pasted key), then kill +
+  relaunch, then `am kill` process death from a Settings-deep stack. `TimberLogger.install()` is
+  now called (1.1 left it dangling), so `logcat { }` finally emits.
   **M1 done.**
 
 ---
@@ -617,4 +648,10 @@ structural into the plan itself.
 | 1.10 | `FakeSetupRepository` stayed private to its test instead of moving to `:testing` (1.9's note asked for the move) | One consumer, and `:testing` is on every module's test classpath — a `feature:setup:domain` dep there leaks the feature everywhere — *now in plan §6.1* |
 | 1.10 | Password visibility is a Show/Hide `TextButton`, not an icon | `material-icons-core` has neither `Visibility` nor `VisibilityOff`, and one glyph doesn't justify `material-icons-extended` in every `ui` module — *now in plan §3.3* |
 | 1.10 | `MainDispatcherRule` added to `:testing` | `viewModelScope` needs `Dispatchers.setMain`, and every ViewModel test from here on needs it — the genuine cross-module double — *now in plan §6.1* |
+| 1.11 | Login is not a route: `LoginRoute` deleted, startup branch is `isConnected` collected above the shell | Plan §7.1 calls it "not a screen"; one source of truth means Disconnect (2.6) needs no navigation — *now in plan §5.3, §7.1* |
+| 1.11 | The branch is seeded from `rememberSaveable`, not just from the flow | `rememberNavBackStack` only consumes restored state in the *first* composition, so a late-composed shell loses the back stack on process death — *now in plan §5.5* |
+| 1.11 | `LoginViewModel.connectedEvent` / `onConnectSuccess` removed (1.10 added them) | The stored key already is the signal; a second owner of the same fact can only disagree with it — *now in plan §1.1* |
+| 1.11 | Graph test uses `verify()` with `HttpClientEngine` in `extraTypes`, not `checkModules()` | `checkModules` instantiates (needs a DataStore file); `verify` reads `@Single fun` definitions through the bound type's constructor — *now in plan §6.1* |
+| 1.11 | Manifest gains `usesCleartextTraffic="true"` | Plain-HTTP self-hosted instances are the normal case and are otherwise unreachable; §9's non-HTTPS warning is still unowned — *now in plan §9* |
+| 1.11 | Verify lines point at the local instance, not `demo.wallosapp.com` | The public demo's `profile.php` throws a PHP fatal, so the login bridge finds no key to scrape — *now in `WALLOS_API.md` §8* |
 | 1.5 | No dynamic colour, so no `expect`/`actual` `colorScheme()` and no `androidMain` in `uikit` | Mealie's only reason for the `expect` is `dynamicDarkColorScheme(LocalContext)`; a static palette seeded from the logo navy keeps the brand and the module common — *now in plan §3.3* |

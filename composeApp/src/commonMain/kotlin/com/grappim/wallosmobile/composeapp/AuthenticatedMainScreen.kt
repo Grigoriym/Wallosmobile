@@ -21,18 +21,16 @@ import com.grappim.wallosmobile.uikit.widgets.topappbar.NavigationIconConfig
 import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarController
 import com.grappim.wallosmobile.uikit.widgets.topappbar.WallosTopAppBar
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 
 /**
  * The shell every screen renders inside: drawer, top app bar, and the nav display.
- *
- * [drawerItemsBuilder] is constructed rather than injected — the Koin graph is only started in
- * 1.11, and nothing here needs it before then.
  */
 @Composable
 fun AuthenticatedMainScreen(
     appState: MainAppState,
     modifier: Modifier = Modifier,
-    drawerItemsBuilder: DrawerItemsBuilder = remember { DrawerItemsBuilder() }
+    drawerItemsBuilder: DrawerItemsBuilder = koinInject()
 ) {
     val navigator = remember(appState) { Navigator(appState.navigationState) }
     val topBarController = remember { TopBarController() }

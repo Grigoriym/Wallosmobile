@@ -16,6 +16,13 @@ android {
 
 dependencies {
     implementation(project(":composeApp"))
+    implementation(project(":core:appinfo-api"))
+    implementation(project(":core:logger"))
+
+    implementation(platform(libs.koin.bom))
+    implementation(libs.koin.android)
+    implementation(libs.koin.annotations)
+    implementation(libs.timber)
 
     implementation(libs.androidx.activity.compose)
 

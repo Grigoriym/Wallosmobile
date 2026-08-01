@@ -737,8 +737,10 @@ curl -s -X POST "$BASE/api/subscriptions/set_subscriptions.php" \
      -d "currency_id=1" -d "cycle=3" -d "frequency=1" -d "next_payment=2026-09-01"
 ```
 
-The public demo at <https://demo.wallosapp.com> (demo/demo, reset every 2 hours) is a safe
-place to grab a key and exercise write endpoints.
+Run these against the **local instance in `docs/local-info.txt`**, not a public demo. The one at
+`demo.wallosapp.com` looks tempting and is not usable: its `profile.php` dies with a PHP fatal
+(`no such table: uploaded_avatars`), so there is no `id="apikey"` to scrape and the §9 login
+bridge can never succeed there.
 
 ---
 

@@ -1,0 +1,43 @@
+package com.grappim.wallosmobile.composeapp.di
+
+import android.content.Context
+import com.grappim.wallosmobile.core.appinfoapi.AppInfoProvider
+import io.ktor.client.engine.HttpClientEngine
+import org.koin.test.verify.verify
+import kotlin.test.Test
+
+/**
+ * A missing Koin definition is otherwise a launch-time crash that no gate catches: a
+ * `@ComponentScan` that misses a class, or an `AppModule` that forgets an `includes` line, both
+ * compile perfectly.
+ *
+ * `verify()` walks every definition's constructor by reflection and fails on a parameter type the
+ * module set can't supply — without instantiating anything, which matters because half this graph
+ * wants a DataStore file and an HTTP engine.
+ */
+class KoinGraphTest {
+
+    @Test
+    fun `every definition in the app graph can be resolved`() {
+        AppModule().module().verify(extraTypes = EXTERNALLY_SUPPLIED)
+    }
+
+    private companion object {
+        /**
+         * Types nothing in `AppModule` defines, on purpose:
+         * - `Context` comes from `androidContext()` in `WallosApp`.
+         * - `AppInfoProvider`'s only implementation needs `BuildConfig`, so it lives in
+         *   `:androidApp` — which sits above this module and cannot be included from here.
+         * - `HttpClientEngine` is a false positive rather than a real gap. `verify()` reads a
+         *   definition through its *bound type's* constructor, so for the `@Single fun
+         *   provideHttpClient(…)` factories it inspects `HttpClient(engine)` instead of the
+         *   function's own parameters. Ktor autodiscovers the engine (plan §4.1) and Koin is
+         *   never asked for one.
+         */
+        val EXTERNALLY_SUPPLIED = listOf(
+            Context::class,
+            AppInfoProvider::class,
+            HttpClientEngine::class
+        )
+    }
+}

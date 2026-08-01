@@ -49,18 +49,18 @@ import com.grappim.wallosmobile.strings.generated.resources.login_username_label
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import com.grappim.wallosmobile.utils.ui.NativeText
-import com.grappim.wallosmobile.utils.ui.ObserveAsEvents
 import com.grappim.wallosmobile.utils.ui.asString
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
+/**
+ * There is no success callback: a stored key *is* the signal, and the app's startup branch is
+ * driven by `ApiKeyStorage.isConnected`. Reporting it a second time would give the same fact two
+ * owners, and the one that disconnect (2.6) also has to flip is the flow.
+ */
 @Composable
-fun LoginScreen(viewModel: LoginViewModel = koinViewModel<LoginViewModel>(), onConnectSuccess: () -> Unit) {
+fun LoginScreen(viewModel: LoginViewModel = koinViewModel<LoginViewModel>()) {
     val uiState by viewModel.uiState.collectAsState()
-
-    ObserveAsEvents(viewModel.connectedEvent) {
-        onConnectSuccess()
-    }
 
     LoginContent(uiState = uiState)
 }

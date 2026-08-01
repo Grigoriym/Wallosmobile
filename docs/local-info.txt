@@ -1,0 +1,13 @@
+Deliberately in the repo, and safe: this is a LAN-only Wallos container that is not reachable
+from outside the machine it runs on. Nothing here is a credential for anything else.
+
+Use this instance for the on-device Verify lines, not a public demo — https://demo.wallosapp.com
+has a broken profile.php (PHP fatal: no such table `uploaded_avatars`), so the login bridge finds
+no API key to scrape there and Path A can never go green against it.
+
+From the emulator, `localhost` is the emulator itself — reach the host as http://10.0.2.2:8282.
+
+creds for local instance:
+http://localhost:8282/
+gregorz
+Unequal2-Reawake9-Vessel3-Delouse8-Resonate9

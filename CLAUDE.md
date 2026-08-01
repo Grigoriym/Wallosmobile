@@ -78,6 +78,27 @@ adb emu kill                           # don't leave it running
 `screencap` is 1080×2400 while the image comes back scaled — multiply the coordinates read off
 the screenshot by the stated factor before feeding them to `input tap`.
 
+Filling a form: **tap the first field once, then `input keyevent KEYCODE_TAB` between fields.**
+Compose honours TAB for focus, and re-tapping by coordinate goes wrong the moment the keyboard
+opens and shifts the layout — a mis-tap lands on whatever moved into that spot (typing an API key
+into the URL field, say).
+
+**"Don't keep activities" is not a process-death test.** It recreates the activity inside a live
+process, so anything that only breaks when the *process* is rebuilt passes it. The real check is
+to background the app and kill it:
+
+```bash
+adb shell input keyevent KEYCODE_HOME && adb shell am kill com.grappim.wallosmobile
+adb shell monkey -p com.grappim.wallosmobile -c android.intent.category.LAUNCHER 1
+```
+
+`am kill` keeps the task and its saved state; `force-stop` discards them, so it tests nothing.
+This is the check that caught the nav3 first-composition bug — the developer option did not.
+
+`localhost` from the emulator is the emulator, so the host is **`http://10.0.2.2:8282`**. The
+Bash tool's sandbox also blocks loopback, so `curl` to `127.0.0.1`, `adb` and the emulator all
+need `dangerouslyDisableSandbox`.
+
 CI (`.github/workflows/ci.yml`, plan §3.5) runs assemble + `allTests` + `detekt ktlintCheck` on
 push and PR to `master`, but `paths-ignore` skips `**.md` and `docs/**` — a docs-only commit
 produces **no run**, which is not a failure. Kover is local-only.
@@ -135,6 +156,18 @@ vertical slices, **all source in `commonMain`**.
   `@WebSessionHttpClient` cookie jar, plan §1.1), every class between it and the call site has to
   be a `@Factory` too, or the reason is silently undone. Nothing fails; the object just lives too
   long.
+  **`startKoin<KoinApp>` expands at the *call site***, into
+  `startKoinWith(listOf(AndroidModule().module(), AppModule().module()))` — check it with `javap -c`
+  on `WallosApp.class`. It gathers `@Configuration` modules only from the compilation that calls it,
+  so `androidApp`'s own `AndroidModule` needs no wiring while **every module from another Gradle
+  module must be in `AppModule`'s `includes`**. A forgotten line there compiles and crashes at
+  first injection; `KoinGraphTest` is what catches it.
+  **The graph test uses `koin-test`'s `verify()`, never `checkModules()`** — `checkModules`
+  instantiates definitions, which here means a DataStore file and an HTTP engine. `verify()` reads
+  a definition through its **bound type's** constructor, so for a `@Single fun provideX(): T` it
+  inspects `T`'s constructor rather than the function's parameters; that is why
+  `HttpClientEngine` sits in `extraTypes` as a known false positive, next to the types
+  `:androidApp` really does supply.
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`.
   Every new route must also be registered in the polymorphic `SerializersModule` in
@@ -143,6 +176,14 @@ vertical slices, **all source in `commonMain`**.
   non-default `serializersModule` and throws on the **first composition** if given
   `SavedStateConfiguration.DEFAULT` — only a *missing route* is the silent, process-death-only
   failure.
+  **`rememberNavBackStack` consumes its restored state only in the *first* composition.** Anything
+  that gates the shell on an async value — a DataStore flow, a suspend read — composes
+  `NavDisplay` a pass later and the restored back stack is dropped with no error: the app comes
+  back alive, on the start destination. `WallosAppContent`'s startup branch is seeded from
+  `rememberSaveable` for exactly this reason. Don't put a loading state above the shell.
+- **Not everything on screen is a route.** Login isn't — the startup branch renders it *instead of*
+  the shell, so it has no `NavDisplay`, no back-stack entry, and nothing to register. The test is
+  whether anything can navigate *back* to it; a screen the app is either on or not is state.
 - **Tests use hand-written fakes in `:testing`. No mocking library — no MockK, no Mockito,
   anywhere.** `kotlin.test` + Turbine. Fake/fixture shape: plan §6.1. `:testing` is for doubles
   **other** modules need; a double used by exactly one test file stays private in that file.
@@ -250,7 +291,18 @@ Read `docs/WALLOS_API.md` before touching anything network-related.
 Two that bite later: `cycle=5` (One-time) is readable but **rejected on write**, and
 `Unauthorized or Not Found` is a per-row ownership error that must **not** clear the stored key.
 
-### There is a live instance behind the `wallos` MCP
+### There is a live instance, and it is the only one to test against
+
+`docs/local-info.txt` holds the URL and credentials for the user's own Wallos container
+(`http://localhost:8282`, i.e. `http://10.0.2.2:8282` from the emulator). It is committed on
+purpose — the instance is LAN-only, the user has said so explicitly, so don't re-raise it as a
+leak. **Every on-device `Verify:` line means this instance.**
+
+**Do not reach for `demo.wallosapp.com`.** Its `profile.php` dies with a PHP fatal
+(`no such table: uploaded_avatars`), so there is no `id="apikey"` to scrape and the Path A login
+bridge can never succeed there. References to it were removed from the docs in 1.11.
+
+### The same instance is behind the `wallos` MCP
 
 `mcp__wallos__*` reaches a **real Wallos v5.4.2**, and it is the **user's own personal instance** —
 `gregorz`, user id 1, real subscriptions. Read tools (`wallos_get_version`, `wallos_get_user`,

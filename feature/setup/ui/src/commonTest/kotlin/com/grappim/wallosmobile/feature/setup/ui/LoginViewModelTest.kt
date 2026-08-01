@@ -1,6 +1,5 @@
 package com.grappim.wallosmobile.feature.setup.ui
 
-import app.cash.turbine.test
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
@@ -84,18 +83,16 @@ class LoginViewModelTest {
     }
 
     @Test
-    fun `connect with credentials drives the password path and signals success`() = runTest {
+    fun `connect with credentials drives the password path`() = runTest {
         repository.loginResult = Result.success(LoginOutcome.Connected)
         val sut = viewModel()
         sut.fillCredentials()
 
-        sut.connectedEvent.test {
-            sut.uiState.value.onConnectClick()
+        sut.uiState.value.onConnectClick()
 
-            awaitItem()
-            assertEquals(Triple(SERVER_URL, USERNAME, PASSWORD), repository.loginCall)
-            assertFalse(sut.uiState.value.isLoading)
-        }
+        assertEquals(Triple(SERVER_URL, USERNAME, PASSWORD), repository.loginCall)
+        assertFalse(sut.uiState.value.isLoading)
+        assertTrue(sut.uiState.value.error.isEmpty())
     }
 
     /** The password is exchanged for the key and then has no reason to stay in memory. */
@@ -105,10 +102,7 @@ class LoginViewModelTest {
         val sut = viewModel()
         sut.fillCredentials()
 
-        sut.connectedEvent.test {
-            sut.uiState.value.onConnectClick()
-            awaitItem()
-        }
+        sut.uiState.value.onConnectClick()
 
         assertEquals("", sut.uiState.value.password)
     }
@@ -119,17 +113,15 @@ class LoginViewModelTest {
         val sut = viewModel()
         sut.fillApiKey()
 
-        sut.connectedEvent.test {
-            sut.uiState.value.onConnectClick()
+        sut.uiState.value.onConnectClick()
 
-            awaitItem()
-            assertEquals(SERVER_URL to API_KEY, repository.connectCall)
-            assertEquals(null, repository.loginCall)
-        }
+        assertEquals(SERVER_URL to API_KEY, repository.connectCall)
+        assertEquals(null, repository.loginCall)
+        assertTrue(sut.uiState.value.error.isEmpty())
     }
 
     @Test
-    fun `rejected credentials become a message and no success event`() = runTest {
+    fun `rejected credentials become a message`() = runTest {
         repository.loginResult = Result.success(LoginOutcome.InvalidCredentials)
         val sut = viewModel()
         sut.fillCredentials()
@@ -138,7 +130,6 @@ class LoginViewModelTest {
 
         assertEquals(resource(RString.login_error_invalid_credentials), sut.uiState.value.error)
         assertFalse(sut.uiState.value.isLoading)
-        sut.connectedEvent.test { expectNoEvents() }
     }
 
     /** v1 doesn't drive `totp.php` — the message has to send the user to the key field instead. */

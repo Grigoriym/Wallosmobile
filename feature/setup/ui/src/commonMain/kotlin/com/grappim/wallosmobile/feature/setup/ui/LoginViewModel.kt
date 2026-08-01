@@ -11,11 +11,9 @@ import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_
 import com.grappim.wallosmobile.strings.generated.resources.login_error_needs_totp
 import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
@@ -41,9 +39,6 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
         )
     )
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
-
-    private val _connectedEvent = Channel<Unit>()
-    val connectedEvent = _connectedEvent.receiveAsFlow()
 
     private fun onServerUrlChange(url: String) {
         _uiState.update { it.copy(serverUrl = url, error = NativeText.Empty) }
@@ -89,7 +84,7 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
         }
     }
 
-    private suspend fun onOutcome(outcome: LoginOutcome) {
+    private fun onOutcome(outcome: LoginOutcome) {
         when (outcome) {
             LoginOutcome.Connected -> onConnected()
 
@@ -101,9 +96,12 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
         }
     }
 
-    private suspend fun onConnected() {
+    /**
+     * The key is persisted by now, so `ApiKeyStorage.isConnected` has already flipped and the
+     * shell is on its way in — this screen only has to stop looking busy and forget the password.
+     */
+    private fun onConnected() {
         _uiState.update { it.copy(isLoading = false, password = "") }
-        _connectedEvent.send(Unit)
     }
 
     private fun onFailure(throwable: Throwable) {

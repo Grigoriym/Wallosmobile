@@ -63,6 +63,12 @@ session is involved, so there is no `LoginOutcome` to report; a rejected key is 
 paths share one screen and one state, switched by a flag — the reveal is a mode, not a second
 route.
 
+**Neither path reports success to anyone.** A stored key *is* the outcome, and
+`ApiKeyStorage.isConnected` is what the startup branch (§7.1) watches, so the ViewModel raises no
+completion event and the screen takes no `onConnectSuccess` — a second owner of that fact could
+only ever disagree with the first. The same property is what makes Disconnect free: `clear()`
+flips the flow and the shell is replaced, with no navigation involved (1.11).
+
 Consequences for the design:
 
 - **The bridge needs its own HTTP client**, and it is the third one in the app. It speaks HTML not
@@ -104,6 +110,9 @@ Consequences for the design:
 - **Warn on non-HTTPS base URLs.** Self-hosted instances are often plain HTTP on a LAN, and
   POSTing a password over cleartext is materially worse than pasting a pre-existing key. Path B
   should be the recommended option on an insecure origin.
+  **The manifest carries `usesCleartextTraffic="true"` (1.11)** — plain HTTP is the common
+  deployment and the app cannot reach one without it — so nothing in the platform is holding this
+  line. The warning is the only mitigation there will be, and **no step owns it yet.**
 
 - **Client-side backoff on failed logins.** The server has no rate limiting and no lockout
   anywhere. Without our own throttle we are shipping a brute-force tool pointed at the user's
@@ -709,6 +718,12 @@ into its feature's `ui` module with the screen that replaces the placeholder —
 `DrawerDestination.kt`, `RouteConfig.kt`, `NavKeySerializers.kt` and `MainNavHost.kt`. Anything
 added to `Routes.kt` after that is a route without a home, which is a smell, not a pattern.
 
+**Not everything on screen is a route.** Login isn't: the startup branch (§7.1) renders it
+*instead of* the whole shell, so it has no `NavDisplay` around it, no back stack entry and nothing
+to register in `NavKeySerializers`. `feature:setup:ui` accordingly declares no `NavKey` and no
+serialization plugin. The test for "is this a route?" is whether anything can navigate *back* to
+it — a screen the app is either on or not is state.
+
 ### 5.4 Shell: navigation drawer + top app bar
 
 Same shell as MealieMobile (and TaigaMobileNova): a **`ModalNavigationDrawer`** for top-level
@@ -732,8 +747,8 @@ so the drawer's click site needs no cast), `DrawerItem` (`Destination` / `Group`
 sections can be grouped with headers), `IconSource` (`Vector` or `Resource`), `DrawerItemsBuilder`
 (a class, so the item list can later depend on state), and `MainAppState` exposing
 `currentRouteConfig`, `drawerGesturesEnabled` and `currentDrawerDestination` as `derivedStateOf`.
-`DrawerItemsBuilder` is *constructed* by the shell until the Koin graph starts (1.11), which is
-when it becomes `@Factory` + `koinInject()` and `composeApp` gains `kmp.di`.
+`DrawerItemsBuilder` is a `@Factory` reached with `koinInject()`; it was *constructed* by the
+shell until the Koin graph started in 1.11, which is also when `composeApp` gained `kmp.di`.
 
 Wallos's drawer, grown across phases:
 
@@ -840,6 +855,16 @@ will not compile:
    across process death fails. Mitigate with a test that asserts the registered set matches the
    set of routes reachable from the entry providers.
 4. **Nav3 is no longer alpha.** The doc cites `1.1.0-alpha03`; the catalog is on `1.1.1`.
+5. **`rememberNavBackStack` restores only in the *first* composition.** Nothing in the doc says
+   so, and it constrains anything rendered *above* the shell. `WallosAppContent`'s startup branch
+   (§7.1) reads a DataStore flow that has no value for frame 1; waiting for it composed
+   `AuthenticatedMainScreen` a pass later, and the restored back stack was simply never consumed —
+   the app came back alive, on the start destination, with no error anywhere. So the branch is
+   seeded from `rememberSaveable` and the shell composes immediately (1.11).
+   **This is invisible to the "Don't keep activities" developer option**, which recreates the
+   activity inside a live process and passes either way. The check that catches it is
+   `adb shell am kill <pkg>` on a backgrounded app, and that is what a process-death Verify line
+   should mean from here on.
 
 Also worth knowing: `io.insert-koin:koin-compose-navigation3` exists and is declared in Mealie's
 catalog but is **not used** — `koinViewModel()` + `rememberViewModelStoreNavEntryDecorator()` is
@@ -849,8 +874,9 @@ enough. Don't add it without a reason.
 
 - `core:navigation` is a real module with logic and tests, not the thin extension holder it is in
   TaigaMobileNova.
-- Feature `ui` modules need `kotlinx.serialization` (for `@Serializable` routes) in addition to
-  Compose — so `wallosmobile.kmp.serialization` applies to every feature `ui` module.
+- Feature `ui` modules that **own a route** need `kotlinx.serialization` (for `@Serializable`
+  routes) in addition to Compose. Not every one does: `feature:setup:ui` renders above the shell
+  and never enters a back stack, so it carries no route and no serialization plugin (1.11).
 - `Navigator` is unit-tested directly: `NavBackStack(vararg elements)` is a public constructor, so
   a test builds `NavigationState` by hand with no Compose runtime and no `rememberNavBackStack`,
   and `derivedStateOf` reads fine outside a composition. There is **no `NavigatorTest` in
@@ -940,6 +966,23 @@ fun getSubscription(
 Randomized defaults mean a test that passes only because two unrelated fields happened to both be
 `0` or `""` will not stay green. Only the fields a test actually cares about get named.
 
+**The Koin graph gets its own test** (`composeApp`, 1.11). A missing definition is a launch-time
+crash that no other gate can see — the compiler plugin resolves nothing, and both a
+`@ComponentScan` that misses a class and an `AppModule` that forgets an `includes` line compile
+cleanly. Use `koin-test`'s **`verify()`, not `checkModules()`**: `checkModules` instantiates
+definitions, which here means a DataStore file and an HTTP engine, while `verify()` is pure
+reflection over constructors.
+
+Two things to know before reading a failure:
+
+- `verify()` reads a definition through its **bound type's** constructor, so for a
+  `@Single fun provideHttpClient(…)` it inspects `HttpClient(engine)` rather than the function's
+  own parameters. `HttpClientEngine` therefore sits in `extraTypes` as a known false positive,
+  alongside the types `:androidApp` genuinely supplies (`Context`, `AppInfoProvider`).
+- `AppModule`'s `includes` list is load-bearing. The compiler plugin auto-gathers `@Configuration`
+  modules only from the compilation that calls `startKoin`, which is why `androidApp`'s
+  `AndroidModule` needs no entry and every cross-module one does.
+
 **What gets tested.** Pure logic earns real coverage — `WallosEnvelopeParser`, error mapping,
 `FormParams`, mappers, the formatters, `Navigator`, the login response interpreter and key regex.
 ViewModels are tested through their `StateFlow` with fakes injected. Composables are not unit
@@ -983,7 +1026,13 @@ The first goal is one honest vertical slice: **log in, see your subscriptions**.
 | 2 | **Subscriptions list** | `LazyColumn` of cards: logo, name, price + currency symbol, next payment date, billing cycle ("every 6 months"), inactive badge. Loading / empty / error states, pull-to-refresh. Top bar: title + `Menu` icon. Drawer enabled. | `get_subscriptions.php`, `get_currencies.php` |
 | 3 | **Subscription detail** | Read-only: logo, name, price, cycle + frequency, next payment, start date, category, payment method, payer, notes, URL, active state. Top bar: name + `Back`. Drawer gestures disabled. | none — passes the id, reads from the list's cached state, or `get_subscription.php` |
 
-Plus a **startup branch** (not a screen): stored key present → list, absent → login.
+Plus a **startup branch** (not a screen, and not a route): stored key present → shell, absent →
+login. It is `ApiKeyStorage.isConnected` collected in `WallosAppContent`, above the theme's
+content — one source of truth, so login and disconnect both work by flipping it. Two things it
+must get right (both learned in 1.11): it has to render the shell in the **first** composition
+or the restored nav back stack is lost (§5.5), which is why the branch is seeded from
+`rememberSaveable`; and because it is not a route, nothing about it belongs in
+`NavKeySerializers`.
 
 **Shell in v1:** the full drawer + top-bar port from §5.4, with the drawer holding *Subscriptions*
 and *Settings* (Settings being a stub screen with Disconnect on it — one item is a lonely drawer,
@@ -1052,8 +1101,8 @@ Wallos under `/wallos`). TOTP redirect → message pointing at the key field, no
 `MainAppState`, `RouteConfig`, the drawer widget and `WallosTopAppBar` in `uikit` — all ported
 from MealieMobile per §5.4. `composeApp`: DI root, `MainNavHost`, `NavKeySerializers`,
 login-vs-shell startup branch.
-*Done when:* username/password onboarding works against `demo.wallosapp.com` (demo/demo), the key
-persists, and the app survives process death on the right screen.
+*Done when:* username/password onboarding works against the local instance in
+`docs/local-info.txt`, the key persists, and the app survives process death on the right screen.
 *Test focus:* the envelope parser, the API doc's §5.3 auth-title table, the login
 response-interpretation table (302-to-`.` vs 302-to-`totp.php` vs 200), and the `id="apikey"`
 regex — all pure functions over recorded fixtures.
