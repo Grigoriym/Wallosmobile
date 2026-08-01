@@ -305,7 +305,11 @@ Turbine and `:testing` — arrives through `kmp.library`/`configureTests()`. Mod
 those by hand. The same goes for the Compose set in `configureKmpCompose()`, which carries
 **material-icons-core**: material3 does not bring it transitively, so without it `Icons.Filled.*`
 is unresolved — while `ui-graphics` and `animation` *do* arrive via `compose.ui` and
-`compose.foundation` and need no entry of their own.
+`compose.foundation` and need no entry of their own. That core artifact is only ~50 icons, and
+several obvious ones are absent (`Subscriptions`, `Payment`, `Add`); `ArrowBack`, `List` and
+`Send` are `Icons.AutoMirrored.Filled.*`. A module that genuinely needs more declares
+`jetbrains.compose.icons.extended` itself (the `feature/NAME/ui` block above), rather than
+growing the convention plugin for one screen.
 
 ### 3.4 `core:crud` — the one deliberate deviation
 
@@ -614,12 +618,20 @@ unit-testable:
 
 ```
 core/navigation/                  NavigationState, Navigator, toEntries(), rememberNavigationState
-composeApp/.../nav/
-  NavKeySerializers.kt            polymorphic SerializersModule + SavedStateConfiguration
-  TopLevelDestination.kt          top-level routes + start destination
-  RouteConfig.kt                  per-route shell config (top bar, FAB, nav-bar visibility)
-  MainNavHost.kt                  NavDisplay + entryProvider wiring
-  entries/                        one file per feature: subscriptionsEntry(), dashboardEntry(), …
+composeApp/.../
+  WallosAppContent.kt             theme + the startup branch; MainActivity calls only this
+  MainAppState.kt                 back stacks + drawer state + current RouteConfig
+  AuthenticatedMainScreen.kt      the shell: drawer, top bar, NavDisplay, back handler
+  widget/WallosDrawerWidget.kt    the drawer sheet
+  nav/
+    NavKeySerializers.kt          polymorphic SerializersModule + SavedStateConfiguration
+    DrawerDestination.kt          top-level routes + start destination
+    DrawerItem.kt                 Destination / Group / Divider + IconSource
+    DrawerItemsBuilder.kt         the drawer's item list
+    RouteConfig.kt                per-route shell config (drawer gestures; FAB from Phase 3)
+    Routes.kt                     temporary: routes for features that don't exist yet (§5.3)
+    MainNavHost.kt                NavDisplay + entryProvider wiring
+    entries/                      one file per feature: subscriptionsEntry(), dashboardEntry(), …
 ```
 
 `rememberNavigationState` takes the `SavedStateConfiguration` as a parameter rather than building
@@ -666,6 +678,12 @@ Route arguments reach the ViewModel through the screen via
 `koinViewModel(parameters = { parametersOf(subscriptionId) })`. There is no `SavedStateHandle`
 route extraction — that is the nav2 pattern and does not apply here.
 
+The shell was built (1.8) before either of its two sections existed, so `SubscriptionsRoute` and
+`SettingsRoute` start life in `composeApp/nav/Routes.kt` against a placeholder screen. Each moves
+into its feature's `ui` module with the screen that replaces the placeholder — an import change in
+`DrawerDestination.kt`, `RouteConfig.kt`, `NavKeySerializers.kt` and `MainNavHost.kt`. Anything
+added to `Routes.kt` after that is a route without a home, which is a smell, not a pattern.
+
 ### 5.4 Shell: navigation drawer + top app bar
 
 Same shell as MealieMobile (and TaigaMobileNova): a **`ModalNavigationDrawer`** for top-level
@@ -684,11 +702,13 @@ plus one independent sub-stack per section — is exactly the drawer model: each
 keeps its own history. Ports unchanged, along with single-top, re-tap-to-root, and back stepping
 through the sub-stack before falling back to the section stack.
 
-Supporting types come with it: `DrawerDestination` (enum of top-level routes), `DrawerItem`
-(`Destination` / `Group` / `Divider`, so sections can be grouped with headers), `IconSource`
-(`Vector` or `Resource`), `DrawerItemsBuilder` (injected, so the item list can depend on state),
-and `MainAppState` exposing `currentRouteConfig`, `drawerGesturesEnabled`, `showDrawer` and
-`currentDrawerDestination` as `derivedStateOf`.
+Supporting types come with it: `DrawerDestination` (enum of top-level routes, each typed `NavKey`
+so the drawer's click site needs no cast), `DrawerItem` (`Destination` / `Group` / `Divider`, so
+sections can be grouped with headers), `IconSource` (`Vector` or `Resource`), `DrawerItemsBuilder`
+(a class, so the item list can later depend on state), and `MainAppState` exposing
+`currentRouteConfig`, `drawerGesturesEnabled` and `currentDrawerDestination` as `derivedStateOf`.
+`DrawerItemsBuilder` is *constructed* by the shell until the Koin graph starts (1.11), which is
+when it becomes `@Factory` + `koinInject()` and `composeApp` gains `kmp.di`.
 
 Wallos's drawer, grown across phases:
 
@@ -707,17 +727,19 @@ Settings
 The `DrawerItem.Group` type is what makes the *Manage* grouping free — it is the reason Mealie's
 drawer takes a list of items rather than a flat list of destinations.
 
-`RouteConfig`/`RouteConfigProvider` carries over with Wallos's values substituted: `DrawerConfig`
-(`Enabled` on top-level screens, `GesturesDisabled` on detail/editor screens, `Hidden` where
-needed) and `FabConfig` (add-subscription FAB on the list, `None` elsewhere).
+`RouteConfig`/`RouteConfigProvider` carries over, trimmed to what v1 can actually produce:
+`DrawerConfig` is `Enabled` on top-level screens and `GesturesDisabled` on detail/editor screens.
+`Hidden` (and with it `MainAppState.showDrawer`) has no route to apply to, and **`FabConfig` is
+not in v1 at all** — the add-subscription FAB is a Phase 3 write. Both grow back with the screen
+that needs them, along with the snackbar host: v1 screens keep their errors in UI state, so the
+shell renders no `SnackbarHost` and there is nothing offline-aware in it (no `NetworkMonitor`,
+no `LocalIsOffline`).
 
-Two details from `AuthenticatedMainScreen.kt` worth keeping deliberately, because both are
-bug-fix-shaped:
-
-- The `NavigationBackHandler` that closes the drawer is placed **after** `MainNavHost` in the
-  composition — last-composed enabled handler wins, so composing it earlier means back navigates
-  the stack while leaving the drawer open. It also checks `isAnimationRunning`, not just `isOpen`.
-- The FAB is suppressed when offline rather than shown-and-disabled.
+One detail from `AuthenticatedMainScreen.kt` worth keeping deliberately, because it is
+bug-fix-shaped: the `NavigationBackHandler` that closes the drawer is placed **after**
+`MainNavHost` in the composition — last-composed enabled handler wins, so composing it earlier
+means back navigates the stack while leaving the drawer open. It also checks `isAnimationRunning`,
+not just `isOpen`. (Mealie's other one, suppressing the FAB when offline, waits for the FAB.)
 
 **Top app bar.** A single `WallosTopAppBar` in `uikit`, driven by a `TopBarController` provided
 through `LocalTopBarConfig`. Screens declare their bar; the shell renders it:

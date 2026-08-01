@@ -63,6 +63,21 @@ javap -p -c core/storage/build/classes/kotlin/android/main/com/grappim/wallosmob
 ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private static final"
 ```
 
+A step whose `Verify:` line is about the running app is verified **on the emulator**, not by
+assembling. Headless, no snapshot, no interaction needed beyond `input tap`:
+
+```bash
+~/Android/Sdk/emulator/emulator -avd Medium_Phone_API_36.1 -no-snapshot-save -no-boot-anim \
+  -gpu swiftshader_indirect &
+adb wait-for-device shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done'
+./gradlew :androidApp:installDebug && adb shell am start -n com.grappim.wallosmobile/.MainActivity
+adb exec-out screencap -p > shot.png   # then read shot.png; tap with `adb shell input tap X Y`
+adb emu kill                           # don't leave it running
+```
+
+`screencap` is 1080×2400 while the image comes back scaled — multiply the coordinates read off
+the screenshot by the stated factor before feeding them to `input tap`.
+
 CI (`.github/workflows/ci.yml`, plan §3.5) runs assemble + `allTests` + `detekt ktlintCheck` on
 push and PR to `master`, but `paths-ignore` skips `**.md` and `docs/**` — a docs-only commit
 produces **no run**, which is not a failure. Kover is local-only.
@@ -87,6 +102,12 @@ vertical slices, **all source in `commonMain`**.
   test deps come from the convention plugins — never declare them per module. Same for the Compose
   set, including **material icons** (`Icons.Filled.*`), which material3 does *not* pull in
   transitively and which therefore lives in `configureKmpCompose()`, not in any module.
+- **`material-icons-core` is ~50 icons, and the obvious one is usually missing** — no
+  `Subscriptions`, no `Payment`, not even `Add`; `ArrowBack`, `List` and `Send` live under
+  `Icons.AutoMirrored.Filled.*`. Reaching for anything else means adding `material-icons-extended`
+  to `configureKmpCompose()`, so pick from the set or say you're growing it. To list the set
+  without a compile: `unzip` the `material-icons-core-*.jar` from `~/.gradle/caches` and
+  `strings` the `package_androidx.compose.material.icons.filled/0_filled.knm` entry.
 
 ## Non-negotiables
 

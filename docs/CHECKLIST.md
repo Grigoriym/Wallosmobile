@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `7/11` · M2 `0/7`
-**Current step:** 1.8
+**Progress:** M0 `7/7` · M1 `8/11` · M2 `0/7`
+**Current step:** 1.9
 
 ---
 
@@ -64,8 +64,9 @@ Goal: an empty but correctly-structured project that builds, lints and tests.
   `JVM_21` / `VERSION_21` — 0.3 replaces them anyway. `jetbrains-lifecycle-viewmodelNavigation3`
   reuses Taiga's `jetbrainsAndroidxLifecycle = "2.11.0"` (same value as Mealie's
   `jetbrainsComposeLifecycle`), so no second lifecycle version entry. Koin's
-  `koin-compose-navigation3` is **not** in the catalog yet — add it when 1.8 needs `koinViewModel`
-  inside nav3 entries.
+  `koin-compose-navigation3` is **not** in the catalog yet, and 1.8's shell did not want it —
+  per plan §5.5, `koinViewModel()` + `rememberViewModelStoreNavEntryDecorator()` is enough. Add it
+  only if a screen proves otherwise.
 
 - [x] **0.3 — build-logic: base plugins**
   Create `build-logic/` with `convention/build.gradle.kts` and `settings.gradle.kts`; port
@@ -376,12 +377,44 @@ Goal: username + password → the app holds a validated API key and shows the dr
   to it, so Home is always depth 1. `Navigator` is not a Koin definition here — Mealie constructs
   it in the shell, and 1.8 owns that call.
 
-- [ ] **1.8 — composeApp: drawer shell**
+- [x] **1.8 — composeApp: drawer shell**
   `DrawerDestination`, `DrawerItem`, `IconSource`, `DrawerItemsBuilder`, `RouteConfig(Provider)`,
   `MainAppState`, `WallosDrawerWidget`, `AuthenticatedMainScreen`, `MainNavHost`,
   `NavKeySerializers`. Keep the two details from §5.4: `NavigationBackHandler` composed **after**
   `MainNavHost`, and `isAnimationRunning` alongside `isOpen`. Drawer items: Subscriptions, Settings.
   *Verify:* app launches to an empty shell with a working drawer  ·  *Ref:* plan §5.4
+  *Note:* the shell needs routes before either feature exists, so **`SubscriptionsRoute` and
+  `SettingsRoute` are temporary `data object`s in `composeApp/nav/Routes.kt`**, rendered by a
+  private `PlaceholderScreen` in `MainNavHost`. **2.4 moves `SubscriptionsRoute` to
+  `feature:subscriptions:ui` and 2.6 moves `SettingsRoute`** (plan §5.3 — routes live with their
+  screen); that is an import change in four files — `Routes.kt`, `DrawerDestination`,
+  `RouteConfig`, `NavKeySerializers` — plus swapping the placeholder entry for the real screen.
+  **Nothing here is injected**: `DrawerItemsBuilder` is a plain class defaulted into
+  `AuthenticatedMainScreen`, because `startKoin` doesn't exist until 1.11 and `koinInject()` would
+  throw. **1.11 should make it `@Factory` + `koinInject()`** once the graph starts, which is also
+  when `composeApp` gets `kmp.di` and its `@ComponentScan` class.
+  Trimmed from Mealie's shell, each because nothing in v1 feeds it: **`FabConfig`** (no writes
+  before Phase 3 — `RouteConfig` carries `drawerConfig` only), `DrawerConfig.Hidden` +
+  `MainAppState.showDrawer` (no fullscreen route), the snackbar host (1.10/2.4 put errors in UI
+  state), and everything offline-related — there is no `NetworkMonitor` (1.4) and no
+  `LocalIsOffline`. `DrawerItem.Group`/`Divider` *were* kept, per plan §5.4: v1 has two flat items,
+  Phase 2b's *Manage* group is what the type exists for.
+  `DrawerDestination.route` is typed `NavKey`, not Mealie's `Any` — that drops the
+  `destination.route as NavKey` cast at the drawer's click site.
+  **`material-icons-core` is ~50 icons**, and neither `Subscriptions` nor even `Add` is among
+  them (`ArrowBack`, `List` and `Send` are `Icons.AutoMirrored.Filled.*`). Anything richer needs
+  `material-icons-extended` in `configureKmpCompose()`; the drawer uses
+  `Icons.AutoMirrored.Filled.List` instead.
+  `MainActivity` renders one composable, **`WallosAppContent`**, which applies `WallosMobileTheme`
+  — `androidApp` therefore still depends on `:composeApp` alone, and **1.11's startup branch goes
+  inside `WallosAppContent`**. `composeApp` gained `kmp.serialization` (for `@Serializable` routes)
+  and depends on `core:navigation`, `uikit`, `strings`.
+  Tests: `NavKeySerializersTest` walks `DrawerDestination.entries` and asserts each route is in
+  both `navKeySerializersModule` and `DRAWER_NAV_ITEMS` — the §5.5 "registered set matches the
+  reachable set" check, as far as it can go without reflection over the entry providers.
+  Verified on an emulator, not just by assembling: launch → Subscriptions, menu → drawer,
+  Settings → navigates and closes the drawer, back → Subscriptions, back with the drawer open →
+  drawer closes and the screen stays put.
 
 - [ ] **1.9 — feature:setup data + domain** ⭐
   `WebLoginApi`: `POST /login.php` (302 → success; `Location` contains `totp.php` → `NeedsTotp`;
@@ -483,4 +516,8 @@ structural into the plan itself.
 | 1.6 | `configureKmpCompose()` gains `jetbrains.compose.icons` | material3 doesn't bring material-icons-core transitively, and every `ui` module will want `Icons.Filled.*` — *now in plan §3.3* |
 | 1.7 | `SavedStateConfiguration.DEFAULT` throws at first composition, not on process death | `rememberNavBackStack` `require`s a `serializersModule` that isn't the default — *now in plan §5.5* |
 | 1.7 | `NavigatorTest` written from scratch; there is none in MealieMobile to port | Plan §5.6 called it a template, but no such file exists in either reference project — *now in plan §5.6* |
+| 1.8 | `SubscriptionsRoute`/`SettingsRoute` start in `composeApp/nav/`, not in a feature `ui` module | The shell can't be stood up without them and neither feature exists; 2.4/2.6 move them to their screens — *now in plan §5.3* |
+| 1.8 | `RouteConfig` carries no `FabConfig`, and `DrawerConfig` has no `Hidden` | v1 has no write screens and no fullscreen route — both arrive with the feature that needs them — *now in plan §5.4* |
+| 1.8 | `DrawerItemsBuilder` is constructed, not `@Factory`-injected | `startKoin` doesn't exist until 1.11, so `koinInject()` would throw at first composition — *now in plan §5.4* |
+| 1.8 | No snackbar host and nothing offline-aware in the shell (Mealie has both) | There is no `NetworkMonitor` (1.4) and no `LocalIsOffline`; errors go to UI state — *now in plan §5.4* |
 | 1.5 | No dynamic colour, so no `expect`/`actual` `colorScheme()` and no `androidMain` in `uikit` | Mealie's only reason for the `expect` is `dynamicDarkColorScheme(LocalContext)`; a static palette seeded from the logo navy keeps the brand and the module common — *now in plan §3.3* |
