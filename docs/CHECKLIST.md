@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `1/7`
-**Current step:** 2.2
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `2/7`
+**Current step:** 2.3
 
 ---
 
@@ -570,11 +570,41 @@ Goal: the list of real subscriptions, and a detail screen.
   No response envelopes here (`SubscriptionsResponse` etc.): 1.9's precedent is that the `dto`
   module grows them when `data` needs a response type, which is 2.3.
 
-- [ ] **2.2 — utils:formatter**
+- [x] **2.2 — utils:formatter**
   `decimal`: currency formatting, and parsing `monthly_cost`-style strings with thousands
-  separators. `datetime`: `YYYY-MM-DD` parse/format, and cycle + frequency → "every 6 months".
-  Tests in this step.
+  separators. `datetime`: `YYYY-MM-DD` parse/format. ~~cycle + frequency → "every 6 months"~~ —
+  **moved to 2.4**, see the note. Tests in this step.
   *Verify:* `./gradlew :utils:formatter:decimal:testAndroidHostTest :utils:formatter:datetime:testAndroidHostTest`
+  *Note:* **the cycle text can't live here: it would point `utils/` at `feature/`.** "every 6
+  months" is a function of `BillingCycle`, which 2.1 put in `feature:subscriptions:domain`, and
+  the layering is `feature/` → `core/` → `utils/`. The alternatives were a duplicate cycle enum
+  owned by `datetime` (a mapping to maintain for one string) or typing it as
+  `DateTimeUnit.DateBased` (which has no `ONE_TIME`); both lose to resolving a plural in the
+  composable that renders it, which is where a `pluralStringResource` wants to be anyway. **2.4
+  owns it**, and it needs no formatter at all — the plurals go in `:strings`. Nothing about
+  "every 6 months" was ever a date computation; `datetime` was just a place to put it.
+  Both formatters are **plain `@Single` classes, not interface + impl** — the repo's interfaces
+  exist for platform or IO seams (`SecretCipher`, `ApiKeyStorage`) and a fake formatter would only
+  make a consumer's test assert against wrong output. Same reasoning as CLAUDE.md's mappers-are-
+  classes rule. Neither is in `AppModule`'s `includes` yet: nothing injects them until 2.3, and an
+  unused `@Configuration` there is a definition `verify()` walks for no reason. **2.3 must add
+  `DecimalFormatterModule` *and* `DateTimeFormatterModule`** — a missing `includes` line compiles
+  and crashes at first injection.
+  `MoneyFormatter` fixes the separators at `1,234.56` instead of reading the device locale,
+  because that is what the instance itself renders (`localized_monthly_cost` is `en_US`
+  "regardless of the user's language", API doc §3.5) — a device-formatted price would disagree
+  with every total the same server shows. Locale-aware money needs `expect`/`actual` over the
+  platform `NumberFormat`, which also puts it beyond a host test. The symbol is a **parameter**,
+  not derived from a code: Wallos lets it be any string.
+  **`kotlin.math.round` breaks ties towards the even integer**, so it renders an exact `0.125` as
+  `0.12` while PHP's `number_format` says `0.13`; `floor(x + 0.5)` is the half-up the server uses.
+  Caught by a test, not by review.
+  `DateFormatter.parseIsoDate` returns `null` for blank *and* for unparseable, so 2.3's mapper
+  needs no `try`: `DateTimeFormatException` is an `IllegalArgumentException`, which is the same
+  trick `core:api` uses to catch a `SerializationException` without a bare `catch (Exception)`.
+  A **display** date format ("5 Mar 2026") is deliberately absent — the step named ISO parse/format
+  only. **2.4/2.5 decide it**, and note it is the one thing in these modules that genuinely wants
+  `expect`/`actual` (there is no locale-aware date formatting in `commonMain`).
 
 - [ ] **2.3 — feature:subscriptions data**
   `SubscriptionsApi` (`get_subscriptions.php`, `get_currencies.php`, `get_subscription.php`),
@@ -587,6 +617,10 @@ Goal: the list of real subscriptions, and a detail screen.
   `SubscriptionsRoute`, screen, state, ViewModel. Cards: logo (Coil,
   `{base}/images/uploads/logos/{logo}`), name, price + symbol, next payment, cycle text, inactive
   badge. Loading / empty / error states, pull-to-refresh. Top bar: title + `Menu`.
+  **Also owns cycle + frequency → "every 6 months"** (moved here from 2.2, which can't see
+  `BillingCycle`): plurals in `:strings`, resolved with `pluralStringResource` in the composable,
+  and no text at all when `cycle == null`. Decide the **display** date format here too — 2.2 ships
+  ISO only.
   *Verify:* `./gradlew :feature:subscriptions:ui:testAndroidHostTest`
 
 - [ ] **2.5 — feature:subscriptions ui: detail**
@@ -682,4 +716,7 @@ structural into the plan itself.
 | 2.1 | Subscription names arrive HTML-escaped; unset dates are `""` not `null` | Neither is in the schema or the PHP docblocks — read off the live instance — *now in `WALLOS_API.md` §3.1* |
 | 2.1 | `BillingCycle.fromCode` is nullable, so `Subscription.cycle` is too | An unknown code means an instance newer than this build; a default would render a wrong cycle — *now in plan §6.1 "Domain modelling notes"* |
 | 2.1 | Domain `Subscription`/`Currency` model only what §7.1's two screens render | The DTO keeps the full row; the domain model grows with the screen that needs a field |
+| 2.2 | Cycle + frequency → "every 6 months" moved out of `utils:formatter:datetime` and into 2.4 | It is a function of `BillingCycle`, which lives in `feature:subscriptions:domain` — keeping it here would point `utils/` at `feature/` — *now in plan §2, §3.3* |
+| 2.2 | Formatters are plain `@Single` classes, not interface + impl | The repo's interfaces are platform/IO seams; a fake formatter would only let a consumer's test assert wrong output — *now in plan §6.1* |
+| 2.2 | Money formatting is fixed to `1,234.56`, not device-locale, and rounds half-up by hand | The instance itself renders `en_US` (API doc §3.5); `kotlin.math.round` ties to even — *now in plan §6, Domain modelling notes* |
 | 1.5 | No dynamic colour, so no `expect`/`actual` `colorScheme()` and no `androidMain` in `uikit` | Mealie's only reason for the `expect` is `dynamicDarkColorScheme(LocalContext)`; a static palette seeded from the logo navy keeps the brand and the module common — *now in plan §3.3* |

@@ -114,7 +114,10 @@ vertical slices, **all source in `commonMain`**.
   `composeApp`.
 - **Use cases only when a screen needs multiple calls.** Single repo calls go straight from the
   ViewModel.
-- **Mappers are classes, not extension functions** — one per file, for testability.
+- **Mappers are classes, not extension functions** — one per file, for testability. Same for
+  formatters: pure logic gets **no interface**. An interface here is a seam over a platform or
+  over IO (`SecretCipher`, `ApiKeyStorage`, `WebLoginApi`) — something a host test can't reach.
+  Faking a pure class only lets the consumer's test assert output the app never produces.
 - **Storage** is DataStore-backed (KMP), interface + impl, keys in a `private companion object`.
 - **A new module must be added to the root `build.gradle.kts` `kover { }` block** — coverage is
   aggregated by an explicit per-module list, so a module left out of it is silently at 0% and

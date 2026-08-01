@@ -162,7 +162,7 @@ core/
 utils/
   ui/                            NativeText, ObserveAsEvents, SnackbarDelegate
   formatter/decimal/             Money parsing & currency formatting
-  formatter/datetime/            YYYY-MM-DD parsing, cycle/frequency → human text
+  formatter/datetime/            YYYY-MM-DD parsing & formatting
 feature/
   setup/          data domain dto ui      Onboarding: login bridge + manual key entry (§1.1)
   subscriptions/  data domain dto mapper ui   List, detail, add/edit/delete
@@ -326,6 +326,14 @@ Four details that are easy to miss and annoying to diagnose:
 - **`uikit` depends on `utils:ui` as `api`.** `TopBarConfig` carries `NativeText` in its public
   signature (§5.4), so every consumer of `uikit` resolves `NativeText` transitively and should not
   list `utils.ui` a second time.
+
+- **`utils:*` is the bottom of the stack, so it cannot see a domain type.** Anything phrased as
+  "format *this domain enum* for the user" belongs to the screen, not to a formatter: the text for
+  `BillingCycle` + `frequency` ("every 6 months") started life in `utils:formatter:datetime` and
+  moved to `feature:subscriptions:ui` in 2.2, because `BillingCycle` lives in that feature's
+  `domain`. Duplicating the enum down here to keep the function would buy one string and a mapping
+  to maintain; a plural resolved with `pluralStringResource` where it is rendered costs nothing.
+  The formatters take primitives and `kotlinx.datetime` types only.
 
 Everything else — coroutines, immutable collections, datetime, `core:logger`, `kotlin("test")`,
 Turbine and `:testing` — arrives through `kmp.library`/`configureTests()`. Modules never declare
@@ -983,6 +991,12 @@ Two things to know before reading a failure:
   modules only from the compilation that calls `startKoin`, which is why `androidApp`'s
   `AndroidModule` needs no entry and every cross-module one does.
 
+**Not everything gets an interface.** The interfaces in this app are seams over a *platform* or
+over *IO* — `SecretCipher`, `ApiKeyStorage`, `WebLoginApi` — because a host test cannot reach the
+real thing. Pure logic gets none: mappers are classes (CLAUDE.md), and so are the formatters
+(2.2). A `FakeMoneyFormatter` would only let a consumer's test assert against output the app never
+produces, so consumers construct or inject the real one.
+
 **What gets tested.** Pure logic earns real coverage — `WallosEnvelopeParser`, error mapping,
 `FormParams`, mappers, the formatters, `Navigator`, the login response interpreter and key regex.
 ViewModels are tested through their `StateFlow` with fakes injected. Composables are not unit
@@ -1014,7 +1028,14 @@ uses engine autodiscovery and the real engine is `androidMain`-only — a host t
   screen that needs them (2.1).
 - **Money.** `price` is a JSON number, `monthly_cost` is a preformatted string with thousands
   separators (`"1,234.56"`), and currency `rate` is a string. Parse each explicitly in
-  `utils:formatter:decimal`; never map `monthly_cost` to `Double` directly.
+  `utils:formatter:decimal`; never map `monthly_cost` to `Double` directly. `MoneyFormatter`
+  renders **`1,234.56` regardless of the device locale** (2.2): the instance formats its own
+  totals `en_US` whatever the user's language (API doc §3.5), so a device-formatted price would
+  disagree with every total the same server shows. Locale-aware money is possible later, but it
+  needs `expect`/`actual` over the platform `NumberFormat` and stops being host-testable. The
+  currency **symbol is a parameter, not a code** — Wallos stores an arbitrary string. Rounding is
+  half-up (`floor(x + 0.5)`): `kotlin.math.round` breaks ties towards the *even* integer and
+  renders an exact `0.125` as `0.12` where PHP's `number_format` says `0.13`.
 - **Silent failures need UI affordances** (API doc §5.5): `convert_currency=true` with no exchange
   rates returns unconverted prices and an empty `notes` — detect by comparing `currency_id`
   against the user's `main_currency` and show a hint. A failed logo fetch reports success — re-read
