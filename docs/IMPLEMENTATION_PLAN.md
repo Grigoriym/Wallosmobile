@@ -763,10 +763,13 @@ will not compile:
 3. **`SavedStateConfiguration.DEFAULT` is not sufficient.** The doc's "Known KMP limitations"
    section says to use it; the real `NavigationState.kt` builds a config carrying a
    `SerializersModule` with `polymorphic(NavKey::class) { subclass(EachRoute::class) }` for
-   **every** route in the app. Without it, back-stack restoration across process death fails.
-   This is the one real cost of nav3 here — `composeApp` must enumerate every route class, and a
-   route added without registering it breaks silently, only on process death. Mitigate with a test
-   that asserts the registered set matches the set of routes reachable from the entry providers.
+   **every** route in the app. `rememberNavBackStack` `require`s this — passing the default
+   configuration throws `IllegalArgumentException` on the **first composition**, so the shell
+   cannot be stood up with a placeholder config and grow the module later.
+   This is the one real cost of nav3 here — `composeApp` must enumerate every route class. An
+   *unregistered* route is the silent case: composition succeeds and only back-stack restoration
+   across process death fails. Mitigate with a test that asserts the registered set matches the
+   set of routes reachable from the entry providers.
 4. **Nav3 is no longer alpha.** The doc cites `1.1.0-alpha03`; the catalog is on `1.1.1`.
 
 Also worth knowing: `io.insert-koin:koin-compose-navigation3` exists and is declared in Mealie's
@@ -779,8 +782,10 @@ enough. Don't add it without a reason.
   TaigaMobileNova.
 - Feature `ui` modules need `kotlinx.serialization` (for `@Serializable` routes) in addition to
   Compose — so `wallosmobile.kmp.serialization` applies to every feature `ui` module.
-- `Navigator` is unit-tested directly with `mutableStateListOf`, no Android dependency and no
-  Compose runtime needed. Mealie's `NavigatorTest` is a usable template.
+- `Navigator` is unit-tested directly: `NavBackStack(vararg elements)` is a public constructor, so
+  a test builds `NavigationState` by hand with no Compose runtime and no `rememberNavBackStack`,
+  and `derivedStateOf` reads fine outside a composition. There is **no `NavigatorTest` in
+  MealieMobile** to port — `core/navigation`'s was written for this repo (1.7).
 
 ---
 

@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `6/11` · M2 `0/7`
-**Current step:** 1.7
+**Progress:** M0 `7/7` · M1 `7/11` · M2 `0/7`
+**Current step:** 1.8
 
 ---
 
@@ -352,12 +352,29 @@ Goal: username + password → the app holds a validated API key and shows the dr
   The only unit-testable logic here is `TopBarController` (`update`/`reset`); the widget itself is
   covered by its `@PreviewWallosDarkLight` preview, since there is no Compose UI test setup yet.
 
-- [ ] **1.7 — core:navigation**
+- [x] **1.7 — core:navigation**
   Port `NavigationState` (dual back stack), `Navigator`, `toEntries()`, `rememberNavigationState`
   — taking `SavedStateConfiguration` as a **parameter** so this module imports no routes. Note
   `NavBackStack<NavKey>` is generic and `rememberViewModelStoreNavEntryDecorator<NavKey>()` needs
   its type argument. Port `NavigatorTest` too.
   *Verify:* `./gradlew :core:navigation:testAndroidHostTest`  ·  *Ref:* plan §5.2, §5.5
+  *Note:* **`rememberNavBackStack` `require`s a non-default `serializersModule`** — it throws
+  `IllegalArgumentException` on `SavedStateConfiguration.DEFAULT` at the *first* composition, not
+  silently on process death as plan §5.5 warned. So **1.8's `NavKeySerializers` is a launch
+  blocker, not a restore-only concern**, and the shell can't be brought up with a stub config.
+  **There is no `NavigatorTest` in either reference project** (plan §5.6 says Mealie's is a
+  template; it isn't there) — the 10 tests are new. They construct `NavigationState` directly:
+  `NavBackStack(vararg elements: T)` is a **public constructor**, so no Compose runtime, no
+  `rememberNavBackStack`, and `derivedStateOf` reads fine outside a composition.
+  `Navigator` and `NavigationState` are otherwise Mealie verbatim; the only edit is
+  `rememberNavigationState(startKey, topLevelKeys, configuration)`. No build file change was
+  needed — 0.6's `kmp.library` + `kmp.library.compose` already carries nav3 + savedstate, and the
+  module declares **no dependency block at all**.
+  Two constraints this hands to 1.8: `currentSubStack` `error()`s on a missing key, so the
+  `topLevelKeys` set passed to `rememberNavigationState` must cover **every** `DrawerDestination`;
+  and `navigate(startKey)` from another section **clears** the top-level stack rather than popping
+  to it, so Home is always depth 1. `Navigator` is not a Koin definition here — Mealie constructs
+  it in the shell, and 1.8 owns that call.
 
 - [ ] **1.8 — composeApp: drawer shell**
   `DrawerDestination`, `DrawerItem`, `IconSource`, `DrawerItemsBuilder`, `RouteConfig(Provider)`,
@@ -464,4 +481,6 @@ structural into the plan itself.
 | 1.4 | One DataStore file for URL + key; `clear()` removes only the key | Disconnect shouldn't wipe the server the user just typed — *now in plan §4.7* |
 | 1.6 | `NativeText` created here, in `utils:ui`, which no step owns | `TopBarConfig` is built on it; only the three variants the top bar needs exist, `getErrorMessage` waits for 1.10 — *now in plan §3.3, §5.4* |
 | 1.6 | `configureKmpCompose()` gains `jetbrains.compose.icons` | material3 doesn't bring material-icons-core transitively, and every `ui` module will want `Icons.Filled.*` — *now in plan §3.3* |
+| 1.7 | `SavedStateConfiguration.DEFAULT` throws at first composition, not on process death | `rememberNavBackStack` `require`s a `serializersModule` that isn't the default — *now in plan §5.5* |
+| 1.7 | `NavigatorTest` written from scratch; there is none in MealieMobile to port | Plan §5.6 called it a template, but no such file exists in either reference project — *now in plan §5.6* |
 | 1.5 | No dynamic colour, so no `expect`/`actual` `colorScheme()` and no `androidMain` in `uikit` | Mealie's only reason for the `expect` is `dynamicDarkColorScheme(LocalContext)`; a static palette seeded from the logo navy keeps the brand and the module common — *now in plan §3.3* |

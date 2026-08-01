@@ -102,7 +102,11 @@ vertical slices, **all source in `commonMain`**.
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`.
   Every new route must also be registered in the polymorphic `SerializersModule` in
-  `NavKeySerializers.kt`, or back-stack restore breaks silently on process death.
+  `NavKeySerializers.kt`, or back-stack restore breaks silently on process death. The
+  `SavedStateConfiguration` carrying it is *not* optional: `rememberNavBackStack` `require`s a
+  non-default `serializersModule` and throws on the **first composition** if given
+  `SavedStateConfiguration.DEFAULT` — only a *missing route* is the silent, process-death-only
+  failure.
 - **Tests use hand-written fakes in `:testing`. No mocking library — no MockK, no Mockito,
   anywhere.** `kotlin.test` + Turbine. Fake/fixture shape: plan §6.1. `:testing` is for doubles
   **other** modules need; a double used by exactly one test file stays private in that file.
