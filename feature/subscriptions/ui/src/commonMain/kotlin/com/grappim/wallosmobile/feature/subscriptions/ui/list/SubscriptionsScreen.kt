@@ -42,7 +42,10 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun SubscriptionsScreen(viewModel: SubscriptionsViewModel = koinViewModel<SubscriptionsViewModel>()) {
+fun SubscriptionsScreen(
+    onSubscriptionClick: (id: Int) -> Unit,
+    viewModel: SubscriptionsViewModel = koinViewModel<SubscriptionsViewModel>()
+) {
     val topBarController = LocalTopBarConfig.current
     val uiState by viewModel.uiState.collectAsState()
 
@@ -55,11 +58,15 @@ fun SubscriptionsScreen(viewModel: SubscriptionsViewModel = koinViewModel<Subscr
         )
     }
 
-    SubscriptionsContent(uiState = uiState)
+    SubscriptionsContent(uiState = uiState, onSubscriptionClick = onSubscriptionClick)
 }
 
 @Composable
-private fun SubscriptionsContent(uiState: SubscriptionsUiState, modifier: Modifier = Modifier) {
+private fun SubscriptionsContent(
+    uiState: SubscriptionsUiState,
+    onSubscriptionClick: (id: Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
     PullToRefreshBox(
         modifier = modifier.fillMaxSize(),
         isRefreshing = uiState.isRefreshing,
@@ -67,7 +74,7 @@ private fun SubscriptionsContent(uiState: SubscriptionsUiState, modifier: Modifi
     ) {
         // The list is always composed so that pull-to-refresh has something to pull, even when
         // it is empty — the other states draw on top of it.
-        SubscriptionsList(uiState = uiState)
+        SubscriptionsList(uiState = uiState, onSubscriptionClick = onSubscriptionClick)
 
         when {
             uiState.isLoading -> LoadingState()
@@ -78,14 +85,18 @@ private fun SubscriptionsContent(uiState: SubscriptionsUiState, modifier: Modifi
 }
 
 @Composable
-private fun SubscriptionsList(uiState: SubscriptionsUiState, modifier: Modifier = Modifier) {
+private fun SubscriptionsList(
+    uiState: SubscriptionsUiState,
+    onSubscriptionClick: (id: Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(SCREEN_PADDING),
         verticalArrangement = Arrangement.spacedBy(ITEM_SPACING)
     ) {
         items(items = uiState.items, key = { it.id }) { item ->
-            SubscriptionCard(item = item)
+            SubscriptionCard(item = item, onClick = { onSubscriptionClick(item.id) })
         }
     }
 }
@@ -174,19 +185,19 @@ private val previewItems = persistentListOf(
 @PreviewWallosDarkLight
 @Composable
 private fun SubscriptionsContentPreview() = WallosMobilePreviewTheme {
-    SubscriptionsContent(uiState = SubscriptionsUiState(items = previewItems))
+    SubscriptionsContent(uiState = SubscriptionsUiState(items = previewItems), onSubscriptionClick = {})
 }
 
 @PreviewWallosDarkLight
 @Composable
 private fun SubscriptionsContentLoadingPreview() = WallosMobilePreviewTheme {
-    SubscriptionsContent(uiState = SubscriptionsUiState(isLoading = true))
+    SubscriptionsContent(uiState = SubscriptionsUiState(isLoading = true), onSubscriptionClick = {})
 }
 
 @PreviewWallosDarkLight
 @Composable
 private fun SubscriptionsContentEmptyPreview() = WallosMobilePreviewTheme {
-    SubscriptionsContent(uiState = SubscriptionsUiState())
+    SubscriptionsContent(uiState = SubscriptionsUiState(), onSubscriptionClick = {})
 }
 
 @PreviewWallosDarkLight
@@ -195,6 +206,7 @@ private fun SubscriptionsContentErrorPreview() = WallosMobilePreviewTheme {
     SubscriptionsContent(
         uiState = SubscriptionsUiState(
             error = NativeText.Simple("Couldn't reach that server. Check the URL and your connection.")
-        )
+        ),
+        onSubscriptionClick = {}
     )
 }

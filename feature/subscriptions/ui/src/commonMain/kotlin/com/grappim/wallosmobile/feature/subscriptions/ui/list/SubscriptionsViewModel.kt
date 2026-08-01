@@ -7,6 +7,7 @@ import com.grappim.wallosmobile.core.logger.LogPriority
 import com.grappim.wallosmobile.core.logger.logcat
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
+import com.grappim.wallosmobile.feature.subscriptions.ui.toLogoUrl
 import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
 import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
 import com.grappim.wallosmobile.utils.ui.NativeText
@@ -19,9 +20,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.KoinViewModel
-
-/** The directory Wallos writes uploaded logos to, under the instance root (API doc §4). */
-private const val LOGO_PATH = "images/uploads/logos/"
 
 /**
  * Fetch-on-open: there is no cache in v1 (plan §7.2), so the list is whatever the last call
@@ -90,21 +88,11 @@ class SubscriptionsViewModel(
     private fun toUiItem(subscription: Subscription): SubscriptionUiItem = SubscriptionUiItem(
         id = subscription.id,
         name = subscription.name,
-        logoUrl = toLogoUrl(subscription.logo),
+        logoUrl = baseUrlProvider.toLogoUrl(subscription.logo),
         price = moneyFormatter.format(subscription.price, subscription.currencySymbol),
         nextPayment = subscription.nextPayment?.let(dateFormatter::formatDisplayDate).orEmpty(),
         cycle = subscription.cycle,
         frequency = subscription.frequency,
         isActive = subscription.isActive
     )
-
-    /**
-     * The base URL already carries its trailing slash (`BaseUrlProviderImpl`). It is blank only
-     * if the app got here with no stored server, which the startup branch rules out — but a
-     * relative URL would be a broken image request rather than none, so it is guarded anyway.
-     */
-    private fun toLogoUrl(logo: String): String {
-        val baseUrl = baseUrlProvider.getBaseUrl()
-        return if (logo.isBlank() || baseUrl.isBlank()) "" else "$baseUrl$LOGO_PATH$logo"
-    }
 }

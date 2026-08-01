@@ -26,6 +26,15 @@
     <string name="subscriptions_next_payment">Next payment %1$s</string>
     <string name="subscription_cycle_one_time">One-time</string>
 
+    <string name="subscription_detail_cycle">Billing cycle</string>
+    <string name="subscription_detail_next_payment">Next payment</string>
+    <string name="subscription_detail_start_date">Start date</string>
+    <string name="subscription_detail_category">Category</string>
+    <string name="subscription_detail_payment_method">Payment method</string>
+    <string name="subscription_detail_payer">Paid by</string>
+    <string name="subscription_detail_url">Website</string>
+    <string name="subscription_detail_notes">Notes</string>
+
     <plurals name="subscription_cycle_days">
         <item quantity="one">Every day</item>
         <item quantity="other">Every %1$d days</item>

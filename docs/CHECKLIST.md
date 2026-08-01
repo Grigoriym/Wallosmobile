@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `4/7`
-**Current step:** 2.5
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `5/7`
+**Current step:** 2.6
 
 ---
 
@@ -695,11 +695,45 @@ Goal: the list of real subscriptions, and a detail screen.
   instead of restoring the killed one — the check silently passes nothing and looks like a
   restore regression. **`am force-stop` first** to reset the task, then do the cycle once.
 
-- [ ] **2.5 — feature:subscriptions ui: detail**
+- [x] **2.5 — feature:subscriptions ui: detail**
   `SubscriptionDetailRoute(subscriptionId: Int)`, screen, state, ViewModel via
   `koinViewModel(parameters = { parametersOf(id) })`. All fields read-only. Top bar: name + `Back`,
   drawer gestures disabled.
   *Verify:* `./gradlew :feature:subscriptions:ui:testAndroidHostTest`
+  *Note:* **the route parameter needs `@InjectedParam` on the ViewModel's constructor property**, or
+  the Koin compiler plugin looks for an `Int` definition in the graph and the screen crashes at
+  first injection. `KoinGraphTest` would **not** have caught it: `verify()` whitelists `String`,
+  `Int`, `Long` and `Double` unconditionally (`Verify.primitiveTypes`), so a primitive constructor
+  parameter is always "verified" whether or not it is annotated. MealieMobile takes route params
+  without the annotation and has no graph test to disagree with it — don't read that as precedent.
+  The screen **re-reads its own row** rather than being handed one from the list: with no cache
+  (plan §7.2) the alternative is a snapshot from whenever the list last refreshed. The cost is that
+  opening a detail is two more round trips (2.3's currency join), which is 2.4's note in a second
+  place — one more thing Phase 2b's Room cache collects.
+  `SubscriptionDetailRoute` is the first route in the app carrying data, and therefore the first
+  thing in `navKeySerializersModule` that `NavKeySerializersTest` can't check: that test walks
+  `DrawerDestination.entries`, and a detail route is not a drawer destination. **A non-top-level
+  route missing from the module is once again the silent process-death-only failure**, and the only
+  gate on it is the manual `am kill` cycle.
+  Three things moved into a shared `ui/widgets/` package rather than being written twice —
+  `SubscriptionLogo` (now taking a `size`, 48.dp on the card and 96.dp in the detail header),
+  `InactiveBadge`, and `cycleText`, which 2.4 had parked as a private composable in
+  `SubscriptionCard.kt`. The logo *URL* builder moved the same way, to `ui/LogoUrl.kt` as
+  `internal fun BaseUrlProvider.toLogoUrl(logo)`; it is a two-line helper over an injected seam,
+  not a mapper, so CLAUDE.md's mappers-are-classes rule doesn't reach it.
+  **`onSubscriptionClick` is a plain parameter on `SubscriptionsScreen`, not a field in
+  `SubscriptionsUiState`** — CLAUDE.md's exception for pure navigation callbacks, wired by
+  `subscriptionsEntry(navigator)`, which now takes a `Navigator` as 2.4 predicted.
+  A `DetailRow` whose value is blank is **left out entirely**: `notes`, `url` and `start_date` are
+  all `""` on real rows (2.1), and a label over an empty value reads as a bug. `notes` and `url` are
+  in fact empty on *every* row of the local instance, so those two are covered by preview and unit
+  test only.
+  Verified on the emulator against the live instance: list → Disney+ → detail with the logo, `€8.99`,
+  `Every month`, `10 Mar 2026`, Entertainment / Apple Pay / Tomiris and no Start date row (the row
+  really has `start_date: ""`); Fiton shows `31 Jan 2024` and `Health & Wellbeing`. A left-edge
+  swipe on the detail runs the system back gesture instead of opening the drawer, which is
+  `DrawerConfig.GesturesDisabled` doing its job. `am force-stop` → detail → `am kill` → relaunch
+  restores the detail screen with its id.
 
 - [ ] **2.6 — Settings stub**
   Minimal settings screen with Disconnect (clear key → login). Second drawer item.
@@ -802,3 +836,6 @@ structural into the plan itself.
 | 2.4 | A failed load clears the list rather than leaving a stale one under the error | With no cache there is nothing behind the error worth keeping, and a stale list under "couldn't reach the server" lies — revisit with Phase 2b's Room cache |
 | 2.4 | `:strings` gained a `RPlurals` typealias beside `RString` | The cycle text is a plural, and `Res.plurals` had no alias — *now in plan §3.3* |
 | 2.4 | `Routes.kt` renamed to `SettingsRoute.kt` when `SubscriptionsRoute` left it | detekt's `MatchingDeclarationName` fires on a one-declaration file; 2.6 deletes the file — *now in plan §5.2, §5.3* |
+| 2.5 | A route parameter needs `@InjectedParam`, and `KoinGraphTest` cannot catch a missing one | `verify()` whitelists `String`/`Int`/`Long`/`Double` outright, so a primitive constructor parameter always passes — *now in plan §6.1* |
+| 2.5 | The detail screen re-reads its row instead of taking one from the list | No cache means the alternative is a snapshot of unknown age; the price is two more round trips per open — *now in plan §7.1* |
+| 2.5 | Logo, inactive badge and cycle text moved to a shared `ui/widgets/` package; the logo URL to `ui/LogoUrl.kt` | Second consumer, same module — the alternative was writing all four twice — *now in plan §7.1* |

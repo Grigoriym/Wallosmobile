@@ -36,7 +36,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun MainNavHost(navigationState: NavigationState, navigator: Navigator, modifier: Modifier = Modifier) {
     val entryProvider = entryProvider {
-        subscriptionsEntry()
+        subscriptionsEntry(navigator)
         entry<SettingsRoute> { PlaceholderScreen(title = RString.settings_title) }
     }
 

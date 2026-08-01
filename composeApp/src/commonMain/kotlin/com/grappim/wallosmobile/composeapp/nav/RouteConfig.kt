@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.composeapp.nav
 
 import androidx.navigation3.runtime.NavKey
+import com.grappim.wallosmobile.feature.subscriptions.ui.detail.SubscriptionDetailRoute
 import com.grappim.wallosmobile.feature.subscriptions.ui.list.SubscriptionsRoute
 
 /**
@@ -24,6 +25,7 @@ object RouteConfigProvider {
 
     fun getConfig(route: NavKey): RouteConfig = when (route) {
         is SubscriptionsRoute -> RouteConfig(drawerConfig = DrawerConfig.Enabled)
+        is SubscriptionDetailRoute -> RouteConfig(drawerConfig = DrawerConfig.GesturesDisabled)
         is SettingsRoute -> RouteConfig(drawerConfig = DrawerConfig.Enabled)
         else -> RouteConfig()
     }

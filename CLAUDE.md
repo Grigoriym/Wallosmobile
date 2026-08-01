@@ -178,6 +178,13 @@ vertical slices, **all source in `commonMain`**.
   inspects `T`'s constructor rather than the function's parameters; that is why
   `HttpClientEngine` sits in `extraTypes` as a known false positive, next to the types
   `:androidApp` really does supply.
+  **A route parameter reaching a ViewModel through `parametersOf` needs `@InjectedParam` on the
+  constructor property**, or the compiler plugin looks for a definition of that type in the graph
+  and the screen crashes at first injection. `KoinGraphTest` will **not** catch a missing one:
+  `verify()` whitelists `String`, `Int`, `Long` and `Double` unconditionally
+  (`org.koin.test.verify.Verify.primitiveTypes`), so a primitive constructor parameter passes
+  whether or not it is annotated. MealieMobile takes route params without the annotation and has no
+  graph test to disagree — don't read that as precedent.
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`.
   Every new route must also be registered in the polymorphic `SerializersModule` in
@@ -185,7 +192,9 @@ vertical slices, **all source in `commonMain`**.
   `SavedStateConfiguration` carrying it is *not* optional: `rememberNavBackStack` `require`s a
   non-default `serializersModule` and throws on the **first composition** if given
   `SavedStateConfiguration.DEFAULT` — only a *missing route* is the silent, process-death-only
-  failure.
+  failure. **`NavKeySerializersTest` only covers the drawer destinations**: it walks
+  `DrawerDestination.entries`, so a detail or editor route registered nowhere passes every gate.
+  The `am kill` cycle below is the only check on those.
   **`rememberNavBackStack` consumes its restored state only in the *first* composition.** Anything
   that gates the shell on an async value — a DataStore flow, a suspend read — composes
   `NavDisplay` a pass later and the restored back stack is dropped with no error: the app comes
@@ -333,6 +342,11 @@ Two that bite later: `cycle=5` (One-time) is readable but **rejected on write**,
 (`http://localhost:8282`, i.e. `http://10.0.2.2:8282` from the emulator). It is committed on
 purpose — the instance is LAN-only, the user has said so explicitly, so don't re-raise it as a
 leak. **Every on-device `Verify:` line means this instance.**
+
+Its data has holes worth knowing before planning a verify: **`notes` and `url` are `""` on every
+subscription**, and `start_date` is `""` on a good few, so anything rendering those fields can only
+be proven by unit test and preview. Pick the row deliberately — `Fiton` (id 4) has a start date and
+a `&` in its category name.
 
 **Do not reach for `demo.wallosapp.com`.** Its `profile.php` dies with a PHP fatal
 (`no such table: uploaded_avatars`), so there is no `id="apikey"` to scrape and the Path A login

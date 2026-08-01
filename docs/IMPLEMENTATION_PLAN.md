@@ -730,7 +730,13 @@ fun EntryProviderScope<NavKey>.subscriptionsEntry(navigator: Navigator) {
 
 Route arguments reach the ViewModel through the screen via
 `koinViewModel(parameters = { parametersOf(subscriptionId) })`. There is no `SavedStateHandle`
-route extraction — that is the nav2 pattern and does not apply here.
+route extraction — that is the nav2 pattern and does not apply here. The receiving constructor
+property takes **`@InjectedParam`**, which `KoinGraphTest` cannot enforce (§6.1).
+
+`NavKeySerializersTest` walks `DrawerDestination.entries`, so it checks the *top-level* routes and
+nothing else. A detail or editor route left out of `navKeySerializersModule` passes every gate in
+the repo and only shows up as a lost back stack after process death (2.5) — the `am kill` cycle in
+`CLAUDE.md` is the check.
 
 The shell was built (1.8) before either of its two sections existed, so `SubscriptionsRoute` and
 `SettingsRoute` start life in `composeApp/nav/Routes.kt` against a placeholder screen. Each moves
@@ -1012,6 +1018,12 @@ Two things to know before reading a failure:
   modules only from the compilation that calls `startKoin`, which is why `androidApp`'s
   `AndroidModule` needs no entry and every cross-module one does.
 
+And one thing the graph test **cannot** see (2.5): `verify()` whitelists `String`, `Int`, `Long`
+and `Double` outright (`Verify.primitiveTypes`), so a primitive constructor parameter is reported
+verified whether or not it is annotated. A route argument therefore needs `@InjectedParam` on the
+ViewModel's constructor property for its own sake — without it the compiler plugin looks for an
+`Int` definition in the graph and the screen crashes at first injection, with no gate in between.
+
 **Not everything gets an interface.** The interfaces in this app are seams over a *platform* or
 over *IO* — `SecretCipher`, `ApiKeyStorage`, `WebLoginApi` — because a host test cannot reach the
 real thing. Pure logic gets none: mappers are classes (CLAUDE.md), and so are the formatters
@@ -1095,7 +1107,7 @@ The first goal is one honest vertical slice: **log in, see your subscriptions**.
 |---|---|---|---|
 | 1 | **Login** | Server URL, username, password (with visibility toggle), Connect button. Loading + error states. Secondary "I have an API key" link revealing a key field. No drawer, no top bar (`NavigationIconConfig.None`). | `login.php`, `profile.php`, `api/status/version.php` |
 | 2 | **Subscriptions list** | `LazyColumn` of cards: logo, name, price + currency symbol, next payment date, billing cycle ("every 6 months"), inactive badge. Loading / empty / error states, pull-to-refresh. Top bar: title + `Menu` icon. Drawer enabled. | `get_subscriptions.php`, `get_currencies.php` |
-| 3 | **Subscription detail** | Read-only: logo, name, price, cycle + frequency, next payment, start date, category, payment method, payer, notes, URL, active state. Top bar: name + `Back`. Drawer gestures disabled. | none — passes the id, reads from the list's cached state, or `get_subscription.php` |
+| 3 | **Subscription detail** | Read-only: logo, name, price, cycle + frequency, next payment, start date, category, payment method, payer, notes, URL, active state. Top bar: name + `Back`. Drawer gestures disabled. | `get_subscription.php` (+ `get_currencies.php` for the join) |
 
 Plus a **startup branch** (not a screen, and not a route): stored key present → shell, absent →
 login. It is `ApiKeyStorage.isConnected` collected in `WallosAppContent`, above the theme's
@@ -1134,6 +1146,19 @@ instance root is normalized (2.4). Blank in, blank out: no logo, or no stored se
 rather than a relative one Coil would fail on. Wallos serves that directory **unauthenticated**, so
 a plain URL load needs no header plumbing — `coil.compose` + `coil.ktor`, no `ImageLoader` setup,
 the ktor3 fetcher finding okhttp by autodiscovery.
+
+**The detail screen re-reads its own row** (2.5) rather than being handed one by the list. The row
+the list holds is a snapshot from whenever it last refreshed, and there is nothing that invalidates
+it; the price of reading again is the two round trips above, paid a second time. Only the id
+travels in `SubscriptionDetailRoute`. A field the instance has nothing for — `notes` and `url` are
+`""` on every row of the local instance, `start_date` on many — has its whole row left out, since a
+label over an empty value reads as a bug rather than as "unset".
+
+Four things the two screens both need live in `feature:subscriptions:ui/widgets/` rather than in
+either: `SubscriptionLogo` (parameterized by size), `InactiveBadge`, `cycleText` (which 2.4 had as
+a private composable on the card), and — as `ui/LogoUrl.kt` — the `BaseUrlProvider.toLogoUrl(logo)`
+extension below. That last one is a two-line helper over an injected seam, not a mapper, so
+CLAUDE.md's mappers-are-classes rule doesn't reach it.
 
 **A failed load clears the list** (2.4). With no cache there is nothing behind the error worth
 keeping, and a stale list under "couldn't reach the server" is the shape that lies; the retry
