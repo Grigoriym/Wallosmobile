@@ -5,6 +5,10 @@ import com.grappim.wallosmobile.core.asynckmp.KmpCoroutinesModule
 import com.grappim.wallosmobile.core.storage.StorageModule
 import com.grappim.wallosmobile.feature.setup.data.SetupDataModule
 import com.grappim.wallosmobile.feature.setup.ui.SetupUiModule
+import com.grappim.wallosmobile.feature.subscriptions.data.SubscriptionsDataModule
+import com.grappim.wallosmobile.feature.subscriptions.mapper.SubscriptionsMapperModule
+import com.grappim.wallosmobile.utils.formatter.datetime.DateTimeFormatterModule
+import com.grappim.wallosmobile.utils.formatter.decimal.DecimalFormatterModule
 import org.koin.core.annotation.ComponentScan
 import org.koin.core.annotation.Configuration
 import org.koin.core.annotation.KoinApplication
@@ -28,7 +32,11 @@ import org.koin.core.annotation.Module
         StorageModule::class,
         NetworkModule::class,
         SetupDataModule::class,
-        SetupUiModule::class
+        SetupUiModule::class,
+        SubscriptionsDataModule::class,
+        SubscriptionsMapperModule::class,
+        DateTimeFormatterModule::class,
+        DecimalFormatterModule::class
     ]
 )
 @Configuration

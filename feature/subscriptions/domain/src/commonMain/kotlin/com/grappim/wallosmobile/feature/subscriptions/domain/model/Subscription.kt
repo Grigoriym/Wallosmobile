@@ -12,6 +12,9 @@ import kotlinx.datetime.LocalDate
  * @param logo the bare filename the server stores, empty when there is none. The full URL is
  *   `{base}/images/uploads/logos/{logo}` (API doc §4) and needs the instance URL, which this
  *   module has no business knowing.
+ * @param currencySymbol resolved from [currencyId] against `get_currencies.php` by the repository,
+ *   because a price is unrenderable without it (plan §7.1). Blank when the instance's currency
+ *   list has no such id — the screen then shows the bare number rather than the wrong sign.
  * @param cycle `null` when the instance sent a code this build doesn't know — see
  *   [BillingCycle.fromCode].
  * @param nextPayment nullable like the other dates because the server sends `""` for an unset
@@ -25,6 +28,7 @@ data class Subscription(
     val logo: String,
     val price: Double,
     val currencyId: Int,
+    val currencySymbol: String,
     val cycle: BillingCycle?,
     val frequency: Int,
     val nextPayment: LocalDate?,

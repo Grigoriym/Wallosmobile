@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `2/7`
-**Current step:** 2.3
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `3/7`
+**Current step:** 2.4
 
 ---
 
@@ -606,12 +606,48 @@ Goal: the list of real subscriptions, and a detail screen.
   only. **2.4/2.5 decide it**, and note it is the one thing in these modules that genuinely wants
   `expect`/`actual` (there is no locale-aware date formatting in `commonMain`).
 
-- [ ] **2.3 — feature:subscriptions data**
+- [x] **2.3 — feature:subscriptions data**
   `SubscriptionsApi` (`get_subscriptions.php`, `get_currencies.php`, `get_subscription.php`),
   mappers, `SubscriptionsRepository` returning subscriptions already joined to their currency
   symbol. Fetch-on-demand, no cache. **Never** send filters together with `all-user-subscription`.
   Fake api + repository in `:testing`.
   *Verify:* `./gradlew :feature:subscriptions:data:testAndroidHostTest`  ·  *Ref:* plan §7.1
+  *Note:* **the join shape 2.1 deferred is a `currencySymbol` field on domain `Subscription`**, so
+  2.4/2.5 render a price from the model alone and never see a currency map. The cost is that
+  *every* repository call is **two round trips** — `get_currencies.php` is re-read per call because
+  "no cache" means no cache — so opening the list and then a detail is four requests. Phase 2b's
+  Room cache is where that stops; don't paper over it with a field in the ViewModel.
+  Subscriptions are fetched **first**, so a failure on the resource the user asked for
+  short-circuits before the currencies call.
+  **No `SubscriptionQuery` type was created**, though plan §6.1's fake sketch has one:
+  `get_subscriptions.php` gets `api_key` and nothing else. Filtering and sorting are client-side
+  and the server already defaults to `next_payment`. That is also what keeps §3.2's
+  `all-user-subscription` + filter SQL bug unreachable — neither side of the combination exists —
+  and **2.4/Phase 2b must keep it that way** when filters arrive.
+  **`HtmlUnescaper` is a `@Single` class in `feature:subscriptions:mapper`**, reversing PHP's
+  `htmlspecialchars` over `name`/`notes`/`*_name` and over currency `name`/`symbol`. `&amp;` is
+  decoded **last**, or `&amp;lt;` (the literal text `&lt;`) silently becomes a `<`. Every future
+  mapper of Wallos text needs it.
+  The response envelope DTOs (`SubscriptionsResponse`, `SubscriptionResponse`,
+  `CurrenciesResponse`) carry **no defaults**, unlike the row DTOs: an empty user really does get
+  `"subscriptions":[]` (checked against the live instance), so an *absent* key is a broken response
+  and `Malformed` is a truer answer than an empty-state screen. `main_currency` is on the wire and
+  deliberately unmodelled — it exists for the Phase 2b conversion hint.
+  **`AppModule` gained four `includes`**: `SubscriptionsDataModule`, `SubscriptionsMapperModule`,
+  and `DateTimeFormatterModule` + `DecimalFormatterModule` as 2.2 required. `MoneyFormatter` has no
+  injector until 2.4, but `verify()` walking a no-arg `@Single` costs nothing and a forgotten
+  `includes` line is a runtime crash.
+  **The fakes stayed private to their test files**, against this step's own text — same call as
+  1.10: `:testing` is on every module's test classpath, so parking them there drags
+  `feature:subscriptions:{dto,domain}` into modules with no business seeing them.
+  **2.4 owns the `FakeSubscriptionsRepository` decision** and will face exactly 1.10's question
+  (one consumer module, `feature:subscriptions:ui`, but two test files in it).
+  `feature:subscriptions:data` takes `core:storage` and `utils:formatter:datetime` in
+  **`commonTest` only** — the api test has to fake an `ApiKeyStorage` to build a `WallosApiClient`
+  over `MockEngine`, and the mappers are constructed rather than injected.
+  One test trap worth knowing: a `StandardTestDispatcher()` built outside `runTest` has its own
+  scheduler, and `withContext(it)` dies with "Detected use of different schedulers".
+  `UnconfinedTestDispatcher()` doesn't, which is why every repository test here uses it.
 
 - [ ] **2.4 — feature:subscriptions ui: list**
   `SubscriptionsRoute`, screen, state, ViewModel. Cards: logo (Coil,
@@ -719,4 +755,9 @@ structural into the plan itself.
 | 2.2 | Cycle + frequency → "every 6 months" moved out of `utils:formatter:datetime` and into 2.4 | It is a function of `BillingCycle`, which lives in `feature:subscriptions:domain` — keeping it here would point `utils/` at `feature/` — *now in plan §2, §3.3* |
 | 2.2 | Formatters are plain `@Single` classes, not interface + impl | The repo's interfaces are platform/IO seams; a fake formatter would only let a consumer's test assert wrong output — *now in plan §6.1* |
 | 2.2 | Money formatting is fixed to `1,234.56`, not device-locale, and rounds half-up by hand | The instance itself renders `en_US` (API doc §3.5); `kotlin.math.round` ties to even — *now in plan §6, Domain modelling notes* |
+| 2.3 | The currency join is a `currencySymbol` field on domain `Subscription`, not a map handed to the screen | 2.1 left the shape open; a field keeps the currency list out of every consumer, at the price of two round trips per repository call — *now in plan §7.1* |
+| 2.3 | No `SubscriptionQuery` type, though plan §6.1's fake sketch has one | v1 sends `api_key` alone — filters are Phase 2b, and with neither filters nor `all-user-subscription` the §3.2 SQL bug is unreachable by construction — *now in plan §6.1* |
+| 2.3 | Response envelope DTOs have no defaults, unlike the row DTOs | An empty user gets `"subscriptions":[]`, so an absent key is a broken response and `Malformed` beats a false empty state — *now in plan §4.2* |
+| 2.3 | `HtmlUnescaper` is its own `@Single` class, and decodes `&amp;` last | The ordering is the whole trap: decode it first and `&amp;lt;` becomes a `<` the user never typed — *now in plan §6.1* |
+| 2.3 | Fakes stayed private to their tests again, against the step's own "in `:testing`" wording | Same objection as 1.10 — `:testing` reaches every module's `commonTest`, so a feature-domain dependency there leaks the feature everywhere — *now in plan §6.1* |
 | 1.5 | No dynamic colour, so no `expect`/`actual` `colorScheme()` and no `androidMain` in `uikit` | Mealie's only reason for the `expect` is `dynamicDarkColorScheme(LocalContext)`; a static palette seeded from the logo navy keeps the brand and the module common — *now in plan §3.3* |

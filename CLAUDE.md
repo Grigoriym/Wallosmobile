@@ -204,6 +204,12 @@ vertical slices, **all source in `commonMain`**.
   `Dispatchers.Main`, which a host test doesn't have, so the first `launch` throws. Use
   `MainDispatcherRule` from `:testing` — not a JUnit `@Rule` (this is `kotlin.test`), so call
   its `setup()`/`tearDown()` from `@BeforeTest`/`@AfterTest`.
+  **A repository test injects `UnconfinedTestDispatcher()`, not `StandardTestDispatcher()`.**
+  Every repository here takes an `@IoDispatcher` and does its work in `withContext(dispatcher)`;
+  a `StandardTestDispatcher()` built outside `runTest` carries its *own* scheduler, so that
+  `withContext` dies with "Detected use of different schedulers" — which surfaces as an
+  `IllegalStateException` where the test expected a `WallosError`, not as anything mentioning
+  dispatchers.
 - **A `commonTest` fixture is a Kotlin constant, not a file.** There is no portable way to read a
   resource or a path from `commonTest`, so recorded HTML/JSON lives in a `*Fixtures.kt` and
   anything filesystem-backed needs an in-memory fake (`FakePreferencesDataStore`, 1.4).
@@ -296,7 +302,11 @@ Read `docs/WALLOS_API.md` before touching anything network-related.
 
 - **Text fields come back HTML-escaped** — a subscription named `1&1 Telekom` is
   `1&amp;1 Telekom` on the wire, and it renders that way unless the mapper unescapes it. Same for
-  `notes` and the resolved `category_name` / `payer_user_name` / `payment_method_name`.
+  `notes`, the resolved `category_name` / `payer_user_name` / `payment_method_name`, and currency
+  `name` / `symbol`. `HtmlUnescaper` (`feature:subscriptions:mapper`) is the one place that
+  reverses it; use it from any new mapper rather than writing a second one. It decodes `&amp;`
+  **last** on purpose — decode it first and `&amp;lt;`, which is the literal text `&lt;`, becomes
+  a `<` the user never typed.
 - **Unset dates are `""`, not `null`** (`cancellation_date`, `start_date`), so a nullable field is
   not enough — blank has to read as absent.
 

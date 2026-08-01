@@ -20,6 +20,10 @@ kotlin {
             implementation(projects.core.asyncKmp)
             implementation(projects.feature.setup.data)
             implementation(projects.feature.setup.ui)
+            implementation(projects.feature.subscriptions.data)
+            implementation(projects.feature.subscriptions.mapper)
+            implementation(projects.utils.formatter.datetime)
+            implementation(projects.utils.formatter.decimal)
         }
 
         commonTest.dependencies {

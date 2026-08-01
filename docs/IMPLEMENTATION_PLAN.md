@@ -289,9 +289,11 @@ commonMain.dependencies {
 
 // feature/NAME/mapper
 commonMain.dependencies {
+    // `api`, not `implementation`: the two ends of every mapper signature (2.3). A `data` module
+    // that has the mapper can then name both without re-declaring either.
+    api(projects.feature.NAME.domain)
+    api(projects.feature.NAME.dto)
     implementation(projects.core.domain)
-    implementation(projects.feature.NAME.domain)
-    implementation(projects.feature.NAME.dto)
 }
 ```
 
@@ -529,6 +531,13 @@ with a top-level `inline fun <reified T> WallosEnvelopeParser.parse(statusCode, 
 call sites. The reified form cannot be a *member*: a public `inline` function may not read the
 class's private state, and the parser holds its `Json` privately. The same constraint applies to
 `WallosApiClient.post` in §4.1.
+
+Because the parser decodes the **whole envelope**, `T` is an envelope type — `SubscriptionsResponse`,
+`CurrenciesResponse` — and each feature's `dto` module owns its own. Those wrappers get **no default
+values**, unlike the row DTOs, which default every column that a migration might not have added yet
+(2.1). The distinction is what the field means: a missing *column* is an older instance, while a
+missing *envelope key* is a response this app doesn't understand. An empty user really does get
+`"subscriptions":[]`, so `Malformed` is a truer answer there than a silently empty screen.
 
 That `Json { ignoreUnknownKeys = true; isLenient = true }` belongs to the parser and is not a DI
 binding. With `ContentNegotiation` dropped (§4.1), the parser is the only JSON consumer in the
@@ -925,12 +934,10 @@ reason that doesn't mention the change.
 ```kotlin
 class FakeSubscriptionsApi : SubscriptionsApi {
     var subscriptionsResult: List<SubscriptionDTO>? = null
-    val subscriptionsCalls = mutableListOf<SubscriptionQuery>()
+    var currenciesCalls = 0
 
-    override suspend fun getSubscriptions(query: SubscriptionQuery): List<SubscriptionDTO> {
-        subscriptionsCalls += query
-        return subscriptionsResult ?: error("subscriptionsResult not set")
-    }
+    override suspend fun getSubscriptions(): List<SubscriptionDTO> =
+        subscriptionsResult ?: error("subscriptionsResult not set")
 }
 ```
 
@@ -952,8 +959,16 @@ testing/src/commonMain/kotlin/.../testing/
 That layout is the *destination*, not a starting shape: a double moves here when a **second**
 module needs it, and stays private to its one test file until then. The bar matters because
 `configureTests()` puts `:testing` on every module's `commonTest` classpath — a fake parked here
-early drags its whole `feature:*:domain` into modules that have no business seeing it. As of M1
-only `MainDispatcherRule` has earned the move; the setup fakes are still private to their tests.
+early drags its whole `feature:*:domain` into modules that have no business seeing it. Through 2.3
+only `MainDispatcherRule` has earned the move; the setup and subscriptions fakes are all still
+private to their tests, and the checklist has twice asked for a move that the bar declined
+(1.10, 2.3). Recorded response bodies live the same way — Kotlin constants in a `*Fixtures.kt`
+beside the test, because `commonTest` has no portable way to read a resource.
+
+One recurring trap in the repository tests: a `StandardTestDispatcher()` constructed outside
+`runTest` carries its own scheduler, so the `withContext(dispatcher)` inside a repository fails
+with "Detected use of different schedulers". `UnconfinedTestDispatcher()` doesn't, and is what
+every repository test here injects.
 
 `MainDispatcherRule` is not a JUnit `@Rule` — `commonTest` is `kotlin.test`, so the test class
 calls `setup()`/`tearDown()` from `@BeforeTest`/`@AfterTest`. Every ViewModel test needs it:
@@ -1042,7 +1057,15 @@ uses engine autodiscovery and the real engine is `androidMain`-only — a host t
   `logo` after a write to confirm.
 - **Never combine `all-user-subscription=1` with filters** — the server builds
   `SELECT * FROM subscriptions AND …` and the query fails to prepare. The repository should make
-  this combination impossible to express.
+  this combination impossible to express. In v1 it is unreachable by construction: `SubscriptionsApi`
+  sends `api_key` and nothing else, so there is **no `SubscriptionQuery` type** (2.3) despite the
+  fake sketch above naming one. Filtering and sorting are client-side, and the server's default sort
+  is already `next_payment`. Whatever Phase 2b adds has to keep the two sides unable to meet.
+- **Wire text needs unescaping, and the order matters.** `HtmlUnescaper` (`feature:subscriptions:mapper`,
+  2.3) reverses PHP's `htmlspecialchars` over `name`, `notes`, the resolved `*_name` fields and
+  currency `name`/`symbol`. It decodes `&amp;` **last**: doing it first turns `&amp;lt;` — the
+  literal text `&lt;` — into a `<` the user never typed. Only the five entities
+  `htmlspecialchars` emits, plus the unpadded `&#39;`; it is not a general HTML decoder.
 
 ---
 
@@ -1075,6 +1098,18 @@ with a `currency_id`, and the symbol lives in `get_currencies.php`. So the list 
 not one — fetch currencies once and map `currency_id → symbol`. (The alternative,
 `convert_currency=true` plus the user's `main_currency`, silently returns unconverted prices when
 the instance has never fetched exchange rates, so it's the worse default.)
+
+The join lands in `SubscriptionsRepository` as a **`currencySymbol` field on domain
+`Subscription`** (2.3), not as a map handed up to the screen: a consumer that has the model has
+everything it needs to render a price, and nothing above the repository ever sees a currency list.
+Blank for a `currency_id` the instance no longer lists — a deleted currency costs the sign, not the
+screen. Two consequences to keep in view:
+
+- **Every repository call is two round trips.** "No cache" (§7.2) means the currency list is
+  re-read per call, so opening the list and then a detail is four requests. Phase 2b's Room cache
+  is the fix; caching it in a ViewModel just moves the staleness somewhere untested.
+- The subscriptions call goes **first**, so a failure on the resource the user actually asked for
+  short-circuits before the second one.
 
 ### 7.2 Explicitly out of v1
 
