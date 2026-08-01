@@ -2,4 +2,30 @@
     <string name="app_name">Wallos Mobile</string>
     <string name="subscriptions_title">Subscriptions</string>
     <string name="settings_title">Settings</string>
+
+    <string name="login_title">Connect to Wallos</string>
+    <string name="login_server_url_label">Server URL</string>
+    <string name="login_server_url_placeholder">https://wallos.example.com</string>
+    <string name="login_username_label">Username or email</string>
+    <string name="login_password_label">Password</string>
+    <string name="login_password_show">Show</string>
+    <string name="login_password_hide">Hide</string>
+    <string name="login_api_key_label">API key</string>
+    <string name="login_api_key_hint">In the Wallos web UI: Profile → API Key.</string>
+    <string name="login_use_api_key">I have an API key</string>
+    <string name="login_use_password">Use username and password</string>
+    <string name="login_connect">Connect</string>
+
+    <string name="login_error_invalid_credentials">Wallos didn't accept that username and password.</string>
+    <string name="login_error_needs_totp">This account asks for a one-time code, which this app can't do yet. Connect with your API key instead — Profile → API Key in the Wallos web UI.</string>
+    <string name="login_error_api_key_missing">Signed in, but this account has no API key yet. Generate one in the Wallos web UI (Profile → API Key), then paste it here.</string>
+
+    <string name="error_unreachable">Couldn't reach that server. Check the URL and your connection.</string>
+    <string name="error_not_wallos">Nothing that looks like Wallos answered at that address. Check the server URL.</string>
+    <string name="error_invalid_api_key">The instance didn't accept this API key.</string>
+    <string name="error_forbidden">This account isn't allowed to do that.</string>
+    <string name="error_not_found">The server has no such item.</string>
+    <string name="error_validation">The server rejected the request.</string>
+    <string name="error_in_use">That item is still in use elsewhere.</string>
+    <string name="error_server">The Wallos server ran into an error. Try again.</string>
 </resources>

@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -124,6 +125,45 @@ class SetupRepositoryImplTest {
         assertNull(apiKeyStorage.key)
     }
 
+    /** Path B is the tail of the bridge: no web session, same validate-then-store. */
+    @Test
+    fun `stores a pasted key the instance accepts, trimmed`() = runTest {
+        val result = repository().connectWithApiKey("  $SERVER_URL  ", "  $PASTED_API_KEY  ")
+
+        assertTrue(result.isSuccess)
+        assertEquals(SERVER_URL, serverUrlStorage.serverUrl)
+        assertEquals(PASTED_API_KEY, apiKeyStorage.key)
+        assertEquals(listOf(PASTED_API_KEY), validationRequests.map { it["api_key"] })
+    }
+
+    /** Same trap as the bridge: the injected stored key would be the one actually validated. */
+    @Test
+    fun `validates the pasted key, not the one already in storage`() = runTest {
+        apiKeyStorage.key = "stale-key"
+
+        repository().connectWithApiKey(SERVER_URL, PASTED_API_KEY)
+
+        assertEquals(listOf(PASTED_API_KEY), validationRequests.map { it["api_key"] })
+    }
+
+    @Test
+    fun `does not store a pasted key the instance rejects`() = runTest {
+        validationBody = """{"success":false,"title":"Invalid API key"}"""
+
+        val result = repository().connectWithApiKey(SERVER_URL, PASTED_API_KEY)
+
+        assertIs<WallosError.Unauthenticated>(result.exceptionOrNull())
+        assertNull(apiKeyStorage.key)
+    }
+
+    /** The web login is never touched on this path — that is the whole point of the fallback. */
+    @Test
+    fun `never drives the web login`() = runTest {
+        repository().connectWithApiKey(SERVER_URL, PASTED_API_KEY)
+
+        assertFalse(webLoginApi.loginCalled)
+    }
+
     private fun repository(): SetupRepositoryImpl {
         val engine = MockEngine { request ->
             validationRequests += (request.body as FormDataContent).formData.entries()
@@ -146,9 +186,12 @@ class SetupRepositoryImplTest {
     private class FakeWebLoginApi : WebLoginApi {
         var loginOutcome: WebLoginOutcome? = null
         var apiKey: String? = null
+        var loginCalled = false
 
-        override suspend fun login(username: String, password: String): WebLoginOutcome =
-            loginOutcome ?: error("loginOutcome not set")
+        override suspend fun login(username: String, password: String): WebLoginOutcome {
+            loginCalled = true
+            return loginOutcome ?: error("loginOutcome not set")
+        }
 
         override suspend fun fetchApiKey(): String? = apiKey
     }
@@ -179,6 +222,7 @@ class SetupRepositoryImplTest {
 
     private companion object {
         const val SERVER_URL = "https://wallos.example.com"
+        const val PASTED_API_KEY = "pasted-api-key"
         const val VERSION_SUCCESS = """{"success":true,"title":"version","version":"3.1.0"}"""
     }
 }

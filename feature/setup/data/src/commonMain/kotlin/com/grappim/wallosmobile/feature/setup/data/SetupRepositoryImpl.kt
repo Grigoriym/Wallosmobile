@@ -57,10 +57,23 @@ internal class SetupRepositoryImpl(
         // written anywhere — the key is the only thing that outlives the call.
     }
 
+    override suspend fun connectWithApiKey(serverUrl: String, apiKey: String): Result<Unit> = resultOf {
+        withContext(dispatcher) {
+            serverUrlStorage.saveServerUrl(serverUrl.trim())
+            // Same reason as above, and it matters more here: the key the user just pasted is the
+            // one that has to be validated, not whatever `WallosApiClient` would inject over it.
+            apiKeyStorage.clear()
+
+            val trimmed = apiKey.trim()
+            validate(trimmed)
+            apiKeyStorage.setKey(trimmed)
+        }
+    }
+
     /**
-     * Proves the scraped string is a working credential before it is stored, so a markup change
-     * upstream surfaces here rather than as an `Unauthenticated` on the first real screen
-     * (API doc §9.5). Throws a `WallosError` if not.
+     * Proves the string is a working credential before it is stored, so a markup change upstream
+     * — or a mistyped key on Path B — surfaces here rather than as an `Unauthenticated` on the
+     * first real screen (API doc §9.5). Throws a `WallosError` if not.
      */
     private suspend fun validate(apiKey: String) {
         wallosApiClient.post<VersionDTO>(VERSION_PATH, FormParams().put(API_KEY_PARAM, apiKey))

@@ -56,6 +56,13 @@ API key.
 the exact location (Profile → API Key). This is not a nice-to-have: it is the recovery route when
 Path A breaks, and Path A *will* break — see below.
 
+In code it is `SetupRepository.connectWithApiKey(serverUrl, apiKey): Result<Unit>` — the tail of
+Path A with steps 1–3 removed: persist the URL, `clear()` the stored key, validate, store. No web
+session is involved, so there is no `LoginOutcome` to report; a rejected key is an
+`Unauthenticated` failure and a wrong address is a `Malformed`/`UnsupportedEndpoint` one. Both
+paths share one screen and one state, switched by a flag — the reveal is a mode, not a second
+route.
+
 Consequences for the design:
 
 - **The bridge needs its own HTTP client**, and it is the third one in the app. It speaks HTML not
@@ -317,8 +324,11 @@ those by hand. The same goes for the Compose set in `configureKmpCompose()`, whi
 **material-icons-core**: material3 does not bring it transitively, so without it `Icons.Filled.*`
 is unresolved — while `ui-graphics` and `animation` *do* arrive via `compose.ui` and
 `compose.foundation` and need no entry of their own. That core artifact is only ~50 icons, and
-several obvious ones are absent (`Subscriptions`, `Payment`, `Add`); `ArrowBack`, `List` and
-`Send` are `Icons.AutoMirrored.Filled.*`. A module that genuinely needs more declares
+several obvious ones are absent (`Subscriptions`, `Payment`, `Add`, `Visibility`/`VisibilityOff`);
+`ArrowBack`, `List` and `Send` are `Icons.AutoMirrored.Filled.*`. Three of three screens so far
+wanted an icon that isn't there, so **assume it's missing and check** — a `TextButton` with a word
+in it is often the cheaper answer (the login password toggle is Show/Hide text for exactly this
+reason). A module that genuinely needs more declares
 `jetbrains.compose.icons.extended` itself (the `feature/NAME/ui` block above), rather than
 growing the convention plugin for one screen.
 
@@ -782,9 +792,31 @@ composes with the existing state conventions.
 
 `NativeText` itself is Mealie's type, trimmed: `utils:ui` holds `Empty` / `Simple` / `Resource`
 plus a `@Composable asString()`, which is everything the bar and a screen title need. The rest of
-Mealie's surface — `Plural`, `Arguments`, `Multi`, `asStringBlocking()` and `getErrorMessage()` —
-gets added when a step actually needs it; `getErrorMessage(WallosError)` in particular belongs
-with the first screen that shows an error.
+Mealie's surface — `Plural`, `Arguments`, `Multi` and `asStringBlocking()` — gets added when a step
+actually needs it.
+
+`getErrorMessage(Throwable)` lives in the same file and is the **only** place an error becomes
+something a user reads. It maps by *failure layer* (§1.1, API doc §5.1), because the layer is what
+tells the user which field to fix:
+
+| Error | Reads as | Points at |
+|---|---|---|
+| `Malformed`, `UnsupportedEndpoint` | nothing that looks like Wallos answered | the **URL** |
+| anything that isn't a `WallosError` | couldn't reach that server | the **URL** |
+| `Unauthenticated` | the instance didn't accept this key | the **key** |
+| `Forbidden` / `NotFound` / `Validation` / `InUse` / `Server` | one message each | — |
+
+The `WallosError` branch is an **exhaustive `when` over the sealed class**, not a `when` over
+`Throwable` with an `else`: a new error type has to fail the build rather than quietly render as a
+connection problem. Errors that belong to one feature — `ApiKeyNotFound`, say — are handled in
+that feature's ViewModel, since `utils:ui` must not see a `feature:*:domain` module.
+
+`ObserveAsEvents` is here too, as the collector side of the `Channel` + `receiveAsFlow()` one-off
+event convention: it collects inside `repeatOnLifecycle(STARTED)`, so an event sent while the
+screen is backgrounded is delivered when it returns rather than acted on off-screen.
+
+Both pull `core:domain` and `strings` into `utils:ui` — the two dependencies its build file
+declares beyond the Compose resources one.
 
 This decouples every screen from the shell: a feature `ui` module depends on `uikit`, never on
 `composeApp`.
@@ -882,6 +914,17 @@ testing/src/commonMain/kotlin/.../testing/
   utils/        getRandomString(), getRandomInt(), nowLocalDate, testException
   MainDispatcherRule.kt
 ```
+
+That layout is the *destination*, not a starting shape: a double moves here when a **second**
+module needs it, and stays private to its one test file until then. The bar matters because
+`configureTests()` puts `:testing` on every module's `commonTest` classpath — a fake parked here
+early drags its whole `feature:*:domain` into modules that have no business seeing it. As of M1
+only `MainDispatcherRule` has earned the move; the setup fakes are still private to their tests.
+
+`MainDispatcherRule` is not a JUnit `@Rule` — `commonTest` is `kotlin.test`, so the test class
+calls `setup()`/`tearDown()` from `@BeforeTest`/`@AfterTest`. Every ViewModel test needs it:
+`viewModelScope` dispatches on `Dispatchers.Main`, which a host test does not have, so without
+`Dispatchers.setMain` the first `launch` throws.
 
 **Fixture builders** are top-level functions returning randomized-but-valid models, with every
 field overridable:

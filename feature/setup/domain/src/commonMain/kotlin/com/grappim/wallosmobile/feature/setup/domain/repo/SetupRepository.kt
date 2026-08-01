@@ -16,4 +16,16 @@ interface SetupRepository {
      * is a success carrying [LoginOutcome.InvalidCredentials].
      */
     suspend fun loginWithPassword(serverUrl: String, username: String, password: String): Result<LoginOutcome>
+
+    /**
+     * Path B (plan §1.1): the user already has a key, so this is the tail of the bridge — persist
+     * [serverUrl], validate [apiKey] against `api/status/version.php`, store it. No web session is
+     * involved, so there is no [LoginOutcome] to report: a rejected key is a
+     * [com.grappim.wallosmobile.core.domain.WallosError.Unauthenticated] failure, and an address
+     * that isn't a Wallos instance is a `Malformed`/`UnsupportedEndpoint` one.
+     *
+     * This is the permanent recovery route, not a fallback: the bridge scrapes markup, and manual
+     * entry is what still works the day that markup changes.
+     */
+    suspend fun connectWithApiKey(serverUrl: String, apiKey: String): Result<Unit>
 }

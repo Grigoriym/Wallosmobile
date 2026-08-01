@@ -106,11 +106,12 @@ vertical slices, **all source in `commonMain`**.
   set, including **material icons** (`Icons.Filled.*`), which material3 does *not* pull in
   transitively and which therefore lives in `configureKmpCompose()`, not in any module.
 - **`material-icons-core` is ~50 icons, and the obvious one is usually missing** — no
-  `Subscriptions`, no `Payment`, not even `Add`; `ArrowBack`, `List` and `Send` live under
-  `Icons.AutoMirrored.Filled.*`. Reaching for anything else means adding `material-icons-extended`
-  to `configureKmpCompose()`, so pick from the set or say you're growing it. To list the set
-  without a compile: `unzip` the `material-icons-core-*.jar` from `~/.gradle/caches` and
-  `strings` the `package_androidx.compose.material.icons.filled/0_filled.knm` entry.
+  `Subscriptions`, no `Payment`, no `Visibility`/`VisibilityOff`, not even `Add`; `ArrowBack`,
+  `List` and `Send` live under `Icons.AutoMirrored.Filled.*`. Reaching for anything else means
+  adding `material-icons-extended` to `configureKmpCompose()`, so pick from the set, use a
+  `TextButton` with a word in it (the login password toggle is Show/Hide text), or say you're
+  growing it. To list the set without a compile: `unzip` the `material-icons-core-*.jar` from
+  `~/.gradle/caches` and `ls` its `androidx/compose/material/icons/filled/` directory.
 
 ## Non-negotiables
 
@@ -149,6 +150,13 @@ vertical slices, **all source in `commonMain`**.
   `HttpClient` in a host test, since `HttpClient { }` autodiscovers an engine and okhttp is
   `androidMain`-only. It reaches every `commonTest` as `api(libs.ktor.client.mock)` in `:testing`,
   alongside `kotlinx-coroutines-test`; never declare either per module.
+  **`:testing` is excluded from linting** (`lintingExclusions` in `build-logic/.../Quality.kt`,
+  plus `.editorconfig`), so there is no `:testing:ktlintFormat`/`:testing:detekt` task at all —
+  asking for one fails with "task not found", which is the config working, not a broken build.
+- **A ViewModel test must set the main dispatcher.** `viewModelScope` dispatches on
+  `Dispatchers.Main`, which a host test doesn't have, so the first `launch` throws. Use
+  `MainDispatcherRule` from `:testing` — not a JUnit `@Rule` (this is `kotlin.test`), so call
+  its `setup()`/`tearDown()` from `@BeforeTest`/`@AfterTest`.
 - **A `commonTest` fixture is a Kotlin constant, not a file.** There is no portable way to read a
   resource or a path from `commonTest`, so recorded HTML/JSON lives in a `*Fixtures.kt` and
   anything filesystem-backed needs an in-memory fake (`FakePreferencesDataStore`, 1.4).

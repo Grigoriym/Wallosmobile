@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `9/11` · M2 `0/7`
-**Current step:** 1.10
+**Progress:** M0 `7/7` · M1 `10/11` · M2 `0/7`
+**Current step:** 1.11
 
 ---
 
@@ -453,12 +453,47 @@ Goal: username + password → the app holds a validated API key and shows the dr
   are private to `SetupRepositoryImplTest`, as in 1.4. 1.10 needs `FakeSetupRepository`, which is
   the second consumer that earns the move (plan §6.1).
 
-- [ ] **1.10 — feature:setup ui**
+- [x] **1.10 — feature:setup ui**
   `LoginRoute` (`@Serializable ... : NavKey`), `LoginScreen`, `LoginState` (data + callbacks),
   `LoginViewModel`. Fields: server URL, username, password + visibility toggle, Connect. Secondary
   "I have an API key" reveal. Errors attributed by failure layer (§1.1). `NeedsTotp` → message
   pointing at the key field. No top bar, no drawer.
   *Verify:* `./gradlew :feature:setup:ui:testAndroidHostTest`
+  *Note:* **`LoginRoute` is not in `NavKeySerializers` yet** — registering it means `composeApp`
+  depending on `feature:setup:ui`, which is 1.11's wiring. **1.11 must either register it or
+  decide the login screen never enters a `NavDisplay` back stack at all** (plan §7.1's startup
+  branch reads as an either/or *above* the shell, not a route inside it). That decision is the
+  one thing 1.10 deliberately left open, and CLAUDE.md's "every new route is registered" rule is
+  what makes forgetting it silent.
+  Two modules no step owns had to grow again, as in 1.6: **`utils:ui` gained `getErrorMessage`
+  (the §1.1 failure-layer attribution) and `ObserveAsEvents`**, so it now depends on `core:domain`
+  and `strings`. `getErrorMessage`'s inner `when` is exhaustive over the sealed `WallosError`
+  on purpose — a new error type fails the build instead of quietly reading as "check your
+  connection". Attribution lands as three buckets: `Malformed`/`UnsupportedEndpoint` and any
+  non-`WallosError` → the **URL**, `Unauthenticated` → the **key**, the rest → their own message.
+  **`ApiKeyNotFound` is handled in the ViewModel, not in `getErrorMessage`** — it lives in
+  `feature:setup:domain`, which `utils:ui` must not see.
+  **`SetupRepository.connectWithApiKey(serverUrl, key)` was added** as 1.9 required — Path B is
+  `saveServerUrl` → `clear()` → validate → `setKey`, and the `clear()` is load-bearing for the
+  same reason as in the bridge. It returns `Result<Unit>`: there is no web session, so no
+  `LoginOutcome` to report.
+  **`material-icons-core` carries no `Visibility`/`VisibilityOff`**, so the password toggle is a
+  Show/Hide `TextButton` in `trailingIcon` — cheaper than pulling `material-icons-extended` into
+  every `ui` module for one glyph. The icon set is now 0 for 3 (1.8: `Subscriptions`, `Add`).
+  `LoginUiState` holds **both paths at once** with an `isApiKeyMode` flag and a `canConnect`
+  computed only from the *visible* path's fields; switching paths clears the error, since it was
+  attributed to fields the user can no longer see. On success the ViewModel blanks `password` in
+  state — the key is the only thing meant to outlive the attempt.
+  `:testing` gained **`MainDispatcherRule`** (plan §6.1): `viewModelScope` dispatches on
+  `Dispatchers.Main`, which no host test has, so every future ViewModel test needs it. It is not a
+  JUnit `@Rule` — `commonTest` is `kotlin.test`, so the test calls `setup()`/`tearDown()` from
+  `@BeforeTest`/`@AfterTest`. **`FakeSetupRepository` did *not* go there**, against 1.9's note:
+  CLAUDE.md's rule is that a double used by exactly one test file stays private to it, and
+  `:testing` is on *every* module's test classpath, so a `feature:setup:domain` dependency there
+  leaks a feature into modules that have no business seeing it.
+  `feature:setup:ui` takes `core:domain` in **`commonTest` only** — production code never names a
+  `WallosError`, it hands whatever it caught to `getErrorMessage`; the tests construct them to pin
+  the attribution down. `utils:ui` reaches the module through `uikit`'s `api`, as 1.6 set up.
 
 - [ ] **1.11 — Wire it up end to end**
   Startup branch: stored key → shell, else login. Login success → shell.
@@ -577,4 +612,9 @@ structural into the plan itself.
 | 1.9 | `WebLoginApiImpl` **and** `SetupRepositoryImpl` are `@Factory`, not `@Single` | A `@Single` above the `@Factory` web client resolves it once and keeps the session for the life of the process — *now in plan §1.1* |
 | 1.9 | The bridge clears the stored key before it starts | `withApiKey` overwrites a caller's `api_key` with the stored one, so a re-login would validate the stale key — *now in plan §1.1, §4.1* |
 | 1.9 | `VersionDTO` created in `feature:setup:dto`, a module outside this step's title | `WallosApiClient.post<T>` needs a response type for the validation call; `version` is nullable so an older instance isn't `Malformed` |
+| 1.10 | `getErrorMessage` and `ObserveAsEvents` created in `utils:ui`, which gains `core:domain` + `strings` | 1.6 parked `getErrorMessage` here, and the screen's one-off success event needs the collector; neither has a module of its own — *now in plan §5.4* |
+| 1.10 | `SetupRepository.connectWithApiKey` returns `Result<Unit>`, not a `LoginOutcome` | Path B drives no web session, so there is no credential verdict to report — *now in plan §1.1* |
+| 1.10 | `FakeSetupRepository` stayed private to its test instead of moving to `:testing` (1.9's note asked for the move) | One consumer, and `:testing` is on every module's test classpath — a `feature:setup:domain` dep there leaks the feature everywhere — *now in plan §6.1* |
+| 1.10 | Password visibility is a Show/Hide `TextButton`, not an icon | `material-icons-core` has neither `Visibility` nor `VisibilityOff`, and one glyph doesn't justify `material-icons-extended` in every `ui` module — *now in plan §3.3* |
+| 1.10 | `MainDispatcherRule` added to `:testing` | `viewModelScope` needs `Dispatchers.setMain`, and every ViewModel test from here on needs it — the genuine cross-module double — *now in plan §6.1* |
 | 1.5 | No dynamic colour, so no `expect`/`actual` `colorScheme()` and no `androidMain` in `uikit` | Mealie's only reason for the `expect` is `dynamicDarkColorScheme(LocalContext)`; a static palette seeded from the logo navy keeps the brand and the module common — *now in plan §3.3* |
