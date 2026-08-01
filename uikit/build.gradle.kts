@@ -9,6 +9,9 @@ kotlin {
             // Required by the generated `Res` class itself, and `api` so that consumers of
             // `RDrawable` can resolve `DrawableResource`.
             api(libs.jetbrains.compose.components.resources)
+
+            // `api`: `TopBarConfig` exposes `NativeText` in its public signature.
+            api(projects.utils.ui)
         }
     }
 }

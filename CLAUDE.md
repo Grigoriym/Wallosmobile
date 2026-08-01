@@ -84,7 +84,9 @@ vertical slices, **all source in `commonMain`**.
   standard dependency blocks. `ui` = `kmp.library` + `library.compose` + `di` + `serialization`;
   `data` = `library` + `di` + `network`; `dto` = `library` + `serialization`;
   `mapper` = `library` + `di`. Coroutines, datetime, immutable collections, `core:logger` and the
-  test deps come from the convention plugins — never declare them per module.
+  test deps come from the convention plugins — never declare them per module. Same for the Compose
+  set, including **material icons** (`Icons.Filled.*`), which material3 does *not* pull in
+  transitively and which therefore lives in `configureKmpCompose()`, not in any module.
 
 ## Non-negotiables
 
@@ -175,6 +177,9 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
 ## Strings and resources
 
 - Type aliases: `RString` from `:strings`, `RDrawable` from `:uikit`.
+- A string produced outside a Composable is a **`NativeText`** (`utils:ui`), resolved with
+  `asString()` at the call site. `uikit` depends on it as `api`, so any module that has `uikit`
+  already has `NativeText` and must not re-declare `utils:ui`.
 - Arguments use printf style in XML — `%1$d`, `%1$s`, `%2$s` — passed to `stringResource(...)`.
 - **Do not escape apostrophes.** CMP resources are not Android XML; `\'` renders literally.
   Write `isn't`.

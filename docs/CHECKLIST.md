@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `5/11` · M2 `0/7`
-**Current step:** 1.6
+**Progress:** M0 `7/7` · M1 `6/11` · M2 `0/7`
+**Current step:** 1.7
 
 ---
 
@@ -328,11 +328,29 @@ Goal: username + password → the app holds a validated API key and shows the dr
   future font. `DARK_BACKGROUND_COLOR_FOR_PREVIEW` is UPPER_SNAKE because detekt's
   `TopLevelPropertyNaming.constantPattern` demands it — Mealie `@Suppress`es the rule instead.
 
-- [ ] **1.6 — uikit: top app bar**
+- [x] **1.6 — uikit: top app bar**
   Port `TopBarConfig`, `TopBarController` + `LocalTopBarConfig`, `NavigationIconConfig`,
   `TopBarAction` variants, `WallosTopAppBar` from
   `MealieMobile/uikit/.../uikit/widgets/topappbar/`.
   *Verify:* `./gradlew :uikit:assemble`  ·  *Ref:* plan §5.4
+  *Note:* like 1.3, this step had to reach into a module it doesn't own: `TopBarConfig` is built on
+  **`NativeText`, which lives in `utils:ui` and no step owns**. Only the three variants the top bar
+  needs were written — **`Empty` / `Simple` / `Resource` plus `asString()`**; `Plural`, `Arguments`,
+  `Multi`, `asStringBlocking()` and `getErrorMessage()` are Mealie's and are **not** here. **1.10
+  adds `getErrorMessage(WallosError)` in this file** (CLAUDE.md's error contract) and whichever
+  variants its strings need. `uikit` takes `api(projects.utils.ui)` — `NativeText` is in
+  `TopBarConfig`'s public signature — so every consumer of `uikit` gets it transitively and
+  shouldn't re-declare it.
+  **`Icons.Filled.*` does not come transitively from material3**, so `configureKmpCompose()` gained
+  `jetbrains.compose.icons` (material-icons-core, the alias 0.2 already put in the catalog); it is
+  in the convention plugin, not in `uikit`, because every `ui` module will want it (Mealie does the
+  same). `ui-graphics` and `animation` — the other two entries 0.4 skipped — **do** arrive
+  transitively via `compose.ui` / `compose.foundation`, so `ImageVector` and `AnimatedVisibility`
+  need nothing.
+  `WallosMobilePreviewTheme` now provides `LocalTopBarConfig` as 1.5 required, so 1.10's screen
+  previews won't crash on the missing local.
+  The only unit-testable logic here is `TopBarController` (`update`/`reset`); the widget itself is
+  covered by its `@PreviewWallosDarkLight` preview, since there is no Compose UI test setup yet.
 
 - [ ] **1.7 — core:navigation**
   Port `NavigationState` (dual back stack), `Navigator`, `toEntries()`, `rememberNavigationState`
@@ -444,4 +462,6 @@ structural into the plan itself.
 | 1.4 | Keystore access is a `SecretCipher` interface, not encryption inside the storage impl | The Keystore doesn't exist in a host test; as a seam the impls stay in `commonMain` and testable — *now in plan §4.7* |
 | 1.4 | `core:storage`'s Koin module class lives in `androidMain` | The DataStore path needs `Context`, and Android being the only target leaves exactly one `@ComponentScan` — *now in plan §4.7* |
 | 1.4 | One DataStore file for URL + key; `clear()` removes only the key | Disconnect shouldn't wipe the server the user just typed — *now in plan §4.7* |
+| 1.6 | `NativeText` created here, in `utils:ui`, which no step owns | `TopBarConfig` is built on it; only the three variants the top bar needs exist, `getErrorMessage` waits for 1.10 — *now in plan §3.3, §5.4* |
+| 1.6 | `configureKmpCompose()` gains `jetbrains.compose.icons` | material3 doesn't bring material-icons-core transitively, and every `ui` module will want `Icons.Filled.*` — *now in plan §3.3* |
 | 1.5 | No dynamic colour, so no `expect`/`actual` `colorScheme()` and no `androidMain` in `uikit` | Mealie's only reason for the `expect` is `dynamicDarkColorScheme(LocalContext)`; a static palette seeded from the logo navy keeps the brand and the module common — *now in plan §3.3* |

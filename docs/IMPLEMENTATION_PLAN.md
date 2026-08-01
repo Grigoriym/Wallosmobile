@@ -247,7 +247,7 @@ commonMain.dependencies {
     implementation(projects.utils.ui)
     implementation(projects.core.navigation)
     implementation(projects.feature.NAME.domain)
-    implementation(libs.jetbrains.compose.icons.extended)   // if using icons
+    implementation(libs.jetbrains.compose.icons.extended)   // only for icons outside the core set
 }
 
 // feature/NAME/data
@@ -296,9 +296,16 @@ Four details that are easy to miss and annoying to diagnose:
   `font` objects whether or not the module has any such resource, so `RDrawable` compiles in a
   `uikit` with no drawables at all.
 
+- **`uikit` depends on `utils:ui` as `api`.** `TopBarConfig` carries `NativeText` in its public
+  signature (§5.4), so every consumer of `uikit` resolves `NativeText` transitively and should not
+  list `utils.ui` a second time.
+
 Everything else — coroutines, immutable collections, datetime, `core:logger`, `kotlin("test")`,
 Turbine and `:testing` — arrives through `kmp.library`/`configureTests()`. Modules never declare
-those by hand.
+those by hand. The same goes for the Compose set in `configureKmpCompose()`, which carries
+**material-icons-core**: material3 does not bring it transitively, so without it `Icons.Filled.*`
+is unresolved — while `ui-graphics` and `animation` *do* arrive via `compose.ui` and
+`compose.foundation` and need no entry of their own.
 
 ### 3.4 `core:crud` — the one deliberate deviation
 
@@ -735,6 +742,12 @@ LaunchedEffect(Unit) {
 given an override, and `None` hides the bar entirely (the shell keys `isVisible` off it). Actions
 come in icon / vector / text variants. `TopBarConfig` uses `NativeText` and `ImmutableList`, so it
 composes with the existing state conventions.
+
+`NativeText` itself is Mealie's type, trimmed: `utils:ui` holds `Empty` / `Simple` / `Resource`
+plus a `@Composable asString()`, which is everything the bar and a screen title need. The rest of
+Mealie's surface — `Plural`, `Arguments`, `Multi`, `asStringBlocking()` and `getErrorMessage()` —
+gets added when a step actually needs it; `getErrorMessage(WallosError)` in particular belongs
+with the first screen that shows an error.
 
 This decouples every screen from the shell: a feature `ui` module depends on `uikit`, never on
 `composeApp`.

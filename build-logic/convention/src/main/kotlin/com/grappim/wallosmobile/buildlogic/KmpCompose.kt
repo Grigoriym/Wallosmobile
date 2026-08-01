@@ -15,6 +15,9 @@ fun Project.configureKmpCompose() {
                 implementation(libs.findLibrary("jetbrains.compose.ui.tooling.preview").get())
                 implementation(libs.findLibrary("jetbrains.compose.material3").get())
                 implementation(libs.findLibrary("jetbrains.compose.material").get())
+                // material3 does not bring the icons along transitively — `Icons.Filled.*` is
+                // unresolved without this.
+                implementation(libs.findLibrary("jetbrains.compose.icons").get())
                 implementation(libs.findLibrary("jetbrains.compose.navigationevent").get())
 
                 implementation(libs.findLibrary("jetbrains.lifecycle.runtime.compose").get())

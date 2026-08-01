@@ -6,7 +6,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
+import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarController
 
 internal val LightColorScheme = lightColorScheme(
     primary = Navy40,
@@ -71,13 +75,16 @@ fun WallosMobileTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Comp
 
 /**
  * The theme every `@Preview` goes through. `Surface` is what gives previews a themed background
- * instead of a transparent one.
+ * instead of a transparent one, and [LocalTopBarConfig] is provided because any screen that
+ * declares its own top bar reads it — without it every screen preview crashes.
  */
 @Composable
 fun WallosMobilePreviewTheme(content: @Composable () -> Unit) {
     WallosMobileTheme {
-        Surface {
-            content()
+        CompositionLocalProvider(LocalTopBarConfig provides remember { TopBarController() }) {
+            Surface {
+                content()
+            }
         }
     }
 }
