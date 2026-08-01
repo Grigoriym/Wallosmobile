@@ -33,5 +33,7 @@ class BaseUrlProviderImplTest {
 
     private fun baseUrlOf(stored: String): String = BaseUrlProviderImpl(FakeServerUrlStorage(stored)).getBaseUrl()
 
-    private class FakeServerUrlStorage(override val serverUrl: String) : ServerUrlStorage
+    private class FakeServerUrlStorage(override val serverUrl: String) : ServerUrlStorage {
+        override suspend fun saveServerUrl(url: String) = error("not used by this test")
+    }
 }

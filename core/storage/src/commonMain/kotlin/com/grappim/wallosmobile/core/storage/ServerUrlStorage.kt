@@ -8,5 +8,8 @@ package com.grappim.wallosmobile.core.storage
  * reaching into DataStore on every request.
  */
 interface ServerUrlStorage {
+
     val serverUrl: String
+
+    suspend fun saveServerUrl(url: String)
 }

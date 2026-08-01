@@ -56,6 +56,11 @@ aren't ticked, and don't expand scope beyond the step.
 # Koin here is a Kotlin compiler plugin, NOT classic KSP — there is no build/generated/ksp/**
 # to inspect; a clean compile is the only signal that new @Single/@KoinViewModel were picked up.
 ./gradlew :androidApp:compileDebugKotlin --rerun-tasks
+
+# To actually see what a module's @ComponentScan found — the graph can't be started before the
+# app is wired — read the generated module out of the bytecode. One `module$lambda` per definition:
+javap -p -c core/storage/build/classes/kotlin/android/main/com/grappim/wallosmobile/core/storage/\
+ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private static final"
 ```
 
 CI (`.github/workflows/ci.yml`, plan §3.5) runs assemble + `allTests` + `detekt ktlintCheck` on
@@ -86,6 +91,10 @@ vertical slices, **all source in `commonMain`**.
 - Package root `com.grappim.wallosmobile`. Module namespace follows the Gradle path.
 - **No `androidMain` in feature modules** — use `expect`/`actual`. Platform targets are declared
   **only** in `configureKmp()` in `build-logic`.
+- **`commonMain` is not enforced platform-neutral here.** Android being the only target,
+  `commonMain` compiles against the JVM variants: `java.io.File` and `kotlinx.coroutines.runBlocking`
+  both resolve there and *nothing* fails. Keeping common code common is a discipline, not a
+  compiler guarantee — the day a second target is declared, whatever leaked in stops compiling.
 - **DI: Koin with `io.insert-koin.compiler.plugin`. Never KSP for DI.** One
   `@Module @Configuration @ComponentScan` class per module. (KSP is still used for Room.)
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.

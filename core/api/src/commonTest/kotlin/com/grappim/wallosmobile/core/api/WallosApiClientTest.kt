@@ -9,6 +9,8 @@ import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.forms.FormDataContent
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.Serializable
 import kotlin.test.Test
@@ -94,7 +96,13 @@ class WallosApiClientTest {
     private data class VersionEnvelope(val version: String)
 
     private class FakeApiKeyStorage(private val key: String?) : ApiKeyStorage {
+        override val isConnected: Flow<Boolean> = flowOf(key != null)
+
         override suspend fun getKey(): String? = key
+
+        override suspend fun setKey(key: String) = error("not used by this test")
+
+        override suspend fun clear() = error("not used by this test")
     }
 
     private companion object {
