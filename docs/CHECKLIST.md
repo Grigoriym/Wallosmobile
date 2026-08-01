@@ -315,7 +315,7 @@ Goal: username + password → the app holds a validated API key and shows the dr
   local.)
   **No dynamic colour, so `uikit` has no `androidMain`**: Mealie's `expect fun colorScheme()` exists
   to reach `dynamicDarkColorScheme(LocalContext)`, which is Android-only. A static palette seeded
-  from the logo navy `#233E67` (sampled from `art/wallos_logo_original.png`) keeps the brand and the
+  from the logo navy `#233E67` keeps the brand and the
   whole module in `commonMain` — `core:logger` is still the only non-feature module with an
   `androidMain`. Reinstating dynamic colour means adding the `expect`/`actual` back.
   The generated `Res` declares **empty `drawable`/`string`/`array`/`plurals`/`font` objects
