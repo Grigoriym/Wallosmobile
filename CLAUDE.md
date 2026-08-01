@@ -242,6 +242,25 @@ Read `docs/WALLOS_API.md` before touching anything network-related.
 Two that bite later: `cycle=5` (One-time) is readable but **rejected on write**, and
 `Unauthorized or Not Found` is a per-row ownership error that must **not** clear the stored key.
 
+### There is a live instance behind the `wallos` MCP
+
+`mcp__wallos__*` reaches a **real Wallos v5.4.2**, and it is the **user's own personal instance** —
+`gregorz`, user id 1, real subscriptions. Read tools (`wallos_get_version`, `wallos_get_user`,
+`wallos_list_*`, `wallos_get_subscription`, `wallos_get_monthly_cost`, `wallos_get_period_budget`)
+are free to call and are the fastest way to settle a question `docs/WALLOS_API.md` leaves open —
+it was derived from PHP source, so the MCP is the check on it. **`wallos_add_subscription`,
+`wallos_update_subscription`, `wallos_delete_subscription` and `wallos_set_budget` mutate the
+user's live data — ask first, every time.**
+
+Two limits worth knowing before leaning on it:
+
+- **It returns the payload unwrapped** — `wallos_get_user` gives `{"user": {…}}` with no `success`
+  or `title`. So it confirms **field shapes and real values**, and says nothing about the envelope
+  behaviour `core:api` is built around (HTTP 200 on failure, PHP prefixes, the `title` catalogue).
+  Those still need `curl` against `api/*.php` directly, per §8's smoke test.
+- **It is one instance at one version.** A field present here may be absent on the older installs
+  the app has to tolerate — `ignoreUnknownKeys` and nullable DTO fields are still the rule.
+
 ## Reference projects
 
 Read these rather than guessing — the conventions here are ported from them.
