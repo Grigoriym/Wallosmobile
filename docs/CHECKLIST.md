@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `8/11` · M2 `0/7`
-**Current step:** 1.9
+**Progress:** M0 `7/7` · M1 `9/11` · M2 `0/7`
+**Current step:** 1.10
 
 ---
 
@@ -416,12 +416,42 @@ Goal: username + password → the app holds a validated API key and shows the dr
   Settings → navigates and closes the drawer, back → Subscriptions, back with the drawer open →
   drawer closes and the screen stays put.
 
-- [ ] **1.9 — feature:setup data + domain** ⭐
+- [x] **1.9 — feature:setup data + domain** ⭐
   `WebLoginApi`: `POST /login.php` (302 → success; `Location` contains `totp.php` → `NeedsTotp`;
   200 → `InvalidCredentials`), `GET /profile.php`, extract `id="apikey"` by regex. `SetupRepository`:
   login → scrape → **validate via `api/status/version.php`** → persist key, discard session and
   password. **Tests in this step**, over recorded HTML fixtures.
   *Verify:* `./gradlew :feature:setup:data:testAndroidHostTest`  ·  *Ref:* plan §1.1, `WALLOS_API.md` §9
+  *Note:* **`WebLoginApiImpl` and `SetupRepositoryImpl` are both `@Factory`, not `@Single`** —
+  1.3 made the `@WebSessionHttpClient` a `@Factory` so the session cookie dies with the attempt,
+  and a `@Single` anywhere above it puts the singleton session straight back. This is the one
+  repository in the app that isn't a singleton; **1.10's `LoginViewModel` gets a fresh session per
+  ViewModel instance**, which is what "one session per onboarding attempt" reduces to in practice.
+  **`SetupRepositoryImpl` calls `apiKeyStorage.clear()` before the bridge starts.** `withApiKey`
+  `put`s, so a *stored* key overwrites the caller's own `api_key` — 1.3's note said the scraped key
+  survives "with no key stored yet", and this is what makes that true. Without it a re-login
+  validates the stale key and stores the new one on the strength of it.
+  **`VersionDTO` was created in `feature:setup:dto`** (a third module, despite the step title):
+  `WallosApiClient.post<T>` needs a response type, and the `dto` module exists for exactly this.
+  `version` is nullable — setup only reads `success`, and a field missing on an older instance must
+  not become a `Malformed`.
+  **Path B is not here.** `SetupRepository` has only `loginWithPassword`; **1.10 must add
+  `connectWithApiKey(serverUrl, key)`** (validate + persist — the tail of the bridge, ~4 lines) for
+  the "I have an API key" reveal it already owns. Also absent, and deliberately: the `login.php`
+  form probe for `password_login_disabled`/OIDC (plan §1.1) — no step owns it yet, and it is a
+  degrade-to-Path-B affordance, not a blocker.
+  The outcome table is exactly the three rows of API doc §9.2, which means **every non-302 reads as
+  `InvalidCredentials`** — a 404 from a wrong subpath included. 1.10 owns "errors attributed by
+  failure layer", so that mis-attribution is its to fix (validating against `api/status/version.php`
+  is what catches a wrong URL on Path B; Path A fails one step earlier).
+  `remember` is not sent: the session is discarded immediately, so a longer-lived cookie only
+  widens the window in which one exists. A blank `value=""` on the `apikey` input counts as *no*
+  key — an account that never generated one still renders the input, and storing `""` looks
+  connected while failing every call. Fixtures are Kotlin constants in `commonTest`
+  (`WallosHtmlFixtures.kt`); `commonTest` has no portable way to read a resource file.
+  **No fakes went to `:testing`** — `FakeWebLoginApi`/`FakeApiKeyStorage`/`FakeServerUrlStorage`
+  are private to `SetupRepositoryImplTest`, as in 1.4. 1.10 needs `FakeSetupRepository`, which is
+  the second consumer that earns the move (plan §6.1).
 
 - [ ] **1.10 — feature:setup ui**
   `LoginRoute` (`@Serializable ... : NavKey`), `LoginScreen`, `LoginState` (data + callbacks),
@@ -544,4 +574,7 @@ structural into the plan itself.
 | 1.8 | `RouteConfig` carries no `FabConfig`, and `DrawerConfig` has no `Hidden` | v1 has no write screens and no fullscreen route — both arrive with the feature that needs them — *now in plan §5.4* |
 | 1.8 | `DrawerItemsBuilder` is constructed, not `@Factory`-injected | `startKoin` doesn't exist until 1.11, so `koinInject()` would throw at first composition — *now in plan §5.4* |
 | 1.8 | No snackbar host and nothing offline-aware in the shell (Mealie has both) | There is no `NetworkMonitor` (1.4) and no `LocalIsOffline`; errors go to UI state — *now in plan §5.4* |
+| 1.9 | `WebLoginApiImpl` **and** `SetupRepositoryImpl` are `@Factory`, not `@Single` | A `@Single` above the `@Factory` web client resolves it once and keeps the session for the life of the process — *now in plan §1.1* |
+| 1.9 | The bridge clears the stored key before it starts | `withApiKey` overwrites a caller's `api_key` with the stored one, so a re-login would validate the stale key — *now in plan §1.1, §4.1* |
+| 1.9 | `VersionDTO` created in `feature:setup:dto`, a module outside this step's title | `WallosApiClient.post<T>` needs a response type for the validation call; `version` is nullable so an older instance isn't `Malformed` |
 | 1.5 | No dynamic colour, so no `expect`/`actual` `colorScheme()` and no `androidMain` in `uikit` | Mealie's only reason for the `expect` is `dynamicDarkColorScheme(LocalContext)`; a static palette seeded from the logo navy keeps the brand and the module common — *now in plan §3.3* |

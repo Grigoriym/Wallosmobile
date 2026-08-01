@@ -129,6 +129,11 @@ vertical slices, **all source in `commonMain`**.
   compiler guarantee — the day a second target is declared, whatever leaked in stops compiling.
 - **DI: Koin with `io.insert-koin.compiler.plugin`. Never KSP for DI.** One
   `@Module @Configuration @ComponentScan` class per module. (KSP is still used for Room.)
+  **A `@Factory` reached through a `@Single` is a `@Single`** — the singleton resolves it once and
+  holds that instance forever. When a `@Factory` exists for a *lifetime* reason (the
+  `@WebSessionHttpClient` cookie jar, plan §1.1), every class between it and the call site has to
+  be a `@Factory` too, or the reason is silently undone. Nothing fails; the object just lives too
+  long.
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`.
   Every new route must also be registered in the polymorphic `SerializersModule` in
@@ -144,6 +149,9 @@ vertical slices, **all source in `commonMain`**.
   `HttpClient` in a host test, since `HttpClient { }` autodiscovers an engine and okhttp is
   `androidMain`-only. It reaches every `commonTest` as `api(libs.ktor.client.mock)` in `:testing`,
   alongside `kotlinx-coroutines-test`; never declare either per module.
+- **A `commonTest` fixture is a Kotlin constant, not a file.** There is no portable way to read a
+  resource or a path from `commonTest`, so recorded HTML/JSON lives in a `*Fixtures.kt` and
+  anything filesystem-backed needs an in-memory fake (`FakePreferencesDataStore`, 1.4).
 
 ## UI state and events
 

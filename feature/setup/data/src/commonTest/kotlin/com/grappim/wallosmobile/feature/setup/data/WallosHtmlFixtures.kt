@@ -1,0 +1,41 @@
+package com.grappim.wallosmobile.feature.setup.data
+
+/**
+ * Recorded markup, not invented markup: these are the shapes `profile.php` and `login.php` render
+ * (API doc §9.2, §9.3), trimmed to the fragment the scraper walks. Kotlin constants rather than
+ * test resources — `commonTest` has no portable way to read a file.
+ */
+internal const val SCRAPED_API_KEY = "b3f2c1a4d5e6f708192a3b4c5d6e7f80"
+
+internal val PROFILE_HTML = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <body>
+      <div class="settings-form">
+        <label for="apikey">API Key</label>
+        <div class="input-with-button">
+          <input type="text" id="apikey" name="apikey" value="$SCRAPED_API_KEY" readonly>
+          <button type="button" id="copy-apikey" class="button">Copy</button>
+        </div>
+        <input type="text" id="username" name="username" value="demo">
+      </div>
+    </body>
+    </html>
+""".trimIndent()
+
+/** An account whose key has never been generated still renders the input, with an empty value. */
+internal val PROFILE_HTML_WITHOUT_KEY = PROFILE_HTML.replace(SCRAPED_API_KEY, "")
+
+/** What `profile.php` serves without a session: the login form, not the profile. */
+internal val LOGIN_HTML = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <body>
+      <form action="login.php" method="post">
+        <input type="text" id="username" name="username" value="" required>
+        <input type="password" id="password" name="password" required>
+        <button type="submit">Login</button>
+      </form>
+    </body>
+    </html>
+""".trimIndent()

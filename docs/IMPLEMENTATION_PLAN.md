@@ -74,6 +74,17 @@ Consequences for the design:
   This mirrors TaigaMobileNova's `@AuthHttpClient` qualifier split. Making it a `@Factory` means
   the session cookie dies with the onboarding attempt rather than lingering in a singleton.
 
+  **The `@Factory` has to run the whole depth of the chain**, or it buys nothing: a `@Single`
+  `WebLoginApi` resolves the client once and holds that cookie jar for the life of the process,
+  and a `@Single` `SetupRepository` does the same one level up. `WebLoginApiImpl` and
+  `SetupRepositoryImpl` are therefore both `@Factory` — the one place in the app where a
+  repository isn't a singleton, and the reason is the session, not the state.
+
+- **Clear the stored key before starting an attempt.** `WallosApiClient` injects the *stored* key
+  over any `api_key` the caller put in the `FormParams` (§4.1), so a leftover key is what the
+  validation call would actually validate — and a newly scraped key would then be stored on the
+  strength of the old one. `clear()` keeps the server URL (§4.7), so this costs nothing.
+
 - **Detect whether password login is even available.** `password_login_disabled` (admin setting or
   the `OIDC_DISABLE_PASSWORD_LOGIN` env var) strips the credential fields from the form, and
   OIDC-only instances can't be bridged at all. GET `login.php` during setup and check for the
@@ -406,6 +417,10 @@ parameter rather than sending an empty one, so a caller with no stored key gets 
 `Missing API key` → `Unauthenticated` → back to setup, which is where it belongs. A corollary the
 onboarding bridge depends on: while nothing is stored, a `FormParams` carrying its own `api_key`
 survives, so a freshly scraped key can be validated through this client before it is persisted.
+**"While nothing is stored" is load-bearing** — `withApiKey` `put`s, so a stored key *overwrites*
+a caller's own `api_key` rather than losing to it. `SetupRepository` therefore clears the stored
+key before it starts an attempt (§1.1); without that, a re-login validates the stale key and
+stores the new one on the strength of it.
 
 The `NetworkModule` itself follows MealieMobile's
 (`MealieMobile/core/api/.../core/api/NetworkModule.kt`) — `@HttpJson` and client qualifiers,
