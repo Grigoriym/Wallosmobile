@@ -291,6 +291,12 @@ Read `docs/WALLOS_API.md` before touching anything network-related.
   through `WallosEnvelopeParser`.
 - **No pagination anywhere.** Filtering and sorting are client-side.
 
+- **Text fields come back HTML-escaped** — a subscription named `1&1 Telekom` is
+  `1&amp;1 Telekom` on the wire, and it renders that way unless the mapper unescapes it. Same for
+  `notes` and the resolved `category_name` / `payer_user_name` / `payment_method_name`.
+- **Unset dates are `""`, not `null`** (`cancellation_date`, `start_date`), so a nullable field is
+  not enough — blank has to read as absent.
+
 Two that bite later: `cycle=5` (One-time) is readable but **rejected on write**, and
 `Unauthorized or Not Found` is a per-row ownership error that must **not** clear the stored key.
 
@@ -315,14 +321,25 @@ it was derived from PHP source, so the MCP is the check on it. **`wallos_add_sub
 `wallos_update_subscription`, `wallos_delete_subscription` and `wallos_set_budget` mutate the
 user's live data — ask first, every time.**
 
-Two limits worth knowing before leaning on it:
+Three limits worth knowing before leaning on it:
 
 - **It returns the payload unwrapped** — `wallos_get_user` gives `{"user": {…}}` with no `success`
-  or `title`. So it confirms **field shapes and real values**, and says nothing about the envelope
-  behaviour `core:api` is built around (HTTP 200 on failure, PHP prefixes, the `title` catalogue).
-  Those still need `curl` against `api/*.php` directly, per §8's smoke test.
+  or `title`. So it confirms **real values**, and says nothing about the envelope behaviour
+  `core:api` is built around (HTTP 200 on failure, PHP prefixes, the `title` catalogue). Those
+  still need `curl` against `api/*.php` directly, per §8's smoke test.
+- **It adds fields the API does not have.** `wallos_list_subscriptions` returns a `logo_url` that
+  exists nowhere in the PHP — the server sends the bare `logo` filename. So it is *not* an
+  authority on field shapes either: **model DTOs against `curl`, and use the MCP for values.**
 - **It is one instance at one version.** A field present here may be absent on the older installs
   the app has to tolerate — `ignoreUnknownKeys` and nullable DTO fields are still the rule.
+
+Getting a key for that `curl`, since the app is the only other thing that has one:
+
+```bash
+curl -s -c /tmp/w.txt -o /dev/null \
+  -d "username=gregorz&password=$(sed -n '$p' docs/local-info.txt)" http://localhost:8282/login.php
+curl -s -b /tmp/w.txt http://localhost:8282/profile.php | grep -o 'id="apikey"[^>]*'
+```
 
 ## Reference projects
 

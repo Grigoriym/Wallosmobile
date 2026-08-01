@@ -1000,7 +1000,18 @@ uses engine autodiscovery and the real engine is `androidMain`-only — a host t
 
 - **`BillingCycle`** enum (`DAYS, WEEKS, MONTHS, YEARS, ONE_TIME`) + `frequency` multiplier. The
   editor must **not** offer `ONE_TIME` — the API rejects `cycle=5` on write even though the web UI
-  and the database support it. Read paths must still handle it.
+  and the database support it. Read paths must still handle it. `fromCode` returns **`null`** for
+  a code this build doesn't know, and `Subscription.cycle` is nullable to match: an unrecognised
+  cycle means a newer instance, and the screen drops the cycle text rather than defaulting to a
+  wrong one (2.1).
+- **Strings and dates off the wire need laundering, not just parsing** (API doc §3.1, verified on
+  the live instance in 2.1): `name`/`notes`/`*_name` are **HTML-escaped** (`1&amp;1 Telekom`), and
+  unset dates are **`""` rather than `null`**. Both are the mapper's job — every domain date is a
+  nullable `LocalDate` so one unparseable value can't sink a list.
+- **Domain models carry what the screens render, not what the row holds.** `SubscriptionDTO` is
+  the full §3.1 row; domain `Subscription` is §7.1's list + detail fields and nothing else, and
+  domain `Currency` is `id/name/symbol/code` without `rate` or `in_use`. Fields arrive with the
+  screen that needs them (2.1).
 - **Money.** `price` is a JSON number, `monthly_cost` is a preformatted string with thousands
   separators (`"1,234.56"`), and currency `rate` is a string. Parse each explicitly in
   `utils:formatter:decimal`; never map `monthly_cost` to `Double` directly.

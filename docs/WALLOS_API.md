@@ -175,6 +175,17 @@ DB row plus three resolved names. Fields (post-migration schema as of v5.4.2):
 > `get_subscription.php` show both `cancelation_date` (one `l`) and `cancellation_date`.
 > Only `cancellation_date` exists in the schema. Don't model the misspelled one.
 
+Three things the schema doesn't tell you, all read off the live instance (2.1):
+
+- **`name` is HTML-escaped on the wire.** Wallos stores what `htmlspecialchars` produced, so a
+  subscription called `1&1 Telekom` comes back as `1&amp;1 Telekom` and renders that way unless
+  the client unescapes it. Affects `name`, `notes` and the resolved `*_name` fields.
+- **Unset dates are `""`, not `null`.** `cancellation_date` is an empty string on every row that
+  was never cancelled, and `start_date` on rows created before it became mandatory. Model them
+  nullable *and* treat blank as absent.
+- **There is no `logo_url` field** — the MCP server synthesizes one. Over HTTP you get `logo`, a
+  bare filename, and build the URL yourself (§4).
+
 Kotlin model sketch:
 
 ```kotlin

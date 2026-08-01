@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `0/7`
-**Current step:** 2.1
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `1/7`
+**Current step:** 2.2
 
 ---
 
@@ -544,11 +544,31 @@ Goal: username + password → the app holds a validated API key and shows the dr
 
 Goal: the list of real subscriptions, and a detail screen.
 
-- [ ] **2.1 — feature:subscriptions dto + domain**
+- [x] **2.1 — feature:subscriptions dto + domain**
   `SubscriptionDTO` per `WALLOS_API.md` §3.1 (model `cancellation_date`, *not* the misspelled
   `cancelation_date`). Domain `Subscription` + `BillingCycle` enum (`DAYS/WEEKS/MONTHS/YEARS/ONE_TIME`,
   `ONE_TIME` read-only). `CurrencyDTO` + domain `Currency`.
   *Verify:* `./gradlew :feature:subscriptions:domain:testAndroidHostTest`
+  *Note:* the shapes were checked against the live instance with `curl`, not just against the doc,
+  and three things came back that `WALLOS_API.md` §3.1 didn't say — **now written into it**:
+  **`name`, `notes` and the resolved `*_name` fields are HTML-escaped** (`1&amp;1 Telekom`), so
+  **2.3's mapper has to unescape or 2.4 renders the entity**; **unset dates are `""`, not `null`**
+  (`cancellation_date` on every active row, `start_date` on older ones), so blank must read as
+  absent; and `logo_url` is an **MCP invention** — over HTTP there is only the bare `logo`
+  filename, which 2.4 turns into a URL itself. Currency `rate` really is a **String** and `in_use`
+  a real **boolean**.
+  **`BillingCycle.fromCode` returns `null`** for an unknown code rather than defaulting, so
+  `Subscription.cycle` is nullable and 2.4 drops the cycle text instead of guessing "months".
+  All three domain dates are `LocalDate?` for the same reason — the mapper stays total and one bad
+  date can't sink the list.
+  **The domain model is narrower than the DTO**: exactly the fields §7.1's list and detail screens
+  name, so no `auto_renew`, `notify*`, `replacement_subscription_id`, `payment_method_id`,
+  `payer_user_id` or `category_id`. Same for `Currency` — no `rate`, no `in_use` (conversion is
+  Phase 2b, the in-use flag guards deletes in Phase 5). Add fields with the screen that needs them.
+  **`Subscription` carries no `currencySymbol`** — 2.3 owns the join and therefore its shape
+  (a field on the model, or a separate `currency_id → symbol` map).
+  No response envelopes here (`SubscriptionsResponse` etc.): 1.9's precedent is that the `dto`
+  module grows them when `data` needs a response type, which is 2.3.
 
 - [ ] **2.2 — utils:formatter**
   `decimal`: currency formatting, and parsing `monthly_cost`-style strings with thousands
@@ -659,4 +679,7 @@ structural into the plan itself.
 | 1.11 | Graph test uses `verify()` with `HttpClientEngine` in `extraTypes`, not `checkModules()` | `checkModules` instantiates (needs a DataStore file); `verify` reads `@Single fun` definitions through the bound type's constructor — *now in plan §6.1* |
 | 1.11 | Manifest gains `usesCleartextTraffic="true"` | Plain-HTTP self-hosted instances are the normal case and are otherwise unreachable; §9's non-HTTPS warning is still unowned — *now in plan §9* |
 | 1.11 | Verify lines point at the local instance, not `demo.wallosapp.com` | The public demo's `profile.php` throws a PHP fatal, so the login bridge finds no key to scrape — *now in `WALLOS_API.md` §8* |
+| 2.1 | Subscription names arrive HTML-escaped; unset dates are `""` not `null` | Neither is in the schema or the PHP docblocks — read off the live instance — *now in `WALLOS_API.md` §3.1* |
+| 2.1 | `BillingCycle.fromCode` is nullable, so `Subscription.cycle` is too | An unknown code means an instance newer than this build; a default would render a wrong cycle — *now in plan §6.1 "Domain modelling notes"* |
+| 2.1 | Domain `Subscription`/`Currency` model only what §7.1's two screens render | The DTO keeps the full row; the domain model grows with the screen that needs a field |
 | 1.5 | No dynamic colour, so no `expect`/`actual` `colorScheme()` and no `androidMain` in `uikit` | Mealie's only reason for the `expect` is `dynamicDarkColorScheme(LocalContext)`; a static palette seeded from the logo navy keeps the brand and the module common — *now in plan §3.3* |
