@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import com.grappim.wallosmobile.composeapp.nav.entries.subscriptionsEntry
 import com.grappim.wallosmobile.core.navigation.NavigationState
 import com.grappim.wallosmobile.core.navigation.Navigator
 import com.grappim.wallosmobile.core.navigation.toEntries
@@ -28,14 +29,14 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * The one place that knows both a route and its screen. Each feature will contribute an
- * `EntryProviderScope<NavKey>` extension in `nav/entries/` (plan §5.3); until the features exist,
- * both sections render [PlaceholderScreen].
+ * Each feature contributes an `EntryProviderScope<NavKey>` extension in `nav/entries/`
+ * (plan §5.3). Settings has no feature module yet, so it still renders [PlaceholderScreen] — 2.6
+ * replaces it.
  */
 @Composable
 fun MainNavHost(navigationState: NavigationState, navigator: Navigator, modifier: Modifier = Modifier) {
     val entryProvider = entryProvider {
-        entry<SubscriptionsRoute> { PlaceholderScreen(title = RString.subscriptions_title) }
+        subscriptionsEntry()
         entry<SettingsRoute> { PlaceholderScreen(title = RString.settings_title) }
     }
 
@@ -55,7 +56,7 @@ fun MainNavHost(navigationState: NavigationState, navigator: Navigator, modifier
 }
 
 /**
- * Stands in for a real screen until 2.4 and 2.6 write them. It declares a top bar so the shell
+ * Stands in for a real screen until 2.6 writes settings. It declares a top bar so the shell
  * has a menu button — the drawer is otherwise swipe-only.
  */
 @Composable

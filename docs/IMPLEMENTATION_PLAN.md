@@ -315,6 +315,9 @@ Four details that are easy to miss and annoying to diagnose:
   themselves. It is not optional in either module: `generateResClass = always` emits a `Res` class
   referencing `org.jetbrains.compose.resources.*`, so without the dependency the module fails to
   compile on its own *generated* source.
+- **`:strings` exposes `RPlurals` (`Res.plurals`) beside `RString`.** CMP supports `<plurals>`,
+  and `pluralStringResource(RPlurals.x, count, count)` takes the count **twice** — once to select
+  the form, once as the `%1$d` argument (2.4).
 - **`core:navigation` takes the Compose plugin here**, unlike Taiga's (which holds only
   extension functions). Ours holds `NavigationState` and `toEntries()`, which are `@Composable`.
 - **`uikit` has no `androidMain`.** Mealie's `expect fun colorScheme(darkTheme)` exists only to
@@ -680,7 +683,7 @@ composeApp/.../
     DrawerItem.kt                 Destination / Group / Divider + IconSource
     DrawerItemsBuilder.kt         the drawer's item list
     RouteConfig.kt                per-route shell config (drawer gestures; FAB from Phase 3)
-    Routes.kt                     temporary: routes for features that don't exist yet (§5.3)
+    SettingsRoute.kt              temporary: routes for features that don't exist yet (§5.3)
     MainNavHost.kt                NavDisplay + entryProvider wiring
     entries/                      one file per feature: subscriptionsEntry(), dashboardEntry(), …
 ```
@@ -733,7 +736,10 @@ The shell was built (1.8) before either of its two sections existed, so `Subscri
 `SettingsRoute` start life in `composeApp/nav/Routes.kt` against a placeholder screen. Each moves
 into its feature's `ui` module with the screen that replaces the placeholder — an import change in
 `DrawerDestination.kt`, `RouteConfig.kt`, `NavKeySerializers.kt` and `MainNavHost.kt`. Anything
-added to `Routes.kt` after that is a route without a home, which is a smell, not a pattern.
+added to that file after the second move is a route without a home, which is a smell, not a
+pattern. `SubscriptionsRoute` left in 2.4, which also renamed the file `SettingsRoute.kt`: detekt's
+`MatchingDeclarationName` fires the moment a file holds one top-level declaration under another
+name. 2.6 takes `SettingsRoute` and deletes it.
 
 **Not everything on screen is a route.** Login isn't: the startup branch (§7.1) renders it
 *instead of* the whole shell, so it has no `NavDisplay` around it, no back stack entry and nothing
@@ -1051,6 +1057,16 @@ uses engine autodiscovery and the real engine is `androidMain`-only — a host t
   currency **symbol is a parameter, not a code** — Wallos stores an arbitrary string. Rounding is
   half-up (`floor(x + 0.5)`): `kotlin.math.round` breaks ties towards the *even* integer and
   renders an exact `0.125` as `0.12` where PHP's `number_format` says `0.13`.
+- **Dates.** `utils:formatter:datetime` owns both shapes: `parseIsoDate`/`formatIsoDate` for the
+  wire (2.2), and `formatDisplayDate` for the screen — `5 Mar 2026`, built from kotlinx-datetime's
+  `MonthNames.ENGLISH_ABBREVIATED` (2.4). It lives here rather than in a composable because it
+  needs no resource table and therefore stays a pure, host-tested function; it is hard-coded
+  English on exactly the terms `MoneyFormatter` is hard-coded `en_US`, and the two move together
+  the day the app is translated. `day()` pads to two digits — `day(Padding.NONE)` is what gives
+  `5 Mar` rather than `05 Mar`. The **cycle text** ("every 6 months") is the one thing that cannot
+  live here: it is a plural over `BillingCycle`, so it is resolved with `pluralStringResource` in
+  the composable that renders it, and the UI item carries the enum + frequency rather than a
+  string (2.2, 2.4).
 - **Silent failures need UI affordances** (API doc §5.5): `convert_currency=true` with no exchange
   rates returns unconverted prices and an empty `notes` — detect by comparing `currency_id`
   against the user's `main_currency` and show a hint. A failed logo fetch reports success — re-read
@@ -1110,6 +1126,19 @@ screen. Two consequences to keep in view:
   is the fix; caching it in a ViewModel just moves the staleness somewhere untested.
 - The subscriptions call goes **first**, so a failure on the resource the user actually asked for
   short-circuits before the second one.
+
+**The second thing the model can't render on its own is the logo.** The wire carries a bare
+filename and the full URL is `{base}/images/uploads/logos/{logo}`, so the *ViewModel* builds it —
+`feature:subscriptions:ui` takes `core:api` for `BaseUrlProvider` alone, which is the one place the
+instance root is normalized (2.4). Blank in, blank out: no logo, or no stored server, yields no URL
+rather than a relative one Coil would fail on. Wallos serves that directory **unauthenticated**, so
+a plain URL load needs no header plumbing — `coil.compose` + `coil.ktor`, no `ImageLoader` setup,
+the ktor3 fetcher finding okhttp by autodiscovery.
+
+**A failed load clears the list** (2.4). With no cache there is nothing behind the error worth
+keeping, and a stale list under "couldn't reach the server" is the shape that lies; the retry
+button is the way back. Worth revisiting when Phase 2b's Room cache makes "stale but real" a state
+the app can honestly describe.
 
 ### 7.2 Explicitly out of v1
 

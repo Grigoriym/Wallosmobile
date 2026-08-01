@@ -4,6 +4,9 @@ import com.grappim.wallosmobile.core.logger.LogPriority
 import com.grappim.wallosmobile.core.logger.logcat
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.format
+import kotlinx.datetime.format.MonthNames
+import kotlinx.datetime.format.Padding
+import kotlinx.datetime.format.char
 import org.koin.core.annotation.Single
 
 /**
@@ -34,4 +37,24 @@ class DateFormatter {
 
     /** The shape `FormParams.date()` writes, for anything that needs the string on its own. */
     fun formatIsoDate(date: LocalDate): String = date.format(LocalDate.Formats.ISO)
+
+    /**
+     * `2026-03-05` → `5 Mar 2026`, for the dates a screen shows rather than sends (2.4).
+     *
+     * The month names are **hard-coded English**, for the same reason `MoneyFormatter` hard-codes
+     * `1,234.56`: locale-aware date formatting doesn't exist in `commonMain` and reaching the
+     * platform one needs `expect`/`actual`, which also puts it beyond a host test. This stays
+     * honest — one format, tested — until the app is translated.
+     */
+    fun formatDisplayDate(date: LocalDate): String = date.format(displayFormat)
+
+    private companion object {
+        val displayFormat = LocalDate.Format {
+            day(Padding.NONE)
+            char(' ')
+            monthName(MonthNames.ENGLISH_ABBREVIATED)
+            char(' ')
+            year()
+        }
+    }
 }

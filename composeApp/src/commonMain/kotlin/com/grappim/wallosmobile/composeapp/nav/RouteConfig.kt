@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.composeapp.nav
 
 import androidx.navigation3.runtime.NavKey
+import com.grappim.wallosmobile.feature.subscriptions.ui.list.SubscriptionsRoute
 
 /**
  * How the drawer behaves on a given route.

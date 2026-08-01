@@ -39,6 +39,13 @@ class DateFormatterTest {
     }
 
     @Test
+    fun `the display format drops the leading zeroes the wire format keeps`() {
+        assertEquals("5 Mar 2025", formatter.formatDisplayDate(LocalDate(2025, 3, 5)))
+        assertEquals("31 Dec 2025", formatter.formatDisplayDate(LocalDate(2025, 12, 31)))
+        assertEquals("1 Jan 2026", formatter.formatDisplayDate(LocalDate(2026, 1, 1)))
+    }
+
+    @Test
     fun `format and parse round-trip`() {
         val date = LocalDate(2025, 3, 5)
         assertEquals(date, formatter.parseIsoDate(formatter.formatIsoDate(date)))

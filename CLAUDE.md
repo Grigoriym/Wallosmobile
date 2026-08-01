@@ -95,6 +95,13 @@ adb shell monkey -p com.grappim.wallosmobile -c android.intent.category.LAUNCHER
 `am kill` keeps the task and its saved state; `force-stop` discards them, so it tests nothing.
 This is the check that caught the nav3 first-composition bug — the developer option did not.
 
+**Run the cycle once, from a clean task.** Every `monkey … LAUNCHER` after an `am kill` *adds* a
+`MainActivity` to the task, and once there is more than one the relaunch starts a fresh activity
+instead of restoring the killed one — so the second and third cycles restore nothing and read as a
+regression that isn't there (2.4 chased exactly this). `adb shell am force-stop` first to reset the
+task, relaunch, get to the screen under test, and only then background + `am kill`. `numActivities`
+in the `ActivityTaskManager` logcat line tells you which situation you are in.
+
 `localhost` from the emulator is the emulator, so the host is **`http://10.0.2.2:8282`**. The
 Bash tool's sandbox also blocks loopback, so `curl` to `127.0.0.1`, `adb` and the emulator all
 need `dangerouslyDisableSandbox`.
@@ -200,6 +207,9 @@ vertical slices, **all source in `commonMain`**.
   **`:testing` is excluded from linting** (`lintingExclusions` in `build-logic/.../Quality.kt`,
   plus `.editorconfig`), so there is no `:testing:ktlintFormat`/`:testing:detekt` task at all —
   asking for one fails with "task not found", which is the config working, not a broken build.
+  **A fake's settable field must not be named after the method it feeds.** `var baseUrl` beside
+  `override fun getBaseUrl()` is a "platform declaration clash" — the property's getter compiles to
+  `getBaseUrl()` too. Name the field for what it holds (`var url`), not for the method.
 - **A ViewModel test must set the main dispatcher.** `viewModelScope` dispatches on
   `Dispatchers.Main`, which a host test doesn't have, so the first `launch` throws. Use
   `MainDispatcherRule` from `:testing` — not a JUnit `@Rule` (this is `kotlin.test`), so call
@@ -279,7 +289,11 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
 
 ## Strings and resources
 
-- Type aliases: `RString` from `:strings`, `RDrawable` from `:uikit`.
+- Type aliases: `RString` and `RPlurals` from `:strings`, `RDrawable` from `:uikit`.
+- **A quantity string is a `<plurals>` resolved in the composable**, never a string built in a
+  ViewModel: `pluralStringResource(RPlurals.x, count, count)` takes the count **twice** — once to
+  pick the form, once as the `%1$d` argument. So UI state carries the *number* (and whatever enum
+  picks the resource), not a rendered phrase.
 - A string produced outside a Composable is a **`NativeText`** (`utils:ui`), resolved with
   `asString()` at the call site. `uikit` depends on it as `api`, so any module that has `uikit`
   already has `NativeText` and must not re-declare `utils:ui`.

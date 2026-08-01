@@ -22,6 +22,7 @@ kotlin {
             implementation(projects.feature.setup.ui)
             implementation(projects.feature.subscriptions.data)
             implementation(projects.feature.subscriptions.mapper)
+            implementation(projects.feature.subscriptions.ui)
             implementation(projects.utils.formatter.datetime)
             implementation(projects.utils.formatter.decimal)
         }

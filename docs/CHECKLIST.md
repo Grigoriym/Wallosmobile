@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `3/7`
-**Current step:** 2.4
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `4/7`
+**Current step:** 2.5
 
 ---
 
@@ -649,7 +649,7 @@ Goal: the list of real subscriptions, and a detail screen.
   scheduler, and `withContext(it)` dies with "Detected use of different schedulers".
   `UnconfinedTestDispatcher()` doesn't, which is why every repository test here uses it.
 
-- [ ] **2.4 — feature:subscriptions ui: list**
+- [x] **2.4 — feature:subscriptions ui: list**
   `SubscriptionsRoute`, screen, state, ViewModel. Cards: logo (Coil,
   `{base}/images/uploads/logos/{logo}`), name, price + symbol, next payment, cycle text, inactive
   badge. Loading / empty / error states, pull-to-refresh. Top bar: title + `Menu`.
@@ -658,6 +658,42 @@ Goal: the list of real subscriptions, and a detail screen.
   and no text at all when `cycle == null`. Decide the **display** date format here too — 2.2 ships
   ISO only.
   *Verify:* `./gradlew :feature:subscriptions:ui:testAndroidHostTest`
+  *Note:* **the display date format went back into `utils:formatter:datetime`** as
+  `DateFormatter.formatDisplayDate` ("5 Mar 2026"), not into the composable: kotlinx-datetime ships
+  `MonthNames.ENGLISH_ABBREVIATED`, so it needs no resource table and no `expect`/`actual`, and it
+  stays host-tested. Hard-coded English on the same terms as `MoneyFormatter`'s `1,234.56` — the
+  day the app is translated, both move together. `day()` pads to two digits by default;
+  `day(Padding.NONE)` is what gives `5 Mar` rather than `05 Mar`. **2.5 should use the same call.**
+  The cycle text genuinely can't leave the composable, as 2.2 predicted: `SubscriptionUiItem`
+  carries the `BillingCycle` + `frequency` and `SubscriptionCard` resolves the plural.
+  `:strings` gained four `<plurals>` and a **`RPlurals` typealias** (`Res.plurals`) beside `RString`
+  — CMP supports plurals, and `pluralStringResource(RPlurals.x, n, n)` needs the count twice (once
+  to pick the form, once as `%1$d`).
+  **The ViewModel builds the logo URL**, so `feature:subscriptions:ui` takes `core:api` for
+  `BaseUrlProvider` alone — the bare filename plus the normalized instance root, guarded so a blank
+  root yields no URL rather than a relative one. That is the only reason a `ui` module names a
+  `core:api` type; if a second screen needs it, consider whether the seam belongs elsewhere.
+  Coil follows MealieMobile — `coil.compose` + `coil.ktor` in `commonMain`, no `ImageLoader` setup.
+  The ktor3 fetcher's engine autodiscovery finds okhttp on the runtime classpath and logos load off
+  the live instance; Wallos serves `images/uploads/logos/` **unauthenticated**, so no header plumbing.
+  **A failed load clears the list** — no cache means there is nothing behind the error worth
+  keeping, and the retry button is the way back. Revisit when Phase 2b's Room cache lands.
+  `PullToRefreshBox` (material3, `@OptIn(ExperimentalMaterial3Api::class)`) wraps a `LazyColumn`
+  that is **always composed**, with loading/error/empty drawn on top — an empty state that isn't a
+  scrollable has nothing to pull.
+  `SubscriptionsScreen` takes **no click callback**: the list has nowhere to go until 2.5, so
+  `subscriptionsEntry()` in `composeApp/nav/entries/` takes no `Navigator` yet either.
+  Wiring: `SubscriptionsRoute` moved out of `composeApp/nav/Routes.kt`, which left one declaration
+  behind and therefore **had to be renamed `SettingsRoute.kt`** (detekt's `MatchingDeclarationName`);
+  2.6 deletes it. `AppModule` gained `SubscriptionsUiModule` — `KoinGraphTest` resolves the new
+  ViewModel.
+  Verified on the emulator against the live instance: 30-odd real rows with logos, `€` prices,
+  `Every 3 months`, `1&1 Telekom` unescaped (2.3's `HtmlUnescaper` end to end), inactive badges;
+  pull-to-refresh indicator; airplane mode → error + Try again → recovered.
+  **Two `am kill` cycles in a row lie.** Each `monkey … LAUNCHER` after an `am kill` adds another
+  `MainActivity` to the task (`numActivities=3`), and the relaunch then starts a *fresh* activity
+  instead of restoring the killed one — the check silently passes nothing and looks like a
+  restore regression. **`am force-stop` first** to reset the task, then do the cycle once.
 
 - [ ] **2.5 — feature:subscriptions ui: detail**
   `SubscriptionDetailRoute(subscriptionId: Int)`, screen, state, ViewModel via
@@ -761,3 +797,8 @@ structural into the plan itself.
 | 2.3 | `HtmlUnescaper` is its own `@Single` class, and decodes `&amp;` last | The ordering is the whole trap: decode it first and `&amp;lt;` becomes a `<` the user never typed — *now in plan §6.1* |
 | 2.3 | Fakes stayed private to their tests again, against the step's own "in `:testing`" wording | Same objection as 1.10 — `:testing` reaches every module's `commonTest`, so a feature-domain dependency there leaks the feature everywhere — *now in plan §6.1* |
 | 1.5 | No dynamic colour, so no `expect`/`actual` `colorScheme()` and no `androidMain` in `uikit` | Mealie's only reason for the `expect` is `dynamicDarkColorScheme(LocalContext)`; a static palette seeded from the logo navy keeps the brand and the module common — *now in plan §3.3* |
+| 2.4 | The display date format lives in `utils:formatter:datetime` after all, not in the composable | kotlinx-datetime's `MonthNames.ENGLISH_ABBREVIATED` needs no resource table, so it stays a pure host-tested function — *now in plan §6, Domain modelling notes* |
+| 2.4 | `feature:subscriptions:ui` depends on `core:api` for `BaseUrlProvider` | A logo is a bare filename; the ViewModel is the first place that has both it and the normalized instance root — *now in plan §7.1* |
+| 2.4 | A failed load clears the list rather than leaving a stale one under the error | With no cache there is nothing behind the error worth keeping, and a stale list under "couldn't reach the server" lies — revisit with Phase 2b's Room cache |
+| 2.4 | `:strings` gained a `RPlurals` typealias beside `RString` | The cycle text is a plural, and `Res.plurals` had no alias — *now in plan §3.3* |
+| 2.4 | `Routes.kt` renamed to `SettingsRoute.kt` when `SubscriptionsRoute` left it | detekt's `MatchingDeclarationName` fires on a one-declaration file; 2.6 deletes the file — *now in plan §5.2, §5.3* |
