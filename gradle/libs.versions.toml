@@ -89,6 +89,8 @@ sqlite = "2.7.0"
 coil = "3.5.0"
 okhttp = "5.4.0"
 junit4 = "4.13.2"
+# Only for instrumented tests: a Room DAO can't be opened from a host test (3.3).
+androidxTestRunner = "1.7.0"
 
 dataStore = "1.2.1"
 
@@ -188,6 +190,8 @@ androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref =
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 androidx-room-paging = { module = "androidx.room:room-paging", version.ref = "room" }
 androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
+
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
 
 android-desugarJdkLibs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "androidDesugarJdkLibs" }
 

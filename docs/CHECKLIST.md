@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `2/12`
-**Current step:** 3.3
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `3/12`
+**Current step:** 3.4
 
 ---
 
@@ -32,9 +32,11 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 
 - Do **exactly** the step. Don't pull work forward from a later step because it's convenient.
 - **A step's prose is a sketch; `CLAUDE.md` is the spec.** Where they disagree, the convention
-  wins and the step's `Note:` records the override — this has now happened three times (1.10 and
+  wins and the step's `Note:` records the override — this has now happened four times (1.10 and
   2.3 on "fakes go in `:testing`", 3.1 on "seed from `ServerUrlStorage`", which would have been a
-  `ui` → `core:storage` reach past this feature's own repository). The steps were written before
+  `ui` → `core:storage` reach past this feature's own repository, and 3.3 on "entities mirror the
+  domain model", which taken literally would have put a `feature:*:domain` dependency inside
+  `core:storage`). The steps were written before
   the code existed; the rules were written from it.
 - `./gradlew detekt ktlintCheck` must pass before a step is ticked.
 - A step that adds logic adds its tests in the **same** step — hand-written fakes in `:testing`,
@@ -920,7 +922,7 @@ Three things that constrain several steps below, worth knowing before starting a
   above the startup branch for no reader. It is a `StateFlow`, so `collectAsState()` has a value in
   the first composition and 1.11's `rememberNavBackStack` trap stays shut.
 
-- [ ] **3.3 — core:storage: Room**
+- [x] **3.3 — core:storage: Room**
   The database only: `WallosDB`, `SubscriptionEntity`, `CurrencyEntity`, their DAOs and the
   `BundledSQLiteDriver` wiring. No repository change — 3.4 owns that. Apply `libs.plugins.ksp` +
   `libs.plugins.androidx.room` to `core:storage`, add a `schemaDirectory`, and **commit the
@@ -933,6 +935,36 @@ Three things that constrain several steps below, worth knowing before starting a
   that one.
   Entities mirror the **domain** model, not the DTO: 2.1 deliberately kept the domain narrower
   than the wire, and a cache of fields no screen reads is a migration liability for nothing.
+  *Note:* **the bundled driver can't open a database in an AGP host test, and the DAO suite is
+  now instrumented** — the fork 2.7 parked, arriving here. Two independent blockers, either one
+  fatal on its own: on the Android target `Room`'s only builders take a `Context`
+  (`Room.inMemoryDatabaseBuilder<WallosDB>()` doesn't compile — "No value passed for parameter
+  'context'"), and `BundledSQLiteDriver`'s `libsqliteJni.so` ships in the aar's `jni/`, which is
+  not on a host test's classpath. Robolectric is the only thing that bridges either, and
+  `CLAUDE.md` settled that. So `core:storage` gained a **device-test compilation** —
+  `withDeviceTestBuilder { sourceSetTreeName = null }` in its own build file, not in
+  `build-logic`, because it is the only module that needs one. **Verify is
+  `./gradlew :core:storage:connectedAndroidDeviceTest`** with an emulator up; 9 tests, all
+  passing, opening a real in-memory database through the real generated `_Impl`.
+  `sourceSetTreeName = null` is load-bearing: the default (`"test"`) would put `androidDeviceTest`
+  in the `test` source-set tree, and 1.4's `commonTest` DataStore suite would be compiled and run
+  on the device as well.
+  **`allTests` does not include it and CI has no emulator**, so this is the project's first test
+  suite that isn't a CI gate. 3.5's Compose tests will land in the same position — decide there,
+  not here, whether CI grows an emulator job.
+  Entities are **SQLite primitives only, no `TypeConverter`**: `cycleCode: Int?` is the raw wire
+  code and the two dates are ISO-8601 text. That is what keeps `core:storage` from depending on
+  `feature:subscriptions:domain` for `BillingCycle` — TaigaMobileNova's `core:storage` *does*
+  depend on a feature's `domain` module, and following it there would invert this repo's
+  `feature/` → `core/` direction. The entity↔domain mapper is **3.4's**, in
+  `feature:subscriptions:mapper` where the other mappers are.
+  `currencySymbol` is stored **resolved** on the subscription row, so the cached list is one query
+  with no join; `CurrencyEntity` is cached for the *next* refresh's resolution, which is 2.3's
+  second round trip. `replaceAll` on both DAOs is a `@Transaction` delete-then-insert — a snapshot,
+  never a merge, because a row missing from a fresh whole-list fetch has been deleted server-side.
+  **Nothing injects the DAOs yet**, so the file-backed builder in `StorageModule` is checked only
+  by `KoinGraphTest`'s `verify()` (which does pass with the two DAO interfaces as bound types);
+  the instrumented tests build in-memory. 3.4 is the first thing to open the real file.
 
 - [ ] **3.4 — feature:subscriptions data: offline-first repository**
   `SubscriptionsRepository` serves the cache first and refreshes behind it, instead of fetching on
@@ -1126,4 +1158,7 @@ structural into the plan itself.
 | 3.2 | `LocalIsOffline` needed a `.editorconfig` line, so a `NetworkMonitor` step carries a `Gate-change:` | `compose:compositionlocal-allowlist` fails the build on any new composition local; the allowlist is the rule's intended escape hatch, and this is the last entry M3 needs — *now in plan §5.4* |
 | 3.2 | The shell injects `NetworkMonitor` itself instead of taking `isOnline: Boolean` from `WallosAppContent` as Mealie does | `WallosAppContent` also renders login, and connectivity has no reader there; keeping the collection inside the shell also keeps it below the startup branch, where §5.5's first-composition rule applies — *now in plan §5.4* |
 | 3.2 | The step adds no host test | Both halves are unreachable from one — `ConnectivityManager` is the reason the seam exists, and the shell wiring needs an instrumented Compose test. The emulator flip is the whole verification; 3.4 is the first consumer that can assert anything |
+| 3.3 | The DAO tests are **instrumented**, not host tests, and `core:storage` gained an `androidDeviceTest` compilation | On the Android target `Room`'s only builders take a `Context` and `BundledSQLiteDriver`'s native library ships in the aar's `jni/` — neither is reachable from `testAndroidHostTest`, and Robolectric is out — *now in plan §4.7, §8* |
+| 3.3 | `allTests` and CI don't run the DAO suite | Device tests are not in the KMP `allTests` aggregate and CI has no emulator; the first suite in the project that isn't a CI gate — *now in plan §3.5, §8* |
+| 3.3 | Entities are SQLite primitives with no `TypeConverter`, and `core:storage` depends on no feature module | Taiga's `core:storage` depends on a feature's `domain` for its entity types; here that would invert `feature/` → `core/`, so `cycleCode` stays an `Int?` and the entity↔domain mapper is 3.4's — *now in plan §4.7* |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |

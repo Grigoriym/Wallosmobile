@@ -62,6 +62,10 @@ or a step counts.
 ./gradlew :module:path:ktlintFormat          # fix style — don't hand-format
 ./gradlew koverHtmlReport                    # coverage
 
+# The Room DAOs are the one instrumented suite (3.3) — an emulator must be up, and neither
+# `allTests` nor CI runs it. Nothing else in the repo has a device-test source set.
+./gradlew :core:storage:connectedAndroidDeviceTest
+
 # ktlint's `standard:function-signature` rule collapses any signature that fits in 120 chars back
 # onto one line, so hand-wrapping a parameter list "for readability" fails `ktlintCheck`. Write it
 # either way and let `ktlintFormat` decide.
@@ -139,7 +143,8 @@ need `dangerouslyDisableSandbox`.
 
 CI (`.github/workflows/ci.yml`, plan §3.5) runs assemble + `allTests` + `detekt ktlintCheck` on
 push and PR to `master`, but `paths-ignore` skips `**.md` and `docs/**` — a docs-only commit
-produces **no CI run**, which is not a failure. Kover is local-only. The second workflow,
+produces **no CI run**, which is not a failure. Kover is local-only, and so are the instrumented
+Room DAO tests — `allTests` doesn't fan out to device tests and the CI job has no emulator. The second workflow,
 `guardrails.yml` (plan §3.6), has no `paths-ignore` and runs no Gradle, so a docs-only commit
 does produce *that* run — see "Changing a gate means saying so" above.
 
@@ -170,6 +175,10 @@ vertical slices, **all source in `commonMain`**.
   over IO (`SecretCipher`, `ApiKeyStorage`, `WebLoginApi`) — something a host test can't reach.
   Faking a pure class only lets the consumer's test assert output the app never produces.
 - **Storage** is DataStore-backed (KMP), interface + impl, keys in a `private companion object`.
+  The **Room cache** (`core/storage/.../db/`, 3.3) is the exception to that shape: entities and
+  DAOs, no interface over them, and **every column a SQLite primitive** — no `TypeConverter`, and
+  no dependency on any `feature:*:domain`, so `cycleCode` is an `Int?` and dates are ISO strings.
+  Converting to domain types is a mapper's job in the feature that owns the model.
 - **A new module must be added to the root `build.gradle.kts` `kover { }` block** — coverage is
   aggregated by an explicit per-module list, so a module left out of it is silently at 0% and
   nothing fails. `:testing` is deliberately absent (fakes, not production code).
@@ -249,9 +258,20 @@ vertical slices, **all source in `commonMain`**.
   whether anything can navigate *back* to it; a screen the app is either on or not is state.
 - **Tests use hand-written fakes in `:testing`. No mocking library — no MockK, no Mockito,
   anywhere.** `kotlin.test` + Turbine. **This extends to the platform: no Robolectric.** Its
-  shadows are mocks of Android, and the same objection applies — when Compose UI tests arrive
-  they will be **instrumented**, on a real runtime. Don't propose Robolectric as the cheaper
-  option; it was weighed and declined, on dependency count as much as on principle. Fake/fixture shape: plan §6.1. `:testing` is for doubles
+  shadows are mocks of Android, and the same objection applies — anything that needs a real
+  Android runtime is **instrumented**. Don't propose Robolectric as the cheaper
+  option; it was weighed and declined, on dependency count as much as on principle.
+  **Instrumentation is no longer hypothetical**: `core/storage/src/androidDeviceTest/` holds the
+  Room DAO tests (3.3), because on the Android target `Room`'s builders all take a `Context` and
+  `BundledSQLiteDriver`'s native library lives in the aar's `jni/` — a host test can reach
+  neither. Copy that module's `withDeviceTestBuilder { sourceSetTreeName = null }` if a second
+  one is needed, and keep the `null`: the default drags `commonTest` onto the device too. There
+  is **no `androidDeviceTest` accessor** in `kotlin { sourceSets { } }` the way there is for
+  `commonMain`/`androidMain` — it's `getByName("androidDeviceTest").dependencies { }`, and the
+  suite declares its own `kotlin("test")` because `configureTests()` only wires `commonTest`. It is
+  the *last* resort, not a second option — it needs a booted emulator, `allTests` skips it and CI
+  has no emulator, so an instrumented test is not a gate anyone else's commit will feel.
+  Fake/fixture shape: plan §6.1. `:testing` is for doubles
   **other** modules need; a double used by exactly one test file stays private in that file.
   Ktor's **`MockEngine` is not a mocking library** and is fine — it's the only way to get an
   `HttpClient` in a host test, since `HttpClient { }` autodiscovers an engine and okhttp is

@@ -417,6 +417,12 @@ Two deliberate omissions: **Kover/Codecov is not in CI** (the upload wants a `CO
 repo doesn't have; `koverXmlReport` stays a local command), and `paths-ignore` skips `**.md` and
 `docs/**`, so a **docs-only commit produces no run** — an absent run is not a failed one.
 
+A third omission arrived with the Room cache and was not planned: **`allTests` does not fan out to
+device tests**, and this job has no emulator, so `:core:storage:connectedAndroidDeviceTest` (§4.7)
+is not a CI gate. It is the first suite in the project that isn't. Growing an emulator job is the
+obvious answer and is deferred to whenever the second such suite lands — the instrumented Compose
+tests §6.1 parks.
+
 ### 3.6 Guardrails — the second workflow
 
 Everything in §3.4 constrains the *code* a session writes. Nothing constrains a session from
@@ -686,6 +692,38 @@ clearing the file**, so disconnect leaves the server URL the user typed.
   read via `runBlocking`, then serves an in-memory cache that `saveServerUrl` keeps current.
   `runBlocking` is reachable from `commonMain` here only because Android is the sole target and
   the metadata compilation therefore resolves the JVM variant of coroutines.
+
+#### The Room cache
+
+`WallosDB` (`db/`) holds `SubscriptionEntity` and `CurrencyEntity` with a DAO each — a snapshot of
+the server, never a source of truth, so there is no dirty-write state to reconcile. `version = 1`,
+`exportSchema = true`, schema JSON committed under `core/storage/schemas/`, and the builder
+drops the tables on a schema change: pre-v1 there is nothing to migrate from, and afterwards the
+cache is still one refresh away from being rebuilt. KSP and the Room Gradle plugin are applied to
+this module alone, and Android being the only target reduces Taiga's four `add("ksp…")` lines to
+one `add("kspAndroid", …)`.
+
+- **Entities are SQLite primitives only — no `TypeConverter`.** `cycleCode` is the raw wire code
+  rather than a `BillingCycle`, and the two dates are ISO-8601 text. That is what lets
+  `core:storage` depend on **no feature module**: TaigaMobileNova's `core:storage` takes
+  `feature:projects:domain` for its entity field types, which here would invert the
+  `feature/` → `core/` direction §2 sets out. The entity↔domain mapper lives in
+  `feature:subscriptions:mapper` with the wire mappers.
+- **`currencySymbol` is stored resolved on the subscription row**, denormalised from the currency
+  table, so reading the cached list is one query with no join. The currency table is cached for
+  the *next* refresh's resolution — §7.2's second round trip per call — not for this read.
+- **`replaceAll` is a `@Transaction` delete-then-insert on both DAOs**, a snapshot rather than a
+  merge: the API sends the whole list in one response, so a row missing from a fresh fetch has
+  been deleted server-side and must not survive locally.
+- **A DAO test cannot be a host test, and this module therefore has a device-test compilation.**
+  Two independent blockers: on the Android target the only `Room` builders take a `Context`, and
+  `BundledSQLiteDriver`'s `libsqliteJni.so` ships inside the aar's `jni/`, which is not on a host
+  test's classpath. Robolectric would bridge both and is ruled out (§6.1), so `core:storage`
+  declares `withDeviceTestBuilder { sourceSetTreeName = null }` in its own build file — not in
+  `build-logic`, because it is the only module that needs one. `sourceSetTreeName = null` is
+  load-bearing: the default puts `androidDeviceTest` in the `test` source-set tree, which would
+  compile and run `commonTest` on the device as well. The task is
+  `:core:storage:connectedAndroidDeviceTest`, and §8 covers what that costs.
 
 ---
 
@@ -1107,6 +1145,15 @@ as `api`, so neither is ever declared per module. `MockEngine` matters because `
 uses engine autodiscovery and the real engine is `androidMain`-only — a host test that wants an
 `HttpClient` has to build one itself.
 
+**Instrumented tests exist, as of 3.3, and only where a host test is impossible.** `core:storage`
+has an `androidDeviceTest` source set for the Room DAOs (§4.7) — not a preference for realism but
+the only option: neither `Room`'s builders nor `BundledSQLiteDriver`'s native library can be
+reached from `testAndroidHostTest`, and Robolectric remains ruled out for the reason above. Its
+cost is real and should be weighed before the second one: it needs a running emulator, it is
+outside `allTests`, and CI therefore doesn't run it (§3.5). `:testing` is *not* on its classpath —
+`configureTests()` wires `commonTest` only — so a device test either declares what it needs or
+does without.
+
 ### Domain modelling notes
 
 - **`BillingCycle`** enum (`DAYS, WEEKS, MONTHS, YEARS, ONE_TIME`) + `frequency` multiplier. The
@@ -1322,6 +1369,8 @@ missing.
 *Done when:* the list renders offline after one online fetch, and a self-signed instance connects.
 *Decomposed as **M3** in `docs/CHECKLIST.md`* (12 steps), chosen over Phase 3 because three of
 M2's steps deferred cache debt to it and because Phase 3's writes need its `NetworkMonitor`.
+The Room step also brought **instrumented tests into the project**, earlier than §6.1 expected —
+a DAO cannot be exercised from a host test at all (§4.7).
 
 ### Phase 3 — Subscriptions, write + reference data
 Add / edit / delete, including the multipart logo upload and `logo_url` fetch. `feature:categories`,
