@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `4/12`
-**Current step:** 3.5
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `5/12`
+**Current step:** 3.6
 
 ---
 
@@ -1004,14 +1004,28 @@ Three things that constrain several steps below, worth knowing before starting a
   that overlay into a banner is 3.5, which is now the only thing between here and the first half
   of plan §8's "done when".
 
-- [ ] **3.5 — feature:subscriptions ui: stale and offline states**
+- [x] **3.5 — feature:subscriptions ui: stale and offline states**
   The visible half of 3.4: a list backed by cached rows says so rather than pretending to be
   fresh, and an offline refresh failure is a banner over real data instead of an empty screen with
   a Try again button. Detail screen likewise.
   *Verify:* `./gradlew :feature:subscriptions:ui:testAndroidHostTest`, and on the emulator: load
   online → airplane mode → force-stop → relaunch → the list is still there, marked stale.
   That relaunch is the **first half of plan §8's "done when"**, and the first check in the project
-  that a *cold* start with no network shows real data.
+  that a *cold* start with no network shows real data. — **done, first try.**
+  *Note:* the whole step is **two derived properties per UI state**, not a new field anywhere:
+  `isStale` (`error` **and** data) and `isFailed` (`error` and **no** data) split what the same
+  error means on screen, and the ViewModels didn't change at all — 3.4 had already stopped
+  clearing the data. A boolean the ViewModel *sets* would have been a second copy of a fact both
+  existing fields already carry, and could disagree with them.
+  The banner reads **`LocalIsOffline` itself** rather than being handed the network state: an
+  offline refresh fails as `error_unreachable` — "Check the URL and your connection" — which sends
+  the user to look at a server that is not the problem, so the local overrides the reason line.
+  That is the first real use of 3.2's local, and the first thing in the app whose text depends on
+  it. Its `errorContainer`-vs-`surfaceVariant` question resolved to `surfaceVariant`: what is on
+  screen is real data and the failure is only that it might be old.
+  `StaleBanner` is a **`widgets/`** file, joining the four the plan lists — both screens show the
+  identical banner, and the list wires its retry to `onRefresh` (so the pull-to-refresh indicator
+  reports it) while the detail, which has no such indicator, wires `onRetryClick`.
 
 - [ ] **3.6 — feature:subscriptions ui: filter and sort**
   Filter by household member, category, payment method and active/inactive; sort by the fields

@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.ui.list.widgets.SubscriptionCard
+import com.grappim.wallosmobile.feature.subscriptions.ui.widgets.StaleBanner
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_empty
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
@@ -72,13 +73,26 @@ private fun SubscriptionsContent(
         isRefreshing = uiState.isRefreshing,
         onRefresh = uiState.onRefresh
     ) {
-        // The list is always composed so that pull-to-refresh has something to pull, even when
-        // it is empty — the other states draw on top of it.
-        SubscriptionsList(uiState = uiState, onSubscriptionClick = onSubscriptionClick)
+        Column(modifier = Modifier.fillMaxSize()) {
+            // The banner pushes the rows down rather than covering them: what it says applies to
+            // every one of them, and a failed refresh is not a reason to hide any (3.5). Retrying
+            // from here is a refresh, so the pull indicator reports it.
+            if (uiState.isStale) {
+                StaleBanner(message = uiState.error, onRetryClick = uiState.onRefresh)
+            }
+
+            // The list is always composed so that pull-to-refresh has something to pull, even when
+            // it is empty — the states below draw on top of it.
+            SubscriptionsList(
+                uiState = uiState,
+                onSubscriptionClick = onSubscriptionClick,
+                modifier = Modifier.weight(1f)
+            )
+        }
 
         when {
             uiState.isLoading -> LoadingState()
-            uiState.error.isNotEmpty() -> ErrorState(uiState = uiState)
+            uiState.isFailed -> ErrorState(uiState = uiState)
             uiState.isEmpty -> EmptyState()
         }
     }
@@ -198,6 +212,18 @@ private fun SubscriptionsContentLoadingPreview() = WallosMobilePreviewTheme {
 @Composable
 private fun SubscriptionsContentEmptyPreview() = WallosMobilePreviewTheme {
     SubscriptionsContent(uiState = SubscriptionsUiState(), onSubscriptionClick = {})
+}
+
+@PreviewWallosDarkLight
+@Composable
+private fun SubscriptionsContentStalePreview() = WallosMobilePreviewTheme {
+    SubscriptionsContent(
+        uiState = SubscriptionsUiState(
+            items = previewItems,
+            error = NativeText.Simple("Couldn't reach that server. Check the URL and your connection.")
+        ),
+        onSubscriptionClick = {}
+    )
 }
 
 @PreviewWallosDarkLight

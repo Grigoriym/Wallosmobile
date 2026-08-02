@@ -149,6 +149,42 @@ class SubscriptionDetailViewModelTest {
         assertFalse(state.isLoading)
     }
 
+    /** 3.5, as on the list: a cached row behind the error turns it into a banner over that row. */
+    @Test
+    fun `a failure over a cached row is stale, not a screen of its own`() = runTest {
+        repository.seed(subscription())
+        repository.result = Result.failure(WallosError.Server("boom"))
+
+        val state = viewModel().uiState.value
+
+        assertTrue(state.isStale)
+        assertFalse(state.isFailed)
+    }
+
+    @Test
+    fun `a failure with no cached row owns the screen`() = runTest {
+        repository.result = Result.failure(WallosError.Server("boom"))
+
+        val state = viewModel().uiState.value
+
+        assertTrue(state.isFailed)
+        assertFalse(state.isStale)
+    }
+
+    @Test
+    fun `a refresh that works takes the stale marker back off`() = runTest {
+        repository.seed(subscription())
+        repository.result = Result.failure(WallosError.Server("boom"))
+        val sut = viewModel()
+        assertTrue(sut.uiState.value.isStale)
+
+        repository.result = Result.success(subscription())
+        sut.uiState.value.onRetryClick()
+
+        assertFalse(sut.uiState.value.isStale)
+        assertNotNull(sut.uiState.value.subscription)
+    }
+
     /** A list refresh that dropped the row means the server hasn't got it — so neither has this. */
     @Test
     fun `a row the cache loses disappears from the screen`() = runTest {

@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.ui.widgets.InactiveBadge
+import com.grappim.wallosmobile.feature.subscriptions.ui.widgets.StaleBanner
 import com.grappim.wallosmobile.feature.subscriptions.ui.widgets.SubscriptionLogo
 import com.grappim.wallosmobile.feature.subscriptions.ui.widgets.cycleText
 import com.grappim.wallosmobile.strings.RString
@@ -73,11 +74,19 @@ fun SubscriptionDetailScreen(
 
 @Composable
 private fun SubscriptionDetailContent(uiState: SubscriptionDetailUiState, modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize()) {
-        when {
-            uiState.isLoading -> LoadingState()
-            uiState.error.isNotEmpty() -> ErrorState(uiState = uiState)
-            uiState.subscription != null -> LoadedState(subscription = uiState.subscription)
+    Column(modifier = modifier.fillMaxSize()) {
+        // Same split as the list (3.5): with a cached row behind the error the row stays and the
+        // banner sits over it; only a failure with nothing cached still owns the screen.
+        if (uiState.isStale) {
+            StaleBanner(message = uiState.error, onRetryClick = uiState.onRetryClick)
+        }
+
+        Box(modifier = Modifier.weight(1f)) {
+            when {
+                uiState.isLoading -> LoadingState()
+                uiState.isFailed -> ErrorState(uiState = uiState)
+                uiState.subscription != null -> LoadedState(subscription = uiState.subscription)
+            }
         }
     }
 }
@@ -235,6 +244,17 @@ private fun SubscriptionDetailContentSparsePreview() = WallosMobilePreviewTheme 
 @Composable
 private fun SubscriptionDetailContentLoadingPreview() = WallosMobilePreviewTheme {
     SubscriptionDetailContent(uiState = SubscriptionDetailUiState(isLoading = true))
+}
+
+@PreviewWallosDarkLight
+@Composable
+private fun SubscriptionDetailContentStalePreview() = WallosMobilePreviewTheme {
+    SubscriptionDetailContent(
+        uiState = SubscriptionDetailUiState(
+            subscription = previewItem,
+            error = NativeText.Simple("Couldn't reach that server. Check the URL and your connection.")
+        )
+    )
 }
 
 @PreviewWallosDarkLight

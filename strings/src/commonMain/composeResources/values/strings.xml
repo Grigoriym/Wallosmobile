@@ -23,6 +23,8 @@
 
     <string name="subscriptions_empty">Nothing here yet. Subscriptions you add in Wallos show up on this screen.</string>
     <string name="subscriptions_retry">Try again</string>
+    <string name="subscriptions_stale_title">Showing saved data</string>
+    <string name="subscriptions_stale_offline">This device is offline, so nothing could be refreshed.</string>
     <string name="subscriptions_inactive">Inactive</string>
     <string name="subscriptions_next_payment">Next payment %1$s</string>
     <string name="subscription_cycle_one_time">One-time</string>

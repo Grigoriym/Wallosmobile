@@ -158,6 +158,46 @@ class SubscriptionsViewModelTest {
         assertFalse(sut.uiState.value.isRefreshing)
     }
 
+    /**
+     * 3.5's split: the same error means two different screens depending on whether the cache had
+     * anything to keep. This is the cold-start-offline case — rows, marked stale.
+     */
+    @Test
+    fun `a failure over cached rows is stale, not a screen of its own`() = runTest {
+        repository.seed(listOf(subscription()))
+        repository.result = Result.failure(WallosError.Server("boom"))
+
+        val state = viewModel().uiState.value
+
+        assertTrue(state.isStale)
+        assertFalse(state.isFailed)
+        assertFalse(state.isEmpty)
+    }
+
+    @Test
+    fun `a failure with nothing cached owns the screen`() = runTest {
+        repository.result = Result.failure(WallosError.Server("boom"))
+
+        val state = viewModel().uiState.value
+
+        assertTrue(state.isFailed)
+        assertFalse(state.isStale)
+    }
+
+    @Test
+    fun `a refresh that works takes the stale marker back off`() = runTest {
+        repository.seed(listOf(subscription()))
+        repository.result = Result.failure(WallosError.Server("boom"))
+        val sut = viewModel()
+        assertTrue(sut.uiState.value.isStale)
+
+        repository.result = Result.success(listOf(subscription()))
+        sut.uiState.value.onRefresh()
+
+        assertFalse(sut.uiState.value.isStale)
+        assertEquals(1, sut.uiState.value.items.size)
+    }
+
     /** Cold start with a full cache: the rows are the first thing on screen, spinner or no server. */
     @Test
     fun `cached rows show without waiting for the refresh, and survive its failure`() = runTest {

@@ -130,6 +130,11 @@ adb shell monkey -p com.grappim.wallosmobile -c android.intent.category.LAUNCHER
 `am kill` keeps the task and its saved state; `force-stop` discards them, so it tests nothing.
 This is the check that caught the nav3 first-composition bug — the developer option did not.
 
+**Which of the two you want depends on where the state lives.** `force-stop` tests nothing *about
+saved state* — but the Room cache is on disk, so `force-stop` + relaunch is exactly the right check
+for it, and the stronger one: nothing restored, everything re-read (3.5's offline cold start). Use
+`am kill` for the back stack and `rememberSaveable`, `force-stop` for anything the database owns.
+
 **Run the cycle once, from a clean task.** Every `monkey … LAUNCHER` after an `am kill` *adds* a
 `MainActivity` to the task, and once there is more than one the relaunch starts a fresh activity
 instead of restoring the killed one — so the second and third cycles restore nothing and read as a
@@ -370,6 +375,17 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   Wallos has no permission model, so there is no "hide the action" case. The local says only that
   the *device* has a network — a LAN-only Wallos instance is "online" here and still unreachable,
   so a failed request is still the thing that reports a dead server.
+  Its **second** job (3.5) is picking copy where the error would misattribute the failure: an
+  offline refresh comes back as `error_unreachable` — "check the URL and your connection" — and
+  `StaleBanner` overrides that reason line rather than blaming a server the request never reached.
+  A preview of such a branch provides the local itself: `WallosMobilePreviewTheme` supplies
+  `false`, so an offline preview wraps its content in `CompositionLocalProvider(LocalIsOffline
+  provides true)` inside the theme.
+- **An error over cached data is a banner, not a screen** (3.5). Two derived properties on the UI
+  state, never a field the ViewModel sets: `isStale` = error *with* data (banner above rows that
+  stay put), `isFailed` = error with *no* data (owns the screen, keeps the Try again button). A
+  stored boolean would be a second copy of what `error` and the data field already say, free to
+  drift from them — 3.5 changed no ViewModel at all.
 
 ## Error handling
 

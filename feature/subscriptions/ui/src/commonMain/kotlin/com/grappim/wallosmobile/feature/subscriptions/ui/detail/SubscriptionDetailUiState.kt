@@ -39,4 +39,13 @@ data class SubscriptionDetailUiState(
     val isLoading: Boolean = false,
     val error: NativeText = NativeText.Empty,
     val onRetryClick: () -> Unit = {}
-)
+) {
+
+    /** A row the last refresh couldn't confirm: a banner over it, never instead of it (3.5). */
+    val isStale: Boolean
+        get() = error.isNotEmpty() && subscription != null
+
+    /** The error owns the screen only when there is no cached row behind it. */
+    val isFailed: Boolean
+        get() = error.isNotEmpty() && subscription == null
+}

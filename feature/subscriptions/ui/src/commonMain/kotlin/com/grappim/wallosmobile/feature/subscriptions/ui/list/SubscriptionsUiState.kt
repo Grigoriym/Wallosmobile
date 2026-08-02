@@ -31,8 +31,8 @@ data class SubscriptionUiItem(
  * the pull-to-refresh gesture and leaves the list on screen under the indicator.
  *
  * A failure no longer clears [items] (3.4): the cached rows behind the error are real and are
- * still true as of the last refresh that worked. Saying so on screen — rather than showing the
- * error *instead of* the list, which is what the screen still does — is 3.5's half.
+ * still true as of the last refresh that worked. [isStale] and [isFailed] split what the error then
+ * means on screen (3.5) — a banner over the rows, or the whole screen when there are none.
  */
 data class SubscriptionsUiState(
     val items: ImmutableList<SubscriptionUiItem> = persistentListOf(),
@@ -46,4 +46,12 @@ data class SubscriptionsUiState(
     /** Empty is a state of its own, not "no items" — a load in flight and a failure are not it. */
     val isEmpty: Boolean
         get() = items.isEmpty() && !isLoading && error.isEmpty()
+
+    /** Rows the last refresh couldn't confirm: a banner over them, never instead of them. */
+    val isStale: Boolean
+        get() = error.isNotEmpty() && items.isNotEmpty()
+
+    /** The error owns the screen only when there is nothing behind it left to show. */
+    val isFailed: Boolean
+        get() = error.isNotEmpty() && items.isEmpty()
 }

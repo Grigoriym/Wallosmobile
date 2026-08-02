@@ -1296,11 +1296,11 @@ A field the instance has nothing for — `notes` and `url` are
 `""` on every row of the local instance, `start_date` on many — has its whole row left out, since a
 label over an empty value reads as a bug rather than as "unset".
 
-Four things the two screens both need live in `feature:subscriptions:ui/widgets/` rather than in
+Five things the two screens both need live in `feature:subscriptions:ui/widgets/` rather than in
 either: `SubscriptionLogo` (parameterized by size), `InactiveBadge`, `cycleText` (which 2.4 had as
-a private composable on the card), and — as `ui/LogoUrl.kt` — the `BaseUrlProvider.toLogoUrl(logo)`
-extension below. That last one is a two-line helper over an injected seam, not a mapper, so
-CLAUDE.md's mappers-are-classes rule doesn't reach it.
+a private composable on the card), `StaleBanner` (3.5), and — as `ui/LogoUrl.kt` — the
+`BaseUrlProvider.toLogoUrl(logo)` extension below. That last one is a two-line helper over an
+injected seam, not a mapper, so CLAUDE.md's mappers-are-classes rule doesn't reach it.
 
 ~~**A failed load clears the list** (2.4).~~ **Reversed by 3.4**, exactly as this paragraph
 anticipated: with a cache behind the error there is something true to keep, and clearing it would
@@ -1323,9 +1323,15 @@ every later feature's repository should copy:
   the split, and the line it drew is the right one — everything about the cache being *rows* stops
   at the first class.
 - **The ViewModels are cache-first.** The spinner belongs to the *empty* cache alone: cached rows
-  dismiss it the moment they arrive, and a refresh runs behind whatever is already on screen. What
-  3.4 does **not** change is the rendering — the error state still draws over the list and over the
-  detail row it now has. Checklist 3.5 is that half.
+  dismiss it the moment they arrive, and a refresh runs behind whatever is already on screen.
+- **An error means two different screens, and the UI state derives which** (3.5). `isStale` is
+  `error` *with* data behind it and renders as a `StaleBanner` above rows that stay put; `isFailed`
+  is `error` with *nothing* behind it and still owns the screen. Both are computed properties on
+  the existing fields — a ViewModel that *set* a `isStale` boolean would be storing a second copy
+  of a fact `error` and `items` already carry, free to disagree with them. 3.5 changed no ViewModel
+  at all. The banner takes its reason line from **`LocalIsOffline`** rather than from the error: a
+  refresh that never left the device fails as "check the URL and your connection", which points at
+  a server that is not the problem. This is the shape every later cached screen should copy.
 
 ### 7.2 Explicitly out of v1
 
@@ -1406,7 +1412,9 @@ offline-first repository, certificate trust prompt for self-signed instances, TO
 `password_login_disabled` probing, login backoff, non-HTTPS warning, client-side filter (member,
 category, payment method, active/inactive) and sort, currency-conversion hint when rates are
 missing.
-*Done when:* the list renders offline after one online fetch, and a self-signed instance connects.
+*Done when:* ~~the list renders offline after one online fetch~~ (**3.5** — verified on a *cold*
+start with airplane mode on: the whole cached list, marked stale), and a self-signed instance
+connects (3.7/3.8).
 *Decomposed as **M3** in `docs/CHECKLIST.md`* (12 steps), chosen over Phase 3 because three of
 M2's steps deferred cache debt to it and because Phase 3's writes need its `NetworkMonitor`.
 The Room step also brought **instrumented tests into the project**, earlier than §6.1 expected —
