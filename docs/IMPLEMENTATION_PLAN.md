@@ -1289,6 +1289,8 @@ offline-first repository, certificate trust prompt for self-signed instances, TO
 category, payment method, active/inactive) and sort, currency-conversion hint when rates are
 missing.
 *Done when:* the list renders offline after one online fetch, and a self-signed instance connects.
+*Decomposed as **M3** in `docs/CHECKLIST.md`* (12 steps), chosen over Phase 3 because three of
+M2's steps deferred cache debt to it and because Phase 3's writes need its `NetworkMonitor`.
 
 ### Phase 3 — Subscriptions, write + reference data
 Add / edit / delete, including the multipart logo upload and `logo_url` fetch. `feature:categories`,

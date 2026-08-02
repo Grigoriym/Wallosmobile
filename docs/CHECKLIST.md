@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done**
-**Current step:** none — pick the next milestone from plan §8 (Phase 2b or Phase 3)
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `0/12`
+**Current step:** 3.1
 
 ---
 
@@ -768,7 +768,9 @@ Goal: the list of real subscriptions, and a detail screen.
 - [x] **2.7 — v1 acceptance**
   *Verify:* fresh install → log in → see real subscriptions → tap one → see detail → back →
   drawer → Settings → Disconnect → login. Offline shows an error, not a crash.
-  **v1 done.** Next: plan §8, Phase 2b (Room, cert trust, TOTP, filters) or Phase 3 (writes).
+  **v1 done.** Next was plan §8's Phase 2b or Phase 3; **Phase 2b won and is decomposed below as
+  M3** — it discharges the cache debt 2.3/2.4/2.5 each deferred to it, and Phase 3's writes need
+  the `NetworkMonitor` it brings before `CLAUDE.md`'s "offline disables writes" rule can hold.
   *Note:* the acceptance run passed end to end on the emulator against the local instance —
   uninstall → install → Path A login → 30-odd real rows with logos → Fiton detail (`Health &
   Wellbeing` unescaped, `31 Jan 2024` start date, no blank rows) → back → drawer → Settings →
@@ -818,21 +820,178 @@ Goal: the list of real subscriptions, and a detail screen.
 
 ---
 
+## M3 — Hardening and offline (plan §8, Phase 2b)
+
+Goal: the list survives a lost connection, and an instance behind a homelab certificate can be
+reached at all. **Done when** the list renders offline after one online fetch, *and* a self-signed
+instance connects — plan §8's own two conditions.
+
+No writes in this milestone. Phase 3 is the first one that sends anything, and it depends on 3.2
+existing (`CLAUDE.md`: "Offline → **disable** write actions", which needs a `NetworkMonitor` the
+app doesn't have yet).
+
+Three things that constrain several steps below, worth knowing before starting any of them:
+
+- **Room and KSP are already in `gradle/libs.versions.toml`** (0.2 ported Taiga's catalog whole)
+  and entirely unused. TaigaMobileNova applies them **per module, with no convention plugin** —
+  see its `core/storage/build.gradle.kts`. Android being our only target, its four `add("ksp…")`
+  lines reduce to one `add("kspAndroid", libs.androidx.room.compiler)`.
+- **Filtering and sorting stay client-side**, over whatever the cache holds. 2.3 chose this and
+  told Phase 2b to keep it: v1 sends `api_key` and nothing else, and with neither filters nor
+  `all-user-subscription` on the wire, `WALLOS_API.md` §3.2's "no `WHERE` clause" SQL bug is
+  unreachable *by construction*. Sending server-side filters would put it back within reach for
+  one admin account and no benefit — there is no pagination to save.
+- **Any step that touches `build-logic/`, `gradle/libs.versions.toml`, `config/detekt/` or
+  `.github/` now needs a `Gate-change:` line in its commit** (2.7). 3.3 certainly will.
+
+- [ ] **3.1 — feature:setup ui: prefill the server URL, warn on cleartext**
+  Seed `LoginUiState.serverUrl` from `ServerUrlStorage` when `LoginViewModel` is constructed, so
+  the URL `clear()` deliberately keeps (1.4) is actually offered back after a Disconnect. Plus
+  plan §9's unowned risk: when the typed URL is `http://`, show a warning and **steer to Path B**
+  — the password crosses the wire in the clear on Path A, and the API key does not.
+  *Verify:* `./gradlew :feature:setup:ui:testAndroidHostTest`, and on the emulator: Disconnect →
+  force-stop → relaunch → the URL is there.  ·  *Ref:* plan §9, "Still open after v1"
+  **The warning must not block Path A.** `docs/local-info.txt`'s instance is plain HTTP and is the
+  only one every later `Verify:` line can use — a hard block here makes M3 untestable. Warn, don't
+  disable.
+
+- [ ] **3.2 — core:storage: NetworkMonitor**
+  `NetworkMonitor` interface in `commonMain` + an `androidMain` `ConnectivityManager`
+  implementation, exactly the seam shape `SecretCipher` uses (1.4) and for the same reason: the
+  platform API doesn't exist in a host test. Port from
+  `TaigaMobileNova/core/storage/.../network/`, dropping its `iosMain`/`jvmMain` actuals. Provide
+  it to the tree as `LocalIsOffline` from the shell — 1.8 recorded its absence as a deliberate gap
+  and this is the step that closes it. `FakeNetworkMonitor` goes to `:testing`: 3.4, 3.5 and every
+  Phase 3 write screen are all consumers, which is the bar 1.10 set for that module.
+  *Verify:* `./gradlew :core:storage:testAndroidHostTest`, and on the emulator the state flips
+  with `adb shell cmd connectivity airplane-mode enable`.  ·  *Ref:* plan §4.7, §6.1
+
+- [ ] **3.3 — core:storage: Room**
+  The database only: `WallosDB`, `SubscriptionEntity`, `CurrencyEntity`, their DAOs and the
+  `BundledSQLiteDriver` wiring. No repository change — 3.4 owns that. Apply `libs.plugins.ksp` +
+  `libs.plugins.androidx.room` to `core:storage`, add a `schemaDirectory`, and **commit the
+  generated schema JSON** — it is the only record of what shipped.
+  *Verify:* `./gradlew :core:storage:testAndroidHostTest` with DAO tests that really open a
+  database.  ·  *Ref:* plan §2, §4.7; `TaigaMobileNova/core/storage/build.gradle.kts`
+  **If the bundled driver can't open a database in an AGP host test**, that is a finding, not a
+  reason to delete the tests: say so, and move the DAO tests to instrumented (which is the fork
+  2.7 parked, arriving earlier than expected). Don't reach for Robolectric — `CLAUDE.md` settled
+  that one.
+  Entities mirror the **domain** model, not the DTO: 2.1 deliberately kept the domain narrower
+  than the wire, and a cache of fields no screen reads is a migration liability for nothing.
+
+- [ ] **3.4 — feature:subscriptions data: offline-first repository**
+  `SubscriptionsRepository` serves the cache first and refreshes behind it, instead of fetching on
+  every screen open. This is where three deviation rows come due at once: 2.3's **two round trips
+  per call** (the currency join re-reads `get_currencies.php` every time), 2.5's **detail re-read**,
+  and 2.4's **"a failed load clears the list"** — with a cache there is now something real behind
+  the error, so a failure must leave the last-known list standing.
+  *Verify:* `./gradlew :feature:subscriptions:data:testAndroidHostTest`  ·  *Ref:* plan §7.1, §7.2
+  Decide and write down **what invalidates the cache**. Disconnect must drop it — the rows belong
+  to the account whose key was just cleared, and 1.4's `clear()` currently touches only the key.
+
+- [ ] **3.5 — feature:subscriptions ui: stale and offline states**
+  The visible half of 3.4: a list backed by cached rows says so rather than pretending to be
+  fresh, and an offline refresh failure is a banner over real data instead of an empty screen with
+  a Try again button. Detail screen likewise.
+  *Verify:* `./gradlew :feature:subscriptions:ui:testAndroidHostTest`, and on the emulator: load
+  online → airplane mode → force-stop → relaunch → the list is still there, marked stale.
+  That relaunch is the **first half of plan §8's "done when"**, and the first check in the project
+  that a *cold* start with no network shows real data.
+
+- [ ] **3.6 — feature:subscriptions ui: filter and sort**
+  Filter by household member, category, payment method and active/inactive; sort by the fields
+  `WALLOS_API.md` §3.2 lists. **All client-side, over the cached list** — see the milestone note.
+  The option sets need no new endpoint and no Phase 3 catalog module: every row already carries
+  its resolved `category_name` / `payer_user_name` / `payment_method_name` (2.1), so the filter
+  sheet is built from the data already on screen.
+  *Verify:* `./gradlew :feature:subscriptions:ui:testAndroidHostTest`  ·  *Ref:* `WALLOS_API.md` §3.2
+  Sorting is worth a pure class in the module rather than a `sortedWith` in the ViewModel —
+  §3.2's server-side directions are per-field (`price` and `id` descend, the rest ascend) and
+  matching them is the kind of table a test should pin.
+
+- [ ] **3.7 — core:storage + core:api: certificate trust**
+  `TrustedCertStorage` and a composite trust manager that falls back to a per-host trust-on-first-use
+  set, wired into the OkHttp engine. Port from `TaigaMobileNova` — `core/storage/.../cert/`,
+  `core/domain/.../PendingCertTrust.kt`, and read its `docs/features/private-cert-trust/plan.md`
+  first; it settled trust-on-first-use over the alternatives and the reasoning transfers whole.
+  No UI in this step.
+  *Verify:* `./gradlew :core:storage:testAndroidHostTest :core:api:testAndroidHostTest`  ·  *Ref:* plan §4.5
+  This matters more here than in Taiga: nearly every Wallos instance is self-hosted, and pinning
+  is not an option for a certificate the user minted themselves.
+
+- [ ] **3.8 — feature:setup ui: the trust prompt**
+  The dialog and the retry: an untrusted certificate on connect surfaces the host and fingerprint,
+  and accepting it stores the trust and retries the attempt that failed.
+  *Verify:* on the emulator, against a **TLS front for the local instance** — plain
+  `http://10.0.2.2:8282` cannot exercise this. `TaigaMobileNova/docs/features/private-cert-trust/server-setup.md`
+  has the recipe; put a self-signed proxy in front of port 8282 rather than touching the Wallos
+  container. This is the **second half of plan §8's "done when"**.
+
+- [ ] **3.9 — feature:setup: TOTP second step**
+  Drive `totp.php` instead of degrading to manual key entry: `LoginOutcome.NeedsTotp` becomes a
+  code field, and `POST one-time-code` on the **same session** completes the login
+  (`WALLOS_API.md` §9.2, §9.3).
+  *Verify:* `./gradlew :feature:setup:data:testAndroidHostTest :feature:setup:ui:testAndroidHostTest`
+  ·  *Ref:* `WALLOS_API.md` §9.2–9.3, plan §1.1
+  **This step fights 1.9 head on, and that is the whole of its design work.** `WebLoginApiImpl`,
+  `SetupRepositoryImpl` and the `@WebSessionHttpClient` are all `@Factory` *specifically* so the
+  session cookie dies with the attempt — and TOTP needs that session to survive a human typing six
+  digits. Resolve it deliberately (a scoped session held for one attempt with an explicit
+  lifetime, say), don't quietly promote anything to `@Single`: `CLAUDE.md` warns that a `@Single`
+  anywhere above a `@Factory` silently undoes it, and nothing fails loudly when it does.
+  **On-device verification needs TOTP enabled on the user's real account** — that is a mutation of
+  their live instance, so **ask first**, and offer the MockEngine tests as the alternative.
+
+- [ ] **3.10 — feature:setup: password-login probe and backoff**
+  Probe `login.php`'s form for `password_login_disabled` / OIDC and degrade to Path B before the
+  user types a password that cannot work. Plus client-side backoff on repeated failures: plan §9
+  notes the **server has no rate limiting or lockout of its own**, which makes an unthrottled
+  retry loop a brute-force tool pointed at the user's own instance.
+  *Verify:* `./gradlew :feature:setup:data:testAndroidHostTest`  ·  *Ref:* plan §9, §1.1
+  1.9 left the probe unowned on purpose ("a degrade-to-Path-B affordance, not a blocker"). It is
+  cheap here because 3.1 already touched this screen's copy.
+
+- [ ] **3.11 — currency conversion hint**
+  Send `convert_currency` and handle the silent failure: `WALLOS_API.md` §3.2 says conversion only
+  happens once exchange rates have been fetched at least one time, and otherwise prices come back
+  **unconverted with nothing in `notes` to say so**. Show that state rather than displaying a
+  converted-looking total that isn't.
+  *Verify:* `./gradlew :feature:subscriptions:data:testAndroidHostTest`  ·  *Ref:* `WALLOS_API.md` §3.2
+  Check the live instance for `last_exchange_update` before designing the UI — if the user's own
+  rates have never been fetched, this state is the *default* one and not an edge case.
+
+- [ ] **3.12 — Phase 2b acceptance**
+  *Verify:* plan §8's two conditions, end to end on the emulator — fetch the list online, go
+  offline, cold-start, and see real data marked stale; then connect to a self-signed instance from
+  a fresh install. Plus a filter and a sort that survive a rotation, and the `am kill` cycle from
+  `CLAUDE.md` once, from a clean task.
+  Same shape as 2.7: this is a verification step, so anything it uncovers that is a *behaviour*
+  change goes to "Still open after v1" rather than being fixed here.
+  Reconsider two parked things with M3's evidence rather than on a schedule: the **Kover floor**
+  (3.3 and 3.4 add the first logic in the project with real branch depth) and **instrumented
+  Compose tests** (3.5's stale/offline/empty/error matrix is the screen 2.7 predicted would
+  outgrow a ViewModel test — if 3.3 already forced instrumentation for the DAOs, the setup cost is
+  paid).
+
+---
+
 ## Still open after v1
 
 The tick above closes M2, so these are the pointers that would otherwise vanish with it.
 
 - **The pre-v1 no-backcompat bullet in `CLAUDE.md` expires at the first outside install** — see
   2.7's first deferred item. Nothing has changed yet: nobody but us has installed the app.
+  **M3 raises the stakes**: once 3.3 lands there is a Room schema in the picture too, and a
+  released app needs a real migration for it rather than a destructive fallback.
 - **A Kover floor and a Compose UI test setup**, on the terms in 2.7's second deferred item —
-  instrumented, not Robolectric, and grown one screen at a time.
-- **The login screen doesn't prefill the server URL that Disconnect deliberately keeps.**
-  `clear()` keeps it (1.4) and `LoginUiState` starts blank, so a cold start after Disconnect
-  makes the user retype it. The fix is seeding `LoginUiState.serverUrl` from `ServerUrlStorage`
-  in `LoginViewModel`, and it belongs to `feature:setup:ui`. Not done in 2.7: v1 acceptance is a
-  verification step, and this is a behaviour change.
-- **Plan §9's non-HTTPS warning is still unowned** (1.11 shipped blanket `usesCleartextTraffic`),
-  and so is 1.9's `login.php` form probe for `password_login_disabled` / OIDC.
+  instrumented, not Robolectric, and grown one screen at a time. 3.12 revisits both.
+- ~~The login screen doesn't prefill the server URL~~ — **owned by 3.1**.
+- ~~Plan §9's non-HTTPS warning, and 1.9's `password_login_disabled` probe~~ — **owned by 3.1 and
+  3.10**.
+- **Version gating (plan §4.6) is still unowned.** It gates `get_period_budget`, `set_budget`'s
+  period fields, `logo_variant` and `square_icons` — all Phase 4 and 5 surface, so M3 leaves it
+  alone deliberately rather than by oversight.
 
 ---
 
