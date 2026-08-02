@@ -27,31 +27,61 @@ data class SubscriptionUiItem(
 )
 
 /**
+ * The filter sheet (3.6). The option sets are the distinct values of the rows *the cache holds*,
+ * not of [SubscriptionsUiState.items] — narrowing to one category must not take the others out of
+ * the sheet the user narrowed them with.
+ */
+data class SubscriptionsFilterUiState(
+    val filter: SubscriptionFilter = SubscriptionFilter(),
+    val sort: SubscriptionSort = SubscriptionSort.NEXT_PAYMENT,
+    val payers: ImmutableList<String> = persistentListOf(),
+    val categories: ImmutableList<String> = persistentListOf(),
+    val paymentMethods: ImmutableList<String> = persistentListOf(),
+    val isVisible: Boolean = false,
+    val onFilterChange: (SubscriptionFilter) -> Unit = {},
+    val onSortChange: (SubscriptionSort) -> Unit = {},
+    val onOpen: () -> Unit = {},
+    val onDismiss: () -> Unit = {},
+    val onClear: () -> Unit = {}
+)
+
+/**
  * [isLoading] is the first load *into an empty cache* and owns the whole screen; [isRefreshing] is
  * the pull-to-refresh gesture and leaves the list on screen under the indicator.
  *
  * A failure no longer clears [items] (3.4): the cached rows behind the error are real and are
  * still true as of the last refresh that worked. [isStale] and [isFailed] split what the error then
  * means on screen (3.5) — a banner over the rows, or the whole screen when there are none.
+ *
+ * @param items what the list draws: the cached rows **after** [filters] has narrowed and ordered
+ *   them (3.6). So an empty [items] no longer means an empty cache, which is what [hasCachedRows]
+ *   is for — every state below that used to ask "are there rows?" has to ask it of the cache, or a
+ *   filter matching nothing reads as a server that answered with nothing.
  */
 data class SubscriptionsUiState(
     val items: ImmutableList<SubscriptionUiItem> = persistentListOf(),
+    val hasCachedRows: Boolean = false,
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val error: NativeText = NativeText.Empty,
+    val filters: SubscriptionsFilterUiState = SubscriptionsFilterUiState(),
     val onRefresh: () -> Unit = {},
     val onRetryClick: () -> Unit = {}
 ) {
 
     /** Empty is a state of its own, not "no items" — a load in flight and a failure are not it. */
     val isEmpty: Boolean
-        get() = items.isEmpty() && !isLoading && error.isEmpty()
+        get() = !hasCachedRows && !isLoading && error.isEmpty()
+
+    /** The other empty screen: rows exist, the filter excluded all of them, and that is undoable. */
+    val isNoMatch: Boolean
+        get() = hasCachedRows && items.isEmpty() && !isLoading
 
     /** Rows the last refresh couldn't confirm: a banner over them, never instead of them. */
     val isStale: Boolean
-        get() = error.isNotEmpty() && items.isNotEmpty()
+        get() = error.isNotEmpty() && hasCachedRows
 
     /** The error owns the screen only when there is nothing behind it left to show. */
     val isFailed: Boolean
-        get() = error.isNotEmpty() && items.isEmpty()
+        get() = error.isNotEmpty() && !hasCachedRows
 }

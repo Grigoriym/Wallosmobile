@@ -940,7 +940,9 @@ LaunchedEffect(Unit) {
             title = NativeText.Resource(RString.subscriptions_title),
             navigationIcon = NavigationIconConfig.Menu,      // Menu | Back | Custom | None
             actions = persistentListOf(
-                TopBarActionVectorButton(Icons.Default.FilterList, onClick = ::openFilters)
+                // Sketch only — `FilterList` is not in `material-icons-core`, so the real
+                // subscriptions bar uses a `TopBarActionTextButton` reading "Filter" (3.6).
+                TopBarActionVectorButton(Icons.Default.Refresh, onClick = ::openFilters)
             )
         )
     )
@@ -1332,6 +1334,33 @@ every later feature's repository should copy:
   at all. The banner takes its reason line from **`LocalIsOffline`** rather than from the error: a
   refresh that never left the device fails as "check the URL and your connection", which points at
   a server that is not the problem. This is the shape every later cached screen should copy.
+
+#### Filter and sort, from 3.6
+
+Both are **client-side over the cache**, which is what 2.3 asked Phase 2b to keep: `SubscriptionsApi`
+still sends `api_key` and nothing else, so §3.2's "no `WHERE` clause" SQL bug stays unreachable by
+construction, and the sheet works with no network at all. There is no catalog endpoint behind it —
+every option is a distinct value of the rows already cached, which is only possible because 2.1 kept
+the server-resolved `category_name` / `payer_user_name` / `payment_method_name`.
+
+- **`items` is no longer "what the cache holds"**, and that is the part that propagates. Every
+  derived state 3.5 built on `items.isEmpty()` now asks `hasCachedRows` instead — the one new
+  *field* on the UI state, and not a second copy of anything, because the filtered list genuinely
+  cannot express it. Get it wrong and a filter matching nothing reads as an empty instance; offline
+  it turns the stale banner into a full-screen error over rows that are right there. `isNoMatch`
+  joins the derived three. **Any later screen that narrows what it draws inherits this rule.**
+- **The criteria are `MutableStateFlow`s beside the state**, `combine`d with the DAO flow rather
+  than copied into the UI state and read back out of it. So "the filter changed" and "a refresh
+  arrived" render through one path, and re-sorting provably costs no refetch.
+- **Sorting is a pure class** (`SubscriptionSorter`), because §3.2 fixes the direction *per field*
+  — `price` and `id` descend, everything else ascends — and a table like that is worth a test
+  rather than a `sortedWith` in a ViewModel. Three of its fields are ids this app never receives,
+  so `payer` / `category` / `payment_method` sort by the resolved name instead; `alphanumeric` is
+  skipped as §3.2's own alias for `name`. The default is the server's `next_payment`, which is also
+  the first time the list's order stopped being the DAO's `ORDER BY id`.
+- **An empty selection means every value**, exactly as an omitted parameter does server-side, so
+  unpicking the last chip widens back out and no "All" chip is needed. Status is the exception —
+  §3.2's `state` is a tri-state, and *All* there is a real third choice.
 
 ### 7.2 Explicitly out of v1
 

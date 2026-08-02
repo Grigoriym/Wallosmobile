@@ -16,6 +16,7 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -26,17 +27,32 @@ import org.koin.core.annotation.KoinViewModel
  * Cache-first (3.4): the list is whatever the database holds, and the fetch on open is a refresh
  * behind it rather than the thing the screen waits for. So the spinner is only ever the *empty*
  * cache's, and a refresh that fails leaves the rows it couldn't replace on screen.
+ *
+ * Filtering and sorting (3.6) are client-side over that cache and live in [filter] and [sort]
+ * rather than in the UI state: they are *inputs* to what the screen shows, combined with the rows
+ * on one path, so a changed filter and an arriving refresh render through the same code.
  */
 @KoinViewModel
 class SubscriptionsViewModel(
     private val subscriptionsRepository: SubscriptionsRepository,
     private val baseUrlProvider: BaseUrlProvider,
     private val moneyFormatter: MoneyFormatter,
-    private val dateFormatter: DateFormatter
+    private val dateFormatter: DateFormatter,
+    private val subscriptionSorter: SubscriptionSorter
 ) : ViewModel() {
+
+    private val filter = MutableStateFlow(SubscriptionFilter())
+    private val sort = MutableStateFlow(SubscriptionSort.NEXT_PAYMENT)
 
     private val _uiState = MutableStateFlow(
         SubscriptionsUiState(
+            filters = SubscriptionsFilterUiState(
+                onFilterChange = ::onFilterChange,
+                onSortChange = ::onSortChange,
+                onOpen = ::onFilterOpen,
+                onDismiss = ::onFilterDismiss,
+                onClear = ::onFilterClear
+            ),
             onRefresh = ::onRefresh,
             onRetryClick = ::onRetryClick
         )
@@ -56,13 +72,42 @@ class SubscriptionsViewModel(
         load(isRefresh = false)
     }
 
+    private fun onFilterChange(newFilter: SubscriptionFilter) {
+        filter.value = newFilter
+    }
+
+    private fun onSortChange(newSort: SubscriptionSort) {
+        sort.value = newSort
+    }
+
+    /** Sort is not a filter: clearing what was narrowed leaves the chosen order alone. */
+    private fun onFilterClear() {
+        filter.value = SubscriptionFilter()
+    }
+
+    private fun onFilterOpen() {
+        setFilterVisible(isVisible = true)
+    }
+
+    private fun onFilterDismiss() {
+        setFilterVisible(isVisible = false)
+    }
+
+    private fun setFilterVisible(isVisible: Boolean) {
+        _uiState.update { it.copy(filters = it.filters.copy(isVisible = isVisible)) }
+    }
+
     /**
      * Runs for the life of the ViewModel: a refresh writes to the database and the rows arrive
      * back through here, so this is the only thing that ever sets [SubscriptionsUiState.items].
      */
     private fun observeCache() {
-        subscriptionsRepository.observeSubscriptions()
-            .onEach(::onCached)
+        combine(
+            subscriptionsRepository.observeSubscriptions(),
+            filter,
+            sort,
+            ::Triple
+        ).onEach { (subscriptions, filter, sort) -> onCached(subscriptions, filter, sort) }
             .launchIn(viewModelScope)
     }
 
@@ -82,14 +127,39 @@ class SubscriptionsViewModel(
         }
     }
 
-    private fun onCached(subscriptions: List<Subscription>) {
-        val items = subscriptions.map(::toUiItem).toPersistentList()
+    private fun onCached(subscriptions: List<Subscription>, filter: SubscriptionFilter, sort: SubscriptionSort) {
+        val items = subscriptionSorter.sort(subscriptions.filter(filter::matches), sort)
+            .map(::toUiItem)
+            .toPersistentList()
+
         _uiState.update {
             // Cached rows dismiss the first-load spinner the moment they arrive; an empty cache
             // leaves it up until the refresh answers, which is the only honest use left for it.
-            it.copy(items = items, isLoading = it.isLoading && items.isEmpty())
+            // The question is asked of the *cache*, so a filter matching nothing keeps no spinner.
+            it.copy(
+                items = items,
+                hasCachedRows = subscriptions.isNotEmpty(),
+                isLoading = it.isLoading && subscriptions.isEmpty(),
+                filters = it.filters.copy(
+                    filter = filter,
+                    sort = sort,
+                    payers = subscriptions.optionsOf(Subscription::payerName),
+                    categories = subscriptions.optionsOf(Subscription::categoryName),
+                    paymentMethods = subscriptions.optionsOf(Subscription::paymentMethodName)
+                )
+            )
         }
     }
+
+    /**
+     * The sheet's options, straight off the rows: Wallos resolves these names server-side and never
+     * sends a blank one, but a blank would be an unpickable chip, so it is dropped rather than shown.
+     */
+    private fun List<Subscription>.optionsOf(selector: (Subscription) -> String) = map(selector)
+        .filter(String::isNotBlank)
+        .distinct()
+        .sortedBy(String::lowercase)
+        .toPersistentList()
 
     private fun onRefreshed() {
         _uiState.update { it.copy(isLoading = false, isRefreshing = false) }

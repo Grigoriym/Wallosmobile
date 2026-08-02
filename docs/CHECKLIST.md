@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `5/12`
-**Current step:** 3.6
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `6/12`
+**Current step:** 3.7
 
 ---
 
@@ -1027,7 +1027,7 @@ Three things that constrain several steps below, worth knowing before starting a
   identical banner, and the list wires its retry to `onRefresh` (so the pull-to-refresh indicator
   reports it) while the detail, which has no such indicator, wires `onRetryClick`.
 
-- [ ] **3.6 — feature:subscriptions ui: filter and sort**
+- [x] **3.6 — feature:subscriptions ui: filter and sort**
   Filter by household member, category, payment method and active/inactive; sort by the fields
   `WALLOS_API.md` §3.2 lists. **All client-side, over the cached list** — see the milestone note.
   The option sets need no new endpoint and no Phase 3 catalog module: every row already carries
@@ -1036,7 +1036,23 @@ Three things that constrain several steps below, worth knowing before starting a
   *Verify:* `./gradlew :feature:subscriptions:ui:testAndroidHostTest`  ·  *Ref:* `WALLOS_API.md` §3.2
   Sorting is worth a pure class in the module rather than a `sortedWith` in the ViewModel —
   §3.2's server-side directions are per-field (`price` and `id` descend, the rest ascend) and
-  matching them is the kind of table a test should pin.
+  matching them is the kind of table a test should pin. — **done.**
+  *Note:* the step's real cost was **not** the filtering — it was that `items` stopped meaning
+  "what the cache holds". Every derived state 3.5 built on `items.isEmpty()` had to be re-asked of
+  the cache (`hasCachedRows`), or a filter matching nothing reads as an empty instance, and offline
+  it flips 3.5's stale banner into a full-screen error over rows that are right there. That is the
+  one new *field* on the UI state; `isNoMatch` joins `isEmpty`/`isStale`/`isFailed` as a derived
+  one. **Any later step that narrows what is drawn inherits this**: ask the cache, not the list.
+  Filter and sort are `MutableStateFlow`s **beside** the state, `combine`d with the DAO flow, so a
+  changed filter and an arriving refresh render through one path — and sorting again costs no
+  refetch, which a test pins.
+  Three of §3.2's sort fields are ids this app never receives (`payer_user_id`, `category_id`,
+  `payment_method_id`), so those sort by the **resolved name** instead — the same names 2.1 put on
+  the row and the same ones the filter chips are built from. `alphanumeric` is skipped as an alias
+  for `name`. The default order is now §3.2's `next_payment`, where before it was the DAO's
+  `ORDER BY id`.
+  The top bar action is a **text button reading "Filter"**: `Icons.Default.FilterList`, which plan
+  §5.4's sketch names, is not in `material-icons-core` — the third time that set has come up short.
 
 - [ ] **3.7 — core:storage + core:api: certificate trust**
   `TrustedCertStorage` and a composite trust manager that falls back to a per-host trust-on-first-use
@@ -1207,4 +1223,8 @@ structural into the plan itself.
 | 3.4 | `SubscriptionsRepository` is `observe*`/`refresh*`, and `SubscriptionDao.getById` became `observeById` | Reads come off the cache and can't fail; the detail row is rewritten by a list refresh underneath the screen, which a one-shot read can't report — *now in plan §7.1, §4.7* |
 | 3.4 | The repository split off a `SubscriptionsCache` | Two DAOs plus two entity mappers plus the API and the wire mappers is eight constructor parameters, over detekt's limit of 6 — and the DB half is a real seam — *now in plan §7.1* |
 | 3.4 | The ViewModels are cache-first but the screens still draw the error *over* the data | 3.5 owns the rendering; 3.4 stops at the state being right, which is what its host-test verify can see |
+| 3.6 | `SubscriptionsUiState` gained a `hasCachedRows` field, and 3.5's derived states ask *it* instead of `items` | `items` is now the filtered view, so `items.isEmpty()` no longer means an empty cache — offline, a filter matching nothing would turn 3.5's banner into a full-screen error over rows that exist — *now in plan §7.1* |
+| 3.6 | Sorting by payer / category / payment method uses the resolved **name**, not §3.2's id | The ids never reach this app — 2.1 kept only the server-resolved names, which is also what the filter chips are built from — *now in plan §7.1* |
+| 3.6 | Filter and sort are `MutableStateFlow`s combined with the DAO flow, not fields the ViewModel copies into state | One render path for "the filter changed" and "a refresh arrived", and re-sorting provably costs no refetch — *now in plan §7.1* |
+| 3.6 | The filter action is a text button, not plan §5.4's `Icons.Default.FilterList` | The icon isn't in `material-icons-core` (1.10 and 2.5 hit the same wall); one word is cheaper than `material-icons-extended` in every `ui` module — *now in plan §3.3* |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |

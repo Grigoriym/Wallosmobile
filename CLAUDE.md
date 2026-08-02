@@ -208,7 +208,8 @@ vertical slices, **all source in `commonMain`**.
   set, including **material icons** (`Icons.Filled.*`), which material3 does *not* pull in
   transitively and which therefore lives in `configureKmpCompose()`, not in any module.
 - **`material-icons-core` is ~50 icons, and the obvious one is usually missing** — no
-  `Subscriptions`, no `Payment`, no `Visibility`/`VisibilityOff`, not even `Add`; `ArrowBack`,
+  `Subscriptions`, no `Payment`, no `Visibility`/`VisibilityOff`, no `FilterList` (3.6, which plan
+  §5.4's own top-bar sketch used), not even `Add`; `ArrowBack`,
   `List` and `Send` live under `Icons.AutoMirrored.Filled.*`. Reaching for anything else means
   adding `material-icons-extended` to `configureKmpCompose()`, so pick from the set, use a
   `TextButton` with a word in it (the login password toggle is Show/Hide text), or say you're
@@ -298,6 +299,11 @@ vertical slices, **all source in `commonMain`**.
   **`:testing` is excluded from linting** (`lintingExclusions` in `build-logic/.../Quality.kt`,
   plus `.editorconfig`), so there is no `:testing:ktlintFormat`/`:testing:detekt` task at all —
   asking for one fails with "task not found", which is the config working, not a broken build.
+  **A test fixture factory grows by `.copy()`, never by parameters.** detekt's
+  `allowedFunctionParameters: 5` applies to `commonTest` too, and `ignoreDataClasses` exempts the
+  data class, not the `private fun subscription(...)` that builds one — so a sixth parameter fails
+  the build and the reflex fix, `@Suppress`, is a guardrail tripwire costing a `Gate-change:` line
+  for a test helper. Build one canonical fixture and `.copy()` off it.
   **A fake's settable field must not be named after the method it feeds.** `var baseUrl` beside
   `override fun getBaseUrl()` is a "platform declaration clash" — the property's getter compiles to
   `getBaseUrl()` too. Name the field for what it holds (`var url`), not for the method.
@@ -386,6 +392,16 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   stay put), `isFailed` = error with *no* data (owns the screen, keeps the Try again button). A
   stored boolean would be a second copy of what `error` and the data field already say, free to
   drift from them — 3.5 changed no ViewModel at all.
+- **The moment a screen narrows what it draws, those states must ask the *cache*, not the list**
+  (3.6). `items` became the filtered view, so `items.isEmpty()` stopped meaning "nothing is
+  cached" — hence `hasCachedRows`, which is a stored field and *not* a violation of the rule above,
+  because the filtered list genuinely cannot express it. Skip it and a filter matching nothing
+  reads as an empty instance; offline it flips the stale banner into a full-screen error over rows
+  that are on the device. `isNoMatch` (rows exist, none survive the filter) is the fourth derived
+  state and owes the user a Clear button, since unlike the other three it is undoable.
+  The filter and sort selections themselves live in **`MutableStateFlow`s beside the UI state**,
+  `combine`d with the DAO flow — one render path for "the criteria changed" and "a refresh
+  arrived", instead of a second copy in the state that the next refresh could overwrite.
 
 ## Error handling
 

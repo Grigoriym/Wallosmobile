@@ -12,6 +12,7 @@ import com.grappim.wallosmobile.testing.MainDispatcherRule
 import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
 import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
 import com.grappim.wallosmobile.utils.ui.NativeText
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,7 +48,8 @@ class SubscriptionsViewModelTest {
         subscriptionsRepository = repository,
         baseUrlProvider = baseUrlProvider,
         moneyFormatter = MoneyFormatter(),
-        dateFormatter = DateFormatter()
+        dateFormatter = DateFormatter(),
+        subscriptionSorter = SubscriptionSorter()
     )
 
     @Test
@@ -260,6 +262,171 @@ class SubscriptionsViewModelTest {
         assertEquals(1, sut.uiState.value.items.size)
     }
 
+    // 3.6 — filter and sort, client-side over the cache.
+
+    @Test
+    fun `a filter narrows what is drawn and leaves the cache alone`() = runTest {
+        repository.result = Result.success(listOf(disney, internet))
+        val sut = viewModel()
+
+        sut.uiState.value.filters.onFilterChange(
+            SubscriptionFilter(categories = persistentSetOf("Internet"))
+        )
+
+        assertEquals(listOf(2), sut.uiState.value.items.map { it.id })
+        assertTrue(sut.uiState.value.hasCachedRows)
+        assertEquals(1, repository.callCount)
+    }
+
+    @Test
+    fun `the three dimensions narrow together`() = runTest {
+        repository.result = Result.success(listOf(disney, internet))
+        val sut = viewModel()
+
+        sut.uiState.value.filters.onFilterChange(
+            SubscriptionFilter(
+                categories = persistentSetOf("Entertainment"),
+                payers = persistentSetOf("partner")
+            )
+        )
+
+        assertTrue(sut.uiState.value.items.isEmpty())
+    }
+
+    @Test
+    fun `an empty selection means every value, so unpicking the last chip widens back out`() = runTest {
+        repository.result = Result.success(listOf(disney, internet))
+        val sut = viewModel()
+        sut.uiState.value.filters.onFilterChange(
+            SubscriptionFilter(categories = persistentSetOf("Internet"))
+        )
+
+        sut.uiState.value.filters.onFilterChange(SubscriptionFilter())
+
+        assertEquals(2, sut.uiState.value.items.size)
+    }
+
+    @Test
+    fun `the status filter splits active from inactive`() = runTest {
+        repository.result = Result.success(listOf(disney, internet.copy(isActive = false)))
+        val sut = viewModel()
+
+        sut.uiState.value.filters.onFilterChange(
+            SubscriptionFilter(status = SubscriptionStatusFilter.INACTIVE)
+        )
+
+        assertEquals(listOf(2), sut.uiState.value.items.map { it.id })
+    }
+
+    /** Narrowing to one category must not take the others out of the sheet that narrowed them. */
+    @Test
+    fun `the sheet's options come from the whole cache, not from the narrowed view`() = runTest {
+        repository.result = Result.success(listOf(disney, internet))
+        val sut = viewModel()
+
+        sut.uiState.value.filters.onFilterChange(
+            SubscriptionFilter(categories = persistentSetOf("Internet"))
+        )
+
+        val filters = sut.uiState.value.filters
+        assertEquals(listOf("Entertainment", "Internet"), filters.categories)
+        assertEquals(listOf("gregorz", "partner"), filters.payers)
+        assertEquals(listOf("Direct Debit", "PayPal"), filters.paymentMethods)
+    }
+
+    @Test
+    fun `a blank name is dropped rather than offered as an unpickable chip`() = runTest {
+        repository.result = Result.success(listOf(disney.copy(payerName = "")))
+
+        assertTrue(viewModel().uiState.value.filters.payers.isEmpty())
+    }
+
+    /** An instance with nothing on it and a filter that excludes everything are different screens. */
+    @Test
+    fun `a filter that matches nothing is not an empty instance`() = runTest {
+        repository.result = Result.success(listOf(disney))
+        val sut = viewModel()
+
+        sut.uiState.value.filters.onFilterChange(
+            SubscriptionFilter(categories = persistentSetOf("Utilities"))
+        )
+
+        assertTrue(sut.uiState.value.isNoMatch)
+        assertFalse(sut.uiState.value.isEmpty)
+    }
+
+    @Test
+    fun `clearing the filters brings every row back and leaves the sort alone`() = runTest {
+        repository.result = Result.success(listOf(disney, internet))
+        val sut = viewModel()
+        sut.uiState.value.filters.onSortChange(SubscriptionSort.NAME)
+        sut.uiState.value.filters.onFilterChange(
+            SubscriptionFilter(categories = persistentSetOf("Utilities"))
+        )
+        assertTrue(sut.uiState.value.isNoMatch)
+
+        sut.uiState.value.filters.onClear()
+
+        assertEquals(2, sut.uiState.value.items.size)
+        assertEquals(SubscriptionSort.NAME, sut.uiState.value.filters.sort)
+    }
+
+    /**
+     * The states 3.5 split now ask the *cache*, not the drawn list: a filter matching nothing while
+     * offline would otherwise flip the stale banner into a full-screen error over rows that exist.
+     */
+    @Test
+    fun `a filter that matches nothing keeps a stale refresh a banner`() = runTest {
+        repository.seed(listOf(disney))
+        repository.result = Result.failure(WallosError.Server("boom"))
+        val sut = viewModel()
+
+        sut.uiState.value.filters.onFilterChange(
+            SubscriptionFilter(categories = persistentSetOf("Utilities"))
+        )
+
+        assertTrue(sut.uiState.value.isStale)
+        assertFalse(sut.uiState.value.isFailed)
+    }
+
+    @Test
+    fun `the default order is the server's own, and sorting again needs no refetch`() = runTest {
+        repository.result = Result.success(listOf(disney, internet))
+        val sut = viewModel()
+        assertEquals(listOf(1, 2), sut.uiState.value.items.map { it.id })
+
+        sut.uiState.value.filters.onSortChange(SubscriptionSort.NAME)
+
+        assertEquals(listOf(2, 1), sut.uiState.value.items.map { it.id })
+        assertEquals(1, repository.callCount)
+    }
+
+    @Test
+    fun `the sheet opens and closes without touching the list`() = runTest {
+        repository.result = Result.success(listOf(disney))
+        val sut = viewModel()
+        assertFalse(sut.uiState.value.filters.isVisible)
+
+        sut.uiState.value.filters.onOpen()
+        assertTrue(sut.uiState.value.filters.isVisible)
+
+        sut.uiState.value.filters.onDismiss()
+        assertFalse(sut.uiState.value.filters.isVisible)
+        assertEquals(1, sut.uiState.value.items.size)
+    }
+
+    private val disney = subscription()
+
+    /** Later than [disney] and alphabetically before it, so the two orders are told apart. */
+    private val internet = subscription(nextPayment = LocalDate(2026, 4, 12)).copy(
+        id = 2,
+        name = "1&1 Telekom",
+        categoryName = "Internet",
+        paymentMethodName = "PayPal",
+        payerName = "partner"
+    )
+
+    /** Anything 3.6 varies is reached with `.copy()` rather than by growing this signature. */
     private fun subscription(
         logo: String = "",
         cycle: BillingCycle? = BillingCycle.MONTHS,
