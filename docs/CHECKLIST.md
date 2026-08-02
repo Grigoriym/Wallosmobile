@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `1/12`
-**Current step:** 3.2
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `2/12`
+**Current step:** 3.3
 
 ---
 
@@ -886,7 +886,7 @@ Three things that constrain several steps below, worth knowing before starting a
   and keeps the URL; Path A then logged in against the prefilled value **without the field being
   touched**. 2.6's reworded Disconnect copy still holds — nothing about the server changed.
 
-- [ ] **3.2 — core:storage: NetworkMonitor**
+- [x] **3.2 — core:storage: NetworkMonitor**
   `NetworkMonitor` interface in `commonMain` + an `androidMain` `ConnectivityManager`
   implementation, exactly the seam shape `SecretCipher` uses (1.4) and for the same reason: the
   platform API doesn't exist in a host test. Port from
@@ -896,6 +896,29 @@ Three things that constrain several steps below, worth knowing before starting a
   Phase 3 write screen are all consumers, which is the bar 1.10 set for that module.
   *Verify:* `./gradlew :core:storage:testAndroidHostTest`, and on the emulator the state flips
   with `adb shell cmd connectivity airplane-mode enable`.  ·  *Ref:* plan §4.7, §6.1
+  *Note:* **this step adds no host test, and couldn't.** Both halves are unreachable from one: the
+  impl needs `ConnectivityManager` (which is the whole reason for the seam) and the shell wiring
+  needs a Compose UI test, which is instrumented and deferred. `:core:storage:testAndroidHostTest`
+  therefore only re-runs 1.4's suite — the emulator half is the *only* real check here, and the
+  first consumer with assertable behaviour is 3.4.
+  Verified by a **temporary** `logcat` in the callback, added and removed within the step: airplane
+  on gave `onLost -> isOnline=true` then `onLost -> isOnline=false`, airplane off gave
+  `onAvailable -> isOnline=true`. That first line is the `networks` set earning its keep — the
+  emulator has two networks with `NET_CAPABILITY_INTERNET`, so losing one is not offline. A monitor
+  written against `activeNetwork` alone would have reported offline there and been wrong.
+  **`ACCESS_NETWORK_STATE` went into `:androidApp`'s manifest**, the only one in the repo, so the
+  impl keeps Taiga's `@SuppressLint("MissingPermission")` — `core:storage` has no manifest to
+  declare it in. (`@SuppressLint(` is not `@Suppress(`, so this does not trip the guardrail.)
+  `LocalIsOffline` lives in `uikit/widgets/network/` per Mealie and had to be added to
+  `.editorconfig`'s `compose_allowed_composition_locals` — a `Gate-change:` commit, and the reason
+  3.5 and every Phase 3 write screen won't need one.
+  Two shape choices worth not re-litigating: `NetworkMonitor` is `commonMain`-flat, not in a
+  `network/` subpackage as in Taiga (this module has six flat files and `@ComponentScan` is
+  unaffected); and `AuthenticatedMainScreen` takes it as a **`koinInject()` default parameter** and
+  collects it itself, rather than Mealie's `isOnline: Boolean` passed down from the app content —
+  `WallosAppContent` renders login too, and threading connectivity through it would put the value
+  above the startup branch for no reader. It is a `StateFlow`, so `collectAsState()` has a value in
+  the first composition and 1.11's `rememberNavBackStack` trap stays shut.
 
 - [ ] **3.3 — core:storage: Room**
   The database only: `WallosDB`, `SubscriptionEntity`, `CurrencyEntity`, their DAOs and the
@@ -1060,7 +1083,7 @@ structural into the plan itself.
 | 1.8 | `SubscriptionsRoute`/`SettingsRoute` start in `composeApp/nav/`, not in a feature `ui` module | The shell can't be stood up without them and neither feature exists; 2.4/2.6 move them to their screens — *now in plan §5.3* |
 | 1.8 | `RouteConfig` carries no `FabConfig`, and `DrawerConfig` has no `Hidden` | v1 has no write screens and no fullscreen route — both arrive with the feature that needs them — *now in plan §5.4* |
 | 1.8 | `DrawerItemsBuilder` is constructed, not `@Factory`-injected | `startKoin` doesn't exist until 1.11, so `koinInject()` would throw at first composition — *now in plan §5.4* |
-| 1.8 | No snackbar host and nothing offline-aware in the shell (Mealie has both) | There is no `NetworkMonitor` (1.4) and no `LocalIsOffline`; errors go to UI state — *now in plan §5.4* |
+| 1.8 | No snackbar host and nothing offline-aware in the shell (Mealie has both) | There is no `NetworkMonitor` (1.4) and no `LocalIsOffline`; errors go to UI state — *now in plan §5.4*; **the offline half is closed by 3.2**, the snackbar half still stands |
 | 1.9 | `WebLoginApiImpl` **and** `SetupRepositoryImpl` are `@Factory`, not `@Single` | A `@Single` above the `@Factory` web client resolves it once and keeps the session for the life of the process — *now in plan §1.1* |
 | 1.9 | The bridge clears the stored key before it starts | `withApiKey` overwrites a caller's `api_key` with the stored one, so a re-login would validate the stale key — *now in plan §1.1, §4.1* |
 | 1.9 | `VersionDTO` created in `feature:setup:dto`, a module outside this step's title | `WallosApiClient.post<T>` needs a response type for the validation call; `version` is nullable so an older instance isn't `Malformed` |
@@ -1100,4 +1123,7 @@ structural into the plan itself.
 | 3.1 | The prefill reads through `SetupRepository`, not `ServerUrlStorage` from the ViewModel | It would have been the third `ui` → `core` reach CLAUDE.md flags, and unlike `feature:settings` this feature already has a `data` layer to route through — *now in plan §1.1, §7.1* |
 | 3.1 | `getStoredServerUrl()` returns `Result<String>` for a read that "cannot fail" | A DataStore read can throw and `viewModelScope` would crash on it; a bare `String` would also pull `core:domain` into `feature:setup:ui`'s `commonMain` for `resultOf` alone |
 | 3.1 | Plan §9's cleartext warning is advisory and disappears on Path B | Every on-device `Verify:` line uses a plain-HTTP instance, so blocking Path A would make M3 untestable; and once the user is on Path B the warning has nothing left to steer — *now in plan §9* |
+| 3.2 | `LocalIsOffline` needed a `.editorconfig` line, so a `NetworkMonitor` step carries a `Gate-change:` | `compose:compositionlocal-allowlist` fails the build on any new composition local; the allowlist is the rule's intended escape hatch, and this is the last entry M3 needs — *now in plan §5.4* |
+| 3.2 | The shell injects `NetworkMonitor` itself instead of taking `isOnline: Boolean` from `WallosAppContent` as Mealie does | `WallosAppContent` also renders login, and connectivity has no reader there; keeping the collection inside the shell also keeps it below the startup branch, where §5.5's first-composition rule applies — *now in plan §5.4* |
+| 3.2 | The step adds no host test | Both halves are unreachable from one — `ConnectivityManager` is the reason the seam exists, and the shell wiring needs an instrumented Compose test. The emulator flip is the whole verification; 3.4 is the first consumer that can assert anything |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |

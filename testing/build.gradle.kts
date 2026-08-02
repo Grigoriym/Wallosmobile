@@ -14,6 +14,10 @@ kotlin {
             // Ktor's MockEngine, likewise: every module that talks HTTP needs it in `commonTest`
             // and none of them need it at runtime.
             api(libs.ktor.client.mock)
+
+            // `FakeNetworkMonitor` implements a `core:storage` interface, so consumers resolve it
+            // through here — the same shape TaigaMobileNova's `:testing` uses.
+            api(projects.core.storage)
         }
     }
 }

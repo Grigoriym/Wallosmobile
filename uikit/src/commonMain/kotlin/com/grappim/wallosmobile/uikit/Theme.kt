@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
 import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
 import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarController
 
@@ -76,12 +77,16 @@ fun WallosMobileTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Comp
 /**
  * The theme every `@Preview` goes through. `Surface` is what gives previews a themed background
  * instead of a transparent one, and [LocalTopBarConfig] is provided because any screen that
- * declares its own top bar reads it — without it every screen preview crashes.
+ * declares its own top bar reads it — without it every screen preview crashes. [LocalIsOffline]
+ * is there for the same reason; a preview of the offline variant provides it again itself.
  */
 @Composable
 fun WallosMobilePreviewTheme(content: @Composable () -> Unit) {
     WallosMobileTheme {
-        CompositionLocalProvider(LocalTopBarConfig provides remember { TopBarController() }) {
+        CompositionLocalProvider(
+            LocalTopBarConfig provides remember { TopBarController() },
+            LocalIsOffline provides false
+        ) {
             Surface {
                 content()
             }

@@ -108,8 +108,11 @@ a known-good attempt before believing the error. Clearing a field to retry:
 `input keycombination 113 29` (Ctrl+A) then `input keyevent KEYCODE_DEL`.
 
 Toggling the network for an offline check:
-`adb shell cmd connectivity airplane-mode enable` / `disable` — give it a few seconds either way,
-and note the app has no `NetworkMonitor`, so nothing reacts until the next request.
+`adb shell cmd connectivity airplane-mode enable` / `disable` — give it a few seconds either way.
+`NetworkMonitor` (3.2) reacts to the flip, but **the emulator has two networks with
+`NET_CAPABILITY_INTERNET`**, so `onLost` fires twice and only the second one is offline — a probe
+that reads the first callback and stops will conclude the monitor is broken. Nothing *else*
+re-requests on its own: a screen showing stale data keeps showing it until the next fetch.
 
 **"Don't keep activities" is not a process-death test.** It recreates the activity inside a live
 process, so anything that only breaks when the *process* is rebuilt passes it. The real check is
@@ -316,8 +319,14 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
 - **Always write previews** for screens and reusable widgets, using `@PreviewWallosDarkLight` +
   `WallosMobilePreviewTheme` (both from `uikit`).
 - Fixed-item screens (settings) use `Column`, not `LazyColumn`.
-- Offline → **disable** write actions (`enabled = isOnline`), no error dialog. Wallos has no
-  permission model, so there is no "hide the action" case.
+- **A new `CompositionLocal` fails `ktlintCheck`** (`compose:compositionlocal-allowlist`) until it
+  is named in `.editorconfig`'s `compose_allowed_composition_locals` — which is a tripwire path, so
+  adding one costs a `Gate-change:` line. There are two, both provided by the shell and by
+  `WallosMobilePreviewTheme`: `LocalTopBarConfig` and `LocalIsOffline`.
+- Offline → **disable** write actions (`enabled = !LocalIsOffline.current`), no error dialog.
+  Wallos has no permission model, so there is no "hide the action" case. The local says only that
+  the *device* has a network — a LAN-only Wallos instance is "online" here and still unreachable,
+  so a failed request is still the thing that reports a dead server.
 
 ## Error handling
 

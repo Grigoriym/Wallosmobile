@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigationevent.NavigationEventInfo
@@ -16,6 +18,8 @@ import com.grappim.wallosmobile.composeapp.nav.DrawerItemsBuilder
 import com.grappim.wallosmobile.composeapp.nav.MainNavHost
 import com.grappim.wallosmobile.composeapp.widget.WallosDrawerWidget
 import com.grappim.wallosmobile.core.navigation.Navigator
+import com.grappim.wallosmobile.core.storage.NetworkMonitor
+import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
 import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
 import com.grappim.wallosmobile.uikit.widgets.topappbar.NavigationIconConfig
 import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarController
@@ -30,13 +34,25 @@ import org.koin.compose.koinInject
 fun AuthenticatedMainScreen(
     appState: MainAppState,
     modifier: Modifier = Modifier,
-    drawerItemsBuilder: DrawerItemsBuilder = koinInject()
+    drawerItemsBuilder: DrawerItemsBuilder = koinInject(),
+    networkMonitor: NetworkMonitor = koinInject()
 ) {
     val navigator = remember(appState) { Navigator(appState.navigationState) }
     val topBarController = remember { TopBarController() }
     val drawerItems = remember(drawerItemsBuilder) { drawerItemsBuilder.build() }
 
-    CompositionLocalProvider(LocalTopBarConfig provides topBarController) {
+    /*
+     * A `StateFlow`, so this reads its current value in the *first* composition. Anything that
+     * arrives a pass later would push `MainNavHost` down with it, and `rememberNavBackStack`
+     * consumes its restored state only in the first pass (§5.5) — the same trap `WallosAppContent`
+     * seeds `lastKnownConnected` to avoid.
+     */
+    val isOnline by networkMonitor.isOnline.collectAsState()
+
+    CompositionLocalProvider(
+        LocalTopBarConfig provides topBarController,
+        LocalIsOffline provides !isOnline
+    ) {
         WallosDrawerWidget(
             modifier = modifier,
             drawerItems = drawerItems,
