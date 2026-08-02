@@ -28,4 +28,14 @@ interface SetupRepository {
      * entry is what still works the day that markup changes.
      */
     suspend fun connectWithApiKey(serverUrl: String, apiKey: String): Result<Unit>
+
+    /**
+     * The address of the last instance the app was pointed at, or `""` if there has never been
+     * one. Disconnect clears the key alone (plan §4.7), so this survives it — which is the whole
+     * point: the login screen offers the URL back instead of asking for it a second time.
+     *
+     * It goes through the repository rather than the storage seam because this feature has a real
+     * data layer already; a `ui` module naming `core:storage` would be reaching past it.
+     */
+    suspend fun getStoredServerUrl(): Result<String>
 }

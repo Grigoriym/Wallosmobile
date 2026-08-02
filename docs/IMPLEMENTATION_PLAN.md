@@ -63,6 +63,15 @@ session is involved, so there is no `LoginOutcome` to report; a rejected key is 
 paths share one screen and one state, switched by a flag — the reveal is a mode, not a second
 route.
 
+**The screen offers the stored URL back** (3.1). `ApiKeyStorage.clear()` keeps the server URL by
+design (§4.7), so a re-login after Disconnect is one field — but only because `LoginViewModel`
+seeds its state from `SetupRepository.getStoredServerUrl(): Result<String>` on construction. That
+read goes through the **repository**, not through `ServerUrlStorage`: this feature has a real
+`data` layer, so a `ui` module naming a `core` seam would be reaching past it — the exception
+`feature:settings` gets (§7.1) is for a feature that has no such layer at all. It is a `Result`
+because a DataStore read can throw and an exception out of `viewModelScope` is a crash. The value
+arrives after the first composition, so it fills the field only if the user hasn't typed one.
+
 **Neither path reports success to anyone.** A stored key *is* the outcome, and
 `ApiKeyStorage.isConnected` is what the startup branch (§7.1) watches, so the ViewModel raises no
 completion event and the screen takes no `onConnectSuccess` — a second owner of that fact could
@@ -112,7 +121,11 @@ Consequences for the design:
   should be the recommended option on an insecure origin.
   **The manifest carries `usesCleartextTraffic="true"` (1.11)** — plain HTTP is the common
   deployment and the app cannot reach one without it — so nothing in the platform is holding this
-  line. The warning is the only mitigation there will be, and **no step owns it yet.**
+  line. The warning is the only mitigation there will be.
+  **Shipped in 3.1**, as `LoginUiState.isCleartextWarningVisible`: it is **advisory** — it never
+  disables Connect, because the instance every on-device `Verify:` line uses is plain HTTP — and it
+  is shown on the **password path only**, since taking the steering to Path B is what resolves it.
+  Only a literal `http://` prefix counts; the app infers no scheme anywhere.
 
 - **Client-side backoff on failed logins.** The server has no rate limiting and no lockout
   anywhere. Without our own throttle we are shipping a brute-force tool pointed at the user's

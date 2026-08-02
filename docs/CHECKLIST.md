@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `0/12`
-**Current step:** 3.1
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `1/12`
+**Current step:** 3.2
 
 ---
 
@@ -31,6 +31,11 @@ error handling, strings, and the think-before-coding / simplicity / surgical-cha
 It loads automatically; don't duplicate it here. Checklist-specific rules only:
 
 - Do **exactly** the step. Don't pull work forward from a later step because it's convenient.
+- **A step's prose is a sketch; `CLAUDE.md` is the spec.** Where they disagree, the convention
+  wins and the step's `Note:` records the override — this has now happened three times (1.10 and
+  2.3 on "fakes go in `:testing`", 3.1 on "seed from `ServerUrlStorage`", which would have been a
+  `ui` → `core:storage` reach past this feature's own repository). The steps were written before
+  the code existed; the rules were written from it.
 - `./gradlew detekt ktlintCheck` must pass before a step is ticked.
 - A step that adds logic adds its tests in the **same** step — hand-written fakes in `:testing`,
   no mocking library (plan §6.1).
@@ -844,7 +849,7 @@ Three things that constrain several steps below, worth knowing before starting a
 - **Any step that touches `build-logic/`, `gradle/libs.versions.toml`, `config/detekt/` or
   `.github/` now needs a `Gate-change:` line in its commit** (2.7). 3.3 certainly will.
 
-- [ ] **3.1 — feature:setup ui: prefill the server URL, warn on cleartext**
+- [x] **3.1 — feature:setup ui: prefill the server URL, warn on cleartext**
   Seed `LoginUiState.serverUrl` from `ServerUrlStorage` when `LoginViewModel` is constructed, so
   the URL `clear()` deliberately keeps (1.4) is actually offered back after a Disconnect. Plus
   plan §9's unowned risk: when the typed URL is `http://`, show a warning and **steer to Path B**
@@ -854,6 +859,32 @@ Three things that constrain several steps below, worth knowing before starting a
   **The warning must not block Path A.** `docs/local-info.txt`'s instance is plain HTTP and is the
   only one every later `Verify:` line can use — a hard block here makes M3 untestable. Warn, don't
   disable.
+  *Note:* **the prefill goes through `SetupRepository.getStoredServerUrl()`, not through
+  `ServerUrlStorage` in the ViewModel.** That would have been the *third* `ui` → `core` reach, and
+  CLAUDE.md says the third is the point to ask whether the seam is right: unlike `feature:settings`
+  (2.6), this feature has a real `data` layer already, so reaching past it was the wrong half of
+  the rule to apply. **3.9 and 3.10 extend the same repository** — keep them there too.
+  It returns **`Result<String>`**, matching its two siblings, for one concrete reason: a DataStore
+  read can throw, an exception out of `viewModelScope` is a crash, and taking the result as a bare
+  `String` would mean `resultOf` — i.e. `core:domain` — in `feature:setup:ui`'s `commonMain`, which
+  1.10 kept to `commonTest` on purpose.
+  The read is `suspend` and lands **after** the first composition, so `onStoredServerUrl` fills the
+  field only when the user hasn't typed into it yet. That is *not* 1.11's
+  `rememberNavBackStack` trap in miniature — a text field may arrive a pass late, a back stack may
+  not — but the guard is what keeps a slow read from eating what the user typed over it.
+  **The cleartext warning is `LoginUiState.isCleartextWarningVisible`**, computed from `serverUrl`
+  exactly as `canConnect` is, and **hidden on Path B**: it exists to steer, and once steered there
+  is nothing left for the user to act on. It touches `canConnect` nowhere — verified on the
+  emulator with the warning on screen *and* Connect enabled, then logging in through it.
+  Only a literal `http://` prefix counts. Nothing in the app infers a scheme (`BaseUrlProviderImpl`
+  trims and adds a trailing slash, no more), so a scheme-less `10.0.2.2:8282` warns about nothing —
+  it also doesn't connect, so **3.10's login-form probe is the place to look at scheme handling**,
+  not here. Colour is `colorScheme.error`: M3 has no warning role and the palette's `tertiary` is a
+  mauve that reads as decoration.
+  Verified on the emulator against the live instance: Disconnect → `force-stop` → relaunch →
+  `http://10.0.2.2:8282` is back in the field with the warning under it; Path B hides the warning
+  and keeps the URL; Path A then logged in against the prefilled value **without the field being
+  touched**. 2.6's reworded Disconnect copy still holds — nothing about the server changed.
 
 - [ ] **3.2 — core:storage: NetworkMonitor**
   `NetworkMonitor` interface in `commonMain` + an `androidMain` `ConnectivityManager`
@@ -986,9 +1017,9 @@ The tick above closes M2, so these are the pointers that would otherwise vanish 
   released app needs a real migration for it rather than a destructive fallback.
 - **A Kover floor and a Compose UI test setup**, on the terms in 2.7's second deferred item —
   instrumented, not Robolectric, and grown one screen at a time. 3.12 revisits both.
-- ~~The login screen doesn't prefill the server URL~~ — **owned by 3.1**.
-- ~~Plan §9's non-HTTPS warning, and 1.9's `password_login_disabled` probe~~ — **owned by 3.1 and
-  3.10**.
+- ~~The login screen doesn't prefill the server URL~~ — **done in 3.1**.
+- ~~Plan §9's non-HTTPS warning~~ — **done in 3.1** (warn and steer to Path B, never disable).
+  1.9's `password_login_disabled` probe is still open and **owned by 3.10**.
 - **Version gating (plan §4.6) is still unowned.** It gates `get_period_budget`, `set_budget`'s
   period fields, `logo_variant` and `square_icons` — all Phase 4 and 5 surface, so M3 leaves it
   alone deliberately rather than by oversight.
@@ -1065,5 +1096,8 @@ structural into the plan itself.
 | 2.5 | The detail screen re-reads its row instead of taking one from the list | No cache means the alternative is a snapshot of unknown age; the price is two more round trips per open — *now in plan §7.1* |
 | 2.5 | Logo, inactive badge and cycle text moved to a shared `ui/widgets/` package; the logo URL to `ui/LogoUrl.kt` | Second consumer, same module — the alternative was writing all four twice — *now in plan §7.1* |
 | 2.6 | `feature:settings` is created as `ui` alone, and its ViewModel takes `core:storage` directly | Disconnect is one call on one seam; a `domain` layer over it would be an abstraction for a single use — *now in plan §2, §7.1* |
-| 2.6 | 1.4's "re-login is one field" is not true: the login screen never prefills the kept server URL | `clear()` does keep the URL, but `LoginUiState` starts blank — the fix is in `feature:setup:ui`, so the Disconnect copy was reworded instead — *still open, see "Still open after v1"* |
+| 2.6 | 1.4's "re-login is one field" is not true: the login screen never prefills the kept server URL | `clear()` does keep the URL, but `LoginUiState` starts blank — the fix is in `feature:setup:ui`, so the Disconnect copy was reworded instead — *fixed in 3.1* |
+| 3.1 | The prefill reads through `SetupRepository`, not `ServerUrlStorage` from the ViewModel | It would have been the third `ui` → `core` reach CLAUDE.md flags, and unlike `feature:settings` this feature already has a `data` layer to route through — *now in plan §1.1, §7.1* |
+| 3.1 | `getStoredServerUrl()` returns `Result<String>` for a read that "cannot fail" | A DataStore read can throw and `viewModelScope` would crash on it; a bare `String` would also pull `core:domain` into `feature:setup:ui`'s `commonMain` for `resultOf` alone |
+| 3.1 | Plan §9's cleartext warning is advisory and disappears on Path B | Every on-device `Verify:` line uses a plain-HTTP instance, so blocking Path A would make M3 untestable; and once the user is on Path B the warning has nothing left to steer — *now in plan §9* |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |

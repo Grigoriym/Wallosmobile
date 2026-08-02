@@ -33,4 +33,21 @@ data class LoginUiState(
             } else {
                 username.isNotBlank() && password.isNotBlank()
             }
+
+    /**
+     * Plan §9: a password POSTed over cleartext is materially worse than a key the user pastes in,
+     * so an `http://` instance gets a warning that steers to Path B — and the warning goes away
+     * once it has been taken, because there is then nothing left for the user to act on.
+     *
+     * It never disables anything: a self-hosted LAN instance on plain HTTP is the normal case
+     * (the manifest carries `usesCleartextTraffic`, 1.11), and blocking it would block the only
+     * instance this project can test against. Only an explicit `http://` counts — the app does no
+     * scheme inference anywhere else either.
+     */
+    val isCleartextWarningVisible: Boolean
+        get() = !isApiKeyMode && serverUrl.trim().startsWith(CLEARTEXT_SCHEME, ignoreCase = true)
+
+    private companion object {
+        const val CLEARTEXT_SCHEME = "http://"
+    }
 }

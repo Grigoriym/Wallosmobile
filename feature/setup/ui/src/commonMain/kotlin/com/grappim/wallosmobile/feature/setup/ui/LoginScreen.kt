@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.login_api_key_hint
 import com.grappim.wallosmobile.strings.generated.resources.login_api_key_label
+import com.grappim.wallosmobile.strings.generated.resources.login_cleartext_warning
 import com.grappim.wallosmobile.strings.generated.resources.login_connect
 import com.grappim.wallosmobile.strings.generated.resources.login_password_hide
 import com.grappim.wallosmobile.strings.generated.resources.login_password_label
@@ -94,6 +95,16 @@ private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
             keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
             enabled = !uiState.isLoading
         )
+
+        // Plan §9's only mitigation: `usesCleartextTraffic` is on (1.11), so nothing in the
+        // platform is holding this line. It warns and points at Path B; it never disables Connect.
+        if (uiState.isCleartextWarningVisible) {
+            Text(
+                text = stringResource(RString.login_cleartext_warning),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
 
         if (uiState.isApiKeyMode) {
             ApiKeyField(uiState = uiState, focusManager = focusManager)
@@ -250,6 +261,18 @@ private fun LoginContentErrorPreview() = WallosMobilePreviewTheme {
             username = "demo",
             password = "wrong",
             error = NativeText.Simple("Wallos didn't accept that username and password.")
+        )
+    )
+}
+
+@PreviewWallosDarkLight
+@Composable
+private fun LoginContentCleartextPreview() = WallosMobilePreviewTheme {
+    LoginContent(
+        uiState = LoginUiState(
+            serverUrl = "http://wallos.lan:8282",
+            username = "demo",
+            password = "demo"
         )
     )
 }

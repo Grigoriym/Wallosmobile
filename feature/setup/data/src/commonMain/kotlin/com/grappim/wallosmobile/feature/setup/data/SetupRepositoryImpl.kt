@@ -71,6 +71,16 @@ internal class SetupRepositoryImpl(
     }
 
     /**
+     * `ServerUrlStorage.serverUrl` is non-suspending and blocks on its very first read (plan §4.7),
+     * so it is worth the `withContext` even though nothing here is IO once the value is cached.
+     */
+    override suspend fun getStoredServerUrl(): Result<String> = resultOf {
+        withContext(dispatcher) {
+            serverUrlStorage.serverUrl
+        }
+    }
+
+    /**
      * Proves the string is a working credential before it is stored, so a markup change upstream
      * — or a mistyped key on Path B — surfaces here rather than as an `Unauthenticated` on the
      * first real screen (API doc §9.5). Throws a `WallosError` if not.

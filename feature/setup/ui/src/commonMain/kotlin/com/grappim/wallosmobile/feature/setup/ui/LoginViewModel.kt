@@ -2,6 +2,8 @@ package com.grappim.wallosmobile.feature.setup.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grappim.wallosmobile.core.logger.LogPriority
+import com.grappim.wallosmobile.core.logger.logcat
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.repo.SetupRepository
@@ -39,6 +41,24 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
         )
     )
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            setupRepository.getStoredServerUrl()
+                .onSuccess(::onStoredServerUrl)
+                // No prefill is a worse screen, not a broken one — the user types the URL as before.
+                .onFailure { logcat(priority = LogPriority.WARN, throwable = it) { "No stored server URL" } }
+        }
+    }
+
+    /**
+     * Disconnect keeps the URL (plan §4.7) and this is what finally offers it back. The read lands
+     * a beat after construction, so anything the user has already typed wins over it.
+     */
+    private fun onStoredServerUrl(url: String) {
+        if (url.isEmpty()) return
+        _uiState.update { if (it.serverUrl.isEmpty()) it.copy(serverUrl = url) else it }
+    }
 
     private fun onServerUrlChange(url: String) {
         _uiState.update { it.copy(serverUrl = url, error = NativeText.Empty) }

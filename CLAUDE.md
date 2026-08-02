@@ -157,6 +157,11 @@ vertical slices, **all source in `commonMain`**.
   seam directly — as `feature:subscriptions:ui` takes `BaseUrlProvider`. Add a layer when a real
   repository or a second caller turns up; a third `ui` → `core` reach is the point to ask whether
   the seam is in the right place instead.
+  **3.1 is that question, answered "no".** The login screen needs the stored server URL, and
+  `feature:setup` has a full `data`/`domain` layer — so the read went on `SetupRepository`
+  (`getStoredServerUrl(): Result<String>`) instead of pulling `core:storage` into the `ui` module.
+  The exception is for a feature with **no** layer to route through, not a licence to skip one that
+  exists.
 - **Mappers are classes, not extension functions** — one per file, for testability. Same for
   formatters: pure logic gets **no interface**. An interface here is a seam over a platform or
   over IO (`SecretCipher`, `ApiKeyStorage`, `WebLoginApi`) — something a host test can't reach.
@@ -343,6 +348,10 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   `asString()` at the call site. `uikit` depends on it as `api`, so any module that has `uikit`
   already has `NativeText` and must not re-declare `utils:ui`.
 - Arguments use printf style in XML — `%1$d`, `%1$s`, `%2$s` — passed to `stringResource(...)`.
+- **Each string is imported by name** (`import …strings.generated.resources.login_connect`), so a
+  new one fails as `Unresolved reference 'x'` **at the `RString.x` usage**, not at an import line.
+  That reads exactly like stale codegen — it isn't; add the import. Don't reach for
+  `--rerun-tasks` (which is the right move for Koin, and the wrong one here).
 - **Do not escape apostrophes.** CMP resources are not Android XML; `\'` renders literally.
   Write `isn't`.
 

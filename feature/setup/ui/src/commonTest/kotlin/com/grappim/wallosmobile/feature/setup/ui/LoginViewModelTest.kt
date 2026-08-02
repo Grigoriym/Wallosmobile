@@ -13,6 +13,7 @@ import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_
 import com.grappim.wallosmobile.strings.generated.resources.login_error_needs_totp
 import com.grappim.wallosmobile.testing.MainDispatcherRule
 import com.grappim.wallosmobile.utils.ui.NativeText
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.compose.resources.StringResource
 import kotlin.test.AfterTest
@@ -217,6 +218,92 @@ class LoginViewModelTest {
         assertTrue(sut.uiState.value.error.isEmpty())
     }
 
+    /** 2.6 left this open: `clear()` keeps the URL, but nothing offered it back until now. */
+    @Test
+    fun `the stored server url is offered back`() {
+        repository.storedServerUrlResult = Result.success(SERVER_URL)
+
+        val sut = viewModel()
+
+        assertEquals(SERVER_URL, sut.uiState.value.serverUrl)
+    }
+
+    @Test
+    fun `a fresh install starts with an empty server url`() {
+        val sut = viewModel()
+
+        assertEquals("", sut.uiState.value.serverUrl)
+    }
+
+    /** The read lands a beat after construction — whatever the user typed meanwhile has to win. */
+    @Test
+    fun `a url the user has already typed survives the prefill`() = runTest {
+        repository.storedServerUrlResult = Result.success(SERVER_URL)
+        repository.storedServerUrlGate = CompletableDeferred()
+        val sut = viewModel()
+
+        sut.uiState.value.onServerUrlChange(OTHER_SERVER_URL)
+        repository.storedServerUrlGate.complete(Unit)
+
+        assertEquals(OTHER_SERVER_URL, sut.uiState.value.serverUrl)
+    }
+
+    /** No prefill is a worse screen, not a broken one. */
+    @Test
+    fun `a failed read leaves the field empty rather than crashing`() {
+        repository.storedServerUrlResult = Result.failure(IllegalStateException("datastore"))
+
+        val sut = viewModel()
+
+        assertEquals("", sut.uiState.value.serverUrl)
+    }
+
+    @Test
+    fun `an http server url warns that the password would cross in the clear`() {
+        val sut = viewModel()
+
+        sut.uiState.value.onServerUrlChange(CLEARTEXT_SERVER_URL)
+
+        assertTrue(sut.uiState.value.isCleartextWarningVisible)
+    }
+
+    @Test
+    fun `an https server url does not warn`() {
+        val sut = viewModel()
+
+        sut.uiState.value.onServerUrlChange(SERVER_URL)
+
+        assertFalse(sut.uiState.value.isCleartextWarningVisible)
+    }
+
+    /** The warning steers to Path B; once there, the password it was about is out of the picture. */
+    @Test
+    fun `taking the api key path clears the cleartext warning`() {
+        val sut = viewModel()
+        sut.uiState.value.onServerUrlChange(CLEARTEXT_SERVER_URL)
+
+        sut.uiState.value.onApiKeyModeChange(true)
+
+        assertFalse(sut.uiState.value.isCleartextWarningVisible)
+    }
+
+    /** Warn, don't disable: the only instance every `Verify:` line can use is plain HTTP. */
+    @Test
+    fun `the cleartext warning does not block the password path`() = runTest {
+        repository.loginResult = Result.success(LoginOutcome.Connected)
+        val sut = viewModel()
+        with(sut.uiState.value) {
+            onServerUrlChange(CLEARTEXT_SERVER_URL)
+            onUsernameChange(USERNAME)
+            onPasswordChange(PASSWORD)
+        }
+        assertTrue(sut.uiState.value.canConnect)
+
+        sut.uiState.value.onConnectClick()
+
+        assertEquals(Triple(CLEARTEXT_SERVER_URL, USERNAME, PASSWORD), repository.loginCall)
+    }
+
     @Test
     fun `connect does nothing while a field is blank`() = runTest {
         val sut = viewModel()
@@ -239,6 +326,15 @@ class LoginViewModelTest {
         var connectResult: Result<Unit>? = null
         var loginCall: Triple<String, String, String>? = null
         var connectCall: Pair<String, String>? = null
+        var storedServerUrlResult: Result<String> = Result.success("")
+
+        /** Already complete, so the prefill lands during construction unless a test says otherwise. */
+        var storedServerUrlGate = CompletableDeferred(Unit)
+
+        override suspend fun getStoredServerUrl(): Result<String> {
+            storedServerUrlGate.await()
+            return storedServerUrlResult
+        }
 
         override suspend fun loginWithPassword(
             serverUrl: String,
@@ -257,6 +353,8 @@ class LoginViewModelTest {
 
     private companion object {
         const val SERVER_URL = "https://wallos.example.com"
+        const val OTHER_SERVER_URL = "https://other.example.com"
+        const val CLEARTEXT_SERVER_URL = "http://wallos.lan:8282"
         const val USERNAME = "demo"
         const val PASSWORD = "demo"
         const val API_KEY = "5c1e0b2a9f"

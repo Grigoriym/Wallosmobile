@@ -164,6 +164,19 @@ class SetupRepositoryImplTest {
         assertFalse(webLoginApi.loginCalled)
     }
 
+    /** What makes a re-login after Disconnect one field instead of two (plan §4.7). */
+    @Test
+    fun `offers back the server url a previous connection stored`() = runTest {
+        serverUrlStorage.serverUrl = SERVER_URL
+
+        assertEquals(SERVER_URL, repository().getStoredServerUrl().getOrNull())
+    }
+
+    @Test
+    fun `has no server url to offer on a fresh install`() = runTest {
+        assertEquals("", repository().getStoredServerUrl().getOrNull())
+    }
+
     private fun repository(): SetupRepositoryImpl {
         val engine = MockEngine { request ->
             validationRequests += (request.body as FormDataContent).formData.entries()
