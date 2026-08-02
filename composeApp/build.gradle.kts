@@ -1,7 +1,8 @@
 plugins {
     alias(libs.plugins.wallosmobile.kmp.library)
     alias(libs.plugins.wallosmobile.kmp.library.compose)
-    // `@Serializable` routes, and the polymorphic `SerializersModule` in `NavKeySerializers.kt`.
+    // The polymorphic `SerializersModule` in `NavKeySerializers.kt`. The routes it lists are
+    // `@Serializable` in their own feature modules — none is declared here any more (2.6).
     alias(libs.plugins.wallosmobile.kmp.serialization)
     // The DI root: `AppModule` lists every module class, so this one sees them all.
     alias(libs.plugins.wallosmobile.kmp.di)
@@ -20,6 +21,7 @@ kotlin {
             implementation(projects.core.asyncKmp)
             implementation(projects.feature.setup.data)
             implementation(projects.feature.setup.ui)
+            implementation(projects.feature.settings.ui)
             implementation(projects.feature.subscriptions.data)
             implementation(projects.feature.subscriptions.mapper)
             implementation(projects.feature.subscriptions.ui)

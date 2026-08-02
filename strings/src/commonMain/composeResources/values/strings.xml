@@ -35,6 +35,9 @@
     <string name="subscription_detail_url">Website</string>
     <string name="subscription_detail_notes">Notes</string>
 
+    <string name="settings_disconnect">Disconnect</string>
+    <string name="settings_disconnect_description">Disconnecting clears the API key stored on this device. Nothing changes on the server.</string>
+
     <plurals name="subscription_cycle_days">
         <item quantity="one">Every day</item>
         <item quantity="other">Every %1$d days</item>

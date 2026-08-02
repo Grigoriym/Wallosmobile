@@ -58,6 +58,8 @@ include(":feature:setup:domain")
 include(":feature:setup:dto")
 include(":feature:setup:ui")
 
+include(":feature:settings:ui")
+
 include(":feature:subscriptions:data")
 include(":feature:subscriptions:domain")
 include(":feature:subscriptions:dto")

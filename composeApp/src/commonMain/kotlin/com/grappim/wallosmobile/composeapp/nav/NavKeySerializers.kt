@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.composeapp.nav
 
 import androidx.navigation3.runtime.NavKey
 import androidx.savedstate.serialization.SavedStateConfiguration
+import com.grappim.wallosmobile.feature.settings.ui.SettingsRoute
 import com.grappim.wallosmobile.feature.subscriptions.ui.detail.SubscriptionDetailRoute
 import com.grappim.wallosmobile.feature.subscriptions.ui.list.SubscriptionsRoute
 import kotlinx.serialization.modules.SerializersModule

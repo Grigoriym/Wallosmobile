@@ -171,7 +171,7 @@ feature/
   currencies/     data domain dto ui       |  Reference data. Identical CRUD shape —
   paymentmethods/ data domain dto ui       |  see §3.4 on core:crud
   household/      data domain dto ui      /
-  settings/       data domain dto ui      Display settings (server) + app settings (local)
+  settings/       ui (data domain dto later)  Disconnect stub in v1; display settings in Phase 5
   profile/        data domain dto ui      get_user, set_budget
   notifications/  data domain dto ui      Read-only channel config
   admin/          data domain dto ui      Deferred — see §8, Phase 6
@@ -683,9 +683,8 @@ composeApp/.../
     DrawerItem.kt                 Destination / Group / Divider + IconSource
     DrawerItemsBuilder.kt         the drawer's item list
     RouteConfig.kt                per-route shell config (drawer gestures; FAB from Phase 3)
-    SettingsRoute.kt              temporary: routes for features that don't exist yet (§5.3)
     MainNavHost.kt                NavDisplay + entryProvider wiring
-    entries/                      one file per feature: subscriptionsEntry(), dashboardEntry(), …
+    entries/                      one file per feature: subscriptionsEntry(), settingsEntry(), …
 ```
 
 `rememberNavigationState` takes the `SavedStateConfiguration` as a parameter rather than building
@@ -739,13 +738,13 @@ the repo and only shows up as a lost back stack after process death (2.5) — th
 `CLAUDE.md` is the check.
 
 The shell was built (1.8) before either of its two sections existed, so `SubscriptionsRoute` and
-`SettingsRoute` start life in `composeApp/nav/Routes.kt` against a placeholder screen. Each moves
-into its feature's `ui` module with the screen that replaces the placeholder — an import change in
-`DrawerDestination.kt`, `RouteConfig.kt`, `NavKeySerializers.kt` and `MainNavHost.kt`. Anything
-added to that file after the second move is a route without a home, which is a smell, not a
-pattern. `SubscriptionsRoute` left in 2.4, which also renamed the file `SettingsRoute.kt`: detekt's
-`MatchingDeclarationName` fires the moment a file holds one top-level declaration under another
-name. 2.6 takes `SettingsRoute` and deletes it.
+`SettingsRoute` started life in `composeApp/nav/Routes.kt` against a placeholder screen; each moved
+into its feature's `ui` module with the screen that replaced the placeholder (2.4 and 2.6), which
+each time was an import change in `DrawerDestination.kt`, `RouteConfig.kt`, `NavKeySerializers.kt`
+and `MainNavHost.kt`. **`composeApp` now declares no route of its own, and that is the resting
+state** — a route parked here is a route without a home, which is a smell, not a pattern. The
+module keeps `kmp.serialization` for `navKeySerializersModule` alone, and `MainNavHost` names no
+screen: every entry comes from an `entries/` extension.
 
 **Not everything on screen is a route.** Login isn't: the startup branch (§7.1) renders it
 *instead of* the whole shell, so it has no `NavDisplay` around it, no back stack entry and nothing
@@ -1121,6 +1120,19 @@ or the restored nav back stack is lost (§5.5), which is why the branch is seede
 and *Settings* (Settings being a stub screen with Disconnect on it — one item is a lonely drawer,
 and it gives logout an obvious home). No FAB until Phase 3 adds the editor.
 
+**The Settings stub is `feature:settings:ui` and nothing else** (2.6). Disconnect is a single call
+on a single seam, so `SettingsViewModel` takes `ApiKeyStorage` straight from `core:storage`: a
+`domain` layer over one `clear()` would be an abstraction for one use, and the `data`/`domain`/`dto`
+modules §2 lists arrive with Phase 5's server display settings. It also needs no navigation and no
+success signal — `clear()` flips `isConnected` and the startup branch above swaps the tree, so the
+screen is gone before it could render a spinner. A write that fails is logged and leaves the user
+connected, which is the truthful outcome and the reason there is no error state.
+
+Two consequences of `clear()` keeping the server URL (§4.7) that are easy to conflate: the URL
+really does survive, but the login screen does **not** prefill it, so re-connecting still means
+retyping the address. Seeding `LoginUiState.serverUrl` from `ServerUrlStorage` is the fix and it
+belongs to `feature:setup:ui`; until it lands, don't write copy that promises a one-field re-login.
+
 **Non-obvious dependency:** the list can't render a price without currency symbols. `price` comes
 with a `currency_id`, and the symbol lives in `get_currencies.php`. So the list screen is two calls,
 not one — fetch currencies once and map `currency_id → symbol`. (The alternative,
@@ -1232,7 +1244,7 @@ regex — all pure functions over recorded fixtures.
 `feature:subscriptions` list and detail, fetched on screen open — no cache. Currencies fetched
 alongside and mapped `currency_id → symbol` for price rendering (§7.1). Logos via Coil
 (`{base}/images/uploads/logos/{logo}`, unauthenticated). Loading / empty / error states,
-pull-to-refresh, Disconnect in the overflow.
+pull-to-refresh, and Disconnect on the Settings stub (§7.1) rather than in a top-bar overflow.
 *Done when:* logging in lands on a list of real subscriptions and tapping one opens its detail.
 **This completes v1.**
 

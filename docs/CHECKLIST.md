@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `5/7`
-**Current step:** 2.6
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `6/7`
+**Current step:** 2.7
 
 ---
 
@@ -735,9 +735,35 @@ Goal: the list of real subscriptions, and a detail screen.
   `DrawerConfig.GesturesDisabled` doing its job. `am force-stop` → detail → `am kill` → relaunch
   restores the detail screen with its id.
 
-- [ ] **2.6 — Settings stub**
+- [x] **2.6 — Settings stub**
   Minimal settings screen with Disconnect (clear key → login). Second drawer item.
   *Verify:* disconnect returns to login and the key is gone.
+  *Note:* the second drawer item was already there (1.8) — what this step owed it was a screen.
+  **A new module, `feature:settings:ui`, and only `ui`**: plan §2's tree has
+  `settings/ data domain dto ui`, but disconnect is one call on one storage seam, so the ViewModel
+  takes `ApiKeyStorage` directly (CLAUDE.md: a single call goes straight from the ViewModel) and
+  the module has no `domain`, no repository and no use case. Phase 5's server display settings are
+  what grow the other three. The dependency on `core:storage` from a `ui` module is the second of
+  its kind after 2.4's `core:api`; both are a ViewModel naming a `core` seam with no feature layer
+  in between, and a third should prompt the question of whether the seam is in the right place.
+  `SettingsRoute` moved out of `composeApp/nav/`, so **`composeApp` now declares no route of its
+  own** — `PlaceholderScreen` and `SettingsRoute.kt` are both gone, `nav/entries/` has the second
+  of its two files, and `MainNavHost` names no screen at all. `composeApp` keeps
+  `kmp.serialization` for `navKeySerializersModule` alone.
+  **Disconnect is not asynchronous from the screen's side and has no error state.** `clear()`
+  flips `isConnected` and the startup branch swaps the tree (1.11), so a spinner would have
+  nowhere to render; a failed write is logged and leaves the user connected, which is the honest
+  outcome. There is **no confirmation dialog** — the step said minimal, and it is one line to add
+  if it turns out to be wanted.
+  **1.4's "re-login is one field" does not hold, and the fix isn't here.** `clear()` really does
+  keep the server URL, but `LoginUiState` starts blank and nothing seeds it from
+  `ServerUrlStorage`, so the user retypes the URL anyway. The first draft of the Disconnect copy
+  promised otherwise and was reworded to what the app does ("Nothing changes on the server").
+  Prefilling belongs to `feature:setup:ui`, not to a settings stub — **2.7 or a follow-up**.
+  Verified on the emulator: drawer → Settings → Disconnect → login screen, then force-stop and
+  relaunch → still the login screen (the key is gone, not just the state); logged back in with
+  Path A; `am force-stop` → Settings → `am kill` → relaunch restores Settings, which is the only
+  gate there is on the route's new package being registered in `NavKeySerializers`.
 
 - [ ] **2.7 — v1 acceptance**
   *Verify:* fresh install → log in → see real subscriptions → tap one → see detail → back →
@@ -839,3 +865,5 @@ structural into the plan itself.
 | 2.5 | A route parameter needs `@InjectedParam`, and `KoinGraphTest` cannot catch a missing one | `verify()` whitelists `String`/`Int`/`Long`/`Double` outright, so a primitive constructor parameter always passes — *now in plan §6.1* |
 | 2.5 | The detail screen re-reads its row instead of taking one from the list | No cache means the alternative is a snapshot of unknown age; the price is two more round trips per open — *now in plan §7.1* |
 | 2.5 | Logo, inactive badge and cycle text moved to a shared `ui/widgets/` package; the logo URL to `ui/LogoUrl.kt` | Second consumer, same module — the alternative was writing all four twice — *now in plan §7.1* |
+| 2.6 | `feature:settings` is created as `ui` alone, and its ViewModel takes `core:storage` directly | Disconnect is one call on one seam; a `domain` layer over it would be an abstraction for a single use — *now in plan §2, §7.1* |
+| 2.6 | 1.4's "re-login is one field" is not true: the login screen never prefills the kept server URL | `clear()` does keep the URL, but `LoginUiState` starts blank — the fix is in `feature:setup:ui`, so the Disconnect copy was reworded instead — *open, see 2.7* |

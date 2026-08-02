@@ -121,6 +121,12 @@ vertical slices, **all source in `commonMain`**.
   `composeApp`.
 - **Use cases only when a screen needs multiple calls.** Single repo calls go straight from the
   ViewModel.
+- **A feature grows the modules its screen actually needs**, not the `data/domain/dto/ui` set
+  plan §2 lists for it. `feature:settings` is `ui` alone: Disconnect is one `ApiKeyStorage.clear()`,
+  so there is no repository to hide behind a `domain` interface and the ViewModel takes the `core`
+  seam directly — as `feature:subscriptions:ui` takes `BaseUrlProvider`. Add a layer when a real
+  repository or a second caller turns up; a third `ui` → `core` reach is the point to ask whether
+  the seam is in the right place instead.
 - **Mappers are classes, not extension functions** — one per file, for testability. Same for
   formatters: pure logic gets **no interface**. An interface here is a seam over a platform or
   over IO (`SecretCipher`, `ApiKeyStorage`, `WebLoginApi`) — something a host test can't reach.

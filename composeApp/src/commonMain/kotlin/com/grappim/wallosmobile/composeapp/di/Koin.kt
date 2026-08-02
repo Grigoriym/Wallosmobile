@@ -3,6 +3,7 @@ package com.grappim.wallosmobile.composeapp.di
 import com.grappim.wallosmobile.core.api.NetworkModule
 import com.grappim.wallosmobile.core.asynckmp.KmpCoroutinesModule
 import com.grappim.wallosmobile.core.storage.StorageModule
+import com.grappim.wallosmobile.feature.settings.ui.SettingsUiModule
 import com.grappim.wallosmobile.feature.setup.data.SetupDataModule
 import com.grappim.wallosmobile.feature.setup.ui.SetupUiModule
 import com.grappim.wallosmobile.feature.subscriptions.data.SubscriptionsDataModule
@@ -34,6 +35,7 @@ import org.koin.core.annotation.Module
         NetworkModule::class,
         SetupDataModule::class,
         SetupUiModule::class,
+        SettingsUiModule::class,
         SubscriptionsDataModule::class,
         SubscriptionsMapperModule::class,
         SubscriptionsUiModule::class,

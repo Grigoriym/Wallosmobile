@@ -86,6 +86,8 @@ dependencies {
     kover(project(":feature:setup:dto"))
     kover(project(":feature:setup:ui"))
 
+    kover(project(":feature:settings:ui"))
+
     kover(project(":feature:subscriptions:data"))
     kover(project(":feature:subscriptions:domain"))
     kover(project(":feature:subscriptions:dto"))

@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.composeapp.nav
 
 import androidx.navigation3.runtime.NavKey
+import com.grappim.wallosmobile.feature.settings.ui.SettingsRoute
 import com.grappim.wallosmobile.feature.subscriptions.ui.list.SubscriptionsRoute
 import kotlinx.collections.immutable.persistentSetOf
 
