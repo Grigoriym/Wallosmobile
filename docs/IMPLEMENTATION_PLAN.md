@@ -666,6 +666,16 @@ One `PreferenceDataStoreFactory` store, file `wallos_storage`, shared by every s
 the module; each owns its keys, and **`ApiKeyStorage.clear()` removes its own key rather than
 clearing the file**, so disconnect leaves the server URL the user typed.
 
+**`clear()` also empties the Room cache** (3.4). The cached rows belong to the account whose
+credential is being thrown away, and it has *three* callers, not the one the wording suggests:
+disconnect, and **both login paths**, which clear the stale key before validating a new one (§1.1).
+A cleaner called from `feature:settings` would have covered the first and silently missed the other
+two — logging in as a second account would have shown the first account's subscriptions. So the
+eviction sits at the single point a key is dropped, `ApiKeyStorageImpl` takes the two DAOs, and
+"no key ⇒ no cache" is an invariant rather than a convention. Nothing else invalidates the cache:
+a schema change hits the destructive fallback below, and a whole-list refresh already drops rows
+the server no longer sends.
+
 - **The API key is encrypted before it reaches DataStore**, which writes plaintext to disk. The
   seam is a `SecretCipher` *interface* (`encrypt`/`decrypt`), not an `expect`/`actual`: the
   Android implementation is AES/GCM against a key that never leaves the Android Keystore, and the
@@ -711,7 +721,13 @@ one `add("kspAndroid", …)`.
   `feature:subscriptions:mapper` with the wire mappers.
 - **`currencySymbol` is stored resolved on the subscription row**, denormalised from the currency
   table, so reading the cached list is one query with no join. The currency table is cached for
-  the *next* refresh's resolution — §7.2's second round trip per call — not for this read.
+  the *next* refresh's resolution — §7.2's second round trip per call — not for this read. Since
+  3.4 that is what makes a detail refresh one call instead of two.
+- **Both of `SubscriptionDao`'s reads are `Flow`s** — 3.3's one-shot `getById` became `observeById`
+  in 3.4, because the row the detail screen holds is the row a list refresh rewrites underneath it
+  and nothing else would tell the screen. The entity↔domain mappers live in
+  `feature:subscriptions:mapper` (`SubscriptionEntityMapper`, `CurrencyEntityMapper`), which is
+  what keeps this module free of a `feature:*:domain` dependency.
 - **`replaceAll` is a `@Transaction` delete-then-insert on both DAOs**, a snapshot rather than a
   merge: the API sends the whole list in one response, so a row missing from a fresh fetch has
   been deleted server-side and must not survive locally.
@@ -1257,11 +1273,13 @@ everything it needs to render a price, and nothing above the repository ever see
 Blank for a `currency_id` the instance no longer lists — a deleted currency costs the sign, not the
 screen. Two consequences to keep in view:
 
-- **Every repository call is two round trips.** "No cache" (§7.2) means the currency list is
-  re-read per call, so opening the list and then a detail is four requests. Phase 2b's Room cache
-  is the fix; caching it in a ViewModel just moves the staleness somewhere untested.
+- ~~**Every repository call is two round trips.**~~ True until 3.4: the currency list was re-read
+  per call, so opening the list and then a detail was four requests. The Room cache is the fix, as
+  predicted — a **list refresh** is still the two calls, because it is the only thing that fills
+  the currency table, but a **detail refresh** is one, resolving its symbol out of that table.
 - The subscriptions call goes **first**, so a failure on the resource the user actually asked for
-  short-circuits before the second one.
+  short-circuits before the second one. Since 3.4 neither table is written until both have
+  answered: a half-written cache is worse than the stale one it would replace.
 
 **The second thing the model can't render on its own is the logo.** The wire carries a bare
 filename and the full URL is `{base}/images/uploads/logos/{logo}`, so the *ViewModel* builds it —
@@ -1271,10 +1289,10 @@ rather than a relative one Coil would fail on. Wallos serves that directory **un
 a plain URL load needs no header plumbing — `coil.compose` + `coil.ktor`, no `ImageLoader` setup,
 the ktor3 fetcher finding okhttp by autodiscovery.
 
-**The detail screen re-reads its own row** (2.5) rather than being handed one by the list. The row
-the list holds is a snapshot from whenever it last refreshed, and there is nothing that invalidates
-it; the price of reading again is the two round trips above, paid a second time. Only the id
-travels in `SubscriptionDetailRoute`. A field the instance has nothing for — `notes` and `url` are
+**The detail screen re-reads its own row** (2.5) rather than being handed one by the list, and
+since 3.4 it reads it *from the cache* and refreshes behind it — one round trip, not two, because
+the symbol comes from the cached currency table. Only the id travels in `SubscriptionDetailRoute`.
+A field the instance has nothing for — `notes` and `url` are
 `""` on every row of the local instance, `start_date` on many — has its whole row left out, since a
 label over an empty value reads as a bug rather than as "unset".
 
@@ -1284,10 +1302,30 @@ a private composable on the card), and — as `ui/LogoUrl.kt` — the `BaseUrlPr
 extension below. That last one is a two-line helper over an injected seam, not a mapper, so
 CLAUDE.md's mappers-are-classes rule doesn't reach it.
 
-**A failed load clears the list** (2.4). With no cache there is nothing behind the error worth
-keeping, and a stale list under "couldn't reach the server" is the shape that lies; the retry
-button is the way back. Worth revisiting when Phase 2b's Room cache makes "stale but real" a state
-the app can honestly describe.
+~~**A failed load clears the list** (2.4).~~ **Reversed by 3.4**, exactly as this paragraph
+anticipated: with a cache behind the error there is something true to keep, and clearing it would
+throw away the only data the app has. A failed refresh now changes nothing but the error.
+
+#### Offline-first, from 3.4
+
+`SubscriptionsRepository` is **`observe*` + `refresh*`**, not `get*`. Reads come off the Room cache
+and cannot fail; the network only ever writes to it. Three things follow, and they are the shape
+every later feature's repository should copy:
+
+- **The cache is the single source of truth.** A screen renders what the DAO emits, so a refresh
+  reaches it through the database rather than around it, and two screens looking at the same row
+  cannot disagree. `refreshSubscriptions` is a **snapshot** (`replaceAll`); `refreshSubscription`
+  is an upsert of one row that leaves the rest alone — and leaves the row alone on failure, since
+  `Unauthorized or Not Found` is an ownership answer as much as a deletion (API doc §3.3).
+- **The repository is two classes.** `SubscriptionsCache` holds the two DAOs and the two entity
+  mappers and speaks domain models only; `SubscriptionsRepositoryImpl` holds the API, the wire
+  mappers and the order things happen in. detekt's `allowedConstructorParameters: 6` is what forced
+  the split, and the line it drew is the right one — everything about the cache being *rows* stops
+  at the first class.
+- **The ViewModels are cache-first.** The spinner belongs to the *empty* cache alone: cached rows
+  dismiss it the moment they arrive, and a refresh runs behind whatever is already on screen. What
+  3.4 does **not** change is the rendering — the error state still draws over the list and over the
+  detail row it now has. Checklist 3.5 is that half.
 
 ### 7.2 Explicitly out of v1
 
@@ -1297,6 +1335,8 @@ v1 small:
 - **TOTP** — if `login.php` redirects to `totp.php`, show "this account needs a one-time code;
   use the API key instead" and point at the key field. That's the whole handling.
 - **Room / offline cache** — fetch on screen open. No `NetworkMonitor`, no `LocalOfflineState`.
+  (All three have landed since: `NetworkMonitor` + `LocalIsOffline` in 3.2, the database in 3.3,
+  the offline-first repository in 3.4 — see the subsection above.)
 - **Certificate trust prompt** — a plain HTTPS instance works. Self-signed certs fail with a clear
   error until this lands.
 - **Extra drawer destinations** — the shell is fully wired (§5.4), but the drawer holds

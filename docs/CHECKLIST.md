@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `3/12`
-**Current step:** 3.4
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `4/12`
+**Current step:** 3.5
 
 ---
 
@@ -964,9 +964,10 @@ Three things that constrain several steps below, worth knowing before starting a
   never a merge, because a row missing from a fresh whole-list fetch has been deleted server-side.
   **Nothing injects the DAOs yet**, so the file-backed builder in `StorageModule` is checked only
   by `KoinGraphTest`'s `verify()` (which does pass with the two DAO interfaces as bound types);
-  the instrumented tests build in-memory. 3.4 is the first thing to open the real file.
+  the instrumented tests build in-memory. 3.4 is the first thing to open the real file — *and it
+  did, on the emulator, first try.*
 
-- [ ] **3.4 — feature:subscriptions data: offline-first repository**
+- [x] **3.4 — feature:subscriptions data: offline-first repository**
   `SubscriptionsRepository` serves the cache first and refreshes behind it, instead of fetching on
   every screen open. This is where three deviation rows come due at once: 2.3's **two round trips
   per call** (the currency join re-reads `get_currencies.php` every time), 2.5's **detail re-read**,
@@ -975,6 +976,33 @@ Three things that constrain several steps below, worth knowing before starting a
   *Verify:* `./gradlew :feature:subscriptions:data:testAndroidHostTest`  ·  *Ref:* plan §7.1, §7.2
   Decide and write down **what invalidates the cache**. Disconnect must drop it — the rows belong
   to the account whose key was just cleared, and 1.4's `clear()` currently touches only the key.
+  *Note:* **the answer to "what invalidates the cache" is `ApiKeyStorage.clear()`**, which now
+  empties both tables before removing the key. It is the single place a key is dropped and it has
+  *three* callers, not one: disconnect, and **both login paths**, which clear the stale key before
+  validating a new one (1.9). A `CacheCleaner` wired into `feature:settings` would have covered
+  the first and silently missed the other two — logging in as a second account would have shown
+  the first account's rows. The price is that `ApiKeyStorageImpl` takes the two DAOs; that is
+  inside `core:storage`, which owns both, and the invariant "no key ⇒ no cache" is then impossible
+  to forget rather than merely documented. Nothing else invalidates: a schema change is handled by
+  3.3's destructive fallback, and a whole-list refresh already drops rows the server no longer has.
+  The repository split in two along the line the parameter limit drew: `SubscriptionsCache`
+  (the two DAOs + the two entity mappers, speaking domain models only) and
+  `SubscriptionsRepositoryImpl` (the API, the wire mappers and the order things happen in) — eight
+  constructor parameters is over detekt's `allowedConstructorParameters: 6`, and the seam it forced
+  is the right one.
+  The interface is now **`observe*` + `refresh*`** rather than `get*`: reads come off the cache and
+  never fail, the network only writes to it. `SubscriptionDao.getById` became **`observeById`** —
+  3.3 wrote the one-shot read for this step, and a detail screen whose row a list refresh rewrites
+  underneath it needs the `Flow`. That is the one 3.3 file this step touched; the device suite is
+  10 tests now, still green.
+  **Both ViewModels are cache-first**, so the spinner is only the *empty* cache's and a failed
+  refresh keeps its rows — which closes 2.4's "a failed load clears the list" and 2.5's detail
+  re-read (one round trip now, the symbol coming from the cached currency table). The **rendering**
+  is untouched and still wrong for it: the error state draws *over* the list, and over the detail
+  row it already has. Verified on the emulator — airplane mode, cold start, the whole cached list
+  on screen with the error text over it, and the detail top bar carrying the cached name. Turning
+  that overlay into a banner is 3.5, which is now the only thing between here and the first half
+  of plan §8's "done when".
 
 - [ ] **3.5 — feature:subscriptions ui: stale and offline states**
   The visible half of 3.4: a list backed by cached rows says so rather than pretending to be
@@ -1161,4 +1189,8 @@ structural into the plan itself.
 | 3.3 | The DAO tests are **instrumented**, not host tests, and `core:storage` gained an `androidDeviceTest` compilation | On the Android target `Room`'s only builders take a `Context` and `BundledSQLiteDriver`'s native library ships in the aar's `jni/` — neither is reachable from `testAndroidHostTest`, and Robolectric is out — *now in plan §4.7, §8* |
 | 3.3 | `allTests` and CI don't run the DAO suite | Device tests are not in the KMP `allTests` aggregate and CI has no emulator; the first suite in the project that isn't a CI gate — *now in plan §3.5, §8* |
 | 3.3 | Entities are SQLite primitives with no `TypeConverter`, and `core:storage` depends on no feature module | Taiga's `core:storage` depends on a feature's `domain` for its entity types; here that would invert `feature/` → `core/`, so `cycleCode` stays an `Int?` and the entity↔domain mapper is 3.4's — *now in plan §4.7* |
+| 3.4 | Cache eviction lives inside `ApiKeyStorage.clear()`, not in a cleaner the caller invokes | `clear()` has three callers — disconnect and both login paths (1.9) — and a second account must not inherit the first's rows; putting it anywhere else covers one of the three — *now in plan §4.7* |
+| 3.4 | `SubscriptionsRepository` is `observe*`/`refresh*`, and `SubscriptionDao.getById` became `observeById` | Reads come off the cache and can't fail; the detail row is rewritten by a list refresh underneath the screen, which a one-shot read can't report — *now in plan §7.1, §4.7* |
+| 3.4 | The repository split off a `SubscriptionsCache` | Two DAOs plus two entity mappers plus the API and the wire mappers is eight constructor parameters, over detekt's limit of 6 — and the DB half is a real seam — *now in plan §7.1* |
+| 3.4 | The ViewModels are cache-first but the screens still draw the error *over* the data | 3.5 owns the rendering; 3.4 stops at the state being right, which is what its host-test verify can see |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |

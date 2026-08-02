@@ -12,6 +12,10 @@ import com.grappim.wallosmobile.testing.MainDispatcherRule
 import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
 import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
 import com.grappim.wallosmobile.utils.ui.NativeText
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
@@ -139,8 +143,9 @@ class SubscriptionsViewModelTest {
         assertEquals(NativeText.Resource(RString.error_unreachable), viewModel().uiState.value.error)
     }
 
+    /** 2.4 cleared the list here. With a cache behind the error there is something true to keep. */
     @Test
-    fun `a failure clears the list it could not refresh`() = runTest {
+    fun `a failure leaves the list it could not refresh standing`() = runTest {
         repository.result = Result.success(listOf(subscription()))
         val sut = viewModel()
         assertEquals(1, sut.uiState.value.items.size)
@@ -148,8 +153,45 @@ class SubscriptionsViewModelTest {
         repository.result = Result.failure(WallosError.Server("boom"))
         sut.uiState.value.onRefresh()
 
-        assertTrue(sut.uiState.value.items.isEmpty())
+        assertEquals(1, sut.uiState.value.items.size)
+        assertTrue(sut.uiState.value.error.isNotEmpty())
         assertFalse(sut.uiState.value.isRefreshing)
+    }
+
+    /** Cold start with a full cache: the rows are the first thing on screen, spinner or no server. */
+    @Test
+    fun `cached rows show without waiting for the refresh, and survive its failure`() = runTest {
+        repository.seed(listOf(subscription()))
+        repository.result = Result.failure(WallosError.Server("boom"))
+
+        val state = viewModel().uiState.value
+
+        assertEquals(1, state.items.size)
+        assertFalse(state.isLoading)
+        assertTrue(state.error.isNotEmpty())
+    }
+
+    /** The spinner is the *empty* cache's, and nothing else's. */
+    @Test
+    fun `an empty cache keeps the spinner up until the refresh answers`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        repository.gate = gate
+        repository.result = Result.success(listOf(subscription()))
+
+        val sut = viewModel()
+        assertTrue(sut.uiState.value.isLoading)
+
+        gate.complete(Unit)
+        assertFalse(sut.uiState.value.isLoading)
+        assertEquals(1, sut.uiState.value.items.size)
+    }
+
+    @Test
+    fun `a full cache never shows the spinner at all`() = runTest {
+        repository.seed(listOf(subscription()))
+        repository.gate = CompletableDeferred()
+
+        assertFalse(viewModel().uiState.value.isLoading)
     }
 
     @Test
@@ -205,21 +247,42 @@ class SubscriptionsViewModelTest {
         const val SERVER_URL = "http://10.0.2.2:8282"
     }
 
-    // Private to this file, as in 1.10 and 2.3: `:testing` is on every module's test classpath,
-    // so a fake declared there drags `feature:subscriptions:domain` into modules that have no
-    // business seeing it.
+    /**
+     * Private to this file, as in 1.10 and 2.3: `:testing` is on every module's test classpath, so
+     * a fake declared there drags `feature:subscriptions:domain` into modules that have no
+     * business seeing it.
+     *
+     * It behaves the way the real one does since 3.4 — [result] is what the *refresh* returns, and
+     * only a successful one reaches [cached], which is the only thing the ViewModel ever reads.
+     * [seed] is the cache as a previous session left it.
+     */
     private class FakeSubscriptionsRepository : SubscriptionsRepository {
+
+        private val cached = MutableStateFlow<List<Subscription>>(emptyList())
 
         var result: Result<List<Subscription>> = Result.success(emptyList())
         var callCount = 0
 
-        override suspend fun getSubscriptions(): Result<List<Subscription>> {
-            callCount++
-            return result
+        /** Set to hold a refresh open, for the states that only exist while one is in flight. */
+        var gate: CompletableDeferred<Unit>? = null
+
+        fun seed(subscriptions: List<Subscription>) {
+            cached.value = subscriptions
         }
 
-        override suspend fun getSubscription(id: Int): Result<Subscription> =
-            result.mapCatching { subscriptions -> subscriptions.first { it.id == id } }
+        override fun observeSubscriptions(): Flow<List<Subscription>> = cached
+
+        override suspend fun refreshSubscriptions(): Result<Unit> {
+            callCount++
+            gate?.await()
+            return result.map { subscriptions -> cached.value = subscriptions }
+        }
+
+        override fun observeSubscription(id: Int): Flow<Subscription?> = cached.map { subscriptions ->
+            subscriptions.firstOrNull { it.id == id }
+        }
+
+        override suspend fun refreshSubscription(id: Int): Result<Unit> = refreshSubscriptions()
     }
 
     private class FakeBaseUrlProvider : BaseUrlProvider {

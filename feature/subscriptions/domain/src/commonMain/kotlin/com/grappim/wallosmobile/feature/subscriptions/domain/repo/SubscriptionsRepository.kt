@@ -1,22 +1,37 @@
 package com.grappim.wallosmobile.feature.subscriptions.domain.repo
 
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
+import kotlinx.coroutines.flow.Flow
 
 /**
- * Reads subscriptions off the instance, already joined to the currency symbol their price needs
- * (plan §7.1). Fetch-on-demand: there is no cache in v1, so every call is a live round trip and
- * the screen owns whatever it decides to keep.
+ * Subscriptions, already joined to the currency symbol their price needs (plan §7.1).
+ *
+ * **Offline-first since 3.4**: the cache is the only thing anyone reads, and the network only ever
+ * writes to it. So the two halves are split — `observe*` is the data, always available and never
+ * failing, and `refresh*` is the round trip, which either updates the cache or fails leaving the
+ * last known rows exactly where they were. A caller that wants both does both.
  *
  * A [Result] failure is always a
  * [com.grappim.wallosmobile.core.domain.WallosError] — everything leaving `core:api` is one.
  */
 interface SubscriptionsRepository {
 
-    suspend fun getSubscriptions(): Result<List<Subscription>>
+    /** The cached list, re-emitting on every refresh that changes it. Empty until one succeeds. */
+    fun observeSubscriptions(): Flow<List<Subscription>>
+
+    /** Replaces the cached list with the instance's, wholesale — a row it no longer sends is gone. */
+    suspend fun refreshSubscriptions(): Result<Unit>
+
+    /** The cached row, or `null` while the cache has never seen [id]. */
+    fun observeSubscription(id: Int): Flow<Subscription?>
 
     /**
-     * A single row by [id]. Wallos scopes this to the caller's own subscriptions, so an id
-     * belonging to someone else is a `NotFound`-style failure, not an empty success.
+     * Re-reads one row. One round trip, not two: the symbol comes from the cached currency list
+     * that [refreshSubscriptions] left behind (plan §4.7).
+     *
+     * Wallos scopes this to the caller's own subscriptions, so an id belonging to someone else is
+     * a `NotFound`-style failure. It leaves the cached row alone — that answer is ambiguous
+     * enough (API doc §3.3) that it must not be read as "deleted".
      */
-    suspend fun getSubscription(id: Int): Result<Subscription>
+    suspend fun refreshSubscription(id: Int): Result<Unit>
 }

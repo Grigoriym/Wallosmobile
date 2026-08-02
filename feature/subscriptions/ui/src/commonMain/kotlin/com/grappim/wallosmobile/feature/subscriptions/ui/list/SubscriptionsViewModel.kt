@@ -12,19 +12,20 @@ import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
 import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
 import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.KoinViewModel
 
 /**
- * Fetch-on-open: there is no cache in v1 (plan §7.2), so the list is whatever the last call
- * returned and every refresh is two round trips (subscriptions, then currencies — the repository
- * joins them).
+ * Cache-first (3.4): the list is whatever the database holds, and the fetch on open is a refresh
+ * behind it rather than the thing the screen waits for. So the spinner is only ever the *empty*
+ * cache's, and a refresh that fails leaves the rows it couldn't replace on screen.
  */
 @KoinViewModel
 class SubscriptionsViewModel(
@@ -43,6 +44,7 @@ class SubscriptionsViewModel(
     val uiState: StateFlow<SubscriptionsUiState> = _uiState.asStateFlow()
 
     init {
+        observeCache()
         load(isRefresh = false)
     }
 
@@ -54,34 +56,53 @@ class SubscriptionsViewModel(
         load(isRefresh = false)
     }
 
+    /**
+     * Runs for the life of the ViewModel: a refresh writes to the database and the rows arrive
+     * back through here, so this is the only thing that ever sets [SubscriptionsUiState.items].
+     */
+    private fun observeCache() {
+        subscriptionsRepository.observeSubscriptions()
+            .onEach(::onCached)
+            .launchIn(viewModelScope)
+    }
+
     private fun load(isRefresh: Boolean) {
         viewModelScope.launch {
             _uiState.update {
-                it.copy(isLoading = !isRefresh, isRefreshing = isRefresh, error = NativeText.Empty)
+                it.copy(
+                    isLoading = !isRefresh && it.items.isEmpty(),
+                    isRefreshing = isRefresh,
+                    error = NativeText.Empty
+                )
             }
 
-            subscriptionsRepository.getSubscriptions()
-                .onSuccess(::onLoaded)
+            subscriptionsRepository.refreshSubscriptions()
+                .onSuccess { onRefreshed() }
                 .onFailure(::onFailure)
         }
     }
 
-    private fun onLoaded(subscriptions: List<Subscription>) {
+    private fun onCached(subscriptions: List<Subscription>) {
         val items = subscriptions.map(::toUiItem).toPersistentList()
         _uiState.update {
-            it.copy(items = items, isLoading = false, isRefreshing = false)
+            // Cached rows dismiss the first-load spinner the moment they arrive; an empty cache
+            // leaves it up until the refresh answers, which is the only honest use left for it.
+            it.copy(items = items, isLoading = it.isLoading && items.isEmpty())
         }
     }
 
+    private fun onRefreshed() {
+        _uiState.update { it.copy(isLoading = false, isRefreshing = false) }
+    }
+
+    /**
+     * Leaves [SubscriptionsUiState.items] alone — 2.4 cleared them because there was nothing
+     * behind the error; with a cache there is, and it is still the truth as of its last refresh.
+     */
     private fun onFailure(throwable: Throwable) {
-        logcat(priority = LogPriority.WARN, throwable = throwable) { "Loading subscriptions failed" }
+        logcat(priority = LogPriority.WARN, throwable = throwable) { "Refreshing subscriptions failed" }
         _uiState.update {
-            it.copy(
-                items = persistentListOf(),
-                isLoading = false,
-                isRefreshing = false,
-                error = getErrorMessage(throwable)
-            )
+            it.copy(isLoading = false, isRefreshing = false, error = getErrorMessage(throwable))
         }
     }
 

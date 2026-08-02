@@ -30,9 +30,9 @@ data class SubscriptionDetailUiItem(
 )
 
 /**
- * [subscription] is null until the row arrives and again after a failure — with no cache there is
- * nothing behind the error worth keeping (2.4), and here it also keeps the top bar from holding
- * the name of a row the screen can no longer show.
+ * [subscription] is whatever the cache holds for this id (3.4): null until a refresh has put the
+ * row there, and null again if a later list refresh dropped it. A *failed* refresh no longer
+ * clears it — the cached row is real, which is what 2.5 had nothing of.
  */
 data class SubscriptionDetailUiState(
     val subscription: SubscriptionDetailUiItem? = null,

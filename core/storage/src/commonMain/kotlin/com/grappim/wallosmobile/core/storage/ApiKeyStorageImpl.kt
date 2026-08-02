@@ -4,6 +4,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.grappim.wallosmobile.core.storage.db.CurrencyDao
+import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -13,7 +15,9 @@ import org.koin.core.annotation.Single
 @Single(binds = [ApiKeyStorage::class])
 internal class ApiKeyStorageImpl(
     private val dataStore: DataStore<Preferences>,
-    private val secretCipher: SecretCipher
+    private val secretCipher: SecretCipher,
+    private val subscriptionDao: SubscriptionDao,
+    private val currencyDao: CurrencyDao
 ) : ApiKeyStorage {
 
     private val storedKey: Flow<String?> = dataStore.data.map { prefs ->
@@ -33,7 +37,13 @@ internal class ApiKeyStorageImpl(
         }
     }
 
+    /**
+     * The cache goes with the key. It is emptied *before* the key, so there is no window in which
+     * a screen observing the tables can read one account's rows with no credential behind them.
+     */
     override suspend fun clear() {
+        subscriptionDao.deleteAll()
+        currencyDao.deleteAll()
         dataStore.edit { prefs ->
             prefs.remove(KEY_API_KEY)
         }

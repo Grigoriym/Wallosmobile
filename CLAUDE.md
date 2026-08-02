@@ -178,7 +178,20 @@ vertical slices, **all source in `commonMain`**.
   The **Room cache** (`core/storage/.../db/`, 3.3) is the exception to that shape: entities and
   DAOs, no interface over them, and **every column a SQLite primitive** — no `TypeConverter`, and
   no dependency on any `feature:*:domain`, so `cycleCode` is an `Int?` and dates are ISO strings.
-  Converting to domain types is a mapper's job in the feature that owns the model.
+  Converting to domain types is a mapper's job in the feature that owns the model
+  (`SubscriptionEntityMapper`, 3.4).
+- **The cache belongs to the stored key, and `ApiKeyStorage.clear()` drops both** (3.4). Not a
+  cleaner someone calls next to it: `clear()` has three callers — disconnect and *both* login
+  paths, which clear the stale key before validating a new one — so anywhere else covers one of
+  three and lets a second account see the first one's rows. A repository that caches per-account
+  data adds its eviction there, in `ApiKeyStorageImpl`.
+- **A repository over the cache is `observe*` + `refresh*`, never `get*`** (`SubscriptionsRepository`,
+  3.4). The DAO `Flow` is the only thing a screen reads and it cannot fail; the network only writes
+  to the database. So a failed refresh changes nothing but the error, and the loading spinner
+  belongs to the *empty* cache alone. Such a repository also runs into detekt's
+  **`allowedConstructorParameters: 6`** — two DAOs and two entity mappers on top of the API and the
+  wire mappers is eight. Split the DAO half into its own class (`SubscriptionsCache`) rather than
+  widening the rule; the line the limit draws is a real seam.
 - **A new module must be added to the root `build.gradle.kts` `kover { }` block** — coverage is
   aggregated by an explicit per-module list, so a module left out of it is silently at 0% and
   nothing fails. `:testing` is deliberately absent (fakes, not production code).
@@ -293,6 +306,16 @@ vertical slices, **all source in `commonMain`**.
   `withContext` dies with "Detected use of different schedulers" — which surfaces as an
   `IllegalStateException` where the test expected a `WallosError`, not as anything mentioning
   dispatchers.
+  **`MainDispatcherRule` is unconfined, so a state that only exists *while* a call is in flight is
+  invisible** — the ViewModel's `launch` runs to completion before the constructor returns, and
+  `uiState.value` is already the final one. To assert a loading state, give the fake a
+  `CompletableDeferred` the suspend function awaits, read the state, then `complete()` it (3.4's
+  `an empty cache keeps the spinner up until the refresh answers`).
+- **A `@Dao` is faked by hand like anything else** — it is an interface, so a `commonTest` fake
+  needs no Room runtime, and `replaceAll` is a `@Transaction` method *with a body*, so only the
+  abstract members have to be implemented. Back the fake with a `MutableStateFlow` if the code
+  under test observes it: the real `@Query` `Flow` re-emits on every write, and a fake returning
+  `flowOf(rows)` will pass a test that the app then fails.
 - **A `commonTest` fixture is a Kotlin constant, not a file.** There is no portable way to read a
   resource or a path from `commonTest`, so recorded HTML/JSON lives in a `*Fixtures.kt` and
   anything filesystem-backed needs an in-memory fake (`FakePreferencesDataStore`, 1.4).

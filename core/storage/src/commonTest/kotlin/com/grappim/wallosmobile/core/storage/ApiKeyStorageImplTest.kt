@@ -3,6 +3,12 @@ package com.grappim.wallosmobile.core.storage
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.cash.turbine.test
+import com.grappim.wallosmobile.core.storage.db.CurrencyDao
+import com.grappim.wallosmobile.core.storage.db.CurrencyEntity
+import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
+import com.grappim.wallosmobile.core.storage.db.SubscriptionEntity
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -14,7 +20,9 @@ class ApiKeyStorageImplTest {
 
     private val dataStore = FakePreferencesDataStore()
     private val cipher = FakeSecretCipher()
-    private val storage = ApiKeyStorageImpl(dataStore, cipher)
+    private val subscriptionDao = FakeSubscriptionDao()
+    private val currencyDao = FakeCurrencyDao()
+    private val storage = ApiKeyStorageImpl(dataStore, cipher, subscriptionDao, currencyDao)
 
     @Test
     fun `setKey then getKey returns the key`() = runTest {
@@ -80,6 +88,70 @@ class ApiKeyStorageImplTest {
 
         assertNull(storage.getKey())
         assertEquals("https://wallos.example.com/", serverUrlStorage.serverUrl)
+    }
+
+    /** The cached rows belong to the account whose key is being dropped (3.4). */
+    @Test
+    fun `clear empties the cache along with the key`() = runTest {
+        subscriptionDao.rows = listOf(subscriptionEntity())
+        currencyDao.rows = listOf(CurrencyEntity(id = 1, name = "Euro", symbol = "€", code = "EUR"))
+
+        storage.clear()
+
+        assertTrue(subscriptionDao.rows.isEmpty())
+        assertTrue(currencyDao.rows.isEmpty())
+    }
+}
+
+private fun subscriptionEntity() = SubscriptionEntity(
+    id = 1,
+    name = "Fiton",
+    logo = "",
+    price = 9.99,
+    currencyId = 1,
+    currencySymbol = "€",
+    cycleCode = 3,
+    frequency = 1,
+    nextPayment = "2026-09-01",
+    startDate = null,
+    isActive = true,
+    notes = "",
+    url = "",
+    categoryName = "Health & Fitness",
+    paymentMethodName = "PayPal",
+    payerName = "gregorz"
+)
+
+/** Only what [ApiKeyStorageImpl] touches: the eviction. Reads are the DAO tests' business (3.3). */
+private class FakeSubscriptionDao : SubscriptionDao {
+
+    var rows: List<SubscriptionEntity> = emptyList()
+
+    override fun observeAll(): Flow<List<SubscriptionEntity>> = flowOf(rows)
+
+    override fun observeById(id: Int): Flow<SubscriptionEntity?> = flowOf(rows.firstOrNull { it.id == id })
+
+    override suspend fun deleteAll() {
+        rows = emptyList()
+    }
+
+    override suspend fun insertAll(subscriptions: List<SubscriptionEntity>) {
+        rows = rows.filterNot { row -> subscriptions.any { it.id == row.id } } + subscriptions
+    }
+}
+
+private class FakeCurrencyDao : CurrencyDao {
+
+    var rows: List<CurrencyEntity> = emptyList()
+
+    override suspend fun getAll(): List<CurrencyEntity> = rows
+
+    override suspend fun deleteAll() {
+        rows = emptyList()
+    }
+
+    override suspend fun insertAll(currencies: List<CurrencyEntity>) {
+        rows = rows.filterNot { row -> currencies.any { it.id == row.id } } + currencies
     }
 }
 

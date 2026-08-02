@@ -17,8 +17,13 @@ interface SubscriptionDao {
     @Query("SELECT * FROM $SUBSCRIPTION_TABLE ORDER BY id")
     fun observeAll(): Flow<List<SubscriptionEntity>>
 
+    /**
+     * The detail screen's row. A `Flow` rather than 3.3's one-shot read because the row it shows
+     * is the same row a list refresh rewrites underneath it (3.4) — nothing else in the app knows
+     * to tell the screen. `null` while the cache has never seen this id.
+     */
     @Query("SELECT * FROM $SUBSCRIPTION_TABLE WHERE id = :id")
-    suspend fun getById(id: Int): SubscriptionEntity?
+    fun observeById(id: Int): Flow<SubscriptionEntity?>
 
     /**
      * The cache is a snapshot of the whole list, never a merge: the API sends every subscription

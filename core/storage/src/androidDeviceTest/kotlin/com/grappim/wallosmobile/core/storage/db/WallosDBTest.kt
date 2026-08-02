@@ -52,7 +52,7 @@ class WallosDBTest {
 
         subscriptionDao.replaceAll(listOf(row))
 
-        assertEquals(row, subscriptionDao.getById(4))
+        assertEquals(row, subscriptionDao.observeById(4).first())
     }
 
     @Test
@@ -61,10 +61,23 @@ class WallosDBTest {
             listOf(subscription(id = 1).copy(cycleCode = null, nextPayment = null, startDate = null))
         )
 
-        val stored = requireNotNull(subscriptionDao.getById(1))
+        val stored = requireNotNull(subscriptionDao.observeById(1).first())
         assertNull(stored.cycleCode)
         assertNull(stored.nextPayment)
         assertNull(stored.startDate)
+    }
+
+    /** The detail screen's row is rewritten by the list refresh, so its query has to re-emit. */
+    @Test
+    fun observeByIdEmitsAgainWhenTheRowIsRewritten() = runBlocking {
+        subscriptionDao.replaceAll(listOf(subscription(id = 1)))
+        val before = subscriptionDao.observeById(1).first()
+
+        subscriptionDao.insertAll(listOf(subscription(id = 1, name = "renamed")))
+        val after = subscriptionDao.observeById(1).first()
+
+        assertEquals("Fiton", before?.name)
+        assertEquals("renamed", after?.name)
     }
 
     /** A row the server no longer sends must not survive the refresh that dropped it. */
@@ -80,10 +93,10 @@ class WallosDBTest {
     }
 
     @Test
-    fun getByIdIsNullForAnUnknownId() = runBlocking {
+    fun observeByIdIsNullForAnUnknownId() = runBlocking {
         subscriptionDao.replaceAll(listOf(subscription(id = 1)))
 
-        assertNull(subscriptionDao.getById(99))
+        assertNull(subscriptionDao.observeById(99).first())
     }
 
     @Test

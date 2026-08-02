@@ -27,11 +27,12 @@ data class SubscriptionUiItem(
 )
 
 /**
- * [isLoading] is the first load and owns the whole screen; [isRefreshing] is the pull-to-refresh
- * gesture and leaves the list on screen under the indicator.
+ * [isLoading] is the first load *into an empty cache* and owns the whole screen; [isRefreshing] is
+ * the pull-to-refresh gesture and leaves the list on screen under the indicator.
  *
- * A failure clears [items]: with no cache there is nothing behind the error worth keeping, and a
- * stale list under a "couldn't reach the server" message is the shape that lies to the user.
+ * A failure no longer clears [items] (3.4): the cached rows behind the error are real and are
+ * still true as of the last refresh that worked. Saying so on screen — rather than showing the
+ * error *instead of* the list, which is what the screen still does — is 3.5's half.
  */
 data class SubscriptionsUiState(
     val items: ImmutableList<SubscriptionUiItem> = persistentListOf(),

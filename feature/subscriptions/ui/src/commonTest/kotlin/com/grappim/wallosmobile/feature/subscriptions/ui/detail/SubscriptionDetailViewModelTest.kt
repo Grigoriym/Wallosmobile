@@ -11,6 +11,9 @@ import com.grappim.wallosmobile.testing.MainDispatcherRule
 import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
 import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
 import com.grappim.wallosmobile.utils.ui.NativeText
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
@@ -120,14 +123,41 @@ class SubscriptionDetailViewModelTest {
         assertFalse(state.isLoading)
     }
 
+    /** 2.5 cleared the row here; the cached one is real, so a failed refresh leaves it alone. */
     @Test
-    fun `a failure clears the row it could not refresh`() = runTest {
+    fun `a failure leaves the row it could not refresh standing`() = runTest {
         repository.result = Result.success(subscription())
         val sut = viewModel()
         assertNotNull(sut.uiState.value.subscription)
 
         repository.result = Result.failure(WallosError.Server("boom"))
         sut.uiState.value.onRetryClick()
+
+        assertNotNull(sut.uiState.value.subscription)
+        assertTrue(sut.uiState.value.error.isNotEmpty())
+    }
+
+    /** Opened from a cached list: the row is already there, so nothing waits on the network. */
+    @Test
+    fun `the cached row is on screen before the refresh answers`() = runTest {
+        repository.seed(subscription())
+        repository.result = Result.failure(WallosError.Server("boom"))
+
+        val state = viewModel().uiState.value
+
+        assertEquals("Disney+", assertNotNull(state.subscription).name)
+        assertFalse(state.isLoading)
+    }
+
+    /** A list refresh that dropped the row means the server hasn't got it — so neither has this. */
+    @Test
+    fun `a row the cache loses disappears from the screen`() = runTest {
+        repository.seed(subscription())
+        repository.result = Result.success(subscription())
+        val sut = viewModel()
+        assertNotNull(sut.uiState.value.subscription)
+
+        repository.seed(subscription(id = 99))
 
         assertNull(sut.uiState.value.subscription)
     }
@@ -148,11 +178,12 @@ class SubscriptionDetailViewModelTest {
     }
 
     private fun subscription(
+        id: Int = SUBSCRIPTION_ID,
         logo: String = "",
         cycle: BillingCycle? = BillingCycle.MONTHS,
         startDate: LocalDate? = LocalDate(2024, 3, 5)
     ) = Subscription(
-        id = SUBSCRIPTION_ID,
+        id = id,
         name = "Disney+",
         logo = logo,
         price = 8.99,
@@ -175,21 +206,39 @@ class SubscriptionDetailViewModelTest {
         const val SUBSCRIPTION_ID = 1
     }
 
-    // Private to this file, as in 1.10 and 2.3: `:testing` is on every module's test classpath,
-    // so a fake declared there drags `feature:subscriptions:domain` into modules that have no
-    // business seeing it.
+    /**
+     * Private to this file, as in 1.10 and 2.3: `:testing` is on every module's test classpath, so
+     * a fake declared there drags `feature:subscriptions:domain` into modules that have no
+     * business seeing it.
+     *
+     * As on the list (3.4), [result] is the *refresh*'s answer and only a successful one reaches
+     * the cache the ViewModel reads. [seed] is the row a list refresh cached earlier.
+     */
     private class FakeSubscriptionsRepository : SubscriptionsRepository {
+
+        private val cached = MutableStateFlow<List<Subscription>>(emptyList())
 
         var result: Result<Subscription>? = null
         var requestedId: Int? = null
         var callCount = 0
 
-        override suspend fun getSubscriptions(): Result<List<Subscription>> = Result.success(emptyList())
+        fun seed(subscription: Subscription) {
+            cached.value = listOf(subscription)
+        }
 
-        override suspend fun getSubscription(id: Int): Result<Subscription> {
+        override fun observeSubscriptions(): Flow<List<Subscription>> = cached
+
+        override suspend fun refreshSubscriptions(): Result<Unit> = Result.success(Unit)
+
+        override fun observeSubscription(id: Int): Flow<Subscription?> = cached.map { subscriptions ->
+            subscriptions.firstOrNull { it.id == id }
+        }
+
+        override suspend fun refreshSubscription(id: Int): Result<Unit> {
             callCount++
             requestedId = id
             return checkNotNull(result) { "the test did not set a result" }
+                .map { subscription -> cached.value = listOf(subscription) }
         }
     }
 

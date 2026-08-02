@@ -15,14 +15,17 @@ import com.grappim.wallosmobile.utils.ui.getErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.InjectedParam
 import org.koin.core.annotation.KoinViewModel
 
 /**
- * Reads its own row rather than being handed one: the list holds no cache, so a snapshot taken
- * when the list was last refreshed would be the only other option and it can already be stale.
+ * Cache-first, like the list (3.4): the row the list cached is on screen immediately and the
+ * re-read is a refresh behind it — one round trip now, not 2.5's two, because the currency symbol
+ * comes from the cached currency table.
  *
  * [subscriptionId] arrives through `parametersOf` at the call site — Koin's `verify()` whitelists
  * `Int` on its own, so [InjectedParam] is here for the compiler plugin, which would otherwise look
@@ -41,31 +44,56 @@ class SubscriptionDetailViewModel(
     val uiState: StateFlow<SubscriptionDetailUiState> = _uiState.asStateFlow()
 
     init {
+        observeCache()
         load()
+    }
+
+    /** The same row the list refresh rewrites, so this outlives the one-shot refresh below. */
+    private fun observeCache() {
+        subscriptionsRepository.observeSubscription(subscriptionId)
+            .onEach(::onCached)
+            .launchIn(viewModelScope)
     }
 
     private fun load() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = NativeText.Empty) }
+            _uiState.update { it.copy(isLoading = it.subscription == null, error = NativeText.Empty) }
 
-            subscriptionsRepository.getSubscription(subscriptionId)
-                .onSuccess(::onLoaded)
+            subscriptionsRepository.refreshSubscription(subscriptionId)
+                .onSuccess { onRefreshed() }
                 .onFailure(::onFailure)
         }
     }
 
-    private fun onLoaded(subscription: Subscription) {
+    /**
+     * The cache is the source of truth, including when it stops holding this row: a list refresh
+     * that dropped it means the server no longer has it, and keeping the last copy on screen
+     * would be the lie. A row absent because nothing has cached it yet is the same `null`, and
+     * the refresh below is already on its way.
+     */
+    private fun onCached(subscription: Subscription?) {
         _uiState.update {
-            it.copy(subscription = toUiItem(subscription), isLoading = false)
+            it.copy(
+                subscription = subscription?.let(::toUiItem),
+                isLoading = it.isLoading && subscription == null
+            )
         }
     }
 
+    private fun onRefreshed() {
+        _uiState.update { it.copy(isLoading = false) }
+    }
+
+    /**
+     * Leaves the row on screen — the cached one is real (3.4), where 2.5 had nothing behind the
+     * error to keep.
+     */
     private fun onFailure(throwable: Throwable) {
         logcat(priority = LogPriority.WARN, throwable = throwable) {
-            "Loading subscription $subscriptionId failed"
+            "Refreshing subscription $subscriptionId failed"
         }
         _uiState.update {
-            it.copy(subscription = null, isLoading = false, error = getErrorMessage(throwable))
+            it.copy(isLoading = false, error = getErrorMessage(throwable))
         }
     }
 

@@ -19,6 +19,14 @@ interface ApiKeyStorage {
 
     suspend fun setKey(key: String)
 
-    /** Removes the key only — the server URL survives a disconnect, so re-login is one field. */
+    /**
+     * Drops the key **and everything cached under it** — the cached subscriptions belong to the
+     * account whose credential is being thrown away, and the next account to log in must not
+     * inherit them. The server URL survives, so re-login is one field.
+     *
+     * Living here rather than in a cleaner someone has to remember to call is deliberate: this is
+     * the single place a key is dropped, and all three callers (disconnect, and both login paths,
+     * which clear the stale key before validating a new one) need the same eviction.
+     */
     suspend fun clear()
 }
