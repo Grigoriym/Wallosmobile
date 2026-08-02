@@ -384,7 +384,8 @@ data layers at roughly 30 lines each instead of 150, and gives one place to enco
 
 ### 3.5 CI
 
-One workflow — `.github/workflows/ci.yml`, one job, on push and PR to `master`:
+The build workflow — `.github/workflows/ci.yml`, one job, on push and PR to `master` (§3.6 adds a
+second workflow, which runs no Gradle at all):
 
 ```
 ./gradlew :androidApp:assembleDebug
@@ -402,6 +403,39 @@ restored.
 Two deliberate omissions: **Kover/Codecov is not in CI** (the upload wants a `CODECOV_TOKEN` this
 repo doesn't have; `koverXmlReport` stays a local command), and `paths-ignore` skips `**.md` and
 `docs/**`, so a **docs-only commit produces no run** — an absent run is not a failed one.
+
+### 3.6 Guardrails — the second workflow
+
+Everything in §3.4 constrains the *code* a session writes. Nothing constrains a session from
+widening a gate so its own step passes: relaxing a detekt rule, adding an `@Ignore`, editing a
+convention plugin, deleting a rule from `CLAUDE.md`. `.github/workflows/guardrails.yml` runs
+`.github/scripts/check-guardrails.sh` over the pushed range and fails any commit that trips a
+wire without carrying a `Gate-change: <what, and why>` line in its message. It is an **opt-in,
+not a veto** — widening a gate is often correct, and the point is only that it can't happen
+silently.
+
+Three things about its shape, each of which the alternative gets wrong:
+
+- **It is a separate workflow because `ci.yml` has `paths-ignore`.** A commit that only edits
+  `CLAUDE.md` or `docs/CHECKLIST.md` produces no CI run at all (§3.5) — and those two files are
+  the highest-leverage thing a session can quietly change, since they set the rules every later
+  session runs under. So `guardrails.yml` carries no `paths-ignore`.
+- **Paths trip on any touch; the two rule documents trip on *structure*.** `.github/`,
+  `build-logic/`, `config/detekt/`, `.editorconfig` and `gradle/libs.versions.toml` are files
+  ordinary feature work never opens, so touching one is signal on its own. `CLAUDE.md` and
+  `docs/CHECKLIST.md` are the opposite — every step edits them — so gating any edit would fire on
+  every reflowed bullet and train everyone to add the marker reflexively. Instead the script
+  counts the `- ` bullets under `## Non-negotiables` and the `- [ ]`/`- [x]` step boxes, and trips
+  only when a count **drops**. Over all 35 commits of history to v1 those counts are monotonic —
+  0→10 rules, 25 steps throughout — so the check has no false positives on real work, while
+  ticking a box, appending a `Note:` and rewording a rule all stay free.
+- **It cannot survive its own deletion.** GitHub runs the workflows present *in the pushed
+  commit*, so a commit that deletes `guardrails.yml` produces no guardrails run to object. Branch
+  protection requiring the check is the only fix, and this repo pushes straight to `master`. What
+  the job actually buys is the realistic failure mode — a session taking the path of least
+  resistance — not an adversarial one.
+
+Locally: `.github/scripts/check-guardrails.sh HEAD~1..HEAD`.
 
 ---
 

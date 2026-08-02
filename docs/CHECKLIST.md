@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `6/7`
-**Current step:** 2.7
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done**
+**Current step:** none — pick the next milestone from plan §8 (Phase 2b or Phase 3)
 
 ---
 
@@ -765,10 +765,29 @@ Goal: the list of real subscriptions, and a detail screen.
   Path A; `am force-stop` → Settings → `am kill` → relaunch restores Settings, which is the only
   gate there is on the route's new package being registered in `NavKeySerializers`.
 
-- [ ] **2.7 — v1 acceptance**
+- [x] **2.7 — v1 acceptance**
   *Verify:* fresh install → log in → see real subscriptions → tap one → see detail → back →
   drawer → Settings → Disconnect → login. Offline shows an error, not a crash.
   **v1 done.** Next: plan §8, Phase 2b (Room, cert trust, TOTP, filters) or Phase 3 (writes).
+  *Note:* the acceptance run passed end to end on the emulator against the local instance —
+  uninstall → install → Path A login → 30-odd real rows with logos → Fiton detail (`Health &
+  Wellbeing` unescaped, `31 Jan 2024` start date, no blank rows) → back → drawer → Settings →
+  Disconnect → login, then `am force-stop` + relaunch to prove the key was gone rather than just
+  the state. Airplane mode → "Couldn't reach that server", Try again after reconnecting →
+  the list back. No `FATAL`, no crash and nothing unexpected in logcat across the whole run.
+  Two things the run taught, neither a code change:
+  **Disconnect looks like it prefills the login form, and doesn't.** The URL and username are
+  still there straight after Disconnect because the same `LoginViewModel` is still in the
+  activity's `ViewModelStore`; cold-start and they are blank. So 2.6's open item is real but
+  narrower than it read — the gap is only visible across a process boundary. Still unfixed, and
+  now parked below rather than in the deviations log.
+  **`adb shell input text` needs a pause between fields**, or a long password arrives truncated
+  and the login fails as `InvalidCredentials`. That reads exactly like a wrong credential, and
+  the honest diagnosis is to count the dots in the field against a known-good screenshot. Useful
+  accident: it exercised 1.9's outcome table and 1.10's error attribution against the live server.
+  On the deferred items: the backward-compatibility bullet **stays** (nobody but us has installed
+  this), the Kover floor and the Compose UI test setup **stay parked** for the reason 2.4 gave,
+  and the guardrails were built — see the deviations row.
 
   **Two things are deliberately deferred to here rather than done early:**
   - **Delete the pre-v1 backward-compatibility bullet from `CLAUDE.md`'s Non-negotiables** the
@@ -793,6 +812,27 @@ Goal: the list of real subscriptions, and a detail screen.
     that list too — they set the rules every future session runs under, so an unannounced edit to
     them is the highest-leverage change an agent can make. First candidate: a CI job that diffs
     those paths and fails unless the commit message opts in.
+    **Done, as the first candidate**: `.github/workflows/guardrails.yml` +
+    `.github/scripts/check-guardrails.sh`. See the deviations row for the two things the
+    investigation changed about the shape above, and for what it can't do.
+
+---
+
+## Still open after v1
+
+The tick above closes M2, so these are the pointers that would otherwise vanish with it.
+
+- **The pre-v1 no-backcompat bullet in `CLAUDE.md` expires at the first outside install** — see
+  2.7's first deferred item. Nothing has changed yet: nobody but us has installed the app.
+- **A Kover floor and a Compose UI test setup**, on the terms in 2.7's second deferred item —
+  instrumented, not Robolectric, and grown one screen at a time.
+- **The login screen doesn't prefill the server URL that Disconnect deliberately keeps.**
+  `clear()` keeps it (1.4) and `LoginUiState` starts blank, so a cold start after Disconnect
+  makes the user retype it. The fix is seeding `LoginUiState.serverUrl` from `ServerUrlStorage`
+  in `LoginViewModel`, and it belongs to `feature:setup:ui`. Not done in 2.7: v1 acceptance is a
+  verification step, and this is a behaviour change.
+- **Plan §9's non-HTTPS warning is still unowned** (1.11 shipped blanket `usesCleartextTraffic`),
+  and so is 1.9's `login.php` form probe for `password_login_disabled` / OIDC.
 
 ---
 
@@ -866,4 +906,5 @@ structural into the plan itself.
 | 2.5 | The detail screen re-reads its row instead of taking one from the list | No cache means the alternative is a snapshot of unknown age; the price is two more round trips per open — *now in plan §7.1* |
 | 2.5 | Logo, inactive badge and cycle text moved to a shared `ui/widgets/` package; the logo URL to `ui/LogoUrl.kt` | Second consumer, same module — the alternative was writing all four twice — *now in plan §7.1* |
 | 2.6 | `feature:settings` is created as `ui` alone, and its ViewModel takes `core:storage` directly | Disconnect is one call on one seam; a `domain` layer over it would be an abstraction for a single use — *now in plan §2, §7.1* |
-| 2.6 | 1.4's "re-login is one field" is not true: the login screen never prefills the kept server URL | `clear()` does keep the URL, but `LoginUiState` starts blank — the fix is in `feature:setup:ui`, so the Disconnect copy was reworded instead — *open, see 2.7* |
+| 2.6 | 1.4's "re-login is one field" is not true: the login screen never prefills the kept server URL | `clear()` does keep the URL, but `LoginUiState` starts blank — the fix is in `feature:setup:ui`, so the Disconnect copy was reworded instead — *still open, see "Still open after v1"* |
+| 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |

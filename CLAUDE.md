@@ -34,6 +34,24 @@ aren't ticked, and don't expand scope beyond the step.
 4. Commit and push. One commit per step, straight to `master` — subject `0.N — short title`,
    body listing the deltas that aren't obvious from the diff.
 
+### Changing a gate means saying so
+
+The gates constrain the code a session writes; nothing constrains a session from widening a gate
+so its own step passes. `.github/workflows/guardrails.yml` doesn't prevent that — it makes it
+impossible to do quietly. A commit trips it by touching `.github/`, `build-logic/`,
+`config/detekt/`, `.editorconfig` or `gradle/libs.versions.toml`; by adding an `@Ignore` or a
+`@Suppress`; or by **reducing** the number of Non-negotiables below or of steps in
+`docs/CHECKLIST.md`. Any of those needs a line in the commit message:
+
+```
+Gate-change: what was widened, and why
+```
+
+That is an opt-in, not a veto — widening a gate is often right. Run it before committing:
+`.github/scripts/check-guardrails.sh HEAD~1..HEAD`. Editing the two rule documents is otherwise
+free, so ticking a box, adding a `Note:` and reflowing a bullet all pass; only *dropping* a rule
+or a step counts.
+
 ## Build commands
 
 ```bash
@@ -83,6 +101,16 @@ Compose honours TAB for focus, and re-tapping by coordinate goes wrong the momen
 opens and shifts the layout — a mis-tap lands on whatever moved into that spot (typing an API key
 into the URL field, say).
 
+**`input text` needs a `sleep 1` after each field**, or a long value arrives **truncated** — and
+a truncated password fails as `InvalidCredentials`, which reads exactly like a wrong credential
+and sends you looking at the server. Count the dots in the password field against a screenshot of
+a known-good attempt before believing the error. Clearing a field to retry:
+`input keycombination 113 29` (Ctrl+A) then `input keyevent KEYCODE_DEL`.
+
+Toggling the network for an offline check:
+`adb shell cmd connectivity airplane-mode enable` / `disable` — give it a few seconds either way,
+and note the app has no `NetworkMonitor`, so nothing reacts until the next request.
+
 **"Don't keep activities" is not a process-death test.** It recreates the activity inside a live
 process, so anything that only breaks when the *process* is rebuilt passes it. The real check is
 to background the app and kill it:
@@ -108,7 +136,9 @@ need `dangerouslyDisableSandbox`.
 
 CI (`.github/workflows/ci.yml`, plan §3.5) runs assemble + `allTests` + `detekt ktlintCheck` on
 push and PR to `master`, but `paths-ignore` skips `**.md` and `docs/**` — a docs-only commit
-produces **no run**, which is not a failure. Kover is local-only.
+produces **no CI run**, which is not a failure. Kover is local-only. The second workflow,
+`guardrails.yml` (plan §3.6), has no `paths-ignore` and runs no Gradle, so a docs-only commit
+does produce *that* run — see "Changing a gate means saying so" above.
 
 ## Architecture
 
