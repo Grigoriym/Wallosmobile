@@ -561,8 +561,8 @@ DataStore implementation has to keep it cached. `ktor-client-logging` is declare
 rather than by the `kmp.network` convention plugin, since nothing else installs `Logging`.
 
 The explicit platform engine (`HttpClient(createPlatformHttpClientEngine(...))`, as in Taiga
-rather than Mealie's autodiscovery) is only needed once certificate trust lands — Phase 2b. v1 can
-use `HttpClient { }`, but expect that signature to change then.
+rather than Mealie's autodiscovery) was v1's one deferred piece, and 3.7 landed it with
+certificate trust — both clients now take an engine rather than letting Ktor find one (§4.5).
 
 ### 4.2 `WallosEnvelopeParser`
 
@@ -648,9 +648,46 @@ different migration levels.
 ### 4.5 Self-signed certificates
 
 Port `CompositeTrustManager` + `TrustedCertStorage` + the trust-prompt flow from TaigaMobileNova
-(`docs/private-cert-trust` there) essentially unchanged. This matters *more* for Wallos than for
-Taiga: nearly every instance is self-hosted behind a homelab certificate. Certificate pinning is
-not an option; a trust prompt on first connect is.
+(`docs/features/private-cert-trust/` there) essentially unchanged. This matters *more* for Wallos
+than for Taiga: nearly every instance is self-hosted behind a homelab certificate. Certificate
+pinning is not an option; a trust prompt on first connect is.
+
+What 3.7 kept from that port, and what it dropped:
+
+- **The two properties the survey was written for stay.** A pin is `(host, fingerprint)`, so a
+  certificate accepted for one server never authenticates another that presents the same bytes;
+  and `checkValidity()` still runs **on a pin hit**, so accepting a certificate once is not
+  accepting it after it expires. Both are tested.
+- **The failure carries the certificate as a *cause*, not as a platform type.** JSSE lets a trust
+  manager throw only `CertificateException` — but it says nothing about what that exception
+  wraps, so `CompositeTrustManager` throws
+  `CertificateException(UntrustedCertificateException(pendingCertTrust))` and
+  `Throwable.findPendingCertTrust()` (`core:domain`, `commonMain`) digs it back out of however
+  many layers the TLS stack added. That replaces Taiga's three moving parts — an `androidMain`
+  `CertificateException` subtype, a portable twin of it, and an `expect`/`actual` mapper between
+  them — with one `commonMain` class and one extension function, and it means **nothing catches
+  the type**: a caller asks a throwable it already has for a `PendingCertTrust`.
+- **A hostname the certificate doesn't cover is not offered for trust**, which was Taiga's Phase 7
+  bug: hostname verification is a separate step downstream that no pin can satisfy, so accepting
+  there would collect a decision that can never produce a working connection. It rethrows the
+  original rejection rather than earning its own exception type — the only thing riding on the
+  distinction here is whether the prompt appears.
+- **Storage pins strings, not certificates.** `TrustedCertStorage` holds `"host|fingerprint"` in
+  the module's shared DataStore. Taiga widened to a JSON list of `PendingCertTrust` for a
+  settings screen that lists and revokes pins; nothing here plans one, and the full certificate
+  is still what the *prompt* shows. It also means disconnect leaves pins alone —
+  `ApiKeyStorage.clear()` removes its own key, and a pin is a statement about a server's
+  certificate, not about the account.
+- **The engine is now built, not autodiscovered.** `createPlatformHttpClientEngine` (`expect` in
+  `core:api` `commonMain`, `actual` in its first `androidMain`) wraps the composite manager in an
+  `SSLContext` and hands it to `OkHttp.create`. Both clients take it, the web-session one
+  included: onboarding is the first thing to touch the server, so it is where an untrusted
+  certificate surfaces. Hostname verification is left at OkHttp's default — this replaces *chain*
+  trust and nothing else.
+- **Coil does not go through it.** The logo loader builds its own client by autodiscovery (2.4),
+  so on an HTTPS instance with an accepted-but-still-private certificate the data will load and
+  the logos will not. Giving Coil an `ImageLoader` over the same engine is the fix if that turns
+  out to matter; nothing in M3 needs it, since every on-device verify runs over plain HTTP.
 
 ### 4.6 Version gating
 
@@ -1159,9 +1196,18 @@ tested; `uikit` widgets, screens, DI modules and DTOs are excluded from Kover (�
 `:testing` is added to every module's `commonTest` automatically by the convention plugin, so no
 module declares it by hand. That makes it the home for test-only *libraries* as well as doubles:
 it re-exports `kotlinx-coroutines-test` (for `runTest`) and `ktor-client-mock` (for `MockEngine`)
-as `api`, so neither is ever declared per module. `MockEngine` matters because `HttpClient { }`
-uses engine autodiscovery and the real engine is `androidMain`-only — a host test that wants an
-`HttpClient` has to build one itself.
+as `api`, so neither is ever declared per module. `MockEngine` matters because the real engine is
+`androidMain`-only — whether it is autodiscovered or, since 3.7, built by
+`createPlatformHttpClientEngine` (§4.5), a host test that wants an `HttpClient` has to supply an
+engine itself.
+
+**There is a third source set, and it is cheap** (3.7). `commonTest` cannot see an `androidMain`
+class, so code that only exists there — `CompositeTrustManager` — is tested from
+`src/androidHostTest/`, which the same `testAndroidHostTest` task runs and which inherits
+`commonTest`'s dependencies (`kotlin.test`, Turbine, `:testing`) through the test source-set tree.
+The one wrinkle is lint: detekt's per-rule `excludes` list `commonTest` and friends by name and
+not `androidHostTest`, so `FunctionNaming` applies there — its test names are camelCase, the same
+concession 3.3's device tests make, rather than widening the detekt config for a source set name.
 
 **Instrumented tests exist, as of 3.3, and only where a host test is impossible.** `core:storage`
 has an `androidDeviceTest` source set for the Room DAOs (§4.7) — not a preference for realism but

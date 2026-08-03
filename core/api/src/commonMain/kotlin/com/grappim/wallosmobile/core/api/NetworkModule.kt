@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.core.api
 
 import com.grappim.wallosmobile.core.appinfoapi.AppInfoProvider
+import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage
@@ -37,7 +38,11 @@ class NetworkModule {
      * For the same reason there is no default JSON content type: Wallos wants form encoding.
      */
     @Single
-    fun provideHttpClient(baseUrlProvider: BaseUrlProvider, appInfoProvider: AppInfoProvider): HttpClient = HttpClient {
+    fun provideHttpClient(
+        baseUrlProvider: BaseUrlProvider,
+        appInfoProvider: AppInfoProvider,
+        trustedCertStorage: TrustedCertStorage
+    ): HttpClient = HttpClient(createPlatformHttpClientEngine(trustedCertStorage)) {
         // Wallos answers 200 to auth and validation failures alike; the status carries no
         // API-level meaning, so raising on it would be raising on nothing.
         expectSuccess = false
@@ -55,25 +60,32 @@ class NetworkModule {
         }
     }
 
-    /** No key injection, no envelope parsing — this one gets HTML and a `302`. */
+    /**
+     * No key injection, no envelope parsing — this one gets HTML and a `302`. It gets the same
+     * trust-aware engine as the other: onboarding is the *first* thing to touch the server, so it
+     * is where an untrusted certificate surfaces (3.8).
+     */
     @[Factory WebSessionHttpClient]
-    fun provideWebSessionHttpClient(baseUrlProvider: BaseUrlProvider, appInfoProvider: AppInfoProvider): HttpClient =
-        HttpClient {
-            // The redirect *is* the result: 302 means the credentials were accepted, and a
-            // `Location` of `totp.php` means a second factor is pending (plan §1.1).
-            followRedirects = false
-            expectSuccess = false
-            defaultRequest {
-                url(baseUrlProvider.getBaseUrl())
-            }
-            install(HttpCookies) {
-                storage = AcceptAllCookiesStorage()
-            }
-            install(Logging) {
-                logger = RedactingLogger(tag = "KtorWeb")
-                level = if (appInfoProvider.isDebug()) LogLevel.ALL else LogLevel.NONE
-            }
+    fun provideWebSessionHttpClient(
+        baseUrlProvider: BaseUrlProvider,
+        appInfoProvider: AppInfoProvider,
+        trustedCertStorage: TrustedCertStorage
+    ): HttpClient = HttpClient(createPlatformHttpClientEngine(trustedCertStorage)) {
+        // The redirect *is* the result: 302 means the credentials were accepted, and a
+        // `Location` of `totp.php` means a second factor is pending (plan §1.1).
+        followRedirects = false
+        expectSuccess = false
+        defaultRequest {
+            url(baseUrlProvider.getBaseUrl())
         }
+        install(HttpCookies) {
+            storage = AcceptAllCookiesStorage()
+        }
+        install(Logging) {
+            logger = RedactingLogger(tag = "KtorWeb")
+            level = if (appInfoProvider.isDebug()) LogLevel.ALL else LogLevel.NONE
+        }
+    }
 }
 
 /**

@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `6/12`
-**Current step:** 3.7
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `7/12`
+**Current step:** 3.8
 
 ---
 
@@ -277,8 +277,9 @@ Goal: username + password → the app holds a validated API key and shows the dr
   Paths passed to `post` are **relative, no leading slash** (`api/status/version.php`) —
   `BaseUrlProviderImpl` appends the trailing slash that Ktor's `DefaultRequest` requires before it
   will append a relative path, and a leading slash discards the user's subpath.
-  `HttpClient { }` uses engine autodiscovery (plan §4.1's v1 choice) and okhttp is `androidMain`
-  only, so host tests build their own `HttpClient(MockEngine)`. `:testing` therefore gained
+  `HttpClient { }` uses engine autodiscovery (plan §4.1's v1 choice — 3.7 replaced it with an
+  explicit engine) and okhttp is `androidMain` only, so host tests build their own
+  `HttpClient(MockEngine)`. `:testing` therefore gained
   `api(libs.ktor.client.mock)`, reaching every module's `commonTest` the way `coroutines-test`
   does — **1.9's recorded-HTML fixtures need it**. `core:api` declares `libs.ktor.logging` itself;
   it is not in `kmp.network` because no other module installs the plugin. `postMultipart`
@@ -1054,7 +1055,7 @@ Three things that constrain several steps below, worth knowing before starting a
   The top bar action is a **text button reading "Filter"**: `Icons.Default.FilterList`, which plan
   §5.4's sketch names, is not in `material-icons-core` — the third time that set has come up short.
 
-- [ ] **3.7 — core:storage + core:api: certificate trust**
+- [x] **3.7 — core:storage + core:api: certificate trust**
   `TrustedCertStorage` and a composite trust manager that falls back to a per-host trust-on-first-use
   set, wired into the OkHttp engine. Port from `TaigaMobileNova` — `core/storage/.../cert/`,
   `core/domain/.../PendingCertTrust.kt`, and read its `docs/features/private-cert-trust/plan.md`
@@ -1062,7 +1063,25 @@ Three things that constrain several steps below, worth knowing before starting a
   No UI in this step.
   *Verify:* `./gradlew :core:storage:testAndroidHostTest :core:api:testAndroidHostTest`  ·  *Ref:* plan §4.5
   This matters more here than in Taiga: nearly every Wallos instance is self-hosted, and pinning
-  is not an option for a certificate the user minted themselves.
+  is not an option for a certificate the user minted themselves. — **done.**
+  *Note:* the port dropped Taiga's **whole platform-exception apparatus** (an `androidMain`
+  `CertificateException` subtype in `core:domain`, a portable twin, and an `expect`/`actual`
+  mapper to unwrap one into the other). JSSE only lets a trust manager throw
+  `CertificateException` — but nothing says the *payload* must be a platform type, so the trust
+  manager throws `CertificateException(UntrustedCertificateException(pendingCertTrust))` and
+  `Throwable.findPendingCertTrust()` (`core:domain`, `commonMain`) walks the cause chain for it.
+  One class instead of three, no `androidMain` in `core:domain`, and it is testable in
+  `commonTest`. **3.8 catches nothing** — it asks a failed `Result`'s throwable for a
+  `PendingCertTrust`.
+  Wiring the engine explicitly means `HttpClient(engine)` and no more autodiscovery, for the web
+  client too — onboarding is where the prompt has to appear. It also puts `core:api`'s first
+  `androidMain` on the map, and with it the module's first **`androidHostTest`**: `commonTest`
+  cannot see an `androidMain` class, and detekt's test exclusions don't list that source set, so
+  the test names are camelCase for the same reason 3.3's instrumented ones are.
+  The Verify is unit tests, but the engine swap is under *every* request in the app, so it was
+  also smoke-tested on the emulator against the local instance — a live `get_subscriptions.php`
+  through the new engine, checked in the Ktor log rather than by looking at rows that could have
+  come from the cache.
 
 - [ ] **3.8 — feature:setup ui: the trust prompt**
   The dialog and the retry: an untrusted certificate on connect surfaces the host and fingerprint,
@@ -1227,4 +1246,8 @@ structural into the plan itself.
 | 3.6 | Sorting by payer / category / payment method uses the resolved **name**, not §3.2's id | The ids never reach this app — 2.1 kept only the server-resolved names, which is also what the filter chips are built from — *now in plan §7.1* |
 | 3.6 | Filter and sort are `MutableStateFlow`s combined with the DAO flow, not fields the ViewModel copies into state | One render path for "the filter changed" and "a refresh arrived", and re-sorting provably costs no refetch — *now in plan §7.1* |
 | 3.6 | The filter action is a text button, not plan §5.4's `Icons.Default.FilterList` | The icon isn't in `material-icons-core` (1.10 and 2.5 hit the same wall); one word is cheaper than `material-icons-extended` in every `ui` module — *now in plan §3.3* |
+| 3.7 | One portable exception carried as a `CertificateException`'s cause, instead of Taiga's platform subtype + portable twin + `expect`/`actual` unwrapper | JSSE constrains the *type* thrown, not the payload, so `findPendingCertTrust()` walking the cause chain replaces all three — and keeps `core:domain` free of `androidMain` — *now in plan §4.5* |
+| 3.7 | `TrustedCertStorage` pins `(host, fingerprint)` strings in the shared DataStore, not Taiga's JSON `PendingCertTrust` list | That widening was for a revoke screen this app doesn't plan; the full certificate is still what the *prompt* shows, it just isn't what gets persisted — *now in plan §4.5* |
+| 3.7 | A hostname that the certificate doesn't cover rethrows the original failure instead of getting its own exception type | Taiga needed a distinct type to pick a distinct message; here the only thing riding on it is whether TOFU is offered, and `error_unreachable` already covers the rest — *now in plan §4.5* |
+| 3.7 | `core:api` gained `androidMain` **and** `androidHostTest`, the repo's first of either | The trust manager is `javax.net.ssl`, and `commonTest` cannot see an `androidMain` class; detekt's test exclusions don't cover `androidHostTest`, so its test names are camelCase like 3.3's — *now in plan §4.5, §6.1* |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |

@@ -48,7 +48,10 @@ Gate-change: what was widened, and why
 ```
 
 That is an opt-in, not a veto — widening a gate is often right. Run it before committing:
-`.github/scripts/check-guardrails.sh HEAD~1..HEAD`. Editing the two rule documents is otherwise
+`.github/scripts/check-guardrails.sh HEAD~1..HEAD`. A `@Suppress` **carried over from a reference
+project** is worth deleting and recompiling first: 3.7's ported `X509Certificate` fake came with
+`@Suppress("OVERRIDE_DEPRECATION")` that this toolchain doesn't need, and it would have bought a
+`Gate-change:` line for a warning that never fires. Editing the two rule documents is otherwise
 free, so ticking a box, adding a `Note:` and reflowing a bullet all pass; only *dropping* a rule
 or a step counts.
 
@@ -110,6 +113,12 @@ a truncated password fails as `InvalidCredentials`, which reads exactly like a w
 and sends you looking at the server. Count the dots in the password field against a screenshot of
 a known-good attempt before believing the error. Clearing a field to retry:
 `input keycombination 113 29` (Ctrl+A) then `input keyevent KEYCODE_DEL`.
+
+**Since 3.4 a screenshot of the list proves nothing about the network** — those rows are Room's,
+and they render identically whether the refresh succeeded, failed or never ran. To prove a request
+actually happened, `adb logcat -c`, act, then read the `Ktor` lines (`REQUEST` / `RESPONSE: 200`)
+— the debug build logs every call. That is the check worth running whenever a change sits under
+*every* request (3.7's engine swap) even though the step's own `Verify:` line is a test task.
 
 Toggling the network for an offline check:
 `adb shell cmd connectivity airplane-mode enable` / `disable` — give it a few seconds either way.
@@ -290,11 +299,17 @@ vertical slices, **all source in `commonMain`**.
   suite declares its own `kotlin("test")` because `configureTests()` only wires `commonTest`. It is
   the *last* resort, not a second option — it needs a booted emulator, `allTests` skips it and CI
   has no emulator, so an instrumented test is not a gate anyone else's commit will feel.
+  **Before reaching for it, check whether `src/androidHostTest/` is enough** (3.7): `commonTest`
+  can't see an `androidMain` class, but that source set can, the same `testAndroidHostTest` task
+  runs it, it inherits `kotlin.test`/Turbine/`:testing` through the test tree, and `javax.*` is
+  the JDK's. Its one cost is that detekt's per-rule `excludes` name `commonTest` and *not*
+  `androidHostTest`, so `FunctionNaming` applies — **camelCase test names**, as in the device
+  suite. Widening the exclude list would be a `config/detekt/` tripwire; a name is cheaper.
   Fake/fixture shape: plan §6.1. `:testing` is for doubles
   **other** modules need; a double used by exactly one test file stays private in that file.
   Ktor's **`MockEngine` is not a mocking library** and is fine — it's the only way to get an
-  `HttpClient` in a host test, since `HttpClient { }` autodiscovers an engine and okhttp is
-  `androidMain`-only. It reaches every `commonTest` as `api(libs.ktor.client.mock)` in `:testing`,
+  `HttpClient` in a host test, since the real engine is `androidMain`-only (autodiscovered before
+  3.7, built by `createPlatformHttpClientEngine` since). It reaches every `commonTest` as `api(libs.ktor.client.mock)` in `:testing`,
   alongside `kotlinx-coroutines-test`; never declare either per module.
   **`:testing` is excluded from linting** (`lintingExclusions` in `build-logic/.../Quality.kt`,
   plus `.editorconfig`), so there is no `:testing:ktlintFormat`/`:testing:detekt` task at all —
@@ -420,6 +435,12 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   **`SerializationException` extends `IllegalArgumentException`**, as does the failure of the
   `.jsonObject` accessor — one `catch (e: IllegalArgumentException)` covers both and cannot
   swallow a `CancellationException`.
+- **An untrusted certificate is not a type anyone catches** (3.7). A platform callback that
+  constrains the exception *type* — JSSE's trust manager may throw only `CertificateException` —
+  does not constrain its **cause**, so the portable payload rides down there and
+  `Throwable.findPendingCertTrust()` (`core:domain`) walks the chain for it. That is what replaced
+  TaigaMobileNova's `expect`/`actual` platform-exception mapper; reach for the same shape before
+  building a second one.
 
 ## Strings and resources
 

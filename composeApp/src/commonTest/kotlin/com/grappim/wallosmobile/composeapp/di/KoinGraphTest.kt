@@ -31,8 +31,8 @@ class KoinGraphTest {
          * - `HttpClientEngine` is a false positive rather than a real gap. `verify()` reads a
          *   definition through its *bound type's* constructor, so for the `@Single fun
          *   provideHttpClient(…)` factories it inspects `HttpClient(engine)` instead of the
-         *   function's own parameters. Ktor autodiscovers the engine (plan §4.1) and Koin is
-         *   never asked for one.
+         *   function's own parameters. The engine comes from `createPlatformHttpClientEngine`
+         *   (3.7), which the factory calls itself, so Koin is never asked for one.
          */
         val EXTERNALLY_SUPPLIED = listOf(
             Context::class,
