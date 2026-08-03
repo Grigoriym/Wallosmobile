@@ -42,6 +42,8 @@
     <string name="subscriptions_retry">Try again</string>
     <string name="subscriptions_stale_title">Showing saved data</string>
     <string name="subscriptions_stale_offline">This device is offline, so nothing could be refreshed.</string>
+    <string name="subscriptions_conversion_title">Prices aren't converted</string>
+    <string name="subscriptions_conversion_body">Your Wallos instance is set to show prices in one currency, but it has never fetched exchange rates — so these are the original amounts and can't be compared. Add a Fixer API key in Wallos to enable conversion.</string>
     <string name="subscriptions_inactive">Inactive</string>
     <string name="subscriptions_next_payment">Next payment %1$s</string>
     <string name="subscription_cycle_one_time">One-time</string>

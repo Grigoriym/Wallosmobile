@@ -3,6 +3,7 @@ package com.grappim.wallosmobile.feature.subscriptions.ui.list
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
 import com.grappim.wallosmobile.strings.RString
@@ -415,7 +416,76 @@ class SubscriptionsViewModelTest {
         assertEquals(1, sut.uiState.value.items.size)
     }
 
+    // --- 3.11: the conversion banner ----------------------------------------------------------
+
+    /**
+     * The silent failure, as the screen sees it: the instance is set to show one currency, has no
+     * exchange rates, and the rows came back in two. Nothing failed — `success: true`, empty
+     * `notes` — so this is the only thing that tells the user their prices don't compare.
+     */
+    @Test
+    fun `conversion asked for without rates, over rows in two currencies, warns`() = runTest {
+        repository.conversion.value = PriceConversion(isEnabled = true, mainCurrencyId = 1, hasRates = false)
+        repository.result = Result.success(listOf(disney, dollarRow))
+
+        assertTrue(viewModel().uiState.value.isConversionUnavailable)
+    }
+
+    /** Nothing to convert *between*, so there is nothing to warn about. */
+    @Test
+    fun `one currency is not a conversion problem, however the instance is set`() = runTest {
+        repository.conversion.value = PriceConversion(isEnabled = true, mainCurrencyId = 1, hasRates = false)
+        repository.result = Result.success(listOf(disney))
+
+        assertFalse(viewModel().uiState.value.isConversionUnavailable)
+    }
+
+    /** A user who turned conversion off is asking for real currencies; saying so would be nagging. */
+    @Test
+    fun `mixed currencies with conversion switched off says nothing`() = runTest {
+        repository.result = Result.success(listOf(disney, dollarRow))
+
+        assertFalse(viewModel().uiState.value.isConversionUnavailable)
+    }
+
+    @Test
+    fun `conversion that is actually working says nothing either`() = runTest {
+        repository.conversion.value = PriceConversion(isEnabled = true, mainCurrencyId = 1, hasRates = true)
+        repository.result = Result.success(listOf(disney, dollarRow))
+
+        assertFalse(viewModel().uiState.value.isConversionUnavailable)
+    }
+
+    /**
+     * Asked of the drawn rows, not of the cache — unlike 3.6's `hasCachedRows`, and for the opposite
+     * reason: narrowing to one currency removes the comparison the banner exists to warn about.
+     */
+    @Test
+    fun `a filter down to a single currency puts the warning away`() = runTest {
+        repository.conversion.value = PriceConversion(isEnabled = true, mainCurrencyId = 1, hasRates = false)
+        repository.result = Result.success(listOf(disney, dollarRow))
+        val sut = viewModel()
+        assertTrue(sut.uiState.value.isConversionUnavailable)
+
+        sut.uiState.value.filters.onFilterChange(
+            SubscriptionFilter(categories = persistentSetOf("Entertainment"))
+        )
+
+        assertFalse(sut.uiState.value.isConversionUnavailable)
+    }
+
     private val disney = subscription()
+
+    /**
+     * A second currency, which is the only thing that makes an unconverted list ambiguous — in its
+     * own category too, so a filter can leave it out.
+     */
+    private val dollarRow = subscription().copy(
+        id = 3,
+        currencyId = 2,
+        currencySymbol = "$",
+        categoryName = "Utilities"
+    )
 
     /** Later than [disney] and alphabetically before it, so the two orders are told apart. */
     private val internet = subscription(nextPayment = LocalDate(2026, 4, 12)).copy(
@@ -470,6 +540,9 @@ class SubscriptionsViewModelTest {
         var result: Result<List<Subscription>> = Result.success(emptyList())
         var callCount = 0
 
+        /** What a refresh left behind about how the cached prices are denominated (3.11). */
+        val conversion = MutableStateFlow(PriceConversion())
+
         /** Set to hold a refresh open, for the states that only exist while one is in flight. */
         var gate: CompletableDeferred<Unit>? = null
 
@@ -478,6 +551,8 @@ class SubscriptionsViewModelTest {
         }
 
         override fun observeSubscriptions(): Flow<List<Subscription>> = cached
+
+        override fun observePriceConversion(): Flow<PriceConversion> = conversion
 
         override suspend fun refreshSubscriptions(): Result<Unit> {
             callCount++

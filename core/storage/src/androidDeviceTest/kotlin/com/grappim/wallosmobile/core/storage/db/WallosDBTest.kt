@@ -23,6 +23,7 @@ class WallosDBTest {
     private lateinit var db: WallosDB
     private lateinit var subscriptionDao: SubscriptionDao
     private lateinit var currencyDao: CurrencyDao
+    private lateinit var priceConversionDao: PriceConversionDao
 
     @BeforeTest
     fun setup() {
@@ -32,6 +33,7 @@ class WallosDBTest {
             .build()
         subscriptionDao = db.subscriptionDao()
         currencyDao = db.currencyDao()
+        priceConversionDao = db.priceConversionDao()
     }
 
     @AfterTest
@@ -137,6 +139,53 @@ class WallosDBTest {
         currencyDao.deleteAll()
 
         assertTrue(currencyDao.getAll().isEmpty())
+    }
+
+    /** The one-row table (3.11): `REPLACE` on a fixed primary key has to overwrite, not accumulate. */
+    @Test
+    fun theConversionRowIsReplacedRatherThanAddedTo() = runBlocking {
+        priceConversionDao.put(PriceConversionEntity(isEnabled = false, mainCurrencyId = null, hasRates = false))
+
+        val second = PriceConversionEntity(isEnabled = true, mainCurrencyId = 2, hasRates = true)
+        priceConversionDao.put(second)
+
+        assertEquals(second, priceConversionDao.get())
+    }
+
+    @Test
+    fun anAbsentConversionRowReadsAsNull() = runBlocking {
+        assertNull(priceConversionDao.get())
+        assertNull(priceConversionDao.observe().first())
+    }
+
+    /** A nullable `main_currency` has to survive SQLite, since an older instance sends none. */
+    @Test
+    fun aNullMainCurrencyComesBackNull() = runBlocking {
+        priceConversionDao.put(PriceConversionEntity(isEnabled = true, mainCurrencyId = null, hasRates = true))
+
+        assertNull(requireNotNull(priceConversionDao.get()).mainCurrencyId)
+    }
+
+    /** The list screen reads this as a flow, so a refresh writing it has to reach the screen. */
+    @Test
+    fun observeEmitsAgainWhenTheConversionRowIsRewritten() = runBlocking {
+        priceConversionDao.put(PriceConversionEntity(isEnabled = false, mainCurrencyId = 1, hasRates = false))
+        val before = priceConversionDao.observe().first()
+
+        priceConversionDao.put(PriceConversionEntity(isEnabled = true, mainCurrencyId = 1, hasRates = true))
+        val after = priceConversionDao.observe().first()
+
+        assertEquals(false, before?.isEnabled)
+        assertEquals(true, after?.isEnabled)
+    }
+
+    @Test
+    fun deletingTheConversionRowEmptiesTheTable() = runBlocking {
+        priceConversionDao.put(PriceConversionEntity(isEnabled = true, mainCurrencyId = 1, hasRates = true))
+
+        priceConversionDao.deleteAll()
+
+        assertNull(priceConversionDao.get())
     }
 
     private fun subscription(id: Int, name: String = "Fiton") = SubscriptionEntity(

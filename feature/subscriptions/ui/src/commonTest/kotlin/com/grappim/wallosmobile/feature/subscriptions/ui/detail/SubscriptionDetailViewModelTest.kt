@@ -3,6 +3,7 @@ package com.grappim.wallosmobile.feature.subscriptions.ui.detail
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
 import com.grappim.wallosmobile.strings.RString
@@ -13,6 +14,7 @@ import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
 import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
@@ -263,6 +265,8 @@ class SubscriptionDetailViewModelTest {
         }
 
         override fun observeSubscriptions(): Flow<List<Subscription>> = cached
+
+        override fun observePriceConversion(): Flow<PriceConversion> = flowOf(PriceConversion())
 
         override suspend fun refreshSubscriptions(): Result<Unit> = Result.success(Unit)
 

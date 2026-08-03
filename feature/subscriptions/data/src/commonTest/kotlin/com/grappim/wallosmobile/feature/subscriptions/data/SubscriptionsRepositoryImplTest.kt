@@ -4,13 +4,17 @@ import app.cash.turbine.test
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.core.storage.db.CurrencyDao
 import com.grappim.wallosmobile.core.storage.db.CurrencyEntity
+import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
+import com.grappim.wallosmobile.core.storage.db.PriceConversionEntity
 import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
 import com.grappim.wallosmobile.core.storage.db.SubscriptionEntity
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.dto.CurrencyDTO
 import com.grappim.wallosmobile.feature.subscriptions.dto.SubscriptionDTO
 import com.grappim.wallosmobile.feature.subscriptions.mapper.CurrencyEntityMapper
 import com.grappim.wallosmobile.feature.subscriptions.mapper.CurrencyMapper
 import com.grappim.wallosmobile.feature.subscriptions.mapper.HtmlUnescaper
+import com.grappim.wallosmobile.feature.subscriptions.mapper.PriceConversionEntityMapper
 import com.grappim.wallosmobile.feature.subscriptions.mapper.SubscriptionEntityMapper
 import com.grappim.wallosmobile.feature.subscriptions.mapper.SubscriptionMapper
 import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
@@ -22,6 +26,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -29,6 +34,7 @@ class SubscriptionsRepositoryImplTest {
 
     private val subscriptionDao = FakeSubscriptionDao()
     private val currencyDao = FakeCurrencyDao()
+    private val priceConversionDao = FakePriceConversionDao()
 
     @Test
     fun `observe emits what the cache holds, mapped back to the model`() = runTest {
@@ -233,6 +239,172 @@ class SubscriptionsRepositoryImplTest {
         assertEquals(listOf("Fiton"), subscriptionDao.rows.map { it.name })
     }
 
+    // --- 3.11: currency conversion ------------------------------------------------------------
+
+    @Test
+    fun `refresh asks for conversion only when the instance's own setting says so`() = runTest {
+        val on = FakeSubscriptionsApi(
+            subscriptions = emptyList(),
+            currencies = listOf(euro()),
+            isConversionEnabled = true
+        )
+        val off = FakeSubscriptionsApi(subscriptions = emptyList(), currencies = listOf(euro()))
+
+        repository(on).refreshSubscriptions().getOrThrow()
+        repository(off).refreshSubscriptions().getOrThrow()
+
+        assertEquals(listOf(true), on.conversionAsked)
+        assertEquals(listOf(false), off.conversionAsked)
+    }
+
+    /**
+     * The finding the whole step turns on: `get_subscriptions.php` overwrites `price` and leaves
+     * `currency_id` naming the currency it converted **from**, so taking the row's own symbol puts
+     * a dollar sign in front of an amount in euros.
+     */
+    @Test
+    fun `a converted row is stored with the main currency's symbol, not its own`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = listOf(subscriptionDTO(id = 1, currencyId = 2)),
+            currencies = listOf(euro(), dollar(rate = "1.09")),
+            mainCurrencyId = 1,
+            isConversionEnabled = true
+        )
+
+        repository(api).refreshSubscriptions().getOrThrow()
+
+        assertEquals("€", subscriptionDao.rows.single().currencySymbol)
+    }
+
+    /** The server skips a row already in the main currency, so its own symbol is still the truth. */
+    @Test
+    fun `a row already in the main currency keeps its own symbol`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = listOf(subscriptionDTO(id = 1, currencyId = 1)),
+            currencies = listOf(euro(), dollar(rate = "1.09")),
+            mainCurrencyId = 1,
+            isConversionEnabled = true
+        )
+
+        repository(api).refreshSubscriptions().getOrThrow()
+
+        assertEquals("€", subscriptionDao.rows.single().currencySymbol)
+    }
+
+    /**
+     * The silent failure itself (API doc §5.5): conversion was asked for, the instance has never
+     * fetched rates, and the response says nothing — same `success: true`, same empty `notes`. Every
+     * rate still at exactly `1` is the only observable trace, and the price must keep its own sign.
+     */
+    @Test
+    fun `conversion without exchange rates leaves every price in its own currency`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = listOf(subscriptionDTO(id = 1, currencyId = 2)),
+            currencies = listOf(euro(), dollar()),
+            mainCurrencyId = 1,
+            isConversionEnabled = true
+        )
+
+        repository(api).refreshSubscriptions().getOrThrow()
+
+        assertEquals("$", subscriptionDao.rows.single().currencySymbol)
+    }
+
+    /** No target to convert into, so nothing was converted whatever the setting says. */
+    @Test
+    fun `an instance that sends no main_currency converts nothing`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = listOf(subscriptionDTO(id = 1, currencyId = 2)),
+            currencies = listOf(euro(), dollar(rate = "1.09")),
+            mainCurrencyId = null,
+            isConversionEnabled = true
+        )
+
+        repository(api).refreshSubscriptions().getOrThrow()
+
+        assertEquals("$", subscriptionDao.rows.single().currencySymbol)
+    }
+
+    @Test
+    fun `refresh caches the conversion state beside the prices it explains`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = emptyList(),
+            currencies = listOf(euro(), dollar(rate = "1.09")),
+            mainCurrencyId = 1,
+            isConversionEnabled = true
+        )
+        val repository = repository(api)
+
+        repository.refreshSubscriptions().getOrThrow()
+
+        repository.observePriceConversion().test {
+            assertEquals(PriceConversion(isEnabled = true, mainCurrencyId = 1, hasRates = true), awaitItem())
+        }
+    }
+
+    /** Nothing refreshed yet is indistinguishable from nothing converted, and reads as such. */
+    @Test
+    fun `observing the conversion state before any refresh converts nothing`() = runTest {
+        repository().observePriceConversion().test {
+            val conversion = awaitItem()
+            assertFalse(conversion.isActive)
+            assertFalse(conversion.isEnabledWithoutRates)
+        }
+    }
+
+    /**
+     * A preference is not data: `api/settings/get_settings.php` is missing on an old enough
+     * instance, and a 404 there must cost the conversion rather than the list.
+     */
+    @Test
+    fun `a settings read that fails leaves the refresh working, unconverted`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = listOf(subscriptionDTO(id = 1, currencyId = 2)),
+            currencies = listOf(euro(), dollar(rate = "1.09")),
+            settingsFailure = WallosError.NotFound("404")
+        )
+
+        repository(api).refreshSubscriptions().getOrThrow()
+
+        assertEquals(listOf(false), api.conversionAsked)
+        assertEquals("$", subscriptionDao.rows.single().currencySymbol)
+    }
+
+    /** One row cannot disagree with the list it sits in, so it is fetched the same way. */
+    @Test
+    fun `refreshing one row asks for the conversion the cached list was fetched with`() = runTest {
+        priceConversionDao.row = PriceConversionEntity(isEnabled = true, mainCurrencyId = 1, hasRates = true)
+        currencyDao.rows = listOf(
+            CurrencyEntity(id = 1, name = "Euro", symbol = "€", code = "EUR"),
+            CurrencyEntity(id = 2, name = "US Dollar", symbol = "$", code = "USD")
+        )
+        val api = FakeSubscriptionsApi(subscription = subscriptionDTO(id = 4, currencyId = 2))
+
+        repository(api).refreshSubscription(id = 4).getOrThrow()
+
+        assertEquals(listOf(true), api.conversionAsked)
+        assertEquals("€", subscriptionDao.rows.single().currencySymbol)
+    }
+
+    /** A detail opened before any list refresh: convert nothing rather than guess (3.11). */
+    @Test
+    fun `refreshing one row into an empty cache converts nothing`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscription = subscriptionDTO(id = 4, currencyId = 2),
+            currencies = listOf(euro(), dollar(rate = "1.09"))
+        )
+
+        repository(api).refreshSubscription(id = 4).getOrThrow()
+
+        assertEquals(listOf(false), api.conversionAsked)
+        assertEquals("$", subscriptionDao.rows.single().currencySymbol)
+    }
+
+    private fun euro(rate: String = "1") = CurrencyDTO(id = 1, name = "Euro", symbol = "€", code = "EUR", rate = rate)
+
+    private fun dollar(rate: String = "1") =
+        CurrencyDTO(id = 2, name = "US Dollar", symbol = "$", code = "USD", rate = rate)
+
     private fun repository(api: SubscriptionsApi = FakeSubscriptionsApi()): SubscriptionsRepositoryImpl {
         val unescaper = HtmlUnescaper()
         val dateFormatter = DateFormatter()
@@ -241,8 +413,10 @@ class SubscriptionsRepositoryImplTest {
             cache = SubscriptionsCache(
                 subscriptionDao = subscriptionDao,
                 currencyDao = currencyDao,
+                priceConversionDao = priceConversionDao,
                 subscriptionEntityMapper = SubscriptionEntityMapper(dateFormatter),
-                currencyEntityMapper = CurrencyEntityMapper()
+                currencyEntityMapper = CurrencyEntityMapper(),
+                priceConversionEntityMapper = PriceConversionEntityMapper()
             ),
             subscriptionMapper = SubscriptionMapper(dateFormatter, unescaper),
             currencyMapper = CurrencyMapper(unescaper),
@@ -288,30 +462,46 @@ class SubscriptionsRepositoryImplTest {
         private val subscriptions: List<SubscriptionDTO>? = null,
         private val subscription: SubscriptionDTO? = null,
         private val currencies: List<CurrencyDTO>? = null,
+        private val mainCurrencyId: Int? = 1,
+        private val isConversionEnabled: Boolean = false,
         private val subscriptionsFailure: Throwable? = null,
         private val singleFailure: Throwable? = null,
-        private val currenciesFailure: Throwable? = null
+        private val currenciesFailure: Throwable? = null,
+        private val settingsFailure: Throwable? = null
     ) : SubscriptionsApi {
 
         val singleCalls = mutableListOf<Int>()
         var currenciesCalls = 0
             private set
 
-        override suspend fun getSubscriptions(): List<SubscriptionDTO> {
+        /** What the two reads were actually asked for, which is the whole of 3.11's request half. */
+        val conversionAsked = mutableListOf<Boolean>()
+
+        override suspend fun getSubscriptions(convertCurrency: Boolean): List<SubscriptionDTO> {
+            conversionAsked += convertCurrency
             subscriptionsFailure?.let { throw it }
             return subscriptions ?: error("subscriptions not set")
         }
 
-        override suspend fun getSubscription(id: Int): SubscriptionDTO {
+        override suspend fun getSubscription(id: Int, convertCurrency: Boolean): SubscriptionDTO {
             singleCalls += id
+            conversionAsked += convertCurrency
             singleFailure?.let { throw it }
             return subscription ?: error("subscription not set")
         }
 
-        override suspend fun getCurrencies(): List<CurrencyDTO> {
+        override suspend fun getCurrencies(): CurrenciesPayload {
             currenciesCalls++
             currenciesFailure?.let { throw it }
-            return currencies ?: error("currencies not set")
+            return CurrenciesPayload(
+                currencies = currencies ?: error("currencies not set"),
+                mainCurrencyId = mainCurrencyId
+            )
+        }
+
+        override suspend fun isCurrencyConversionEnabled(): Boolean {
+            settingsFailure?.let { throw it }
+            return isConversionEnabled
         }
     }
 }
@@ -359,5 +549,28 @@ private class FakeCurrencyDao : CurrencyDao {
 
     override suspend fun insertAll(currencies: List<CurrencyEntity>) {
         rows = rows.filterNot { row -> currencies.any { it.id == row.id } } + currencies
+    }
+}
+
+private class FakePriceConversionDao : PriceConversionDao {
+
+    private val state = MutableStateFlow<PriceConversionEntity?>(null)
+
+    var row: PriceConversionEntity?
+        get() = state.value
+        set(value) {
+            state.value = value
+        }
+
+    override fun observe(): Flow<PriceConversionEntity?> = state
+
+    override suspend fun get(): PriceConversionEntity? = state.value
+
+    override suspend fun put(conversion: PriceConversionEntity) {
+        state.value = conversion
+    }
+
+    override suspend fun deleteAll() {
+        state.value = null
     }
 }

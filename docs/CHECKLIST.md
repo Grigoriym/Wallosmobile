@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `10/12`
-**Current step:** 3.11
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `11/12`
+**Current step:** 3.12
 
 ---
 
@@ -134,7 +134,7 @@ about wiring Room and KSP, was 3.3's and is spent):
   anything**: the wait is spent under the existing spinner, so a user on their fifth attempt sees
   a slow login and no explanation. Filed under "Still open after v1".
 
-- [ ] **3.11 — currency conversion hint**
+- [x] **3.11 — currency conversion hint**
   Send `convert_currency` and handle the silent failure: `WALLOS_API.md` §3.2 says conversion only
   happens once exchange rates have been fetched at least one time, and otherwise prices come back
   **unconverted with nothing in `notes` to say so**. Show that state rather than displaying a
@@ -142,6 +142,19 @@ about wiring Room and KSP, was 3.3's and is spent):
   *Verify:* `./gradlew :feature:subscriptions:data:testAndroidHostTest`  ·  *Ref:* `WALLOS_API.md` §3.2
   Check the live instance for `last_exchange_update` before designing the UI — if the user's own
   rates have never been fetched, this state is the *default* one and not an edge case.
+  *Note:* that check said yes — empty table, all 32 rates at `1`, every row already in the main
+  currency, so the state is the default three times over. But reading the PHP found something bigger
+  that **inverts the step's premise** (*now in `WALLOS_API.md` §5.5, plan §7.1*): a conversion that
+  *succeeds* rewrites `price` and leaves `currency_id` naming the source currency, so sending the
+  flag naively would have drawn `$29.35` on an amount in euros — worse than not converting at all.
+  §5.5's own "compare `currency_id` against `main_currency`" detection **cannot work**, and is
+  corrected there. Measured, not inferred: `31.99 → 29.348623853211006` with `currency_id` still
+  `2` and `notes` empty. Asked, and chose to **honour the instance's own `convert_currency` setting**
+  (`get_settings.php`) rather than override it — the user's is off, so their app is unchanged and the
+  banner carries the step. All four branches driven on the emulator against a throwaway copy of their
+  database: converted rows in `€`, rates removed → `$` plus the banner, setting off → neither, and a
+  cold offline start showing the stale and conversion banners stacked. **Two things this does not
+  do** are filed under "Still open after v1".
 
 - [ ] **3.12 — Phase 2b acceptance**
   *Verify:* plan §8's two conditions, end to end on the emulator — fetch the list online, go
@@ -182,6 +195,15 @@ The tick above closes M2, so these are the pointers that would otherwise vanish 
   slow. Telling the user would mean a state that only exists *while* a call is in flight — either
   a wait the repository announces before it starts, or a countdown — which is more than the step's
   title covers. Nothing is wrong; it is just unexplained.
+- **A converted price loses its original currency** (3.11). When the instance converts, the row is
+  stored with the main currency's symbol and nothing on either screen says what it was before —
+  Wallos' own web UI has a `show_original_price` setting for exactly this, which this app doesn't
+  read. Cheap to add on the detail screen, and not what a step called "conversion hint" covers.
+- **Sort by price still compares across currencies** (3.6, unchanged by 3.11). Whenever conversion
+  is off or unavailable, `SubscriptionSort.PRICE` orders raw numbers, so €5 sorts below $10 as if
+  they were the same unit. 3.11's banner *tells* the user their prices don't compare but the sort
+  still offers the comparison; the honest fix is to disable or annotate that option when the drawn
+  rows span more than one currency, which is a change to 3.6's surface rather than to 3.11's.
 - **Version gating (plan §4.6) is still unowned.** It gates `get_period_budget`, `set_budget`'s
   period fields, `logo_variant` and `square_icons` — all Phase 4 and 5 surface, so M3 leaves it
   alone deliberately rather than by oversight.
@@ -295,4 +317,10 @@ structural into the plan itself.
 | 3.10 | The backoff is spent under the existing spinner and says nothing | A visible wait needs state that only exists while a call is in flight; parked in "Still open after v1" rather than widened into this step |
 | 3.10 | `SetupRepositoryImplTest.repository()` became a `TestScope` extension taking `UnconfinedTestDispatcher(testScheduler)` | A dispatcher built with its own scheduler leaves a `delay` inside `withContext` invisible to `currentTime` — *now in `CLAUDE.md`* |
 | 3.9 | Verified against a throwaway container, not the live instance the step assumed | 2FA on the user's own account is a live-data mutation with a lockout tail; a scratch `bellamy/wallos` on :8283 with a known secret costs one `docker run` and risks nothing |
+| 3.11 | Conversion is detected from `get_settings.php` + `main_currency` + the rate table, not from `currency_id` vs `main_currency` as `WALLOS_API.md` §5.5 said | A converted row keeps the source `currency_id`, so that comparison says conversion was *attempted*, never that it happened — measured on a scratch instance — *now in `WALLOS_API.md` §5.5, plan §7.1* |
+| 3.11 | The flag is sent only when the instance's own `convert_currency` setting asks for it, which needed a fourth endpoint | Overriding it shows a user who asked for real currencies something else; the read degrades to "off" on failure so a missing endpoint costs the conversion, not the list — *now in plan §7.1* |
+| 3.11 | `PriceConversion` is cached in a **one-row Room table**, so `WallosDB` is version 2 | A response can't be read back for it and a cold offline start has no response at all; it also keeps the detail refresh at one round trip, since that must send the same flag as the list — *now in plan §7.1, §4.7* |
+| 3.11 | `hasRates` is read off the rate table, not off `last_exchange_update` | No endpoint exposes the row the server actually gates on; every rate is exactly `1` until the first update writes both, and where the proxy is wrong `price / 1` makes it harmless — *now in plan §7.1* |
+| 3.11 | `isConversionUnavailable` is a stored field asked of the **filtered** rows, the opposite of 3.6's `hasCachedRows` | Narrowing to one currency removes the comparison the banner warns about; `items` carries `price` as formatted text, so nothing derivable can count currencies — *now in plan §7.1* |
+| 3.11 | The banner fires only on the silent failure, not on conversion being switched off | Prices in their own currencies with their own symbols are correct; a banner over a deliberate setting is nagging — the sort-by-price half is parked in "Still open after v1" |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |

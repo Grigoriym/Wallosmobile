@@ -779,7 +779,8 @@ credential is being thrown away, and it has *three* callers, not the one the wor
 disconnect, and **both login paths**, which clear the stale key before validating a new one (§1.1).
 A cleaner called from `feature:settings` would have covered the first and silently missed the other
 two — logging in as a second account would have shown the first account's subscriptions. So the
-eviction sits at the single point a key is dropped, `ApiKeyStorageImpl` takes the two DAOs, and
+eviction sits at the single point a key is dropped, `ApiKeyStorageImpl` takes the DAOs (three since
+3.11 added the conversion row, which explains the dropped account's prices and nobody else's), and
 "no key ⇒ no cache" is an invariant rather than a convention. Nothing else invalidates the cache:
 a schema change hits the destructive fallback below, and a whole-list refresh already drops rows
 the server no longer sends.
@@ -813,8 +814,9 @@ the server no longer sends.
 
 #### The Room cache
 
-`WallosDB` (`db/`) holds `SubscriptionEntity` and `CurrencyEntity` with a DAO each — a snapshot of
-the server, never a source of truth, so there is no dirty-write state to reconcile. `version = 1`,
+`WallosDB` (`db/`) holds `SubscriptionEntity`, `CurrencyEntity` and — since 3.11 — the one-row
+`PriceConversionEntity`, with a DAO each. A snapshot of the server, never a source of truth, so
+there is no dirty-write state to reconcile. `version = 2` (3.11 added the third table),
 `exportSchema = true`, schema JSON committed under `core/storage/schemas/`, and the builder
 drops the tables on a schema change: pre-v1 there is nothing to migrate from, and afterwards the
 cache is still one refresh away from being rebuilt. KSP and the Room Gradle plugin are applied to
@@ -1326,9 +1328,10 @@ does without.
   the composable that renders it, and the UI item carries the enum + frequency rather than a
   string (2.2, 2.4).
 - **Silent failures need UI affordances** (API doc §5.5): `convert_currency=true` with no exchange
-  rates returns unconverted prices and an empty `notes` — detect by comparing `currency_id`
-  against the user's `main_currency` and show a hint. A failed logo fetch reports success — re-read
-  `logo` after a write to confirm.
+  rates returns unconverted prices and an empty `notes`. ~~detect by comparing `currency_id`
+  against the user's `main_currency`~~ — **that detection does not work**, and 3.11 replaced it;
+  see "Currency conversion" below. A failed logo fetch reports success — re-read `logo` after a
+  write to confirm.
 - **Never combine `all-user-subscription=1` with filters** — the server builds
   `SELECT * FROM subscriptions AND …` and the query fails to prepare. The repository should make
   this combination impossible to express. In v1 it is unreachable by construction: `SubscriptionsApi`
@@ -1384,7 +1387,9 @@ belongs to `feature:setup:ui`; until it lands, don't write copy that promises a 
 with a `currency_id`, and the symbol lives in `get_currencies.php`. So the list screen is two calls,
 not one — fetch currencies once and map `currency_id → symbol`. (The alternative,
 `convert_currency=true` plus the user's `main_currency`, silently returns unconverted prices when
-the instance has never fetched exchange rates, so it's the worse default.)
+the instance has never fetched exchange rates, so it's the worse default. It is *also* not an
+alternative — see "Currency conversion" below: conversion never rewrites `currency_id`, so the
+symbol join is needed either way.)
 
 The join lands in `SubscriptionsRepository` as a **`currencySymbol` field on domain
 `Subscription`** (2.3), not as a map handed up to the screen: a consumer that has the model has
@@ -1436,11 +1441,12 @@ every later feature's repository should copy:
   cannot disagree. `refreshSubscriptions` is a **snapshot** (`replaceAll`); `refreshSubscription`
   is an upsert of one row that leaves the rest alone — and leaves the row alone on failure, since
   `Unauthorized or Not Found` is an ownership answer as much as a deletion (API doc §3.3).
-- **The repository is two classes.** `SubscriptionsCache` holds the two DAOs and the two entity
-  mappers and speaks domain models only; `SubscriptionsRepositoryImpl` holds the API, the wire
-  mappers and the order things happen in. detekt's `allowedConstructorParameters: 6` is what forced
-  the split, and the line it drew is the right one — everything about the cache being *rows* stops
-  at the first class.
+- **The repository is two classes.** `SubscriptionsCache` holds the DAOs and the entity mappers and
+  speaks domain models only; `SubscriptionsRepositoryImpl` holds the API, the wire mappers and the
+  order things happen in. detekt's `allowedConstructorParameters: 6` is what forced the split, and
+  the line it drew is the right one — everything about the cache being *rows* stops at the first
+  class. It is also why 3.11's third DAO and mapper cost the repository nothing: they went behind
+  the seam, where they belong, and `SubscriptionsCache` is at the limit of 6 exactly.
 - **The ViewModels are cache-first.** The spinner belongs to the *empty* cache alone: cached rows
   dismiss it the moment they arrive, and a refresh runs behind whatever is already on screen.
 - **An error means two different screens, and the UI state derives which** (3.5). `isStale` is
@@ -1478,6 +1484,45 @@ the server-resolved `category_name` / `payer_user_name` / `payment_method_name`.
 - **An empty selection means every value**, exactly as an omitted parameter does server-side, so
   unpicking the last chip widens back out and no "All" chip is needed. Status is the exception —
   §3.2's `state` is a tri-state, and *All* there is a real third choice.
+
+#### Currency conversion, from 3.11
+
+**The response cannot be read back for this, and that is the whole design constraint.** Both
+subscription endpoints overwrite `price` when they convert and leave `currency_id` naming the
+currency they converted *from*, with `notes` empty either way (API doc §5.5 has the measured table).
+So sending `convert_currency=true` without deciding the symbol yourself is a **regression**, not a
+feature: it renders `$29.35` on an amount in euros. What the step protects is not the conversion, it
+is that.
+
+- **The instance's own `convert_currency` setting decides whether to send the flag** (`get_settings.php`,
+  §3.11), rather than the app deciding for the user. Someone who turned conversion off is asking to
+  see real currencies. The read is a **preference, not data**: it runs first because the flag shapes
+  the subscriptions request, but a failure degrades to "off" and logs, because a 404 there on an
+  older instance must not cost the user their list. "Subscriptions first" still describes the
+  failure behaviour.
+- **`PriceConversion` is the domain answer**: `isEnabled` + `mainCurrencyId` + `hasRates`, with
+  `converts(currencyId)` the question the repository asks per row. Every default is the reading that
+  cannot mislabel a price, so "never refreshed" and "nothing converted" are the same state.
+- **`hasRates` stands in for a flag no endpoint exposes.** The server gates on `last_exchange_update`;
+  the rate table is the observable proxy, because a fresh install seeds every rate at exactly `1`
+  and only an exchange update writes both. Where proxy and truth could disagree, `price / 1` is the
+  same amount in either currency, so the app's conclusion stays true.
+- **It is cached in a one-row Room table**, and both halves of that matter. Cached, because a cold
+  offline start has no response to re-derive it from and the prices on screen still need explaining
+  — and because the detail refresh must send the *same* flag the list was fetched with or one row
+  disagrees with the list it sits in, which would otherwise cost a second round trip per open. One
+  row, because this is a property of the **fetch**, not of a currency or a subscription. It goes
+  into `ApiKeyStorage.clear()` with the other two tables (§4.7): how one account's prices were
+  denominated must not explain the next account's list.
+- **The banner is the visible half, and it only fires on the genuine silent failure** — conversion
+  asked for, no rates, *and* the drawn rows spanning more than one currency. Not on a user who
+  turned conversion off: their prices are correct and saying so would be nagging. Unlike 3.6's
+  `hasCachedRows` it is asked of the **filtered** rows, and for the opposite reason — narrowing to
+  one currency removes the comparison the banner exists to warn about. It carries no retry, since
+  nothing the app can send fixes it; the fix is a Fixer API key on the server, so the copy names it.
+- **What this leaves undone**: a converted row no longer shows its original currency anywhere, and
+  the price sort (3.6) still compares raw numbers across currencies whenever conversion is off or
+  unavailable. Both are in "Still open after v1".
 
 ### 7.2 Explicitly out of v1
 

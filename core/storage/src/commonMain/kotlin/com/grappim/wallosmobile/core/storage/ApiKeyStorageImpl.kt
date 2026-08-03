@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.grappim.wallosmobile.core.storage.db.CurrencyDao
+import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
 import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -17,7 +18,8 @@ internal class ApiKeyStorageImpl(
     private val dataStore: DataStore<Preferences>,
     private val secretCipher: SecretCipher,
     private val subscriptionDao: SubscriptionDao,
-    private val currencyDao: CurrencyDao
+    private val currencyDao: CurrencyDao,
+    private val priceConversionDao: PriceConversionDao
 ) : ApiKeyStorage {
 
     private val storedKey: Flow<String?> = dataStore.data.map { prefs ->
@@ -44,6 +46,7 @@ internal class ApiKeyStorageImpl(
     override suspend fun clear() {
         subscriptionDao.deleteAll()
         currencyDao.deleteAll()
+        priceConversionDao.deleteAll()
         dataStore.edit { prefs ->
             prefs.remove(KEY_API_KEY)
         }

@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.subscriptions.domain.repo
 
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import kotlinx.coroutines.flow.Flow
 
@@ -18,6 +19,14 @@ interface SubscriptionsRepository {
 
     /** The cached list, re-emitting on every refresh that changes it. Empty until one succeeds. */
     fun observeSubscriptions(): Flow<List<Subscription>>
+
+    /**
+     * What the cached prices are denominated in (3.11) — cached alongside them, because a response
+     * cannot be read back for it and a cold offline start has no response at all. Every field is
+     * `false`/`null` until a refresh has answered, which reads as "these are the instance's own
+     * currencies" and is the assumption that cannot mislabel a price.
+     */
+    fun observePriceConversion(): Flow<PriceConversion>
 
     /** Replaces the cached list with the instance's, wholesale — a row it no longer sends is gone. */
     suspend fun refreshSubscriptions(): Result<Unit>

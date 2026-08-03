@@ -214,7 +214,9 @@ vertical slices, **all source in `commonMain`**.
   belongs to the *empty* cache alone. Such a repository also runs into detekt's
   **`allowedConstructorParameters: 6`** — two DAOs and two entity mappers on top of the API and the
   wire mappers is eight. Split the DAO half into its own class (`SubscriptionsCache`) rather than
-  widening the rule; the line the limit draws is a real seam. The other way past it, when the
+  widening the rule; the line the limit draws is a real seam — and it keeps paying: 3.11's third DAO
+  and mapper went behind it and cost the repository nothing, leaving `SubscriptionsCache` at exactly
+  6. The other way past it, when the
   seventh thing has **no dependencies of its own**, is to stop injecting it: 3.10's `LoginThrottle`
   is a `private val` constructed by `SetupRepositoryImpl`, because DI was buying it nothing but a
   constructor slot — the lifetime it wanted was already its owner's.
@@ -493,6 +495,15 @@ only before branching on a response. A GET of `login.php` looks inert and silent
 `$_SESSION['totp_user_id']`, so an unguarded probe would have killed live 2FA logins — nothing in
 the doc, nothing in the response, and no test would have caught it.
 
+**3.11 is the third time, and it widens the rule furthest: the doc can be actively wrong, and a
+`success: true` is the dangerous case.** §5.5 said to detect an unconverted price by comparing
+`currency_id` against `main_currency`. The PHP shows conversion overwrites `price` **alone** and
+leaves `currency_id` naming the source currency, so the two responses are identical and the
+documented check reports "converted" for a row that wasn't — a wrong answer implemented confidently.
+So: **read the PHP for any response whose *meaning* the code has to infer, not only its failure
+modes**, and treat a `Ref:` line into `WALLOS_API.md` as the previous session's reading rather than
+as the server. Where a step's premise turns out inverted, correcting the doc is part of the step.
+
 - **Everything returns HTTP 200**, including auth failures. Only the JSON `success` field is
   reliable. Never branch on HTTP status except 404 (endpoint missing on this version) and 5xx.
 - **Auth is a static API key in the form body**, not a header. No login endpoint, no token, no
@@ -526,6 +537,12 @@ Its data has holes worth knowing before planning a verify: **`notes` and `url` a
 subscription**, and `start_date` is `""` on a good few, so anything rendering those fields can only
 be proven by unit test and preview. Pick the row deliberately — `Fiton` (id 4) has a start date and
 a `&` in its category name.
+
+**It is also single-currency, with conversion off and rates never fetched** (3.11): all 35 rows are
+`currency_id = 1` (EUR, the main currency), `settings.convert_currency = 0`, `last_exchange_update`
+is empty and all 32 rates are exactly `1`. So nothing about currency conversion can be seen here at
+all — not the working case, not the failing one. That needs a scratch container, which is one
+`cp -a` of the database plus two `UPDATE`s.
 
 **It speaks plain HTTP, so certificate work needs a TLS front for it** (3.8, and 3.12 again).
 Don't touch the Wallos container — put a throwaway nginx beside it. The whole recipe:

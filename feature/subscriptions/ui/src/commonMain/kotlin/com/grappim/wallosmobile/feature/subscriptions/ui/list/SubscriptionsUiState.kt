@@ -57,10 +57,17 @@ data class SubscriptionsFilterUiState(
  *   them (3.6). So an empty [items] no longer means an empty cache, which is what [hasCachedRows]
  *   is for — every state below that used to ask "are there rows?" has to ask it of the cache, or a
  *   filter matching nothing reads as a server that answered with nothing.
+ * @param isConversionUnavailable the silent failure 3.11 makes visible: the instance is set to show
+ *   prices in one currency, its exchange rates have never been fetched, and the rows on screen are
+ *   in more than one currency as a result. A stored field for the same reason [hasCachedRows] is —
+ *   [items] carries `price` as already-formatted text, so nothing derivable from this state can
+ *   count the currencies in it. It is about the *visible* rows, so a filter narrowed to one
+ *   currency puts it away: what it warns about is comparing them.
  */
 data class SubscriptionsUiState(
     val items: ImmutableList<SubscriptionUiItem> = persistentListOf(),
     val hasCachedRows: Boolean = false,
+    val isConversionUnavailable: Boolean = false,
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val error: NativeText = NativeText.Empty,

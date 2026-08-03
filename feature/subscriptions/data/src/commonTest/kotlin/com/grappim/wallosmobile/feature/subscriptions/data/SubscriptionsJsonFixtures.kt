@@ -48,4 +48,23 @@ internal object SubscriptionsJsonFixtures {
         {"id":1,"name":"Euro","symbol":"€","code":"EUR","rate":"1","in_use":true},
         {"id":2,"name":"US Dollar","symbol":"${'$'}","code":"USD","rate":"1","in_use":false}]}
     """.trimIndent()
+
+    /**
+     * Recorded off the live instance, trimmed of the theme keys — the point is the shape of the one
+     * field that is read: an **int**, inside a nested `settings` object.
+     */
+    val SETTINGS_CONVERT_ON = """
+        {"success":true,"title":"settings","settings":{
+        "dark_theme":1,"convert_currency":1,"show_original_price":1},"notes":[]}
+    """.trimIndent()
+
+    val SETTINGS_CONVERT_OFF = """
+        {"success":true,"title":"settings","settings":{
+        "dark_theme":1,"convert_currency":0,"show_original_price":1},"notes":[]}
+    """.trimIndent()
+
+    /** An instance predating the column, which `ignoreUnknownKeys` cannot help with. */
+    val SETTINGS_WITHOUT_CONVERT = """
+        {"success":true,"title":"settings","settings":{"dark_theme":1},"notes":[]}
+    """.trimIndent()
 }

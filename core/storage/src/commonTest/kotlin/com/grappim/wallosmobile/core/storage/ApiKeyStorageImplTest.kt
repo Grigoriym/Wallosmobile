@@ -5,6 +5,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import app.cash.turbine.test
 import com.grappim.wallosmobile.core.storage.db.CurrencyDao
 import com.grappim.wallosmobile.core.storage.db.CurrencyEntity
+import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
+import com.grappim.wallosmobile.core.storage.db.PriceConversionEntity
 import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
 import com.grappim.wallosmobile.core.storage.db.SubscriptionEntity
 import kotlinx.coroutines.flow.Flow
@@ -22,7 +24,9 @@ class ApiKeyStorageImplTest {
     private val cipher = FakeSecretCipher()
     private val subscriptionDao = FakeSubscriptionDao()
     private val currencyDao = FakeCurrencyDao()
-    private val storage = ApiKeyStorageImpl(dataStore, cipher, subscriptionDao, currencyDao)
+    private val priceConversionDao = FakePriceConversionDao()
+    private val storage =
+        ApiKeyStorageImpl(dataStore, cipher, subscriptionDao, currencyDao, priceConversionDao)
 
     @Test
     fun `setKey then getKey returns the key`() = runTest {
@@ -95,11 +99,15 @@ class ApiKeyStorageImplTest {
     fun `clear empties the cache along with the key`() = runTest {
         subscriptionDao.rows = listOf(subscriptionEntity())
         currencyDao.rows = listOf(CurrencyEntity(id = 1, name = "Euro", symbol = "€", code = "EUR"))
+        priceConversionDao.row = PriceConversionEntity(isEnabled = true, mainCurrencyId = 1, hasRates = true)
 
         storage.clear()
 
         assertTrue(subscriptionDao.rows.isEmpty())
         assertTrue(currencyDao.rows.isEmpty())
+        // How the dropped account's prices were denominated is as account-specific as the rows
+        // themselves — left behind, it would explain the next account's list (3.11).
+        assertNull(priceConversionDao.row)
     }
 }
 
@@ -167,5 +175,22 @@ private class FakeSecretCipher : SecretCipher {
 
     companion object {
         const val PREFIX = "enc:"
+    }
+}
+
+private class FakePriceConversionDao : PriceConversionDao {
+
+    var row: PriceConversionEntity? = null
+
+    override fun observe(): Flow<PriceConversionEntity?> = flowOf(row)
+
+    override suspend fun get(): PriceConversionEntity? = row
+
+    override suspend fun put(conversion: PriceConversionEntity) {
+        row = conversion
+    }
+
+    override suspend fun deleteAll() {
+        row = null
     }
 }

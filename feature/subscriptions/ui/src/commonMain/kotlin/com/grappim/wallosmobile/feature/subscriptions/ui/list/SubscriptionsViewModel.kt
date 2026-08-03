@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.logger.LogPriority
 import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
 import com.grappim.wallosmobile.feature.subscriptions.ui.toLogoUrl
@@ -104,11 +105,11 @@ class SubscriptionsViewModel(
     private fun observeCache() {
         combine(
             subscriptionsRepository.observeSubscriptions(),
+            subscriptionsRepository.observePriceConversion(),
             filter,
             sort,
-            ::Triple
-        ).onEach { (subscriptions, filter, sort) -> onCached(subscriptions, filter, sort) }
-            .launchIn(viewModelScope)
+            ::onCached
+        ).launchIn(viewModelScope)
     }
 
     private fun load(isRefresh: Boolean) {
@@ -127,8 +128,14 @@ class SubscriptionsViewModel(
         }
     }
 
-    private fun onCached(subscriptions: List<Subscription>, filter: SubscriptionFilter, sort: SubscriptionSort) {
-        val items = subscriptionSorter.sort(subscriptions.filter(filter::matches), sort)
+    private fun onCached(
+        subscriptions: List<Subscription>,
+        conversion: PriceConversion,
+        filter: SubscriptionFilter,
+        sort: SubscriptionSort
+    ) {
+        val matching = subscriptions.filter(filter::matches)
+        val items = subscriptionSorter.sort(matching, sort)
             .map(::toUiItem)
             .toPersistentList()
 
@@ -139,6 +146,9 @@ class SubscriptionsViewModel(
             it.copy(
                 items = items,
                 hasCachedRows = subscriptions.isNotEmpty(),
+                // Asked of the rows on screen, not of the cache: what the banner warns about is
+                // comparing them, and a filter down to one currency has nothing left to warn about.
+                isConversionUnavailable = conversion.isEnabledWithoutRates && matching.spanCurrencies(),
                 isLoading = it.isLoading && subscriptions.isEmpty(),
                 filters = it.filters.copy(
                     filter = filter,
@@ -150,6 +160,13 @@ class SubscriptionsViewModel(
             )
         }
     }
+
+    /**
+     * `currencyId` and not `currencySymbol`: two currencies can share a sign — the instance ships
+     * four different dollars and three different kroner — and rows in USD and AUD are no more
+     * comparable for both saying `$`.
+     */
+    private fun List<Subscription>.spanCurrencies(): Boolean = distinctBy(Subscription::currencyId).size > 1
 
     /**
      * The sheet's options, straight off the rows: Wallos resolves these names server-side and never

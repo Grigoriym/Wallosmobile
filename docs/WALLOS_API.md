@@ -247,7 +247,9 @@ Response: `{ success, title: "subscriptions", subscriptions: [...], notes: [] }`
 
 Currency conversion only happens if exchange rates have been fetched at least once
 (`last_exchange_update` row exists for the user); otherwise prices come back unconverted
-with no warning in `notes`.
+with no warning in `notes`. **And when it does happen, only `price` changes — `currency_id` still
+names the currency converted from.** Both halves are §5.5, with the table and the three facts a
+client has to gather to tell the cases apart.
 
 ### 3.3 `GET/POST api/subscriptions/get_subscription.php`
 
@@ -393,6 +395,13 @@ else is rejected), `monthly_price`, `convert_currency`, `show_original_price`, `
 
 Since the settings table grows by migration, treat this object as an open map rather than a
 fixed data class.
+
+`convert_currency` here is the **user's own preference**, and it is what decides whether a client
+should send `convert_currency=true` at all — overriding it means showing a user who asked for real
+currencies something else. It is an `int` (`0`/`1`) on the way out of `get_settings.php`, `1`/`0`
+on the way in to `set_settings.php`, and the literal string `"true"` on the subscription reads
+(§3.2): three shapes for one flag. Absent on an instance predating the column — read that as off,
+which is the only value that cannot mislabel a price (§5.5).
 
 ### 3.12 Notifications & Fixer
 
@@ -594,7 +603,37 @@ These are worth guarding against in the UI because the call reports `success: tr
 * **`convert_currency=true` with no exchange rates yet.** If the instance has never fetched
   rates, prices come back unconverted with an **empty `notes` array** on
   `get_subscriptions` / `get_subscription`. Only `get_monthly_cost` warns, via `notes`.
-  Detect it by comparing `currency_id` against the user's `main_currency`.
+
+  **A converted response is indistinguishable from an unconverted one** — this is the deeper
+  problem, and it holds whether or not rates exist. Both endpoints overwrite **`price` alone**
+  and leave `currency_id` naming the currency they converted *from*
+  (`$subscriptionToReturn = $subscription;` then one assignment to `price`). So a client that
+  renders the row's own symbol prints the wrong sign on a real number. Measured on a real
+  instance, main currency EUR, one row at 31.99 USD with `rate = 1.09`:
+
+  | request | `price` | `currency_id` | `notes` |
+  |---|---|---|---|
+  | no flag | `31.99` | `2` (USD) | `[]` |
+  | `convert_currency=true`, no rates | `31.99` | `2` (USD) | `[]` |
+  | `convert_currency=true`, rates | `29.348623853211006` | `2` (USD) | `[]` |
+
+  An earlier version of this section said to detect it by comparing `currency_id` against
+  `main_currency`. **That is wrong** and it was wrong in the direction that ships a bug: the
+  comparison says conversion was *attempted*, never that it happened. What actually decides it:
+
+  - **the user's own `convert_currency`** from `get_settings.php` (§3.11) — an **int** `0`/`1`;
+  - **`main_currency`**, a top-level field of the `get_currencies.php` envelope, which is the
+    only thing that says what a converted price is denominated in;
+  - **whether rates exist.** The server gates on a `last_exchange_update` row that **no endpoint
+    exposes**. The observable stand-in is the rate table: `createdatabase.php` seeds every rate
+    at exactly `1` and only an exchange update writes both the rates and that row, so any
+    `rate != 1` proves an update ran. Where the two disagree it costs nothing — `price / 1` is
+    the same amount in either currency.
+
+  `get_monthly_cost.php` reads `last_exchange_update` with **no `user_id` filter**
+  (`SELECT * FROM last_exchange_update`, then the first row), so on a multi-user install its
+  warning follows whichever user updated rates first. The two subscription endpoints do filter
+  by user.
 * **`replacement_subscription_id` pointing at something invalid** is silently set to `null`.
 * **`sort` with an unrecognised value** silently falls back to `next_payment`.
 * **Logo fetch failure.** If `logo_url` can't be downloaded, the subscription is still

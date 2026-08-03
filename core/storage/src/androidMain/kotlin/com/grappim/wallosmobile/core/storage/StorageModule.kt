@@ -8,6 +8,7 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.grappim.wallosmobile.core.storage.db.CurrencyDao
+import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
 import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
 import com.grappim.wallosmobile.core.storage.db.WallosDB
 import okio.Path.Companion.toPath
@@ -64,4 +65,7 @@ class StorageModule {
 
     @Single
     fun provideCurrencyDao(db: WallosDB): CurrencyDao = db.currencyDao()
+
+    @Single
+    fun providePriceConversionDao(db: WallosDB): PriceConversionDao = db.priceConversionDao()
 }

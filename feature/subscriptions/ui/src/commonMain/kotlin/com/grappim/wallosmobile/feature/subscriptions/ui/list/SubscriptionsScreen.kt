@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.ui.list.widgets.SubscriptionCard
 import com.grappim.wallosmobile.feature.subscriptions.ui.list.widgets.SubscriptionsFilterSheet
+import com.grappim.wallosmobile.feature.subscriptions.ui.widgets.ConversionBanner
 import com.grappim.wallosmobile.feature.subscriptions.ui.widgets.StaleBanner
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_empty
@@ -96,6 +97,12 @@ private fun SubscriptionsContent(
             // from here is a refresh, so the pull indicator reports it.
             if (uiState.isStale) {
                 StaleBanner(message = uiState.error, onRetryClick = uiState.onRefresh)
+            }
+
+            // Independent of the one above: a refresh can succeed and still leave prices in
+            // currencies the instance was asked to convert and couldn't (3.11).
+            if (uiState.isConversionUnavailable) {
+                ConversionBanner()
             }
 
             // The list is always composed so that pull-to-refresh has something to pull, even when
@@ -279,6 +286,19 @@ private fun SubscriptionsContentStalePreview() = WallosMobilePreviewTheme {
             items = previewItems,
             hasCachedRows = true,
             error = NativeText.Simple("Couldn't reach that server. Check the URL and your connection.")
+        ),
+        onSubscriptionClick = {}
+    )
+}
+
+@PreviewWallosDarkLight
+@Composable
+private fun SubscriptionsContentUnconvertedPreview() = WallosMobilePreviewTheme {
+    SubscriptionsContent(
+        uiState = SubscriptionsUiState(
+            items = previewItems,
+            hasCachedRows = true,
+            isConversionUnavailable = true
         ),
         onSubscriptionClick = {}
     )

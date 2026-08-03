@@ -1,10 +1,13 @@
 package com.grappim.wallosmobile.feature.subscriptions.data
 
 import com.grappim.wallosmobile.core.storage.db.CurrencyDao
+import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
 import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.mapper.CurrencyEntityMapper
+import com.grappim.wallosmobile.feature.subscriptions.mapper.PriceConversionEntityMapper
 import com.grappim.wallosmobile.feature.subscriptions.mapper.SubscriptionEntityMapper
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -25,8 +28,10 @@ import org.koin.core.annotation.Single
 internal class SubscriptionsCache(
     private val subscriptionDao: SubscriptionDao,
     private val currencyDao: CurrencyDao,
+    private val priceConversionDao: PriceConversionDao,
     private val subscriptionEntityMapper: SubscriptionEntityMapper,
-    private val currencyEntityMapper: CurrencyEntityMapper
+    private val currencyEntityMapper: CurrencyEntityMapper,
+    private val priceConversionEntityMapper: PriceConversionEntityMapper
 ) {
 
     fun observeSubscriptions(): Flow<List<Subscription>> = subscriptionDao.observeAll()
@@ -52,4 +57,14 @@ internal class SubscriptionsCache(
     /** The resolution table a price needs, empty until a list refresh has filled the table. */
     suspend fun currencySymbols(): Map<Int, String> =
         currencyDao.getAll().map(currencyEntityMapper::toDomain).associate { it.id to it.symbol }
+
+    fun observePriceConversion(): Flow<PriceConversion> = priceConversionDao.observe()
+        .map(priceConversionEntityMapper::toDomain)
+
+    /** The default until a refresh has written one — nothing converted (3.11). */
+    suspend fun priceConversion(): PriceConversion = priceConversionEntityMapper.toDomain(priceConversionDao.get())
+
+    suspend fun putPriceConversion(conversion: PriceConversion) {
+        priceConversionDao.put(priceConversionEntityMapper.toEntity(conversion))
+    }
 }

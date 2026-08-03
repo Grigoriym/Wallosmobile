@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SubscriptionsApiImplTest {
@@ -24,7 +25,7 @@ class SubscriptionsApiImplTest {
     fun `unwraps the subscriptions envelope`() = runTest {
         val api = api(SubscriptionsJsonFixtures.SUBSCRIPTIONS)
 
-        val result = api.getSubscriptions()
+        val result = api.getSubscriptions(convertCurrency = false)
 
         assertEquals(2, result.size)
         assertEquals("Fiton", result.first().name)
@@ -35,12 +36,12 @@ class SubscriptionsApiImplTest {
 
     @Test
     fun `reads an empty list as an empty list`() = runTest {
-        assertTrue(api(SubscriptionsJsonFixtures.NO_SUBSCRIPTIONS).getSubscriptions().isEmpty())
+        assertTrue(api(SubscriptionsJsonFixtures.NO_SUBSCRIPTIONS).getSubscriptions(convertCurrency = false).isEmpty())
     }
 
     @Test
     fun `unwraps the singular envelope, which nests the row one level deeper`() = runTest {
-        val result = api(SubscriptionsJsonFixtures.SUBSCRIPTION).getSubscription(id = 4)
+        val result = api(SubscriptionsJsonFixtures.SUBSCRIPTION).getSubscription(id = 4, convertCurrency = false)
 
         assertEquals(4, result.id)
         assertEquals("Fiton", result.name)
@@ -50,9 +51,11 @@ class SubscriptionsApiImplTest {
     fun `unwraps the currencies envelope`() = runTest {
         val result = api(SubscriptionsJsonFixtures.CURRENCIES).getCurrencies()
 
-        assertEquals(2, result.size)
-        assertEquals("€", result.first().symbol)
-        assertEquals("USD", result[1].code)
+        assertEquals(2, result.currencies.size)
+        assertEquals("€", result.currencies.first().symbol)
+        assertEquals("USD", result.currencies[1].code)
+        // The envelope's own field, and the only thing that says what a converted price is in.
+        assertEquals(1, result.mainCurrencyId)
     }
 
     @Test
@@ -60,8 +63,8 @@ class SubscriptionsApiImplTest {
         val paths = mutableListOf<String>()
         val record: (HttpRequestData) -> Unit = { paths += it.url.encodedPath }
 
-        api(SubscriptionsJsonFixtures.SUBSCRIPTIONS, record).getSubscriptions()
-        api(SubscriptionsJsonFixtures.SUBSCRIPTION, record).getSubscription(id = 4)
+        api(SubscriptionsJsonFixtures.SUBSCRIPTIONS, record).getSubscriptions(convertCurrency = false)
+        api(SubscriptionsJsonFixtures.SUBSCRIPTION, record).getSubscription(id = 4, convertCurrency = false)
         api(SubscriptionsJsonFixtures.CURRENCIES, record).getCurrencies()
 
         assertEquals(
@@ -80,9 +83,9 @@ class SubscriptionsApiImplTest {
         var singleBody: FormDataContent? = null
 
         api(SubscriptionsJsonFixtures.SUBSCRIPTIONS) { listBody = it.body as FormDataContent }
-            .getSubscriptions()
+            .getSubscriptions(convertCurrency = false)
         api(SubscriptionsJsonFixtures.SUBSCRIPTION) { singleBody = it.body as FormDataContent }
-            .getSubscription(id = 4)
+            .getSubscription(id = 4, convertCurrency = false)
 
         assertEquals("4", singleBody?.formData?.get("id"))
         // Nothing beyond the key: filtering and sorting are client-side, which is also what keeps
@@ -90,12 +93,64 @@ class SubscriptionsApiImplTest {
         assertEquals(listOf("api_key"), listBody?.formData?.names()?.toList())
     }
 
+    /**
+     * The literal string `"true"` — the server compares against it and reads anything else, `"1"`
+     * included, as false (API doc §3.2).
+     */
+    @Test
+    fun `asks for conversion with the literal string the server compares against`() = runTest {
+        var listBody: FormDataContent? = null
+        var singleBody: FormDataContent? = null
+
+        api(SubscriptionsJsonFixtures.SUBSCRIPTIONS) { listBody = it.body as FormDataContent }
+            .getSubscriptions(convertCurrency = true)
+        api(SubscriptionsJsonFixtures.SUBSCRIPTION) { singleBody = it.body as FormDataContent }
+            .getSubscription(id = 4, convertCurrency = true)
+
+        assertEquals("true", listBody?.formData?.get("convert_currency"))
+        assertEquals("true", singleBody?.formData?.get("convert_currency"))
+    }
+
+    /** Omitted rather than `"false"`: absence says the same thing in a shorter body (1.3). */
+    @Test
+    fun `leaves convert_currency out of the body entirely when it is off`() = runTest {
+        var singleBody: FormDataContent? = null
+
+        api(SubscriptionsJsonFixtures.SUBSCRIPTION) { singleBody = it.body as FormDataContent }
+            .getSubscription(id = 4, convertCurrency = false)
+
+        assertEquals(setOf("api_key", "id"), singleBody?.formData?.names())
+    }
+
+    @Test
+    fun `reads convert_currency out of the settings envelope`() = runTest {
+        var path: String? = null
+        val api = api(SubscriptionsJsonFixtures.SETTINGS_CONVERT_ON) { path = it.url.encodedPath }
+
+        assertTrue(api.isCurrencyConversionEnabled())
+        assertEquals("/api/settings/get_settings.php", path)
+    }
+
+    @Test
+    fun `reads the setting as off when the instance says zero`() = runTest {
+        assertFalse(api(SubscriptionsJsonFixtures.SETTINGS_CONVERT_OFF).isCurrencyConversionEnabled())
+    }
+
+    /**
+     * An instance old enough to have no `convert_currency` column at all. Off is the answer that
+     * cannot mislabel a price, so the absent key must not read as on.
+     */
+    @Test
+    fun `reads the setting as off when the instance has no such setting`() = runTest {
+        assertFalse(api(SubscriptionsJsonFixtures.SETTINGS_WITHOUT_CONVERT).isCurrencyConversionEnabled())
+    }
+
     /** The 200-with-`success:false` case, on the one read endpoint that can produce it. */
     @Test
     fun `surfaces a missing subscription as a WallosError, not an empty result`() = runTest {
         val api = api(SubscriptionsJsonFixtures.SUBSCRIPTION_NOT_FOUND)
 
-        assertFailsWith<WallosError> { api.getSubscription(id = 99999) }
+        assertFailsWith<WallosError> { api.getSubscription(id = 99999, convertCurrency = false) }
     }
 
     @Test
@@ -106,7 +161,7 @@ class SubscriptionsApiImplTest {
                     SubscriptionsJsonFixtures.CURRENCIES
             )
 
-        assertEquals(2, api.getCurrencies().size)
+        assertEquals(2, api.getCurrencies().currencies.size)
     }
 
     private fun api(responseBody: String, onRequest: (HttpRequestData) -> Unit = {}): SubscriptionsApi {
