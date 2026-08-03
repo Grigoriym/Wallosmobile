@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `7/12`
-**Current step:** 3.8
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `8/12`
+**Current step:** 3.9
 
 ---
 
@@ -74,13 +74,21 @@ about wiring Room and KSP, was 3.3's and is spent):
 - **Any step that touches `build-logic/`, `gradle/libs.versions.toml`, `config/detekt/` or
   `.github/` needs a `Gate-change:` line in its commit** (2.7). 3.2 and 3.3 both did.
 
-- [ ] **3.8 — feature:setup ui: the trust prompt**
+- [x] **3.8 — feature:setup ui: the trust prompt**
   The dialog and the retry: an untrusted certificate on connect surfaces the host and fingerprint,
   and accepting it stores the trust and retries the attempt that failed.
   *Verify:* on the emulator, against a **TLS front for the local instance** — plain
   `http://10.0.2.2:8282` cannot exercise this. `TaigaMobileNova/docs/features/private-cert-trust/server-setup.md`
   has the recipe; put a self-signed proxy in front of port 8282 rather than touching the Wallos
   container. This is the **second half of plan §8's "done when"**.
+  *Note:* the recipe works verbatim — an `nginx:alpine` container on `wallos_default` proxying to
+  `http://wallos:80`, leaf `CN=10.0.2.2` with `subjectAltName=IP:10.0.2.2`. Verified beyond the
+  step: cancel persists nothing (the prompt returns), accept pins + retries + lands on the list,
+  the pin survives `force-stop`, and a **rotated** leaf on the same host is rejected again — the
+  fingerprint on screen matched `openssl x509 -fingerprint -sha256` every time. **What that last
+  check exposed belongs to a later step**: a certificate that changes *after* connecting is a dead
+  end on the list screen, which has no prompt — 3.5's stale banner says "couldn't reach that
+  server" and the only way out is Disconnect and log in again. Filed under "Still open after v1".
 
 - [ ] **3.9 — feature:setup: TOTP second step**
   Drive `totp.php` instead of degrading to manual key entry: `LoginOutcome.NeedsTotp` becomes a
@@ -143,6 +151,11 @@ The tick above closes M2, so these are the pointers that would otherwise vanish 
 - ~~The login screen doesn't prefill the server URL~~ — **done in 3.1**.
 - ~~Plan §9's non-HTTPS warning~~ — **done in 3.1** (warn and steer to Path B, never disable).
   1.9's `password_login_disabled` probe is still open and **owned by 3.10**.
+- **The trust prompt only exists on the login screen** (3.8). A certificate that rotates *after*
+  the app is connected leaves every screen on 3.5's stale banner with no way to accept the new one
+  — Disconnect and log in again is the only route, and nothing says so. Confirmed on the emulator,
+  not inferred. The fix is either a prompt wherever a refresh can fail, or copy on the banner that
+  names the real cause; both are more than 3.8's title covers.
 - **Version gating (plan §4.6) is still unowned.** It gates `get_period_budget`, `set_budget`'s
   period fields, `logo_variant` and `square_icons` — all Phase 4 and 5 surface, so M3 leaves it
   alone deliberately rather than by oversight.
@@ -241,4 +254,8 @@ structural into the plan itself.
 | 3.7 | `TrustedCertStorage` pins `(host, fingerprint)` strings in the shared DataStore, not Taiga's JSON `PendingCertTrust` list | That widening was for a revoke screen this app doesn't plan; the full certificate is still what the *prompt* shows, it just isn't what gets persisted — *now in plan §4.5* |
 | 3.7 | A hostname that the certificate doesn't cover rethrows the original failure instead of getting its own exception type | Taiga needed a distinct type to pick a distinct message; here the only thing riding on it is whether TOFU is offered, and `error_unreachable` already covers the rest — *now in plan §4.5* |
 | 3.7 | `core:api` gained `androidMain` **and** `androidHostTest`, the repo's first of either | The trust manager is `javax.net.ssl`, and `commonTest` cannot see an `androidMain` class; detekt's test exclusions don't cover `androidHostTest`, so its test names are camelCase like 3.3's — *now in plan §4.5, §6.1* |
+| 3.8 | The retry is `onConnectClick()` re-read from state, not Taiga's captured `pendingRetry` lambda | Both paths are driven from one state and the dialog is modal, so nothing can have changed — a stored lambda would be a second copy of what the state already says |
+| 3.8 | `pendingCertTrust != null` *is* the dialog; no `isCertTrustDialogVisible` beside it (Taiga has both) | Same rule 3.5 wrote down: a stored boolean is free to drift from the field that already carries the fact |
+| 3.8 | Declining sets an error (`login_error_cert_not_trusted`); Taiga leaves the screen silent | Connect did nothing and the user is owed a reason — and `getErrorMessage` would say "check the URL and your connection", which is the one thing that was right |
+| 3.8 | Trust is stored through `SetupRepository.trustCertificate`, not `TrustedCertStorage` from the ViewModel | 3.1's precedent exactly: this feature has a `data` layer, so a `ui` → `core:storage` reach would be going past it — *now in plan §4.5* |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |

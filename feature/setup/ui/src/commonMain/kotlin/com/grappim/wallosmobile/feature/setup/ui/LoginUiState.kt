@@ -1,11 +1,15 @@
 package com.grappim.wallosmobile.feature.setup.ui
 
+import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.utils.ui.NativeText
 
 /**
  * Both onboarding paths live in one state (plan §1.1): [isApiKeyMode] `false` drives the web login
  * with [username] + [password], `true` takes a [apiKey] the user already has. [serverUrl] is
  * common to both — it is the one field that is wrong when the failure is a transport one.
+ *
+ * [pendingCertTrust] is the trust prompt: a non-null one *is* the dialog being up, so there is no
+ * visibility flag beside it to disagree with (3.5's rule about a second copy of a fact).
  */
 data class LoginUiState(
     val serverUrl: String = "",
@@ -16,13 +20,16 @@ data class LoginUiState(
     val isApiKeyMode: Boolean = false,
     val isLoading: Boolean = false,
     val error: NativeText = NativeText.Empty,
+    val pendingCertTrust: PendingCertTrust? = null,
     val onServerUrlChange: (String) -> Unit = {},
     val onUsernameChange: (String) -> Unit = {},
     val onPasswordChange: (String) -> Unit = {},
     val onApiKeyChange: (String) -> Unit = {},
     val onPasswordVisibilityChange: (Boolean) -> Unit = {},
     val onApiKeyModeChange: (Boolean) -> Unit = {},
-    val onConnectClick: () -> Unit = {}
+    val onConnectClick: () -> Unit = {},
+    val onCertTrustConfirm: () -> Unit = {},
+    val onCertTrustDismiss: () -> Unit = {}
 ) {
 
     /** Only the visible path's fields count — the hidden one keeps whatever the user typed. */

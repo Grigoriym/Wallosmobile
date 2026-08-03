@@ -4,9 +4,11 @@ import com.grappim.wallosmobile.core.api.FormParams
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.post
 import com.grappim.wallosmobile.core.asynckmp.IoDispatcher
+import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.core.domain.resultOf
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
 import com.grappim.wallosmobile.core.storage.ServerUrlStorage
+import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.repo.SetupRepository
@@ -24,6 +26,7 @@ internal class SetupRepositoryImpl(
     private val wallosApiClient: WallosApiClient,
     private val serverUrlStorage: ServerUrlStorage,
     private val apiKeyStorage: ApiKeyStorage,
+    private val trustedCertStorage: TrustedCertStorage,
     @param:IoDispatcher private val dispatcher: CoroutineDispatcher
 ) : SetupRepository {
 
@@ -77,6 +80,16 @@ internal class SetupRepositoryImpl(
     override suspend fun getStoredServerUrl(): Result<String> = resultOf {
         withContext(dispatcher) {
             serverUrlStorage.serverUrl
+        }
+    }
+
+    /**
+     * Only the fingerprint is pinned, not the certificate the prompt displayed (plan §4.5) — the
+     * host scopes it, so a certificate accepted for one instance can't authenticate another.
+     */
+    override suspend fun trustCertificate(pendingCertTrust: PendingCertTrust): Result<Unit> = resultOf {
+        withContext(dispatcher) {
+            trustedCertStorage.trust(pendingCertTrust.host, pendingCertTrust.sha256Fingerprint)
         }
     }
 

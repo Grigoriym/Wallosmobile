@@ -117,6 +117,8 @@ a truncated password fails as `InvalidCredentials`, which reads exactly like a w
 and sends you looking at the server. Count the dots in the password field against a screenshot of
 a known-good attempt before believing the error. Clearing a field to retry:
 `input keycombination 113 29` (Ctrl+A) then `input keyevent KEYCODE_DEL`.
+On the *last* field, `input keyevent KEYCODE_ENTER` submits — the login screen's `ImeAction.Done`
+calls `onConnectClick`, so there is no need to hunt for the button's coordinates under a keyboard.
 
 **Since 3.4 a screenshot of the list proves nothing about the network** — those rows are Room's,
 and they render identically whether the refresh succeeded, failed or never ran. To prove a request
@@ -501,6 +503,30 @@ Its data has holes worth knowing before planning a verify: **`notes` and `url` a
 subscription**, and `start_date` is `""` on a good few, so anything rendering those fields can only
 be proven by unit test and preview. Pick the row deliberately — `Fiton` (id 4) has a start date and
 a `&` in its category name.
+
+**It speaks plain HTTP, so certificate work needs a TLS front for it** (3.8, and 3.12 again).
+Don't touch the Wallos container — put a throwaway nginx beside it. The whole recipe:
+
+```bash
+openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
+  -keyout ca-key.pem -out ca-cert.pem -subj "/CN=Home Lab Test CA/O=Wallos QA"
+openssl req -newkey rsa:2048 -nodes -keyout server-key.pem -out server.csr \
+  -subj "/CN=10.0.2.2/O=Wallos QA"          # CN *and* SAN are the address the app is given
+echo "subjectAltName=IP:10.0.2.2" > san.cnf # no SAN → the cert doesn't cover the host → no prompt
+openssl x509 -req -in server.csr -CA ca-cert.pem -CAkey ca-key.pem -CAcreateserial \
+  -out server-cert.pem -days 825 -sha256 -extfile san.cnf
+# nginx.conf: listen 8443 ssl; ssl_certificate /certs/server-cert.pem; … proxy_pass http://wallos:80;
+docker run -d --name wallos-tls --network wallos_default -p 8443:8443 \
+  -v $(pwd)/certs:/certs:ro -v $(pwd)/nginx.conf:/etc/nginx/conf.d/default.conf:ro nginx:alpine
+```
+
+Then the app's server URL is `https://10.0.2.2:8443`, and **never install the CA on the emulator**
+— an untrusted chain is the whole point. `docker rm -f wallos-tls` when done. Regenerating the
+leaf and restarting the container is what proves a pin is per-*certificate* and not per-host; it
+is marked optional in Taiga's recipe and it is the check that found 3.8's real gap.
+Conscrypt preserves the cause chain, confirmed on device — the failure arrives as
+`SSLHandshakeException: …UntrustedCertificateException`, which is what makes
+`findPendingCertTrust()` work at all.
 
 **Do not reach for `demo.wallosapp.com`.** Its `profile.php` dies with a PHP fatal
 (`no such table: uploaded_avatars`), so there is no `id="apikey"` to scrape and the Path A login

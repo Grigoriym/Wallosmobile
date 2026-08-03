@@ -9,17 +9,13 @@ plugins {
 kotlin {
     sourceSets {
         commonMain.dependencies {
+            // Carries `core:domain` as `api` — `PendingCertTrust` is in `SetupRepository`'s
+            // signature and in this screen's state, so it needs no declaration here either.
             implementation(projects.feature.setup.domain)
 
             // `uikit` carries `utils:ui` as `api`, so `NativeText` needs no declaration here.
             implementation(projects.uikit)
             implementation(projects.strings)
-        }
-
-        commonTest.dependencies {
-            // Test-only: production code never names a `WallosError`, it hands whatever it caught
-            // to `getErrorMessage`. The tests have to construct them to pin the attribution down.
-            implementation(projects.core.domain)
         }
     }
 }

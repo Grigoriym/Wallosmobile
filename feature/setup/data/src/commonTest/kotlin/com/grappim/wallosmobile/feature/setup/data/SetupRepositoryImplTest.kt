@@ -2,11 +2,13 @@ package com.grappim.wallosmobile.feature.setup.data
 
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
+import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
 import com.grappim.wallosmobile.core.storage.ServerUrlStorage
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
+import com.grappim.wallosmobile.testing.FakeTrustedCertStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -28,6 +30,7 @@ class SetupRepositoryImplTest {
     private val webLoginApi = FakeWebLoginApi()
     private val apiKeyStorage = FakeApiKeyStorage()
     private val serverUrlStorage = FakeServerUrlStorage()
+    private val trustedCertStorage = FakeTrustedCertStorage()
     private var validationBody: String = VERSION_SUCCESS
     private val validationRequests = mutableListOf<Map<String, String>>()
 
@@ -177,6 +180,30 @@ class SetupRepositoryImplTest {
         assertEquals("", repository().getStoredServerUrl().getOrNull())
     }
 
+    @Test
+    fun `pins an accepted certificate for the host it was shown for`() = runTest {
+        repository().trustCertificate(pendingCertTrust())
+
+        assertTrue(trustedCertStorage.isTrusted(CERT_HOST, CERT_FINGERPRINT))
+    }
+
+    /** The pin is scoped: the same bytes from a different server are still untrusted. */
+    @Test
+    fun `does not pin the certificate for any other host`() = runTest {
+        repository().trustCertificate(pendingCertTrust())
+
+        assertFalse(trustedCertStorage.isTrusted("other.lan", CERT_FINGERPRINT))
+    }
+
+    private fun pendingCertTrust() = PendingCertTrust(
+        host = CERT_HOST,
+        subject = "CN=$CERT_HOST",
+        issuer = "CN=$CERT_HOST",
+        notBefore = "2026-01-04",
+        notAfter = "2027-01-04",
+        sha256Fingerprint = CERT_FINGERPRINT
+    )
+
     private fun repository(): SetupRepositoryImpl {
         val engine = MockEngine { request ->
             validationRequests += (request.body as FormDataContent).formData.entries()
@@ -192,6 +219,7 @@ class SetupRepositoryImplTest {
             ),
             serverUrlStorage = serverUrlStorage,
             apiKeyStorage = apiKeyStorage,
+            trustedCertStorage = trustedCertStorage,
             dispatcher = UnconfinedTestDispatcher()
         )
     }
@@ -236,6 +264,8 @@ class SetupRepositoryImplTest {
     private companion object {
         const val SERVER_URL = "https://wallos.example.com"
         const val PASTED_API_KEY = "pasted-api-key"
+        const val CERT_HOST = "wallos.lan"
+        const val CERT_FINGERPRINT = "3A:7B:1C:04"
         const val VERSION_SUCCESS = """{"success":true,"title":"version","version":"3.1.0"}"""
     }
 }

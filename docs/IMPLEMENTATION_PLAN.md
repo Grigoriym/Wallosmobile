@@ -689,6 +689,21 @@ What 3.7 kept from that port, and what it dropped:
   the logos will not. Giving Coil an `ImageLoader` over the same engine is the fix if that turns
   out to matter; nothing in M3 needs it, since every on-device verify runs over plain HTTP.
 
+The prompt itself is 3.8, and it lives on the **login screen only**:
+
+- **The pin is written through `SetupRepository.trustCertificate(PendingCertTrust)`**, not through
+  `TrustedCertStorage` from the ViewModel — 3.1's rule, since this feature has a `data` layer to
+  route through. That makes `core:domain` an `api` dependency of `feature:setup:domain`, which is
+  also how `PendingCertTrust` reaches the `ui` module's state.
+- **`LoginUiState.pendingCertTrust` non-null *is* the dialog**, and the retry after accepting is
+  `onConnectClick()` re-read from state rather than a captured lambda. Both paths are driven from
+  that one state and the dialog is modal, so nothing can have changed underneath; the failed
+  attempt stored nothing either. Declining sets its own message — `getErrorMessage` would blame
+  the URL and the connection, and both were right.
+- **Nothing else in the app can raise it.** A certificate that rotates after onboarding fails
+  every refresh, and the list screen has only 3.5's stale banner — the user's way back is
+  Disconnect and log in again. Verified on the emulator, and listed under "Still open after v1".
+
 ### 4.6 Version gating
 
 Store the `api/status/version.php` result at setup and after each successful reconnect. Gate
@@ -1419,7 +1434,8 @@ v1 small:
   (All three have landed since: `NetworkMonitor` + `LocalIsOffline` in 3.2, the database in 3.3,
   the offline-first repository in 3.4 — see the subsection above.)
 - **Certificate trust prompt** — a plain HTTPS instance works. Self-signed certs fail with a clear
-  error until this lands.
+  error until this lands. (Landed: the trust manager and storage in 3.7, the prompt in 3.8 — see
+  §4.5. Still true of a certificate that changes *after* onboarding, which no screen can accept.)
 - **Extra drawer destinations** — the shell is fully wired (§5.4), but the drawer holds
   *Subscriptions* and *Settings* only. Dashboard and the *Manage* group arrive with their features.
 - **`password_login_disabled` probing, login backoff, non-HTTPS warning** — Phase 2b hardening.

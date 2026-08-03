@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.setup.domain.repo
 
+import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 
 interface SetupRepository {
@@ -38,4 +39,15 @@ interface SetupRepository {
      * data layer already; a `ui` module naming `core:storage` would be reaching past it.
      */
     suspend fun getStoredServerUrl(): Result<String>
+
+    /**
+     * Trust-on-first-use (plan §4.5): pins the certificate the user has just been shown, for the
+     * host it was shown for. The connection attempt that raised [pendingCertTrust] has already
+     * failed by then, so the caller retries it after this returns.
+     *
+     * A [Result] because the pin is a DataStore write and this is called from a `viewModelScope`
+     * — the same reason [getStoredServerUrl] carries one. Routed through the repository for the
+     * same reason too: `core:storage` is not this feature's `ui` module's to name.
+     */
+    suspend fun trustCertificate(pendingCertTrust: PendingCertTrust): Result<Unit>
 }

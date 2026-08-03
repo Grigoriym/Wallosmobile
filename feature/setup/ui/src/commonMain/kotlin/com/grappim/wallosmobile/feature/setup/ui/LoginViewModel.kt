@@ -2,6 +2,8 @@ package com.grappim.wallosmobile.feature.setup.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grappim.wallosmobile.core.domain.PendingCertTrust
+import com.grappim.wallosmobile.core.domain.findPendingCertTrust
 import com.grappim.wallosmobile.core.logger.LogPriority
 import com.grappim.wallosmobile.core.logger.logcat
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
@@ -9,6 +11,7 @@ import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.repo.SetupRepository
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.login_error_api_key_missing
+import com.grappim.wallosmobile.strings.generated.resources.login_error_cert_not_trusted
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_credentials
 import com.grappim.wallosmobile.strings.generated.resources.login_error_needs_totp
 import com.grappim.wallosmobile.utils.ui.NativeText
@@ -37,7 +40,9 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
             onApiKeyChange = ::onApiKeyChange,
             onPasswordVisibilityChange = ::onPasswordVisibilityChange,
             onApiKeyModeChange = ::onApiKeyModeChange,
-            onConnectClick = ::onConnectClick
+            onConnectClick = ::onConnectClick,
+            onCertTrustConfirm = ::onCertTrustConfirm,
+            onCertTrustDismiss = ::onCertTrustDismiss
         )
     )
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
@@ -125,6 +130,14 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
     }
 
     private fun onFailure(throwable: Throwable) {
+        // Nothing catches `UntrustedCertificateException` — it rides down the cause chain of
+        // whatever the TLS stack threw, and this is where it is asked for (plan §4.5).
+        val pendingCertTrust = throwable.findPendingCertTrust()
+        if (pendingCertTrust != null) {
+            onUntrustedCertificate(pendingCertTrust)
+            return
+        }
+
         // The login succeeded and the account simply has no key yet — a `getErrorMessage` about
         // the URL or the key would send the user to fix the one thing that was right.
         val message = if (throwable is ApiKeyNotFound) {
@@ -133,6 +146,40 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
             getErrorMessage(throwable)
         }
         _uiState.update { it.copy(isLoading = false, error = message) }
+    }
+
+    /**
+     * The prompt replaces the error rather than joining it: `getErrorMessage` would say "check the
+     * URL and your connection", and the URL and the connection were both right.
+     */
+    private fun onUntrustedCertificate(pendingCertTrust: PendingCertTrust) {
+        _uiState.update { it.copy(isLoading = false, pendingCertTrust = pendingCertTrust) }
+    }
+
+    /**
+     * The retry is [onConnectClick] itself, not a captured lambda: both paths are driven from this
+     * state, the dialog is modal so none of it can have changed, and the failed attempt stored
+     * nothing — so re-reading the state re-runs exactly the request that raised the prompt.
+     */
+    private fun onCertTrustConfirm() {
+        val pendingCertTrust = _uiState.value.pendingCertTrust ?: return
+        _uiState.update { it.copy(pendingCertTrust = null) }
+
+        viewModelScope.launch {
+            setupRepository.trustCertificate(pendingCertTrust)
+                .onSuccess { onConnectClick() }
+                .onFailure {
+                    // Retrying without the pin would only raise the same prompt again.
+                    logcat(priority = LogPriority.WARN, throwable = it) { "Could not store the trust" }
+                    showError(RString.login_error_cert_not_trusted)
+                }
+        }
+    }
+
+    /** Declining is a decision, not a non-event — Connect did nothing and has to say why. */
+    private fun onCertTrustDismiss() {
+        _uiState.update { it.copy(pendingCertTrust = null) }
+        showError(RString.login_error_cert_not_trusted)
     }
 
     private fun showError(resource: StringResource) {

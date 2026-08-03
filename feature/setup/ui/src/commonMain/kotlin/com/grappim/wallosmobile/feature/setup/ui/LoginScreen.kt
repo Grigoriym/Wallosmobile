@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -28,14 +29,25 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.login_api_key_hint
 import com.grappim.wallosmobile.strings.generated.resources.login_api_key_label
+import com.grappim.wallosmobile.strings.generated.resources.login_cert_trust_cancel
+import com.grappim.wallosmobile.strings.generated.resources.login_cert_trust_confirm
+import com.grappim.wallosmobile.strings.generated.resources.login_cert_trust_fingerprint
+import com.grappim.wallosmobile.strings.generated.resources.login_cert_trust_issuer
+import com.grappim.wallosmobile.strings.generated.resources.login_cert_trust_message
+import com.grappim.wallosmobile.strings.generated.resources.login_cert_trust_subject
+import com.grappim.wallosmobile.strings.generated.resources.login_cert_trust_title
+import com.grappim.wallosmobile.strings.generated.resources.login_cert_trust_validity
+import com.grappim.wallosmobile.strings.generated.resources.login_cert_trust_validity_range
 import com.grappim.wallosmobile.strings.generated.resources.login_cleartext_warning
 import com.grappim.wallosmobile.strings.generated.resources.login_connect
 import com.grappim.wallosmobile.strings.generated.resources.login_password_hide
@@ -51,6 +63,7 @@ import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.asString
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -69,6 +82,15 @@ fun LoginScreen(viewModel: LoginViewModel = koinViewModel<LoginViewModel>()) {
 @Composable
 private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
     val focusManager = LocalFocusManager.current
+
+    val pendingCertTrust = uiState.pendingCertTrust
+    if (pendingCertTrust != null) {
+        CertTrustDialog(
+            pendingCertTrust = pendingCertTrust,
+            onConfirm = uiState.onCertTrustConfirm,
+            onDismiss = uiState.onCertTrustDismiss
+        )
+    }
 
     Column(
         modifier = modifier
@@ -217,9 +239,72 @@ private fun ApiKeyField(uiState: LoginUiState, focusManager: FocusManager) {
     )
 }
 
+/**
+ * Trust-on-first-use, and the one screen in the app that asks the user to weigh a security
+ * decision — so it shows what the decision is *about* rather than only naming the host. The
+ * fingerprint is the part that can actually be compared against the server, which is why it is
+ * monospaced and last.
+ */
+@Composable
+private fun CertTrustDialog(pendingCertTrust: PendingCertTrust, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(RString.login_cert_trust_title)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(CERT_ROW_SPACING)
+            ) {
+                Text(
+                    text = stringResource(RString.login_cert_trust_message, pendingCertTrust.host),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                CertTrustRow(RString.login_cert_trust_subject, pendingCertTrust.subject)
+                CertTrustRow(RString.login_cert_trust_issuer, pendingCertTrust.issuer)
+                CertTrustRow(
+                    label = RString.login_cert_trust_validity,
+                    value = stringResource(
+                        RString.login_cert_trust_validity_range,
+                        pendingCertTrust.notBefore,
+                        pendingCertTrust.notAfter
+                    )
+                )
+                CertTrustRow(
+                    label = RString.login_cert_trust_fingerprint,
+                    value = pendingCertTrust.sha256Fingerprint,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(stringResource(RString.login_cert_trust_confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(RString.login_cert_trust_cancel)) }
+        }
+    )
+}
+
+@Composable
+private fun CertTrustRow(label: StringResource, value: String, fontFamily: FontFamily? = null) {
+    Column {
+        Text(
+            text = stringResource(label),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = fontFamily
+        )
+    }
+}
+
 private val PADDING = 16.dp
 private val FIELD_SPACING = 16.dp
 private val PROGRESS_SIZE = 48.dp
+private val CERT_ROW_SPACING = 12.dp
 
 @PreviewWallosDarkLight
 @Composable
@@ -273,6 +358,27 @@ private fun LoginContentCleartextPreview() = WallosMobilePreviewTheme {
             serverUrl = "http://wallos.lan:8282",
             username = "demo",
             password = "demo"
+        )
+    )
+}
+
+@PreviewWallosDarkLight
+@Composable
+private fun LoginContentCertTrustPreview() = WallosMobilePreviewTheme {
+    LoginContent(
+        uiState = LoginUiState(
+            serverUrl = "https://wallos.lan:8443",
+            username = "demo",
+            password = "demo",
+            pendingCertTrust = PendingCertTrust(
+                host = "wallos.lan",
+                subject = "CN=wallos.lan,O=Homelab",
+                issuer = "CN=wallos.lan,O=Homelab",
+                notBefore = "2026-01-04",
+                notAfter = "2027-01-04",
+                sha256Fingerprint = "3A:7B:1C:04:9E:22:F0:5D:8A:16:BB:71:C3:0F:49:E8:" +
+                    "2D:65:90:AC:11:74:3E:52:D8:06:9B:CF:27:41:6A:E3"
+            )
         )
     )
 }
