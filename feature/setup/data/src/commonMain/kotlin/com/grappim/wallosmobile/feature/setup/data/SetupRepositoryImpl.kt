@@ -11,6 +11,7 @@ import com.grappim.wallosmobile.core.storage.ServerUrlStorage
 import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
+import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
 import com.grappim.wallosmobile.feature.setup.domain.repo.SetupRepository
 import com.grappim.wallosmobile.feature.setup.dto.VersionDTO
 import kotlinx.coroutines.CoroutineDispatcher
@@ -30,6 +31,25 @@ internal class SetupRepositoryImpl(
     @param:IoDispatcher private val dispatcher: CoroutineDispatcher
 ) : SetupRepository {
 
+    /**
+     * Constructed rather than injected: it has no dependencies, and the lifetime it wants is
+     * exactly this object's — one login screen (plan §1.1). Injecting it would also make this the
+     * seventh constructor parameter, which detekt's `allowedConstructorParameters: 6` refuses, and
+     * a dependency-free counter is not the seam that limit is drawing.
+     */
+    private val loginThrottle = LoginThrottle()
+
+    /**
+     * The URL is persisted first for the same reason [loginWithPassword] does it: `login.php` is
+     * requested relative to it, and that relative form is what keeps a subpath install working.
+     */
+    override suspend fun probePasswordLogin(serverUrl: String): Result<PasswordLoginAvailability> = resultOf {
+        withContext(dispatcher) {
+            serverUrlStorage.saveServerUrl(serverUrl.trim())
+            webLoginApi.probePasswordLogin()
+        }
+    }
+
     override suspend fun loginWithPassword(
         serverUrl: String,
         username: String,
@@ -43,9 +63,12 @@ internal class SetupRepositoryImpl(
             // be what the validation call below actually validated.
             apiKeyStorage.clear()
 
+            // The server has no lockout of its own, so this is the only thing between a retry
+            // loop and the user's own instance (plan §9).
+            loginThrottle.awaitTurn()
             when (webLoginApi.login(username, password)) {
                 WebLoginOutcome.NeedsTotp -> LoginOutcome.NeedsTotp
-                WebLoginOutcome.InvalidCredentials -> LoginOutcome.InvalidCredentials
+                WebLoginOutcome.InvalidCredentials -> refused(LoginOutcome.InvalidCredentials)
                 WebLoginOutcome.LoggedIn -> takeApiKey()
             }
         }
@@ -59,9 +82,16 @@ internal class SetupRepositoryImpl(
      */
     override suspend fun submitTotpCode(code: String): Result<LoginOutcome> = resultOf {
         withContext(dispatcher) {
+            // Six digits against a window 31 codes wide, on a server that counts no attempts —
+            // the one place the backoff matters more than it does on the password itself.
+            loginThrottle.awaitTurn()
             when (webLoginApi.submitTotpCode(code.trim())) {
-                WebTotpOutcome.InvalidCode -> LoginOutcome.InvalidTotpCode
+                WebTotpOutcome.InvalidCode -> refused(LoginOutcome.InvalidTotpCode)
+
+                // Not a refused guess: no code was ever weighed, so nothing was learned by
+                // sending it and there is nothing to slow down.
                 WebTotpOutcome.SessionExpired -> LoginOutcome.TotpSessionExpired
+
                 WebTotpOutcome.LoggedIn -> takeApiKey()
             }
         }
@@ -72,9 +102,21 @@ internal class SetupRepositoryImpl(
         val apiKey = webLoginApi.fetchApiKey() ?: throw ApiKeyNotFound
         validate(apiKey)
         apiKeyStorage.setKey(apiKey)
+        loginThrottle.reset()
         return LoginOutcome.Connected
     }
 
+    /** A credential the instance weighed and rejected — the only thing that grows the backoff. */
+    private fun refused(outcome: LoginOutcome): LoginOutcome {
+        loginThrottle.recordRefusal()
+        return outcome
+    }
+
+    /**
+     * Not throttled, unlike the two paths above. A pasted key is not a guess: nobody arrives at a
+     * 32-character credential by retrying, so a backoff here would only punish a paste that went
+     * wrong — and the recovery route is the last thing that should get slower.
+     */
     override suspend fun connectWithApiKey(serverUrl: String, apiKey: String): Result<Unit> = resultOf {
         withContext(dispatcher) {
             serverUrlStorage.saveServerUrl(serverUrl.trim())

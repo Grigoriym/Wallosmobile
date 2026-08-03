@@ -110,7 +110,10 @@ the screenshot by the stated factor before feeding them to `input tap`.
 Filling a form: **tap the first field once, then `input keyevent KEYCODE_TAB` between fields.**
 Compose honours TAB for focus, and re-tapping by coordinate goes wrong the moment the keyboard
 opens and shifts the layout — a mis-tap lands on whatever moved into that spot (typing an API key
-into the URL field, say).
+into the URL field, say). **The keyboard is not the only thing that moves the fields**: this screen
+grows a cleartext warning and an SSO notice *between* the URL and the credentials, so coordinates
+read off a screenshot are stale as soon as the URL is typed. 3.10 put a username into the URL field
+exactly that way.
 
 **`input text` needs a `sleep 1` after each field**, or a long value arrives **truncated** — and
 a truncated password fails as `InvalidCredentials`, which reads exactly like a wrong credential
@@ -211,7 +214,10 @@ vertical slices, **all source in `commonMain`**.
   belongs to the *empty* cache alone. Such a repository also runs into detekt's
   **`allowedConstructorParameters: 6`** — two DAOs and two entity mappers on top of the API and the
   wire mappers is eight. Split the DAO half into its own class (`SubscriptionsCache`) rather than
-  widening the rule; the line the limit draws is a real seam.
+  widening the rule; the line the limit draws is a real seam. The other way past it, when the
+  seventh thing has **no dependencies of its own**, is to stop injecting it: 3.10's `LoginThrottle`
+  is a `private val` constructed by `SetupRepositoryImpl`, because DI was buying it nothing but a
+  constructor slot — the lifetime it wanted was already its owner's.
 - **A new module must be added to the root `build.gradle.kts` `kover { }` block** — coverage is
   aggregated by an explicit per-module list, so a module left out of it is silently at 0% and
   nothing fails. `:testing` is deliberately absent (fakes, not production code).
@@ -338,6 +344,13 @@ vertical slices, **all source in `commonMain`**.
   `withContext` dies with "Detected use of different schedulers" — which surfaces as an
   `IllegalStateException` where the test expected a `WallosError`, not as anything mentioning
   dispatchers.
+  **The moment the code under test `delay`s, that dispatcher must share `runTest`'s scheduler**
+  (3.10): `UnconfinedTestDispatcher()` gets away with its own only because nothing was suspending
+  on virtual time. Make the factory a `TestScope` extension — `private fun TestScope.repository()`
+  — and pass `UnconfinedTestDispatcher(testScheduler)`; every existing `repository()` call inside
+  a `runTest { }` keeps compiling, since that lambda's receiver *is* the `TestScope`. `currentTime`
+  is then the assertion (`import kotlinx.coroutines.test.currentTime` — it is an extension, so it
+  does not come with `runTest`).
   **`MainDispatcherRule` is unconfined, so a state that only exists *while* a call is in flight is
   invisible** — the ViewModel's `launch` runs to completion before the constructor returns, and
   `uiState.value` is already the final one. To assert a loading state, give the fake a
@@ -474,7 +487,11 @@ starting point rather than a contract: 3.9's `totp.php` section listed the reque
 case and simply had no row for the branch that mattered (a lost session), which would have shipped
 as an infinite retry loop had it been implemented from the doc alone. `docker exec wallos cat
 /var/www/html/<file>.php` is a read against the real thing and takes seconds; do it for any
-endpoint whose *failure* modes the code has to branch on.
+endpoint whose *failure* modes the code has to branch on. 3.10 is the second time it paid, and it
+widens the rule: read it before adding a **request** to a flow that already holds a session, not
+only before branching on a response. A GET of `login.php` looks inert and silently clears
+`$_SESSION['totp_user_id']`, so an unguarded probe would have killed live 2FA logins — nothing in
+the doc, nothing in the response, and no test would have caught it.
 
 - **Everything returns HTTP 200**, including auth failures. Only the JSON `success` field is
   reliable. Never branch on HTTP status except 404 (endpoint missing on this version) and 5xx.
@@ -552,6 +569,13 @@ docker run -d --name wallos-scratch -p 8284:80 bellamy/wallos:latest   # ~10s to
 curl -s -o /dev/null -d "username=u&firstname=T&lastname=U&email=u@e.com&password=p&\
 confirm_password=p&main_currency=USD&language=en" http://localhost:8284/registration.php
 ```
+
+**OIDC needs no identity provider to test against** (3.10): `login.php` only reads
+`password_login_disabled` when OIDC is enabled *and* `is_configured`, and `is_configured` is a
+non-empty check on seven strings that are never dereferenced unless somebody clicks the button. So
+env vars alone produce a real SSO-only instance — `-e OIDC_ENABLED=1 -e
+OIDC_DISABLE_PASSWORD_LOGIN=1` plus `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_AUTH_URL`,
+`OIDC_TOKEN_URL`, `OIDC_USERINFO_URL`, `OIDC_REDIRECT_URL` set to anything at all.
 
 `registration.php` needs **all** of those fields — a short POST silently re-renders the form and
 `login.php` keeps redirecting to `registration.php`, which reads as a broken container. Copying the

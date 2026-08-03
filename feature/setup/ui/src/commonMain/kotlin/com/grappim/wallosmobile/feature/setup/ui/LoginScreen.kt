@@ -52,6 +52,7 @@ import com.grappim.wallosmobile.strings.generated.resources.login_cleartext_warn
 import com.grappim.wallosmobile.strings.generated.resources.login_connect
 import com.grappim.wallosmobile.strings.generated.resources.login_password_hide
 import com.grappim.wallosmobile.strings.generated.resources.login_password_label
+import com.grappim.wallosmobile.strings.generated.resources.login_password_login_disabled
 import com.grappim.wallosmobile.strings.generated.resources.login_password_show
 import com.grappim.wallosmobile.strings.generated.resources.login_server_url_label
 import com.grappim.wallosmobile.strings.generated.resources.login_server_url_placeholder
@@ -131,6 +132,16 @@ private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
             )
         }
 
+        // The probe answered before the user typed a password this instance would never look at
+        // (plan §1.1). It replaces the path toggle below rather than joining it: with password
+        // login off there is no choice left to offer, only a reason.
+        if (uiState.isPasswordLoginDisabled) {
+            Text(
+                text = stringResource(RString.login_password_login_disabled),
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
         when {
             uiState.isApiKeyMode -> ApiKeyField(uiState = uiState, focusManager = focusManager)
             uiState.isTotpRequired -> TotpField(uiState = uiState, focusManager = focusManager)
@@ -159,15 +170,17 @@ private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
 
         // Path B is permanent, not a fallback (plan §1.1) — the bridge scrapes markup, and this is
         // what still works the day that markup changes.
-        TextButton(
-            onClick = { uiState.onApiKeyModeChange(!uiState.isApiKeyMode) },
-            enabled = !uiState.isLoading
-        ) {
-            Text(
-                stringResource(
-                    if (uiState.isApiKeyMode) RString.login_use_password else RString.login_use_api_key
+        if (!uiState.isPasswordLoginDisabled) {
+            TextButton(
+                onClick = { uiState.onApiKeyModeChange(!uiState.isApiKeyMode) },
+                enabled = !uiState.isLoading
+            ) {
+                Text(
+                    stringResource(
+                        if (uiState.isApiKeyMode) RString.login_use_password else RString.login_use_api_key
+                    )
                 )
-            )
+            }
         }
     }
 }
@@ -425,6 +438,19 @@ private fun LoginContentTotpPreview() = WallosMobilePreviewTheme {
             username = "demo",
             totpCode = "123456",
             isTotpRequired = true
+        )
+    )
+}
+
+/** The probe came back `Disabled`: Path B, with the reason, and no toggle back to a dead path. */
+@PreviewWallosDarkLight
+@Composable
+private fun LoginContentPasswordLoginDisabledPreview() = WallosMobilePreviewTheme {
+    LoginContent(
+        uiState = LoginUiState(
+            serverUrl = "https://wallos.example.com",
+            isApiKeyMode = true,
+            isPasswordLoginDisabled = true
         )
     )
 }

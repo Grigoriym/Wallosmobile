@@ -2,8 +2,23 @@ package com.grappim.wallosmobile.feature.setup.domain.repo
 
 import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
+import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
 
 interface SetupRepository {
+
+    /**
+     * Asks [serverUrl]'s `login.php` whether it would accept a username and password at all
+     * (plan §1.1). Persists [serverUrl] on the way, because the request is resolved against it.
+     *
+     * An affordance, not a gate: a failure — or a page this can't read — is
+     * [PasswordLoginAvailability.Unknown], and the caller should leave both paths on offer rather
+     * than hide the one that works. The point is only to stop a user typing a password into an
+     * SSO-only instance that will never look at it.
+     *
+     * **Not to be called between [loginWithPassword] and [submitTotpCode]**: the request runs on
+     * the same web session, and `login.php` clears the pending TOTP challenge as it renders.
+     */
+    suspend fun probePasswordLogin(serverUrl: String): Result<PasswordLoginAvailability>
 
     /**
      * Runs the whole credential bridge (plan §1.1): drive the *web* login, scrape the API key off

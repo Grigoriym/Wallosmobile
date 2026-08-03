@@ -781,6 +781,18 @@ Content type is `application/x-www-form-urlencoded`. Notably:
   own server.
 * Password check is `password_verify` against the bcrypt hash (`login.php:177`).
 
+**A GET of `login.php` is not a passive read** (3.10, straight off the PHP). Two things to know
+before adding one to a flow that already has a session:
+
+* It **clears `$_SESSION['totp_user_id']` and `$_SESSION['token']`** near the top of the file,
+  unconditionally. So a GET between the login POST and the `totp.php` POST destroys the pending
+  challenge, and the code that follows comes back as the §9.2 "session gone" row — a failure that
+  looks like the user was slow and isn't.
+* It can answer **302 rather than the form**, three ways, none of them about credentials: no user
+  has registered yet (`Location: registration.php`), the session is already logged in
+  (`Location: .`), or the admin set `login_disabled`, which **logs the caller straight in as user
+  1** and redirects to `.`. That last one hands out a session on a GET.
+
 ### 9.2 Interpreting the response
 
 `login.php` never returns JSON. You must **disable automatic redirect following** and read
@@ -893,6 +905,18 @@ val key = API_KEY.find(profileHtml)?.groupValues?.get(1)
   the `OIDC_DISABLE_PASSWORD_LOGIN` env var) removes the username/password fields from the
   form, and OIDC-only instances can't use this flow at all. Detect it by GETting `login.php`
   and checking whether the password input is present — and fall back to manual key entry.
+  Three details the source adds (3.10, confirmed against a container):
+  **the flag is only read when OIDC is both enabled and *configured*** — `login.php` initialises
+  `$password_login_disabled = false` and only reassigns it inside `if ($oidcEnabled)`, where
+  `is_configured` means all seven of `client_id`, `client_secret`, `authorization_url`,
+  `token_url`, `user_info_url`, `redirect_url`, `user_identifier_field` are non-empty. So a form
+  with no password input *is* an SSO instance; there is no other way to render one.
+  **The whole credential block goes**, not just the password input — `<?php if
+  (!$password_login_disabled) { ?>` wraps username, password, remember and the submit button, and
+  the `<form action="login.php">` itself stays, carrying only the OIDC anchor.
+  And **the absence only means anything on a page that is the login form**: any other 200 on that
+  address — a proxy error, another app — has no password input either, so recognise the form
+  before reading the absence.
 * **OIDC cannot be bridged this way.** It's a browser redirect dance against a third-party
   IdP; it would need a Custom Tab and the registered `redirect_url`, which points at the
   Wallos web app, not your app.

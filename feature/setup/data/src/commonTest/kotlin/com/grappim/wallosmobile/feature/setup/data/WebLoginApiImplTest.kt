@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.setup.data
 
+import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -96,6 +97,26 @@ class WebLoginApiImplTest {
 
         assertNull(cookies.first())
         assertEquals("PHPSESSID=abc123", cookies.last())
+    }
+
+    @Test
+    fun `reads the login form off login php to decide whether the bridge can run`() = runTest {
+        var request: HttpRequestData? = null
+        val available = webLoginApi(body = LOGIN_HTML, onRequest = { request = it })
+        val ssoOnly = webLoginApi(body = LOGIN_HTML_SSO_ONLY)
+
+        assertEquals(PasswordLoginAvailability.Available, available.probePasswordLogin())
+        assertEquals(PasswordLoginAvailability.Disabled, ssoOnly.probePasswordLogin())
+        assertEquals(HttpMethod.Get, request?.method)
+        assertEquals("/login.php", request?.url?.encodedPath)
+    }
+
+    /** An instance that redirects instead of rendering the form has said nothing about passwords. */
+    @Test
+    fun `a redirecting login php is not read as a disabled one`() = runTest {
+        val api = webLoginApi(status = HttpStatusCode.Found, location = ".")
+
+        assertEquals(PasswordLoginAvailability.Unknown, api.probePasswordLogin())
     }
 
     @Test

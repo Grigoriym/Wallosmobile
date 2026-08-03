@@ -14,6 +14,11 @@ import com.grappim.wallosmobile.utils.ui.NativeText
  * [isTotpRequired] is the second step of the password path, not a third path: it is reached from
  * [isApiKeyMode] `false` and it replaces those fields with [totpCode] until the challenge is
  * answered or abandoned.
+ *
+ * [isPasswordLoginDisabled] is the probe's verdict (3.10) and the one thing that takes the choice
+ * of path away: an SSO-only instance has nothing for the bridge to drive, so the screen stays on
+ * Path B and says why. Everything the probe can't answer leaves it `false` — it hides a path, so
+ * it may only be set on evidence.
  */
 data class LoginUiState(
     val serverUrl: String = "",
@@ -23,6 +28,7 @@ data class LoginUiState(
     val totpCode: String = "",
     val isPasswordVisible: Boolean = false,
     val isApiKeyMode: Boolean = false,
+    val isPasswordLoginDisabled: Boolean = false,
     val isTotpRequired: Boolean = false,
     val isLoading: Boolean = false,
     val error: NativeText = NativeText.Empty,

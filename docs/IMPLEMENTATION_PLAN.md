@@ -138,6 +138,20 @@ Consequences for the design:
   OIDC-only instances can't be bridged at all. GET `login.php` during setup and check for the
   password input; if absent, show Path B only. **OIDC cannot be bridged** — it is a redirect dance
   against a third-party IdP whose registered `redirect_url` points at the Wallos web app.
+  **Shipped in 3.10**, as `SetupRepository.probePasswordLogin(serverUrl)` →
+  `PasswordLoginAvailability`, driven off the **URL field** with a 700 ms debounce rather than off
+  Connect — being earlier than the password is the entire point, and Connect is not earlier. Three
+  properties it needs, each of which is a way of getting it wrong:
+  - **It is an affordance, so it fails open.** Only `Disabled` moves anything; a transport failure,
+    a redirect, or a page that isn't the form are all `Unknown` and leave both paths on offer. It
+    *hides* a path, so it may only fire on evidence — and the evidence is the form itself, which
+    has to be recognised before its missing input means anything (API doc §9.5).
+  - **It is silent.** It runs off a keystroke, so an unreachable host is not news there, and
+    raising the trust prompt from a half-typed URL would be a modal nobody asked for. Connect
+    still reports both.
+  - **It must not run between the login POST and the TOTP POST.** It shares the session, and a GET
+    of `login.php` clears `$_SESSION['totp_user_id']` (API doc §9.1) — so the probe is guarded on
+    `isTotpRequired` and the next code would otherwise die as `TotpSessionExpired`.
 
 - **Never persist the password.** Exchange it for the key and drop it. Only the API key reaches
   storage.
@@ -156,6 +170,22 @@ Consequences for the design:
 - **Client-side backoff on failed logins.** The server has no rate limiting and no lockout
   anywhere. Without our own throttle we are shipping a brute-force tool pointed at the user's
   server.
+  **Shipped in 3.10** as `LoginThrottle`, a counter *inside* `SetupRepositoryImpl` — not injected,
+  because it has no dependencies and the lifetime it wants is already that object's (one login
+  screen), and because it would otherwise be a seventh constructor parameter against detekt's
+  `allowedConstructorParameters: 6`. Three decisions in it:
+  - **The wait is spent before the next attempt, inside the call the spinner is already up for**,
+    so there is no new UI state and nothing to dismiss. Three attempts are free — the first
+    failures are typos — then 1s, 2s, 4s, 8s and a cap. The cap is what keeps it a backoff rather
+    than a lockout: eight seconds is ~7 attempts a minute, useless for a password list and still a
+    wait a person will sit through.
+  - **Only a credential the instance weighed and refused counts.** A transport failure is not a
+    guess, and `TotpSessionExpired` weighed no code at all — throttling either would slow down the
+    one case where retrying is right.
+  - **`totp.php` shares the counter, and needs it more than the password does**: six digits
+    against `verify($code, null, 15)` is 31 valid codes out of a million at any instant, on a
+    server that counts nothing. `connectWithApiKey` is deliberately *not* throttled — nobody
+    reaches a 32-character key by retrying, and the recovery route must not get slower.
 
 - **Don't use `endpoints/user/regenerateapikey.php`** even though it returns clean JSON: it mints
   a *new* key and silently invalidates the user's other integrations (Home Assistant, iCal
@@ -1467,6 +1497,7 @@ v1 small:
 - **Extra drawer destinations** — the shell is fully wired (§5.4), but the drawer holds
   *Subscriptions* and *Settings* only. Dashboard and the *Manage* group arrive with their features.
 - **`password_login_disabled` probing, login backoff, non-HTTPS warning** — Phase 2b hardening.
+  (Landed: the warning in 3.1, the probe and `LoginThrottle` in 3.10 — see §1.1.)
 - Writes, dashboard, catalog CRUD, settings, profile, notifications.
 
 `core:crud`, `core:serialization` and the `categories`/`currencies`/`paymentmethods`/`household`
@@ -1574,8 +1605,8 @@ Re-enable the iOS and Desktop targets in `configureKmp()` and restore the entry-
 | The API key is a plaintext bearer credential. | Keystore-backed storage, HTTPS required, trust prompt instead of pinning. |
 | **The login bridge scrapes HTML.** `id="apikey"` on `profile.php` is not an API contract; an upstream markup change breaks onboarding silently. | Validate the scraped key against `version.php` before storing, and keep Path B (manual entry) permanently in the UI as the recovery route. |
 | **The login bridge handles the user's real password** — over cleartext on many self-hosted LAN instances. | Never persist it; exchange for the key and drop. Warn on non-HTTPS origins and steer to Path B there. |
-| The server has **no login rate limiting or lockout**, so a retry loop is a brute-force tool aimed at the user's own instance. | Client-side backoff on failed login attempts. |
-| Password login may be disabled (`OIDC_DISABLE_PASSWORD_LOGIN`), and OIDC can't be bridged at all. | Probe the login form during setup and degrade to Path B. |
+| The server has **no login rate limiting or lockout**, so a retry loop is a brute-force tool aimed at the user's own instance. | Client-side backoff on failed login attempts — `LoginThrottle`, 3.10; see §1.1. |
+| Password login may be disabled (`OIDC_DISABLE_PASSWORD_LOGIN`), and OIDC can't be bridged at all. | Probe the login form during setup and degrade to Path B — 3.10; see §1.1. |
 | Whole-list fetches degrade with very large subscription sets. | Room cache + client-side paging; the payload is one row per subscription, so this is unlikely to bind in practice. |
 | A route added without registering it in the nav3 polymorphic `SerializersModule` breaks back-stack restore — silently, and only on process death. | Test asserting the registered set covers every route reachable from the entry providers; "Don't keep activities" in the Phase 1 acceptance check. |
 

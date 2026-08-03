@@ -8,6 +8,7 @@ import com.grappim.wallosmobile.core.logger.LogPriority
 import com.grappim.wallosmobile.core.logger.logcat
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
+import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
 import com.grappim.wallosmobile.feature.setup.domain.repo.SetupRepository
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.login_error_api_key_missing
@@ -17,13 +18,21 @@ import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_
 import com.grappim.wallosmobile.strings.generated.resources.login_error_totp_session_expired
 import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.koin.core.annotation.KoinViewModel
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The repository is a `@Factory` (plan §1.1) — it owns the web session transitively — so this
@@ -49,12 +58,65 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
     )
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
+    /**
+     * Beside the state rather than read out of it, so the probe sees every URL the user settles on
+     * — including the prefilled one — without a second copy of the field to keep in step (3.6).
+     */
+    private val serverUrlInput = MutableStateFlow("")
+
     init {
+        observeServerUrl()
         viewModelScope.launch {
             setupRepository.getStoredServerUrl()
                 .onSuccess(::onStoredServerUrl)
                 // No prefill is a worse screen, not a broken one — the user types the URL as before.
                 .onFailure { logcat(priority = LogPriority.WARN, throwable = it) { "No stored server URL" } }
+        }
+    }
+
+    /**
+     * The probe runs off the URL field, not off Connect: its whole point is to be earlier than the
+     * password. Debounced because it is fired by typing, and filtered to an explicit scheme
+     * because the app infers none anywhere else — half a URL is not an instance to ask.
+     */
+    @OptIn(FlowPreview::class)
+    private fun observeServerUrl() {
+        serverUrlInput
+            .debounce(PROBE_DEBOUNCE)
+            .map { it.trim() }
+            .filter { url -> SCHEMES.any { url.startsWith(it, ignoreCase = true) } }
+            .distinctUntilChanged()
+            .onEach(::probePasswordLogin)
+            .launchIn(viewModelScope)
+    }
+
+    /**
+     * Silent on failure, deliberately: this is an affordance and it fires while the user is still
+     * typing, so an unreachable host here is not news — and raising the trust prompt off a
+     * keystroke would be a modal dialog nobody asked for. Connect still reports both.
+     */
+    private suspend fun probePasswordLogin(serverUrl: String) {
+        // `login.php` clears the session's pending TOTP challenge as it renders, so a probe here
+        // would turn the next code into `TotpSessionExpired` (`SetupRepository.probePasswordLogin`).
+        if (_uiState.value.isTotpRequired) return
+
+        setupRepository.probePasswordLogin(serverUrl)
+            .onSuccess(::onPasswordLoginAvailability)
+            .onFailure { logcat(priority = LogPriority.WARN, throwable = it) { "Could not probe $serverUrl" } }
+    }
+
+    /**
+     * Only [PasswordLoginAvailability.Disabled] moves anything: it hides a path, so it takes the
+     * one answer that is evidence. The mode is forced rather than merely offered — there is
+     * nothing behind the other one on this instance.
+     */
+    private fun onPasswordLoginAvailability(availability: PasswordLoginAvailability) {
+        val isDisabled = availability == PasswordLoginAvailability.Disabled
+        _uiState.update {
+            it.copy(
+                isPasswordLoginDisabled = isDisabled,
+                isApiKeyMode = it.isApiKeyMode || isDisabled
+            )
         }
     }
 
@@ -65,10 +127,12 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
     private fun onStoredServerUrl(url: String) {
         if (url.isEmpty()) return
         _uiState.update { if (it.serverUrl.isEmpty()) it.copy(serverUrl = url) else it }
+        serverUrlInput.value = _uiState.value.serverUrl
     }
 
     private fun onServerUrlChange(url: String) {
         _uiState.update { it.copy(serverUrl = url, error = NativeText.Empty) }
+        serverUrlInput.value = url
     }
 
     private fun onUsernameChange(username: String) {
@@ -228,5 +292,12 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
 
     private fun showError(resource: StringResource) {
         _uiState.update { it.copy(isLoading = false, error = NativeText.Resource(resource)) }
+    }
+
+    private companion object {
+        val PROBE_DEBOUNCE = 700.milliseconds
+
+        /** The app infers no scheme, here or anywhere else — so neither does the probe. */
+        val SCHEMES = listOf("http://", "https://")
     }
 }

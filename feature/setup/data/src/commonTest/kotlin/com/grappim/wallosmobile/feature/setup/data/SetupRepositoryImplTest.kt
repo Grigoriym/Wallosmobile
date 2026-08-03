@@ -8,6 +8,7 @@ import com.grappim.wallosmobile.core.storage.ApiKeyStorage
 import com.grappim.wallosmobile.core.storage.ServerUrlStorage
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
+import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
 import com.grappim.wallosmobile.testing.FakeTrustedCertStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -16,7 +17,9 @@ import io.ktor.client.request.forms.FormDataContent
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -234,6 +237,105 @@ class SetupRepositoryImplTest {
     }
 
     @Test
+    fun `reports what the login form says about password login`() = runTest {
+        webLoginApi.availability = PasswordLoginAvailability.Disabled
+
+        val result = repository().probePasswordLogin(SERVER_URL)
+
+        assertEquals(PasswordLoginAvailability.Disabled, result.getOrNull())
+    }
+
+    /** `login.php` is requested relative to it, which is what keeps a subpath install working. */
+    @Test
+    fun `persists the trimmed server url before probing it`() = runTest {
+        repository().probePasswordLogin("  $SERVER_URL  ")
+
+        assertEquals(SERVER_URL, serverUrlStorage.serverUrl)
+    }
+
+    /** It is an affordance, not a login — nothing about the stored credential is its business. */
+    @Test
+    fun `the probe leaves the stored key alone`() = runTest {
+        apiKeyStorage.key = "stale-key"
+
+        repository().probePasswordLogin(SERVER_URL)
+
+        assertEquals("stale-key", apiKeyStorage.key)
+    }
+
+    /**
+     * The server counts no failed attempts of its own (plan §9), so without this the screen is a
+     * brute-force tool with a Connect button.
+     */
+    @Test
+    fun `slows down once the instance has refused enough credentials`() = runTest {
+        webLoginApi.loginOutcome = WebLoginOutcome.InvalidCredentials
+        val repository = repository()
+        repeat(3) { repository.loginWithPassword(SERVER_URL, "demo", "wrong") }
+
+        val before = currentTime
+        repository.loginWithPassword(SERVER_URL, "demo", "wrong")
+
+        assertTrue(currentTime > before)
+    }
+
+    /** A wide verification window on a server that counts nothing — the sharper of the two. */
+    @Test
+    fun `rejected codes count towards the same backoff`() = runTest {
+        webLoginApi.totpOutcome = WebTotpOutcome.InvalidCode
+        val repository = repository()
+        repeat(3) { repository.submitTotpCode("000000") }
+
+        val before = currentTime
+        repository.submitTotpCode("000000")
+
+        assertTrue(currentTime > before)
+    }
+
+    /** A typo followed by the right password must not leave the next login slow. */
+    @Test
+    fun `a completed connection clears the backoff`() = runTest {
+        webLoginApi.loginOutcome = WebLoginOutcome.InvalidCredentials
+        val repository = repository()
+        repeat(3) { repository.loginWithPassword(SERVER_URL, "demo", "wrong") }
+        webLoginApi.apiKey = SCRAPED_API_KEY
+        webLoginApi.loginOutcome = WebLoginOutcome.LoggedIn
+        repository.loginWithPassword(SERVER_URL, "demo", "demo")
+
+        webLoginApi.loginOutcome = WebLoginOutcome.InvalidCredentials
+        val before = currentTime
+        repository.loginWithPassword(SERVER_URL, "demo", "wrong")
+
+        assertEquals(before, currentTime)
+    }
+
+    /** Not a guess: no code was weighed, so nothing was learned and there is nothing to slow. */
+    @Test
+    fun `a lost session does not count towards the backoff`() = runTest {
+        webLoginApi.totpOutcome = WebTotpOutcome.SessionExpired
+        val repository = repository()
+        repeat(6) { repository.submitTotpCode("123456") }
+
+        val before = currentTime
+        repository.submitTotpCode("123456")
+
+        assertEquals(before, currentTime)
+    }
+
+    /** Nobody arrives at a pasted key by retrying, and the recovery route must not get slower. */
+    @Test
+    fun `a rejected api key is never throttled`() = runTest {
+        validationBody = """{"success":false,"title":"Invalid API key"}"""
+        val repository = repository()
+        repeat(6) { repository.connectWithApiKey(SERVER_URL, PASTED_API_KEY) }
+
+        val before = currentTime
+        repository.connectWithApiKey(SERVER_URL, PASTED_API_KEY)
+
+        assertEquals(before, currentTime)
+    }
+
+    @Test
     fun `pins an accepted certificate for the host it was shown for`() = runTest {
         repository().trustCertificate(pendingCertTrust())
 
@@ -257,7 +359,12 @@ class SetupRepositoryImplTest {
         sha256Fingerprint = CERT_FINGERPRINT
     )
 
-    private fun repository(): SetupRepositoryImpl {
+    /**
+     * A `TestScope` extension so the dispatcher can share `runTest`'s scheduler: the throttle's
+     * `delay` runs inside the repository's `withContext`, and a dispatcher built with its own
+     * scheduler would leave that wait invisible to `currentTime` — or hang on it.
+     */
+    private fun TestScope.repository(): SetupRepositoryImpl {
         val engine = MockEngine { request ->
             validationRequests += (request.body as FormDataContent).formData.entries()
                 .associate { (key, values) -> key to values.first() }
@@ -273,7 +380,7 @@ class SetupRepositoryImplTest {
             serverUrlStorage = serverUrlStorage,
             apiKeyStorage = apiKeyStorage,
             trustedCertStorage = trustedCertStorage,
-            dispatcher = UnconfinedTestDispatcher()
+            dispatcher = UnconfinedTestDispatcher(testScheduler)
         )
     }
 
@@ -283,6 +390,9 @@ class SetupRepositoryImplTest {
         var apiKey: String? = null
         var loginCalled = false
         var totpCall: String? = null
+        var availability = PasswordLoginAvailability.Available
+
+        override suspend fun probePasswordLogin(): PasswordLoginAvailability = availability
 
         override suspend fun login(username: String, password: String): WebLoginOutcome {
             loginCalled = true

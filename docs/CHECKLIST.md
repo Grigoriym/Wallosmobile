@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `9/12`
-**Current step:** 3.10
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `10/12`
+**Current step:** 3.11
 
 ---
 
@@ -113,7 +113,7 @@ about wiring Room and KSP, was 3.3's and is spent):
   answer the API doc didn't carry (*now in `WALLOS_API.md` §9.2*), and all three were driven on
   the emulator, expired session included.
 
-- [ ] **3.10 — feature:setup: password-login probe and backoff**
+- [x] **3.10 — feature:setup: password-login probe and backoff**
   Probe `login.php`'s form for `password_login_disabled` / OIDC and degrade to Path B before the
   user types a password that cannot work. Plus client-side backoff on repeated failures: plan §9
   notes the **server has no rate limiting or lockout of its own**, which makes an unthrottled
@@ -121,6 +121,18 @@ about wiring Room and KSP, was 3.3's and is spent):
   *Verify:* `./gradlew :feature:setup:data:testAndroidHostTest`  ·  *Ref:* plan §9, §1.1
   1.9 left the probe unowned on purpose ("a degrade-to-Path-B affordance, not a blocker"). It is
   cheap here because 3.1 already touched this screen's copy.
+  *Note:* the probe runs off the **URL field** (700 ms debounce), not off Connect — Connect isn't
+  earlier than the password, which was the point. Reading `login.php` out of the container paid for
+  itself twice (*now in `WALLOS_API.md` §9.1, §9.5*): a GET of it **clears
+  `$_SESSION['totp_user_id']`**, so an unguarded probe would kill a live TOTP challenge, and
+  `password_login_disabled` is only read when OIDC is *configured*, which is why "no password
+  input" can be reported as SSO rather than as a generic refusal. Both branches were driven on the
+  emulator against a throwaway `bellamy/wallos` — OIDC needs no IdP, just
+  `OIDC_ENABLED=1 OIDC_DISABLE_PASSWORD_LOGIN=1` plus the seven fields `is_configured` checks
+  (recipe in `CLAUDE.md`) — and the backoff's 1s/2s/4s were read off `LoginThrottle`'s own logcat
+  line on device. Both halves are *now in plan §1.1*. **What the backoff does not do is say
+  anything**: the wait is spent under the existing spinner, so a user on their fifth attempt sees
+  a slow login and no explanation. Filed under "Still open after v1".
 
 - [ ] **3.11 — currency conversion hint**
   Send `convert_currency` and handle the silent failure: `WALLOS_API.md` §3.2 says conversion only
@@ -158,12 +170,18 @@ The tick above closes M2, so these are the pointers that would otherwise vanish 
   instrumented, not Robolectric, and grown one screen at a time. 3.12 revisits both.
 - ~~The login screen doesn't prefill the server URL~~ — **done in 3.1**.
 - ~~Plan §9's non-HTTPS warning~~ — **done in 3.1** (warn and steer to Path B, never disable).
-  1.9's `password_login_disabled` probe is still open and **owned by 3.10**.
+  ~~1.9's `password_login_disabled` probe~~ — **done in 3.10**, off the URL field rather than off
+  Connect.
 - **The trust prompt only exists on the login screen** (3.8). A certificate that rotates *after*
   the app is connected leaves every screen on 3.5's stale banner with no way to accept the new one
   — Disconnect and log in again is the only route, and nothing says so. Confirmed on the emulator,
   not inferred. The fix is either a prompt wherever a refresh can fail, or copy on the banner that
   names the real cause; both are more than 3.8's title covers.
+- **The backoff is invisible** (3.10). Past three refused attempts the next one waits 1–8 seconds
+  under the spinner that was already there, so the screen says nothing about why the login got
+  slow. Telling the user would mean a state that only exists *while* a call is in flight — either
+  a wait the repository announces before it starts, or a countdown — which is more than the step's
+  title covers. Nothing is wrong; it is just unexplained.
 - **Version gating (plan §4.6) is still unowned.** It gates `get_period_budget`, `set_budget`'s
   period fields, `logo_variant` and `square_icons` — all Phase 4 and 5 surface, so M3 leaves it
   alone deliberately rather than by oversight.
@@ -270,5 +288,11 @@ structural into the plan itself.
 | 3.9 | `totp.php` has three outcomes, so `WebTotpOutcome` is its own enum rather than a reuse of `WebLoginOutcome` | A `302` to `login.php` is a lost session that no code can answer; folded into "bad code" it would loop the user forever — *now in `WALLOS_API.md` §9.2* |
 | 3.9 | `submitTotpCode` takes no `serverUrl` and clears no key, unlike every other entry point | Both were done by the `loginWithPassword` that raised the challenge, on the session this runs against — a second `clear()` would drop the key the same call is about to store — *now in plan §1.1* |
 | 3.9 | The code field is a plain text field, not `KeyboardType.Number` | Wallos accepts a backup code here and those are 20 hex characters — a number pad cannot type one — *now in `WALLOS_API.md` §9.2* |
+| 3.10 | The probe runs off the URL field on a debounce, not from Connect | Connect is not earlier than the password, and being earlier than the password is the whole ask — *now in plan §1.1* |
+| 3.10 | `PasswordLoginAvailability` has an `Unknown`, and the interpreter recognises the form before reading a missing input | It hides a path, so it may only fire on evidence: any 200 that isn't `login.php` also has no password input — *now in plan §1.1, `WALLOS_API.md` §9.5* |
+| 3.10 | The probe is guarded on `isTotpRequired` | A GET of `login.php` clears `$_SESSION['totp_user_id']`, so probing mid-challenge kills it — the API doc had no row for this — *now in `WALLOS_API.md` §9.1* |
+| 3.10 | `LoginThrottle` is constructed inside `SetupRepositoryImpl`, not injected | No dependencies, and the lifetime it wants is already that object's; injecting it would also be a seventh constructor parameter against detekt's limit — *now in plan §1.1* |
+| 3.10 | The backoff is spent under the existing spinner and says nothing | A visible wait needs state that only exists while a call is in flight; parked in "Still open after v1" rather than widened into this step |
+| 3.10 | `SetupRepositoryImplTest.repository()` became a `TestScope` extension taking `UnconfinedTestDispatcher(testScheduler)` | A dispatcher built with its own scheduler leaves a `delay` inside `withContext` invisible to `currentTime` — *now in `CLAUDE.md`* |
 | 3.9 | Verified against a throwaway container, not the live instance the step assumed | 2FA on the user's own account is a live-data mutation with a lockout tail; a scratch `bellamy/wallos` on :8283 with a known secret costs one `docker run` and risks nothing |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |

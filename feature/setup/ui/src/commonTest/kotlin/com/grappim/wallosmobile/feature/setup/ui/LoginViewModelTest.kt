@@ -5,6 +5,7 @@ import com.grappim.wallosmobile.core.domain.UntrustedCertificateException
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
+import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
 import com.grappim.wallosmobile.feature.setup.domain.repo.SetupRepository
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.error_invalid_api_key
@@ -418,6 +419,116 @@ class LoginViewModelTest {
         assertEquals(Triple(CLEARTEXT_SERVER_URL, USERNAME, PASSWORD), repository.loginCall)
     }
 
+    /**
+     * The point of the probe: it lands before the password does, off the URL field alone.
+     * The debounce is spent on the rule's own scheduler — `viewModelScope` dispatches on the main
+     * dispatcher this test installs, so that is where the `delay` is parked.
+     */
+    @Test
+    fun `an sso-only instance takes the password path off the screen`() = runTest {
+        repository.probeResult = Result.success(PasswordLoginAvailability.Disabled)
+        val sut = viewModel()
+
+        sut.uiState.value.onServerUrlChange(SERVER_URL)
+        settleProbe()
+
+        assertEquals(listOf(SERVER_URL), repository.probeCalls)
+        assertTrue(sut.uiState.value.isPasswordLoginDisabled)
+        assertTrue(sut.uiState.value.isApiKeyMode)
+    }
+
+    @Test
+    fun `an instance that accepts passwords leaves both paths on offer`() = runTest {
+        val sut = viewModel()
+
+        sut.uiState.value.onServerUrlChange(SERVER_URL)
+        settleProbe()
+
+        assertFalse(sut.uiState.value.isPasswordLoginDisabled)
+        assertFalse(sut.uiState.value.isApiKeyMode)
+    }
+
+    /** It hides a path, so an unreachable server must not be enough to set it. */
+    @Test
+    fun `a probe that fails changes nothing`() = runTest {
+        repository.probeResult = Result.failure(IllegalStateException("connection refused"))
+        val sut = viewModel()
+
+        sut.uiState.value.onServerUrlChange(SERVER_URL)
+        settleProbe()
+
+        assertFalse(sut.uiState.value.isPasswordLoginDisabled)
+        assertTrue(sut.uiState.value.error.isEmpty())
+    }
+
+    /** Same rule, for the answer that says the page could not be read. */
+    @Test
+    fun `an unreadable login page changes nothing`() = runTest {
+        repository.probeResult = Result.success(PasswordLoginAvailability.Unknown)
+        val sut = viewModel()
+
+        sut.uiState.value.onServerUrlChange(SERVER_URL)
+        settleProbe()
+
+        assertFalse(sut.uiState.value.isPasswordLoginDisabled)
+    }
+
+    /** The app infers no scheme, so half a URL is not an instance worth asking. */
+    @Test
+    fun `a url with no scheme is not probed`() = runTest {
+        val sut = viewModel()
+
+        sut.uiState.value.onServerUrlChange("wallos.example")
+        settleProbe()
+
+        assertTrue(repository.probeCalls.isEmpty())
+    }
+
+    /** One request for a URL the user typed, not one per keystroke. */
+    @Test
+    fun `typing a url probes it once`() = runTest {
+        val sut = viewModel()
+
+        with(sut.uiState.value) {
+            onServerUrlChange("https://wallos.exam")
+            onServerUrlChange("https://wallos.example")
+            onServerUrlChange(SERVER_URL)
+        }
+        settleProbe()
+
+        assertEquals(listOf(SERVER_URL), repository.probeCalls)
+    }
+
+    /** 3.1's prefill is a URL nobody typed, and it is the one most worth probing. */
+    @Test
+    fun `the prefilled url is probed too`() = runTest {
+        repository.storedServerUrlResult = Result.success(SERVER_URL)
+
+        viewModel()
+        settleProbe()
+
+        assertEquals(listOf(SERVER_URL), repository.probeCalls)
+    }
+
+    /**
+     * `login.php` clears `$_SESSION['totp_user_id']` as it renders, so a probe fired from the URL
+     * field at the code step would answer the next code with `TotpSessionExpired`.
+     */
+    @Test
+    fun `the probe stays away from a pending totp challenge`() = runTest {
+        val sut = totpChallenge()
+
+        sut.uiState.value.onServerUrlChange(OTHER_SERVER_URL)
+        settleProbe()
+
+        assertTrue(repository.probeCalls.isEmpty())
+    }
+
+    /** The debounce is parked on the main dispatcher's scheduler, so that is what has to move. */
+    private fun settleProbe() {
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+    }
+
     /** The URL and the connection were both right, so the generic message would misattribute. */
     @Test
     fun `an untrusted certificate raises the trust prompt instead of an error`() = runTest {
@@ -533,6 +644,13 @@ class LoginViewModelTest {
         var storedServerUrlResult: Result<String> = Result.success("")
         var trustResult: Result<Unit> = Result.success(Unit)
         var trustCall: PendingCertTrust? = null
+        var probeResult: Result<PasswordLoginAvailability> = Result.success(PasswordLoginAvailability.Available)
+        val probeCalls = mutableListOf<String>()
+
+        override suspend fun probePasswordLogin(serverUrl: String): Result<PasswordLoginAvailability> {
+            probeCalls += serverUrl
+            return probeResult
+        }
 
         override suspend fun trustCertificate(pendingCertTrust: PendingCertTrust): Result<Unit> {
             trustCall = pendingCertTrust

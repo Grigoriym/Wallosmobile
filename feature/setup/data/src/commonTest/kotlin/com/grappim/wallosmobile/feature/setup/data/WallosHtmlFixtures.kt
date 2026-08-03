@@ -39,3 +39,24 @@ internal val LOGIN_HTML = """
     </body>
     </html>
 """.trimIndent()
+
+/**
+ * The same form with `password_login_disabled` set: `login.php` wraps both credential inputs in
+ * `if (!$password_login_disabled)`, leaving the OIDC link as the only way in. Per that same file
+ * the flag can only be set when OIDC is enabled *and* configured, so this is what an SSO-only
+ * instance renders — there is no variant with neither.
+ */
+internal val LOGIN_HTML_SSO_ONLY = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <body>
+      <form action="login.php" method="post">
+        <div class="form-group">
+          <a class="button secondary-button" href="https://idp.example.com/authorize?response_type=code">
+            Login with Keycloak
+          </a>
+        </div>
+      </form>
+    </body>
+    </html>
+""".trimIndent()

@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.feature.setup.data
 
 import com.grappim.wallosmobile.core.api.WebSessionHttpClient
+import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
@@ -23,6 +24,19 @@ enum class WebTotpOutcome { LoggedIn, InvalidCode, SessionExpired }
  * (plan §1.1) — nothing else in the app ever touches it.
  */
 interface WebLoginApi {
+
+    /**
+     * Whether this instance's `login.php` still carries the credential fields the bridge POSTs to
+     * (plan §1.1). A GET, so it costs one request and reveals nothing.
+     *
+     * **It runs on the same session as [login] and [submitTotpCode], and `login.php` clears
+     * `$_SESSION['totp_user_id']` on the way in** — read straight off the PHP, not off the API
+     * doc. So probing between [login] and [submitTotpCode] would destroy the challenge that was
+     * just raised, and the next code would come back as
+     * [com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome.TotpSessionExpired]. The
+     * caller is what keeps it away from that window.
+     */
+    suspend fun probePasswordLogin(): PasswordLoginAvailability
 
     suspend fun login(username: String, password: String): WebLoginOutcome
 
@@ -49,6 +63,11 @@ interface WebLoginApi {
  */
 @Factory(binds = [WebLoginApi::class])
 internal class WebLoginApiImpl(@param:WebSessionHttpClient private val webClient: HttpClient) : WebLoginApi {
+
+    override suspend fun probePasswordLogin(): PasswordLoginAvailability {
+        val response = webClient.get(LOGIN_PATH)
+        return interpretPasswordLoginAvailability(response.status.value, response.bodyAsText())
+    }
 
     /**
      * `remember` is deliberately not sent (API doc §9.1): the session is thrown away as soon as

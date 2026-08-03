@@ -16,6 +16,7 @@
     <string name="login_use_password">Use username and password</string>
     <string name="login_connect">Connect</string>
     <string name="login_cleartext_warning">This address isn't encrypted, so your password would cross the network in the clear. Connecting with an API key instead keeps it off the wire.</string>
+    <string name="login_password_login_disabled">This server signs in through single sign-on, so a username and password won't work here. Connect with an API key instead — in the Wallos web UI: Profile → API Key.</string>
 
     <string name="login_totp_message">This account is protected by two-factor authentication.</string>
     <string name="login_totp_label">One-time code</string>
