@@ -4,8 +4,8 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `8/12`
-**Current step:** 3.9
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `9/12`
+**Current step:** 3.10
 
 ---
 
@@ -90,7 +90,7 @@ about wiring Room and KSP, was 3.3's and is spent):
   end on the list screen, which has no prompt — 3.5's stale banner says "couldn't reach that
   server" and the only way out is Disconnect and log in again. Filed under "Still open after v1".
 
-- [ ] **3.9 — feature:setup: TOTP second step**
+- [x] **3.9 — feature:setup: TOTP second step**
   Drive `totp.php` instead of degrading to manual key entry: `LoginOutcome.NeedsTotp` becomes a
   code field, and `POST one-time-code` on the **same session** completes the login
   (`WALLOS_API.md` §9.2, §9.3).
@@ -104,6 +104,14 @@ about wiring Room and KSP, was 3.3's and is spent):
   anywhere above a `@Factory` silently undoes it, and nothing fails loudly when it does.
   **On-device verification needs TOTP enabled on the user's real account** — that is a mutation of
   their live instance, so **ask first**, and offer the MockEngine tests as the alternative.
+  *Note:* the `@Factory` fight resolved to **no change at all** — Koin resolves a `@Factory` once
+  per *injection point*, and the only one in the chain is `LoginViewModel`'s constructor, so the
+  cookie jar already spanned the screen rather than the call. What the step actually needed was to
+  say so (*now in plan §1.1*). Asked, and verified on a **throwaway `bellamy/wallos` container**
+  instead of the user's account — a scratch user with a known TOTP secret written straight into
+  its SQLite, zero mutation of live data; recipe below. `totp.php` turned out to have a **third**
+  answer the API doc didn't carry (*now in `WALLOS_API.md` §9.2*), and all three were driven on
+  the emulator, expired session included.
 
 - [ ] **3.10 — feature:setup: password-login probe and backoff**
   Probe `login.php`'s form for `password_login_disabled` / OIDC and degrade to Path B before the
@@ -258,4 +266,9 @@ structural into the plan itself.
 | 3.8 | `pendingCertTrust != null` *is* the dialog; no `isCertTrustDialogVisible` beside it (Taiga has both) | Same rule 3.5 wrote down: a stored boolean is free to drift from the field that already carries the fact |
 | 3.8 | Declining sets an error (`login_error_cert_not_trusted`); Taiga leaves the screen silent | Connect did nothing and the user is owed a reason — and `getErrorMessage` would say "check the URL and your connection", which is the one thing that was right |
 | 3.8 | Trust is stored through `SetupRepository.trustCertificate`, not `TrustedCertStorage` from the ViewModel | 3.1's precedent exactly: this feature has a `data` layer, so a `ui` → `core:storage` reach would be going past it — *now in plan §4.5* |
+| 3.9 | The `@Factory` chain was left exactly as it was; only its KDoc changed | A `@Factory` resolves once per *injection point*, and `LoginViewModel` is the chain's only one — the session already spanned the screen, which is the window a typed code needs — *now in plan §1.1* |
+| 3.9 | `totp.php` has three outcomes, so `WebTotpOutcome` is its own enum rather than a reuse of `WebLoginOutcome` | A `302` to `login.php` is a lost session that no code can answer; folded into "bad code" it would loop the user forever — *now in `WALLOS_API.md` §9.2* |
+| 3.9 | `submitTotpCode` takes no `serverUrl` and clears no key, unlike every other entry point | Both were done by the `loginWithPassword` that raised the challenge, on the session this runs against — a second `clear()` would drop the key the same call is about to store — *now in plan §1.1* |
+| 3.9 | The code field is a plain text field, not `KeyboardType.Number` | Wallos accepts a backup code here and those are 20 hex characters — a number pad cannot type one — *now in `WALLOS_API.md` §9.2* |
+| 3.9 | Verified against a throwaway container, not the live instance the step assumed | 2FA on the user's own account is a live-data mutation with a lockout tail; a scratch `bellamy/wallos` on :8283 with a known secret costs one `docker run` and risks nothing |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |

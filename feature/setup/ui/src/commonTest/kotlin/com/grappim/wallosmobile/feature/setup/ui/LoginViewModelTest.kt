@@ -13,7 +13,8 @@ import com.grappim.wallosmobile.strings.generated.resources.error_unreachable
 import com.grappim.wallosmobile.strings.generated.resources.login_error_api_key_missing
 import com.grappim.wallosmobile.strings.generated.resources.login_error_cert_not_trusted
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_credentials
-import com.grappim.wallosmobile.strings.generated.resources.login_error_needs_totp
+import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_totp
+import com.grappim.wallosmobile.strings.generated.resources.login_error_totp_session_expired
 import com.grappim.wallosmobile.testing.MainDispatcherRule
 import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.coroutines.CompletableDeferred
@@ -136,16 +137,125 @@ class LoginViewModelTest {
         assertFalse(sut.uiState.value.isLoading)
     }
 
-    /** v1 doesn't drive `totp.php` — the message has to send the user to the key field instead. */
+    /** The challenge is a second step on this screen, not a dead end — and not an error either. */
     @Test
-    fun `a totp challenge points at the api key path`() = runTest {
+    fun `a totp challenge turns the screen into a code field`() = runTest {
         repository.loginResult = Result.success(LoginOutcome.NeedsTotp)
         val sut = viewModel()
         sut.fillCredentials()
 
         sut.uiState.value.onConnectClick()
 
-        assertEquals(resource(RString.login_error_needs_totp), sut.uiState.value.error)
+        assertTrue(sut.uiState.value.isTotpRequired)
+        assertTrue(sut.uiState.value.error.isEmpty())
+        assertFalse(sut.uiState.value.isLoading)
+    }
+
+    /** The session carries the challenge from here, so the password has no further use. */
+    @Test
+    fun `a totp challenge drops the password from state`() = runTest {
+        repository.loginResult = Result.success(LoginOutcome.NeedsTotp)
+        val sut = viewModel()
+        sut.fillCredentials()
+
+        sut.uiState.value.onConnectClick()
+
+        assertEquals("", sut.uiState.value.password)
+    }
+
+    @Test
+    fun `connect is disabled until the code is typed, then submits it`() = runTest {
+        repository.loginResult = Result.success(LoginOutcome.NeedsTotp)
+        val sut = viewModel()
+        sut.fillCredentials()
+        sut.uiState.value.onConnectClick()
+        assertFalse(sut.uiState.value.canConnect)
+
+        sut.uiState.value.onTotpCodeChange(TOTP_CODE)
+        assertTrue(sut.uiState.value.canConnect)
+
+        repository.totpResult = Result.success(LoginOutcome.Connected)
+        sut.uiState.value.onConnectClick()
+
+        assertEquals(TOTP_CODE, repository.totpCall)
+        assertEquals(1, repository.loginCallCount)
+    }
+
+    /** The next code off the authenticator is a working answer, so the field has to stay. */
+    @Test
+    fun `a rejected code keeps the challenge up`() = runTest {
+        val sut = totpChallenge()
+        repository.totpResult = Result.success(LoginOutcome.InvalidTotpCode)
+
+        sut.uiState.value.onConnectClick()
+
+        assertTrue(sut.uiState.value.isTotpRequired)
+        assertEquals(resource(RString.login_error_invalid_totp), sut.uiState.value.error)
+    }
+
+    /** No code can complete this attempt — leaving the field up would loop the user forever. */
+    @Test
+    fun `a lost session sends the user back to the credentials`() = runTest {
+        val sut = totpChallenge()
+        repository.totpResult = Result.success(LoginOutcome.TotpSessionExpired)
+
+        sut.uiState.value.onConnectClick()
+
+        assertFalse(sut.uiState.value.isTotpRequired)
+        assertEquals("", sut.uiState.value.totpCode)
+        assertEquals(resource(RString.login_error_totp_session_expired), sut.uiState.value.error)
+    }
+
+    /** The key path never answers a challenge, so switching to it abandons the one in flight. */
+    @Test
+    fun `switching to the api key path abandons the challenge`() = runTest {
+        val sut = totpChallenge()
+
+        sut.uiState.value.onApiKeyModeChange(true)
+
+        assertFalse(sut.uiState.value.isTotpRequired)
+        assertEquals("", sut.uiState.value.totpCode)
+    }
+
+    /** By the code step the password has already crossed the wire; the warning has nothing left. */
+    @Test
+    fun `the cleartext warning retires once the challenge is up`() = runTest {
+        repository.loginResult = Result.success(LoginOutcome.NeedsTotp)
+        val sut = viewModel()
+        with(sut.uiState.value) {
+            onServerUrlChange(CLEARTEXT_SERVER_URL)
+            onUsernameChange(USERNAME)
+            onPasswordChange(PASSWORD)
+        }
+        assertTrue(sut.uiState.value.isCleartextWarningVisible)
+
+        sut.uiState.value.onConnectClick()
+
+        assertFalse(sut.uiState.value.isCleartextWarningVisible)
+    }
+
+    /** The retry re-reads the state, so a certificate rotated mid-challenge resumes at the code. */
+    @Test
+    fun `accepting the certificate retries the code, not the credentials`() = runTest {
+        val sut = totpChallenge()
+        repository.totpResult = Result.failure(handshakeFailure())
+        sut.uiState.value.onConnectClick()
+
+        repository.totpResult = Result.success(LoginOutcome.Connected)
+        sut.uiState.value.onCertTrustConfirm()
+
+        assertEquals(2, repository.totpCallCount)
+        assertEquals(1, repository.loginCallCount)
+    }
+
+    /** The screen at the point where the credentials have been accepted and a code is wanted. */
+    private fun totpChallenge(): LoginViewModel {
+        repository.loginResult = Result.success(LoginOutcome.NeedsTotp)
+        val sut = viewModel()
+        sut.fillCredentials()
+        sut.uiState.value.onConnectClick()
+        sut.uiState.value.onTotpCodeChange(TOTP_CODE)
+        return sut
     }
 
     /** Layer 1: nothing that looked like Wallos answered, so the URL is what is wrong. */
@@ -413,10 +523,13 @@ class LoginViewModelTest {
     private class FakeSetupRepository : SetupRepository {
         var loginResult: Result<LoginOutcome>? = null
         var connectResult: Result<Unit>? = null
+        var totpResult: Result<LoginOutcome>? = null
         var loginCall: Triple<String, String, String>? = null
         var connectCall: Pair<String, String>? = null
+        var totpCall: String? = null
         var loginCallCount = 0
         var connectCallCount = 0
+        var totpCallCount = 0
         var storedServerUrlResult: Result<String> = Result.success("")
         var trustResult: Result<Unit> = Result.success(Unit)
         var trustCall: PendingCertTrust? = null
@@ -449,6 +562,12 @@ class LoginViewModelTest {
             connectCallCount++
             return connectResult ?: error("connectResult not set")
         }
+
+        override suspend fun submitTotpCode(code: String): Result<LoginOutcome> {
+            totpCall = code
+            totpCallCount++
+            return totpResult ?: error("totpResult not set")
+        }
     }
 
     private companion object {
@@ -458,6 +577,7 @@ class LoginViewModelTest {
         const val USERNAME = "demo"
         const val PASSWORD = "demo"
         const val API_KEY = "5c1e0b2a9f"
+        const val TOTP_CODE = "123456"
 
         val PENDING_CERT_TRUST = PendingCertTrust(
             host = "wallos.lan",

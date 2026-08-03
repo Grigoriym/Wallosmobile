@@ -45,19 +45,34 @@ internal class SetupRepositoryImpl(
 
             when (webLoginApi.login(username, password)) {
                 WebLoginOutcome.NeedsTotp -> LoginOutcome.NeedsTotp
-
                 WebLoginOutcome.InvalidCredentials -> LoginOutcome.InvalidCredentials
-
-                WebLoginOutcome.LoggedIn -> {
-                    val apiKey = webLoginApi.fetchApiKey() ?: throw ApiKeyNotFound
-                    validate(apiKey)
-                    apiKeyStorage.setKey(apiKey)
-                    LoginOutcome.Connected
-                }
+                WebLoginOutcome.LoggedIn -> takeApiKey()
             }
         }
         // The session cookie dies with this `@Factory`'s `HttpClient`, and `password` is never
         // written anywhere — the key is the only thing that outlives the call.
+    }
+
+    /**
+     * No `serverUrl` and no `apiKeyStorage.clear()`: both were done by the [loginWithPassword]
+     * that raised the challenge, and this runs on that same attempt's session.
+     */
+    override suspend fun submitTotpCode(code: String): Result<LoginOutcome> = resultOf {
+        withContext(dispatcher) {
+            when (webLoginApi.submitTotpCode(code.trim())) {
+                WebTotpOutcome.InvalidCode -> LoginOutcome.InvalidTotpCode
+                WebTotpOutcome.SessionExpired -> LoginOutcome.TotpSessionExpired
+                WebTotpOutcome.LoggedIn -> takeApiKey()
+            }
+        }
+    }
+
+    /** The tail both paths through the web login share, once the session is actually logged in. */
+    private suspend fun takeApiKey(): LoginOutcome {
+        val apiKey = webLoginApi.fetchApiKey() ?: throw ApiKeyNotFound
+        validate(apiKey)
+        apiKeyStorage.setKey(apiKey)
+        return LoginOutcome.Connected
     }
 
     override suspend fun connectWithApiKey(serverUrl: String, apiKey: String): Result<Unit> = resultOf {

@@ -46,8 +46,8 @@ API key.
 1. `POST /login.php` with `username` + `password`, **redirects disabled**.
    `302` = success, `200` = failure (the page HTML is re-rendered; the reason is not
    machine-readable, so the UI can only say "login failed").
-2. If `Location: totp.php`, prompt for the 6-digit code and `POST /totp.php` with
-   `one-time-code` on the same cookie jar.
+2. If `Location: totp.php`, prompt for the code and `POST /totp.php` with `one-time-code` on the
+   same cookie jar (3.9 — see "The second factor" below).
 3. `GET /profile.php`, scrape the key out of `id="apikey"`.
 4. **Validate the scraped key against `api/status/version.php`, persist it, and discard the
    session cookie and the password.**
@@ -101,6 +101,32 @@ Consequences for the design:
   and a `@Single` `SetupRepository` does the same one level up. `WebLoginApiImpl` and
   `SetupRepositoryImpl` are therefore both `@Factory` — the one place in the app where a
   repository isn't a singleton, and the reason is the session, not the state.
+
+  **`@Factory` is not per-*call*, and 3.9 depends on that.** Koin resolves a `@Factory` once per
+  **injection point**, and the only injection point in this chain is `LoginViewModel`'s
+  constructor — nothing else in the app asks for a `SetupRepository`. So one cookie jar spans one
+  login screen, which survives a rotation and dies with the screen. That window is exactly what
+  the second factor needs, and it is why 3.9 changed no lifetime at all: the danger the `@Factory`
+  guards against is the *process*, not the attempt.
+
+- **The second factor is a step on the same screen, not a second attempt** (3.9). `login.php`
+  answering `Location: totp.php` is a success — the password was accepted and the session now
+  carries `totp_user_id` — so `LoginOutcome.NeedsTotp` swaps the credential fields for a code
+  field and `SetupRepository.submitTotpCode(code)` answers it. That method takes no `serverUrl`
+  and clears no key: both were done by the `loginWithPassword` that raised the challenge, on the
+  session this one runs against. Once `totp.php` redirects, the tail is the same
+  scrape-validate-store as Path A's, shared as one private method.
+
+  `totp.php` has **three** answers, not two (API doc §9.2), and telling the third apart is the
+  whole reason it gets its own interpreter: `302` to `.` is verified, `200` is a rejected code —
+  and `302` to `login.php` means the session no longer holds `totp_user_id`, which **no code can
+  fix**. Reported as a bad code it would have the user typing fresh digits forever, so it clears
+  the challenge and asks for the password again. The password itself is dropped from state the
+  moment the challenge appears: the session carries the login from there.
+
+  The code field is deliberately **not** numeric — Wallos accepts a backup code here, and a
+  backup code is 20 hex characters (`endpoints/user/enable_totp.php`) that a number pad cannot
+  type.
 
 - **Clear the stored key before starting an attempt.** `WallosApiClient` injects the *stored* key
   over any `api_key` the caller put in the `FormParams` (§4.1), so a leftover key is what the
@@ -1429,7 +1455,9 @@ Everything here is real work that the walking skeleton does not need. Deferring 
 v1 small:
 
 - **TOTP** — if `login.php` redirects to `totp.php`, show "this account needs a one-time code;
-  use the API key instead" and point at the key field. That's the whole handling.
+  use the API key instead" and point at the key field. That's the whole handling. (Landed: 3.9
+  drives `totp.php` on the same session — see §1.1. The key field stays as the fallback it always
+  was, not as the answer to a challenge.)
 - **Room / offline cache** — fetch on screen open. No `NetworkMonitor`, no `LocalOfflineState`.
   (All three have landed since: `NetworkMonitor` + `LocalIsOffline` in 3.2, the database in 3.3,
   the offline-first repository in 3.4 — see the subsection above.)
@@ -1478,7 +1506,8 @@ fans out to it.)
 `NetworkMonitor`**. `feature:setup`: the `@WebSessionHttpClient` factory, `POST /login.php` with
 redirects disabled, `profile.php` scraping, validation against `api/status/version.php`, plus the
 "I have an API key" field. Tolerant URL normalization (trailing slash, subpath — many users run
-Wallos under `/wallos`). TOTP redirect → message pointing at the key field, nothing more.
+Wallos under `/wallos`). TOTP redirect → message pointing at the key field, nothing more (3.9
+replaced that message with the real second step).
 `core:navigation` + shell: `NavigationState`, `Navigator`, `DrawerDestination`, `DrawerItem`,
 `MainAppState`, `RouteConfig`, the drawer widget and `WallosTopAppBar` in `uikit` — all ported
 from MealieMobile per §5.4. `composeApp`: DI root, `MainNavHost`, `NavKeySerializers`,
@@ -1541,7 +1570,7 @@ Re-enable the iOS and Desktop targets in `configureKmp()` and restore the entry-
 |---|---|
 | Self-hosted instances run different Wallos versions with different columns and endpoints. | `ignoreUnknownKeys`, version gating, `UnsupportedEndpoint` as a first-class error. |
 | PHP diagnostics corrupt otherwise-valid responses. | Sanitizing parser in front of every decode; log the prefix so users can report it. |
-| No API for notification writes, stats, clone, renew, or key regeneration — those are session-cookie endpoints only. | Stay on the API-key surface. Scraping the login form breaks under TOTP/OIDC. File upstream requests for the gaps. |
+| No API for notification writes, stats, clone, renew, or key regeneration — those are session-cookie endpoints only. | Stay on the API-key surface. Scraping the login form breaks under OIDC (TOTP is driven since 3.9). File upstream requests for the gaps. |
 | The API key is a plaintext bearer credential. | Keystore-backed storage, HTTPS required, trust prompt instead of pinning. |
 | **The login bridge scrapes HTML.** `id="apikey"` on `profile.php` is not an API contract; an upstream markup change breaks onboarding silently. | Validate the scraped key against `version.php` before storing, and keep Path B (manual entry) permanently in the UI as the recovery route. |
 | **The login bridge handles the user's real password** — over cleartext on many self-hosted LAN instances. | Never persist it; exchange for the key and drop. Warn on non-HTTPS origins and steer to Path B there. |

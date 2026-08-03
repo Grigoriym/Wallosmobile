@@ -17,6 +17,10 @@
     <string name="login_connect">Connect</string>
     <string name="login_cleartext_warning">This address isn't encrypted, so your password would cross the network in the clear. Connecting with an API key instead keeps it off the wire.</string>
 
+    <string name="login_totp_message">This account is protected by two-factor authentication.</string>
+    <string name="login_totp_label">One-time code</string>
+    <string name="login_totp_hint">From your authenticator app, or one of your backup codes.</string>
+
     <string name="login_cert_trust_title">Untrusted certificate</string>
     <string name="login_cert_trust_message">%1$s presented a certificate this device can't verify. That is normal for a self-hosted instance — and it is also what an intercepted connection looks like. Compare the fingerprint with the one on your server before you accept it.</string>
     <string name="login_cert_trust_subject">Issued to</string>
@@ -28,7 +32,8 @@
     <string name="login_cert_trust_cancel">Cancel</string>
 
     <string name="login_error_invalid_credentials">Wallos didn't accept that username and password.</string>
-    <string name="login_error_needs_totp">This account asks for a one-time code, which this app can't do yet. Connect with your API key instead — Profile → API Key in the Wallos web UI.</string>
+    <string name="login_error_invalid_totp">That code wasn't accepted. Codes change every 30 seconds — wait for the next one and try again.</string>
+    <string name="login_error_totp_session_expired">The sign-in didn't get as far as the code. Enter your username and password again.</string>
     <string name="login_error_api_key_missing">Signed in, but this account has no API key yet. Generate one in the Wallos web UI (Profile → API Key), then paste it here.</string>
     <string name="login_error_cert_not_trusted">Not connected — that certificate wasn't trusted.</string>
 

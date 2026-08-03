@@ -468,7 +468,13 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
 
 ## The Wallos API will surprise you
 
-Read `docs/WALLOS_API.md` before touching anything network-related.
+Read `docs/WALLOS_API.md` before touching anything network-related — and treat it as **derived,
+not complete**. It was written from the PHP, so where a step's `Ref:` points at it, that is a
+starting point rather than a contract: 3.9's `totp.php` section listed the request and the success
+case and simply had no row for the branch that mattered (a lost session), which would have shipped
+as an infinite retry loop had it been implemented from the doc alone. `docker exec wallos cat
+/var/www/html/<file>.php` is a read against the real thing and takes seconds; do it for any
+endpoint whose *failure* modes the code has to branch on.
 
 - **Everything returns HTTP 200**, including auth failures. Only the JSON `success` field is
   reliable. Never branch on HTTP status except 404 (endpoint missing on this version) and 5xx.
@@ -527,6 +533,28 @@ is marked optional in Taiga's recipe and it is the check that found 3.8's real g
 Conscrypt preserves the cause chain, confirmed on device — the failure arrives as
 `SSLHandshakeException: …UntrustedCertificateException`, which is what makes
 `findPendingCertTrust()` work at all.
+
+**A step that wants a server-side *setting* changed gets a throwaway instance, not the user's**
+(3.9). Enabling 2FA, disabling password login, seeding a second account — all of them mutate live
+data and some have a lockout tail. A scratch container costs one `docker run` and is the whole
+setup:
+
+```bash
+docker run -d --name wallos-scratch -p 8283:80 bellamy/wallos:latest   # ~10s to boot
+curl -s -o /dev/null -d "username=u&firstname=T&lastname=U&email=u@e.com&password=p&\
+confirm_password=p&main_currency=USD&language=en" http://localhost:8283/registration.php
+```
+
+`registration.php` needs **all** of those fields — a short POST silently re-renders the form and
+`login.php` keeps redirecting to `registration.php`, which reads as a broken container. From there
+`docker exec wallos-scratch php -r '…new SQLite3("/var/www/html/db/wallos.db")…'` writes whatever
+the step needs directly (3.9 inserted a `totp` row with a known Base32 secret and set
+`user.totp_enabled = 1`, skipping the enrolment endpoint's own CSRF + code dance). PHP sessions
+are plain files — `docker exec wallos-scratch sh -c 'rm -f /tmp/sess_*'` is how you make a live
+session expire mid-flow. The emulator reaches it at `http://10.0.2.2:8283`; `docker rm -f` when
+done. **Reading the PHP out of the container is also the fastest authority on any endpoint** —
+`docker exec wallos cat /var/www/html/totp.php` settled a response table `WALLOS_API.md` had left
+half-written, and it is a read, so the live container is fine for that.
 
 **Do not reach for `demo.wallosapp.com`.** Its `profile.php` dies with a PHP fatal
 (`no such table: uploaded_avatars`), so there is no `id="apikey"` to scrape and the Path A login

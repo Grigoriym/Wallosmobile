@@ -19,6 +19,18 @@ interface SetupRepository {
     suspend fun loginWithPassword(serverUrl: String, username: String, password: String): Result<LoginOutcome>
 
     /**
+     * The second half of the bridge, for an account with 2FA on: answers the challenge
+     * [loginWithPassword] came back from as [LoginOutcome.NeedsTotp], then runs the same
+     * scrape-validate-store tail (API doc §9.2, §9.3).
+     *
+     * It **must** run on the web session that challenge was raised on, which is why there is no
+     * `serverUrl` parameter and no way to call this out of order: the session belongs to this
+     * repository instance, and this repository instance belongs to one login screen. A caller that
+     * has not just been told [LoginOutcome.NeedsTotp] gets [LoginOutcome.TotpSessionExpired].
+     */
+    suspend fun submitTotpCode(code: String): Result<LoginOutcome>
+
+    /**
      * Path B (plan §1.1): the user already has a key, so this is the tail of the bridge — persist
      * [serverUrl], validate [apiKey] against `api/status/version.php`, store it. No web session is
      * involved, so there is no [LoginOutcome] to report: a rejected key is a

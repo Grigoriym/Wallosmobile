@@ -799,6 +799,25 @@ translated message block is rendered — there is no machine-readable marker. Pr
 
 **TOTP second step:** POST `one-time-code` to `totp.php` on the same session
 (`totp.php:48`). Only after that does `$_SESSION['loggedin']` become true (`totp.php:109`).
+It answers on the same redirect-is-the-result shape, with **three** outcomes, not two:
+
+| Outcome | Response |
+|---|---|
+| Verified | **302** → `Location: .`, after `session_regenerate_id(true)` — so a *new* `PHPSESSID` arrives with it |
+| Rejected code | **200** with the totp page HTML re-rendered (`$invalidTotp = true`) |
+| Session gone | **302** → `Location: login.php` — the guard at the top of the file, when `$_SESSION['totp_user_id']` is unset |
+
+The third row is the one worth handling separately: no code can ever complete that attempt, so
+reporting it as a bad code leaves the user typing fresh digits at a dead session. All three were
+confirmed against a real instance, not read off the source alone.
+
+Two more things the field has to allow for:
+
+* **A backup code is accepted here too**, and it is 20 hex characters — `bin2hex(random_bytes(10))`,
+  ten of them generated at enrolment (`endpoints/user/enable_totp.php:92`). A numeric-only input
+  cannot type one.
+* **The verification window is wide** — `$totp->verify($code, null, 15)` — so clock skew is not a
+  realistic failure mode for this step.
 
 ### 9.3 The bridge: login → API key
 

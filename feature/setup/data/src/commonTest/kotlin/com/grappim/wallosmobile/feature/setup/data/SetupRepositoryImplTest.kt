@@ -79,15 +79,68 @@ class SetupRepositoryImplTest {
         assertTrue(validationRequests.isEmpty())
     }
 
-    /** v1 stops here: `totp.php` is never driven, the UI points at manual key entry instead. */
+    /** Nothing is stored on the challenge itself — the session is what carries it forward. */
     @Test
-    fun `stops at a totp challenge`() = runTest {
+    fun `reports a totp challenge without storing anything`() = runTest {
         webLoginApi.loginOutcome = WebLoginOutcome.NeedsTotp
 
         val result = repository().loginWithPassword(SERVER_URL, "demo", "demo")
 
         assertEquals(LoginOutcome.NeedsTotp, result.getOrNull())
         assertNull(apiKeyStorage.key)
+        assertTrue(validationRequests.isEmpty())
+    }
+
+    /** The second factor finishes the same bridge: scrape, validate, store. */
+    @Test
+    fun `an accepted code completes the bridge`() = runTest {
+        webLoginApi.loginOutcome = WebLoginOutcome.NeedsTotp
+        webLoginApi.totpOutcome = WebTotpOutcome.LoggedIn
+        webLoginApi.apiKey = SCRAPED_API_KEY
+        val repository = repository()
+        repository.loginWithPassword(SERVER_URL, "demo", "demo")
+
+        val result = repository.submitTotpCode("  123456  ")
+
+        assertEquals(LoginOutcome.Connected, result.getOrNull())
+        assertEquals(SCRAPED_API_KEY, apiKeyStorage.key)
+        assertEquals(listOf(SCRAPED_API_KEY), validationRequests.map { it["api_key"] })
+        assertEquals("123456", webLoginApi.totpCall)
+    }
+
+    /** The challenge stands, so this is an answer and not a failure — the next code can work. */
+    @Test
+    fun `a rejected code is an outcome, not a failure`() = runTest {
+        webLoginApi.totpOutcome = WebTotpOutcome.InvalidCode
+
+        val result = repository().submitTotpCode("000000")
+
+        assertEquals(LoginOutcome.InvalidTotpCode, result.getOrNull())
+        assertNull(apiKeyStorage.key)
+    }
+
+    /** A lost session cannot accept any code — reported as a bad one, it would loop forever. */
+    @Test
+    fun `a lost session is told apart from a bad code`() = runTest {
+        webLoginApi.totpOutcome = WebTotpOutcome.SessionExpired
+
+        val result = repository().submitTotpCode("123456")
+
+        assertEquals(LoginOutcome.TotpSessionExpired, result.getOrNull())
+        assertNull(apiKeyStorage.key)
+    }
+
+    /** The key already went in [loginWithPassword]; a second clear would drop what was just stored. */
+    @Test
+    fun `the second factor does not touch the stored url or key on its way in`() = runTest {
+        webLoginApi.totpOutcome = WebTotpOutcome.InvalidCode
+        apiKeyStorage.key = "stale-key"
+        serverUrlStorage.serverUrl = SERVER_URL
+
+        repository().submitTotpCode("000000")
+
+        assertEquals("stale-key", apiKeyStorage.key)
+        assertEquals(SERVER_URL, serverUrlStorage.serverUrl)
     }
 
     /**
@@ -226,12 +279,19 @@ class SetupRepositoryImplTest {
 
     private class FakeWebLoginApi : WebLoginApi {
         var loginOutcome: WebLoginOutcome? = null
+        var totpOutcome: WebTotpOutcome? = null
         var apiKey: String? = null
         var loginCalled = false
+        var totpCall: String? = null
 
         override suspend fun login(username: String, password: String): WebLoginOutcome {
             loginCalled = true
             return loginOutcome ?: error("loginOutcome not set")
+        }
+
+        override suspend fun submitTotpCode(code: String): WebTotpOutcome {
+            totpCall = code
+            return totpOutcome ?: error("totpOutcome not set")
         }
 
         override suspend fun fetchApiKey(): String? = apiKey

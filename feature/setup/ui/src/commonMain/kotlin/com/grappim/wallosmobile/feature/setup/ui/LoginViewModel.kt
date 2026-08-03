@@ -13,7 +13,8 @@ import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.login_error_api_key_missing
 import com.grappim.wallosmobile.strings.generated.resources.login_error_cert_not_trusted
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_credentials
-import com.grappim.wallosmobile.strings.generated.resources.login_error_needs_totp
+import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_totp
+import com.grappim.wallosmobile.strings.generated.resources.login_error_totp_session_expired
 import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,7 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
             onUsernameChange = ::onUsernameChange,
             onPasswordChange = ::onPasswordChange,
             onApiKeyChange = ::onApiKeyChange,
+            onTotpCodeChange = ::onTotpCodeChange,
             onPasswordVisibilityChange = ::onPasswordVisibilityChange,
             onApiKeyModeChange = ::onApiKeyModeChange,
             onConnectClick = ::onConnectClick,
@@ -81,13 +83,28 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
         _uiState.update { it.copy(apiKey = apiKey, error = NativeText.Empty) }
     }
 
+    private fun onTotpCodeChange(code: String) {
+        _uiState.update { it.copy(totpCode = code, error = NativeText.Empty) }
+    }
+
     private fun onPasswordVisibilityChange(isVisible: Boolean) {
         _uiState.update { it.copy(isPasswordVisible = isVisible) }
     }
 
-    /** Switching paths clears the error: it was attributed to fields the user can no longer see. */
+    /**
+     * Switching paths clears the error: it was attributed to fields the user can no longer see.
+     * It also abandons a pending TOTP challenge — the key path never answers one, and leaving the
+     * flag set would put the code field back the moment the user switched away again.
+     */
     private fun onApiKeyModeChange(isApiKeyMode: Boolean) {
-        _uiState.update { it.copy(isApiKeyMode = isApiKeyMode, error = NativeText.Empty) }
+        _uiState.update {
+            it.copy(
+                isApiKeyMode = isApiKeyMode,
+                isTotpRequired = false,
+                totpCode = "",
+                error = NativeText.Empty
+            )
+        }
     }
 
     private fun onConnectClick() {
@@ -97,14 +114,23 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = NativeText.Empty) }
 
-            if (state.isApiKeyMode) {
-                setupRepository.connectWithApiKey(state.serverUrl, state.apiKey)
-                    .onSuccess { onConnected() }
-                    .onFailure(::onFailure)
-            } else {
-                setupRepository.loginWithPassword(state.serverUrl, state.username, state.password)
-                    .onSuccess { onOutcome(it) }
-                    .onFailure(::onFailure)
+            when {
+                state.isApiKeyMode ->
+                    setupRepository.connectWithApiKey(state.serverUrl, state.apiKey)
+                        .onSuccess { onConnected() }
+                        .onFailure(::onFailure)
+
+                // The session this answers belongs to the repository, so there is nothing to pass
+                // it but the code — see `SetupRepository.submitTotpCode`.
+                state.isTotpRequired ->
+                    setupRepository.submitTotpCode(state.totpCode)
+                        .onSuccess { onOutcome(it) }
+                        .onFailure(::onFailure)
+
+                else ->
+                    setupRepository.loginWithPassword(state.serverUrl, state.username, state.password)
+                        .onSuccess { onOutcome(it) }
+                        .onFailure(::onFailure)
             }
         }
     }
@@ -113,20 +139,38 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
         when (outcome) {
             LoginOutcome.Connected -> onConnected()
 
-            // v1 doesn't drive `totp.php` (plan §7.2); the message sends the user to the key field,
-            // which is why the reveal is on this screen and not behind a settings toggle.
-            LoginOutcome.NeedsTotp -> showError(RString.login_error_needs_totp)
+            LoginOutcome.NeedsTotp -> onTotpRequired()
 
             LoginOutcome.InvalidCredentials -> showError(RString.login_error_invalid_credentials)
+
+            // The challenge stands, so the field stays: the next code off the authenticator is a
+            // working answer to the session that just refused this one.
+            LoginOutcome.InvalidTotpCode -> showError(RString.login_error_invalid_totp)
+
+            LoginOutcome.TotpSessionExpired -> onTotpSessionExpired()
         }
     }
 
     /**
+     * The password has already been accepted and is of no further use — the session carries the
+     * challenge from here — so it goes now rather than waiting for [onConnected].
+     */
+    private fun onTotpRequired() {
+        _uiState.update { it.copy(isLoading = false, isTotpRequired = true, password = "") }
+    }
+
+    /** No code can complete this attempt, so the screen has to go back to where one can start. */
+    private fun onTotpSessionExpired() {
+        _uiState.update { it.copy(isTotpRequired = false, totpCode = "") }
+        showError(RString.login_error_totp_session_expired)
+    }
+
+    /**
      * The key is persisted by now, so `ApiKeyStorage.isConnected` has already flipped and the
-     * shell is on its way in — this screen only has to stop looking busy and forget the password.
+     * shell is on its way in — this screen only has to stop looking busy and forget the secrets.
      */
     private fun onConnected() {
-        _uiState.update { it.copy(isLoading = false, password = "") }
+        _uiState.update { it.copy(isLoading = false, password = "", totpCode = "") }
     }
 
     private fun onFailure(throwable: Throwable) {

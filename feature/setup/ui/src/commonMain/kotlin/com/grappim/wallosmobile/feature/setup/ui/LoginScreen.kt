@@ -56,6 +56,9 @@ import com.grappim.wallosmobile.strings.generated.resources.login_password_show
 import com.grappim.wallosmobile.strings.generated.resources.login_server_url_label
 import com.grappim.wallosmobile.strings.generated.resources.login_server_url_placeholder
 import com.grappim.wallosmobile.strings.generated.resources.login_title
+import com.grappim.wallosmobile.strings.generated.resources.login_totp_hint
+import com.grappim.wallosmobile.strings.generated.resources.login_totp_label
+import com.grappim.wallosmobile.strings.generated.resources.login_totp_message
 import com.grappim.wallosmobile.strings.generated.resources.login_use_api_key
 import com.grappim.wallosmobile.strings.generated.resources.login_use_password
 import com.grappim.wallosmobile.strings.generated.resources.login_username_label
@@ -128,10 +131,10 @@ private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
             )
         }
 
-        if (uiState.isApiKeyMode) {
-            ApiKeyField(uiState = uiState, focusManager = focusManager)
-        } else {
-            CredentialFields(uiState = uiState, focusManager = focusManager)
+        when {
+            uiState.isApiKeyMode -> ApiKeyField(uiState = uiState, focusManager = focusManager)
+            uiState.isTotpRequired -> TotpField(uiState = uiState, focusManager = focusManager)
+            else -> CredentialFields(uiState = uiState, focusManager = focusManager)
         }
 
         if (uiState.error.isNotEmpty()) {
@@ -216,6 +219,36 @@ private fun CredentialFields(uiState: LoginUiState, focusManager: FocusManager) 
                 )
             }
         }
+    )
+}
+
+/**
+ * The second step of the password path. Deliberately **not** a numeric keyboard: Wallos accepts a
+ * backup code here as readily as a generated one, and a backup code is 20 hex characters
+ * (`endpoints/user/enable_totp.php`) that a number pad cannot type.
+ */
+@Composable
+private fun TotpField(uiState: LoginUiState, focusManager: FocusManager) {
+    Text(
+        text = stringResource(RString.login_totp_message),
+        style = MaterialTheme.typography.bodyMedium
+    )
+
+    OutlinedTextField(
+        modifier = Modifier.fillMaxWidth(),
+        value = uiState.totpCode,
+        onValueChange = uiState.onTotpCodeChange,
+        label = { Text(stringResource(RString.login_totp_label)) },
+        supportingText = { Text(stringResource(RString.login_totp_hint)) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(
+            onDone = {
+                focusManager.clearFocus()
+                uiState.onConnectClick()
+            }
+        ),
+        enabled = !uiState.isLoading
     )
 }
 
@@ -379,6 +412,19 @@ private fun LoginContentCertTrustPreview() = WallosMobilePreviewTheme {
                 sha256Fingerprint = "3A:7B:1C:04:9E:22:F0:5D:8A:16:BB:71:C3:0F:49:E8:" +
                     "2D:65:90:AC:11:74:3E:52:D8:06:9B:CF:27:41:6A:E3"
             )
+        )
+    )
+}
+
+@PreviewWallosDarkLight
+@Composable
+private fun LoginContentTotpPreview() = WallosMobilePreviewTheme {
+    LoginContent(
+        uiState = LoginUiState(
+            serverUrl = "https://wallos.example.com",
+            username = "demo",
+            totpCode = "123456",
+            isTotpRequired = true
         )
     )
 }
