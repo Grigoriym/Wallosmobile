@@ -11,3 +11,47 @@ creds for local instance:
 http://localhost:8282/
 gregorz
 Unequal2-Reawake9-Vessel3-Delouse8-Resonate9
+
+
+================================================================================
+The 2FA instance — port 8283, off by default
+================================================================================
+
+A second container for anything that needs two-factor auth, so no step ever has to enable 2FA on
+the real account. It is a *copy* of the real instance's database taken 2026-08-03, so it has the
+same username, the same password as above, and the same 35 subscriptions — but its own API key,
+regenerated on the copy so a disposable container isn't holding a working credential for the live
+one. Nothing in it writes back to /home/gregory/data/wallos.
+
+  data + compose:   /home/gregory/data/wallos-totp/
+  start:            docker compose -f /home/gregory/data/wallos-totp/compose.yaml up -d
+  stop:             docker compose -f /home/gregory/data/wallos-totp/compose.yaml stop
+  from the host:    http://localhost:8283/
+  from the emulator: http://10.0.2.2:8283
+
+It is `restart: "no"` on purpose — it stays off between sessions and survives a reboot stopped.
+Give it ~10s after `up -d` before the first request.
+
+  username          gregorz
+  password          (the same one above)
+  TOTP secret       JBSWY3DPEHPK3PXP        (Base32, 30s period — a published test vector)
+  current code      python3 scripts/totp-code.py
+  backup codes      bbbbccccddddeeeeffff  ccccddddeeeeffff0000
+                    ddddeeeeffff00001111  eeeeffff000011112222
+                    (aaaabbbbccccddddeeee was spent proving they work — Wallos deletes a backup
+                     code as it consumes it, and 20 hex chars is the real format)
+
+Re-seed the TOTP row if the codes run out or the account gets into a bad state:
+
+  docker exec wallos-totp php -r '$d=new SQLite3("/var/www/html/db/wallos.db");
+    $d->exec("DELETE FROM totp WHERE user_id = 1");
+    $s=$d->prepare("INSERT INTO totp (user_id,totp_secret,backup_codes,last_totp_used)
+                    VALUES (1,:s,:b,0)");
+    $s->bindValue(":s","JBSWY3DPEHPK3PXP"); $s->bindValue(":b",json_encode(
+      ["aaaabbbbccccddddeeee","bbbbccccddddeeeeffff","ccccddddeeeeffff0000",
+       "ddddeeeeffff00001111","eeeeffff000011112222"])); $s->execute();
+    $d->exec("UPDATE user SET totp_enabled = 1 WHERE id = 1");'
+
+Turning 2FA off on this instance (to test the plain path against the same data) is
+`UPDATE user SET totp_enabled = 0 WHERE id = 1` in the same way. To force the "session expired"
+branch mid-flow: docker exec wallos-totp sh -c 'rm -f /tmp/sess_*'

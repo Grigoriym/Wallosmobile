@@ -536,23 +536,34 @@ Conscrypt preserves the cause chain, confirmed on device — the failure arrives
 
 **A step that wants a server-side *setting* changed gets a throwaway instance, not the user's**
 (3.9). Enabling 2FA, disabling password login, seeding a second account — all of them mutate live
-data and some have a lockout tail. A scratch container costs one `docker run` and is the whole
-setup:
+data and some have a lockout tail.
+
+**For 2FA that instance already exists and is set up**: `wallos-totp` on port 8283, a copy of the
+real database with `gregorz` 2FA-enabled, the same password, the same 35 subscriptions and its own
+API key. It is **stopped by default** — `docker compose -f /home/gregory/data/wallos-totp/compose.yaml
+up -d`, then `http://10.0.2.2:8283` from the emulator and `python3 scripts/totp-code.py` for a
+code. Full details, backup codes and the re-seed command: `docs/local-info.txt`. Stop it when done;
+don't `docker rm` it, the point is that the setup survives.
+
+**For any other server-side setting**, build a scratch one the same way:
 
 ```bash
-docker run -d --name wallos-scratch -p 8283:80 bellamy/wallos:latest   # ~10s to boot
+docker run -d --name wallos-scratch -p 8284:80 bellamy/wallos:latest   # ~10s to boot
 curl -s -o /dev/null -d "username=u&firstname=T&lastname=U&email=u@e.com&password=p&\
-confirm_password=p&main_currency=USD&language=en" http://localhost:8283/registration.php
+confirm_password=p&main_currency=USD&language=en" http://localhost:8284/registration.php
 ```
 
 `registration.php` needs **all** of those fields — a short POST silently re-renders the form and
-`login.php` keeps redirecting to `registration.php`, which reads as a broken container. From there
-`docker exec wallos-scratch php -r '…new SQLite3("/var/www/html/db/wallos.db")…'` writes whatever
-the step needs directly (3.9 inserted a `totp` row with a known Base32 secret and set
-`user.totp_enabled = 1`, skipping the enrolment endpoint's own CSRF + code dance). PHP sessions
-are plain files — `docker exec wallos-scratch sh -c 'rm -f /tmp/sess_*'` is how you make a live
-session expire mid-flow. The emulator reaches it at `http://10.0.2.2:8283`; `docker rm -f` when
-done. **Reading the PHP out of the container is also the fastest authority on any endpoint** —
+`login.php` keeps redirecting to `registration.php`, which reads as a broken container. Copying the
+real data instead of registering is one `cp -a` of `/home/gregory/data/wallos/db` through a root
+container (the files are uid 82), and it is worth it for anything that renders a list. From there
+`docker exec <name> php -r '…new SQLite3("/var/www/html/db/wallos.db")…'` writes whatever the step
+needs directly, skipping the enrolment endpoints' own CSRF + code dances. PHP sessions are plain
+files — `rm -f /tmp/sess_*` inside the container is how you make a live session expire mid-flow.
+**Rotate any copied API key**, or a disposable container is holding a working credential for the
+real instance.
+
+**Reading the PHP out of the container is the fastest authority on any endpoint** —
 `docker exec wallos cat /var/www/html/totp.php` settled a response table `WALLOS_API.md` had left
 half-written, and it is a read, so the live container is fine for that.
 
