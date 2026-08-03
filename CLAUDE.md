@@ -13,6 +13,8 @@ build has got. Don't duplicate it here — it would go stale every session.
 **One checklist step per session, with context cleared in between.**
 
 1. `docs/CHECKLIST.md` — the executable plan. Numbered, tickable steps, each self-contained.
+   The ticked ones live in `docs/CHECKLIST-DONE.md`; read that only for precedent on a step that
+   is cited by number, never to find work.
 2. `docs/IMPLEMENTATION_PLAN.md` — the reference. Architecture and rationale.
 3. `docs/WALLOS_API.md` — the API contract, derived from Wallos PHP source.
 
@@ -41,7 +43,9 @@ so its own step passes. `.github/workflows/guardrails.yml` doesn't prevent that 
 impossible to do quietly. A commit trips it by touching `.github/`, `build-logic/`,
 `config/detekt/`, `.editorconfig` or `gradle/libs.versions.toml`; by adding an `@Ignore` or a
 `@Suppress`; or by **reducing** the number of Non-negotiables below or of steps in
-`docs/CHECKLIST.md`. Any of those needs a line in the commit message:
+`docs/CHECKLIST.md` **plus `docs/CHECKLIST-DONE.md`** — the two are summed, so moving a step
+between them is free and dropping one from either is not. Any of those needs a line in the commit
+message:
 
 ```
 Gate-change: what was widened, and why
