@@ -1644,6 +1644,24 @@ three of M2's steps deferred cache debt to it and because Phase 3's writes need 
 The Room step also brought **instrumented tests into the project**, earlier than §6.1 expected —
 a DAO cannot be exercised from a host test at all (§4.7).
 
+### Phase 2c — Appearance and the deferred fixes
+Not in the original phase list, and inserted here rather than appended because its steps are defects
+in screens that already ship: the login screen renders unthemed in dark mode, there is no theme
+preference, Settings has a single row, and §4.5's Coil gap means an accepted certificate doesn't
+reach the logos. **Done when** a dark-mode device shows no light-mode screen, the choice survives a
+restart, and a self-signed instance renders logos.
+*Decomposed as **M4** in `docs/CHECKLIST.md`* (5 steps). It runs before Phase 3 so the write screens
+are built on a shell that draws correctly; nothing in it sends data, so it needs none of Phase 3's
+groundwork.
+
+The one structural fact worth stating here rather than in a step: **`WallosMobileTheme` paints no
+background and `WallosMobilePreviewTheme` does**, via a `Surface` only the preview has. That is why
+the login screen — the only screen with no `Scaffold` above it, since everything else sits under
+`AuthenticatedMainScreen` — shows the *window* background, which the manifest pins to a light theme.
+It also means no `@PreviewWallosDarkLight` in the repo can catch a background or content-colour bug:
+previews have been rendering a themed surface the app never draws. M4.1 gives the real theme the same
+`Surface`, after which the two agree.
+
 ### Phase 3 — Subscriptions, write + reference data
 Add / edit / delete, including the multipart logo upload and `logo_url` fetch. `feature:categories`,
 `currencies`, `paymentmethods`, `household` data+domain layers on `core:crud`, surfaced first as

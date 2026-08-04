@@ -4,9 +4,9 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done**
-**Current step:** none — M3 is closed. The next milestone is plan §8's **Phase 3** (writes), and it
-is not decomposed yet: decomposing it is the next session's work.
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
+M4 `0/5`
+**Current step:** 4.1
 
 ---
 
@@ -54,12 +54,120 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 Completed steps live in [`CHECKLIST-DONE.md`](./CHECKLIST-DONE.md) — **all of M0, M1, M2 and M3**,
 verbatim. This file carries what is still open, plus the Deviations log, which keeps growing.
 
-**There are no open steps right now**, for the first time since 0.1: 3.12 closed M3 and no milestone
-has been decomposed to replace it. Plan §8's **Phase 3** (subscription writes, reference-data
-pickers) is next in the phase order and needs breaking into steps the way §8's Phase 2b was broken
-into M3 — that decomposition is a session's work in itself, and the two "Still open after v1" items
-about *gates* (a scoped Kover floor, the first instrumented Compose test) are the other candidates,
-since Phase 3 is the first milestone whose steps send data.
+Plan §8's **Phase 3** (subscription writes, reference-data pickers) is still next in the *phase*
+order and still needs decomposing into steps the way Phase 2b became M3. M4 goes first deliberately:
+its steps are defects in what already ships, and doing them first means the write screens get built
+on a shell that renders correctly.
+
+---
+
+## M4 — Appearance, and the fixes v1 deferred (plan §8, Phase 2c)
+
+Goal: the app looks right in **both** light and dark on every screen, the user can pick which, and
+the certificate they accepted covers the logos too. **Done when** a dark-mode device shows no
+light-mode screen anywhere, the choice in Settings survives a restart, and a self-signed instance
+renders its logos.
+
+This milestone is **not in plan §8's phase order** — it jumped ahead of Phase 3 because 3.12 and a
+look at the running app turned up defects in shipped screens, and Phase 3's write surface would only
+be built on top of them. It is small and mostly `ui`; nothing here sends data.
+
+Three things that constrain the steps below:
+
+- **The login screen is the only screen with no `Scaffold`**, which is why it is the only one that
+  looks unthemed. Everything downstream of `AuthenticatedMainScreen` gets a `Scaffold`, and a
+  `Scaffold` paints `colorScheme.background`. Read 4.1 before assuming any screen is at fault.
+- **`WallosMobilePreviewTheme` wraps content in a `Surface` and `WallosMobileTheme` does not.** So
+  `@PreviewWallosDarkLight` renders a *themed* background the app never draws, and no preview in the
+  repo can catch a background or content-colour bug. 4.1 closes that gap; until it lands, believe the
+  emulator over a preview.
+- **The theme is device state, not account state.** `ApiKeyStorage.clear()` evicts the Room cache
+  because that data belongs to the key (3.4) — the theme is the counter-example and must **survive**
+  Disconnect.
+
+- [ ] **4.1 — uikit + androidApp: one themed surface, and the colour roles the palette skips**
+  The reported bug, and it is two stacked causes rather than a missing theme. (a) `WallosMobileTheme`
+  paints nothing, so on the login screen — the one screen with no `Scaffold` — the visible background
+  is the **window's**, and the manifest hardcodes `@android:style/Theme.Material.Light.NoActionBar`:
+  white in dark mode. (b) With no `Surface` there is no `LocalContentColor`, so Compose's default
+  **black** wins for text that doesn't name a colour while `OutlinedTextField`'s placeholder reads
+  the dark scheme's pale `onSurfaceVariant` — pale grey on white, which is the "grey text" as
+  reported. Wrap `WallosMobileTheme`'s content in a `Surface`, give `androidApp` a real
+  `res/values/themes.xml` + `values-night/` so the window background follows night mode, and fill in
+  the M3 roles `lightColorScheme`/`darkColorScheme` leave unset — `Card` takes
+  `surfaceContainerLow`, which is **not** in the palette, so every card in the app is currently
+  drawing Material's baseline lavender rather than a Wallos colour.
+  *Verify:* on the emulator, `adb shell cmd uimode night yes` / `no` across **login, list, detail,
+  drawer, filter sheet and the trust dialog** — screenshots in both modes, since this is the one step
+  whose whole content is what the screen looks like.  ·  *Ref:* `uikit/.../Theme.kt`, `Color.kt`;
+  `MealieMobile/app/src/main/res/values/themes.xml`
+  **minSdk is 24, which rules out the obvious parents.** `Theme.DeviceDefault.DayNight` is API 29,
+  and `Theme.Material3.DayNight.NoActionBar` needs `com.google.android.material:material` — the
+  alias exists in `libs.versions.toml` already, so adding it costs no `Gate-change:`, but a
+  `values/` + `values-night/` pair with a `windowBackground` colour needs no dependency at all and
+  is the smaller change for a Compose-only app. Decide in the step and record which.
+  After this step, previews are trustworthy for background and content colour for the first time —
+  say so in the note, because every later step's preview inherits it.
+
+- [ ] **4.2 — core:storage: `ThemeMode` + `ThemeStorage`, honoured above the shell**
+  A three-value preference (`System` / `Light` / `Dark`) in the existing DataStore, collected by
+  `WallosAppContent` and passed to `WallosMobileTheme(darkTheme = …)`. **No new ViewModel** — inject
+  `ThemeStorage` the way `apiKeyStorage` already is; MealieMobile routes this through a
+  `MainViewModel` it has and this project doesn't, and a whole ViewModel for one flow is the
+  abstraction `CLAUDE.md` says not to add.
+  *Verify:* `./gradlew :core:storage:testAndroidHostTest`, then on device: set Dark, `force-stop`,
+  relaunch, still dark — **and the `am kill` back-stack cycle still restores**, which is the real
+  check here.  ·  *Ref:* `MealieMobile/core/storage/.../theme/`, plan §4.7, §5.5
+  **This is a second DataStore flow above the shell, which is exactly 1.11's trap.** It must never
+  gate rendering: collect with `initial = ThemeMode.default()` and let the stored value arrive late.
+  A `when (themeMode)` that renders a placeholder while it loads would push `NavDisplay` into a
+  later composition and silently drop the restored back stack — the failure has no error and only
+  shows up under `am kill`. Also make sure Disconnect does **not** clear it (see the milestone note),
+  and test that.
+
+- [ ] **4.3 — feature:settings ui: the Interface screen**
+  A settings sub-screen with a radio group over the three modes, reached from a row on the settings
+  root. The ViewModel takes `ThemeStorage` directly — `feature:settings` is `ui`-only by design
+  (2.6), and this is the same one-seam case as Disconnect.
+  *Verify:* `./gradlew :feature:settings:ui:testAndroidHostTest`, then on device switch all three and
+  watch it apply live; plus **`am kill` while on the Interface screen**, to prove the new route was
+  registered.  ·  *Ref:* `MealieMobile/feature/settings/ui/.../appearance/`, plan §5.3
+  **Mealie's screen is the wrong shape for this repo** and copying it will fail review: it passes
+  `selectedTheme` + `onThemeSelect` as parameters, where `CLAUDE.md` wants a state class carrying its
+  own callbacks with no-op defaults. Take its layout, not its signature.
+  **The new route must go in `NavKeySerializers`' polymorphic module**, and `NavKeySerializersTest`
+  **cannot catch a missing one** — it walks `DrawerDestination.entries` and this route is not a
+  drawer destination. The `am kill` cycle is the only check that exists.
+
+- [ ] **4.4 — feature:settings ui: the About screen**
+  Version and build info plus a link out to the project. `AppInfoProvider` (`core:appinfo-api`)
+  currently exposes `isDebug()` alone, so it gains whatever the screen shows — the impl in
+  `androidApp` is the only place `BuildConfig` exists (1.3's deviation is why the interface and its
+  impl live apart). Link handling is `LocalUriHandler`, not an intent.
+  *Verify:* `./gradlew :feature:settings:ui:testAndroidHostTest` with a fake `AppInfoProvider`, and
+  on device: open About, check the version matches the installed build, tap the link.
+  ·  *Ref:* `MealieMobile/feature/settings/ui/.../about/`
+  Same route-registration rule as 4.3. Nothing here is user data, so there is nothing to redact and
+  no reason for this screen to talk to the network.
+
+- [ ] **4.5 — composeApp: an `ImageLoader` that trusts what the user trusted**
+  3.12's defect. Coil builds its own client through a `FetcherServiceLoaderTarget`, so it never sees
+  the trust manager and a self-signed instance loads its data and none of its logos. Register a
+  singleton `ImageLoader` whose network layer is `KtorNetworkFetcher.factory(client)` over a client
+  built on `createPlatformHttpClientEngine(trustedCertStorage)`.
+  *Verify:* on the emulator **against the nginx TLS front** (`CLAUDE.md`'s recipe, as in 3.8 and
+  3.12): accept the certificate, then see logos. Plain HTTP passes today and proves nothing.
+  ·  *Ref:* plan §4.5, `core/api/.../NetworkModule.kt`
+  **Give it its own minimal client, not the `@Single HttpClient`.** That one carries
+  `Logging(LogLevel.ALL)` in debug — every logo would dump its PNG bytes into logcat, right after
+  3.12 added a `CLAUDE.md` note about the Ktor log being unreadable — plus a retry predicate written
+  for API paths. The engine is the only part that carries the pin. The API confirmed against the
+  artifact on disk: `KtorNetworkFetcher.factory(HttpClient)` in `coil-network-ktor3`, and
+  `coil3.network.ktor3.internal.KtorNetworkFetcherServiceLoaderTarget` is the autodiscovery this
+  replaces. No need to read Coil's sources.
+  **Second half, and it is what makes the failure visible**: `SubscriptionLogo` branches on an
+  *empty* filename, so a load that fails draws a blank gap while a perfectly good initial-letter
+  placeholder sits unused. Give `AsyncImage` its `error` slot so a broken load falls back to it.
 
 ---
 
@@ -85,6 +193,9 @@ step files what it finds here rather than fixing it, and it found the first two 
   beside it are not. A `SavedStateHandle` would close it, and that is a change to 3.6's surface.
 - **The pre-v1 no-backcompat bullet in `CLAUDE.md` expires at the first outside install** — see
   2.7's first deferred item. Nothing has changed yet: nobody but us has installed the app.
+  **The user reaffirmed this on 2026-08-04 and owns the trigger**: ignore backward compatibility
+  entirely until they say otherwise, and don't re-open the question per step. Destructive Room
+  fallbacks and renamed DataStore keys are free until that word comes.
   **M3 raised the stakes and 3.11 raised them again**: there is now a Room schema in the picture, and
   it is already at version 2, so a released app needs real migrations rather than the destructive
   fallback the pre-v1 rule permits.
@@ -98,6 +209,11 @@ step files what it finds here rather than fixing it, and it found the first two 
   `Gate-change:`. The Compose half is now dated rather than open-ended: M3's whole rendering surface
   is at 0%, so the first instrumented Compose test should cover the list screen's four derived states
   plus the two banners, and 3.3 has already paid the `androidDeviceTest` setup cost.
+  **Decided on 2026-08-04: leave the coverage floor alone and stop revisiting it.** The user's reason
+  is that the number will keep moving while features are still landing, and the tests that matter are
+  written per step anyway — which is what the 82–100% on the logic layers already shows. This is not
+  a "later" item any more; it needs a reason to come *back*, such as coverage on a logic module
+  visibly falling.
 - ~~The login screen doesn't prefill the server URL~~ — **done in 3.1**.
 - ~~Plan §9's non-HTTPS warning~~ — **done in 3.1** (warn and steer to Path B, never disable).
   ~~1.9's `password_login_disabled` probe~~ — **done in 3.10**, off the URL field rather than off
