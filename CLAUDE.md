@@ -129,6 +129,12 @@ actually happened, `adb logcat -c`, act, then read the `Ktor` lines (`REQUEST` /
 — the debug build logs every call. That is the check worth running whenever a change sits under
 *every* request (3.7's engine swap) even though the step's own `Verify:` line is a test task.
 
+**Grep the request/response *lines*, never `grep Ktor`**: the logger prints whole bodies, and one
+`get_subscriptions.php` response is 35 rows of JSON that buries everything else in the buffer.
+`grep -E "REQUEST:|RESPONSE: |failed with exception"` is the readable form. The failure line is the
+one that proves an *offline* run — `REQUEST … failed with exception: java.net.ConnectException` —
+and there are **two per endpoint**, because `core:api`'s retry re-sends before giving up (3.12).
+
 Toggling the network for an offline check:
 `adb shell cmd connectivity airplane-mode enable` / `disable` — give it a few seconds either way.
 `NetworkMonitor` (3.2) reacts to the flip, but **the emulator has two networks with
@@ -158,7 +164,21 @@ for it, and the stronger one: nothing restored, everything re-read (3.5's offlin
 instead of restoring the killed one — so the second and third cycles restore nothing and read as a
 regression that isn't there (2.4 chased exactly this). `adb shell am force-stop` first to reset the
 task, relaunch, get to the screen under test, and only then background + `am kill`. `numActivities`
-in the `ActivityTaskManager` logcat line tells you which situation you are in.
+in the `ActivityTaskManager` logcat line tells you which situation you are in — or `sz=` in
+`dumpsys activity activities`, which is the same count and one grep away.
+
+**Crossing a process boundary invalidates coordinates as surely as the keyboard does** (3.12). The
+filter and sort live in ViewModel `MutableStateFlow`s, so a `force-stop` resets them and the list
+comes back in a *different order* — tap the row you noted from the pre-kill screenshot and you open
+a different subscription. Re-screenshot after every relaunch; the layout didn't move, the data did.
+
+Rotating, which nothing before 3.12 needed:
+
+```bash
+adb shell settings put system accelerometer_rotation 0   # or the AVD ignores the next line
+adb shell settings put system user_rotation 1            # 1 = landscape, 0 = portrait
+adb shell settings put system accelerometer_rotation 1   # put it back when done
+```
 
 `localhost` from the emulator is the emulator, so the host is **`http://10.0.2.2:8282`**. The
 Bash tool's sandbox also blocks loopback, so `curl` to `127.0.0.1`, `adb` and the emulator all

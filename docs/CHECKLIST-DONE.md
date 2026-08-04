@@ -794,10 +794,26 @@ Goal: the list of real subscriptions, and a detail screen.
 
 ---
 
-## M3 — Hardening and offline (plan §8, Phase 2b) — steps 3.1–3.7
+## M3 — Hardening and offline (plan §8, Phase 2b)
 
-The milestone heading and its standing constraints stay in `CHECKLIST.md`, where the open
-steps are.
+Goal: the list survives a lost connection, and an instance behind a homelab certificate can be
+reached at all. **Done when** the list renders offline after one online fetch, *and* a self-signed
+instance connects — plan §8's own two conditions.
+
+No writes in this milestone. Phase 3 is the first one that sends anything, and it depends on 3.2
+existing (`CLAUDE.md`: "Offline → **disable** write actions", which needs a `NetworkMonitor` the
+app doesn't have yet).
+
+Two things that constrain the steps below, worth knowing before starting any of them (a third,
+about wiring Room and KSP, was 3.3's and is spent):
+
+- **Filtering and sorting stay client-side**, over whatever the cache holds. 2.3 chose this and
+  told Phase 2b to keep it: v1 sends `api_key` and nothing else, and with neither filters nor
+  `all-user-subscription` on the wire, `WALLOS_API.md` §3.2's "no `WHERE` clause" SQL bug is
+  unreachable *by construction*. Sending server-side filters would put it back within reach for
+  one admin account and no benefit — there is no pagination to save.
+- **Any step that touches `build-logic/`, `gradle/libs.versions.toml`, `config/detekt/` or
+  `.github/` needs a `Gate-change:` line in its commit** (2.7). 3.2 and 3.3 both did.
 
 - [x] **3.1 — feature:setup ui: prefill the server URL, warn on cleartext**
   Seed `LoginUiState.serverUrl` from `ServerUrlStorage` when `LoginViewModel` is constructed, so
@@ -1029,3 +1045,125 @@ steps are.
   also smoke-tested on the emulator against the local instance — a live `get_subscriptions.php`
   through the new engine, checked in the Ktor log rather than by looking at rows that could have
   come from the cache.
+
+- [x] **3.8 — feature:setup ui: the trust prompt**
+  The dialog and the retry: an untrusted certificate on connect surfaces the host and fingerprint,
+  and accepting it stores the trust and retries the attempt that failed.
+  *Verify:* on the emulator, against a **TLS front for the local instance** — plain
+  `http://10.0.2.2:8282` cannot exercise this. `TaigaMobileNova/docs/features/private-cert-trust/server-setup.md`
+  has the recipe; put a self-signed proxy in front of port 8282 rather than touching the Wallos
+  container. This is the **second half of plan §8's "done when"**.
+  *Note:* the recipe works verbatim — an `nginx:alpine` container on `wallos_default` proxying to
+  `http://wallos:80`, leaf `CN=10.0.2.2` with `subjectAltName=IP:10.0.2.2`. Verified beyond the
+  step: cancel persists nothing (the prompt returns), accept pins + retries + lands on the list,
+  the pin survives `force-stop`, and a **rotated** leaf on the same host is rejected again — the
+  fingerprint on screen matched `openssl x509 -fingerprint -sha256` every time. **What that last
+  check exposed belongs to a later step**: a certificate that changes *after* connecting is a dead
+  end on the list screen, which has no prompt — 3.5's stale banner says "couldn't reach that
+  server" and the only way out is Disconnect and log in again. Filed under "Still open after v1".
+
+- [x] **3.9 — feature:setup: TOTP second step**
+  Drive `totp.php` instead of degrading to manual key entry: `LoginOutcome.NeedsTotp` becomes a
+  code field, and `POST one-time-code` on the **same session** completes the login
+  (`WALLOS_API.md` §9.2, §9.3).
+  *Verify:* `./gradlew :feature:setup:data:testAndroidHostTest :feature:setup:ui:testAndroidHostTest`
+  ·  *Ref:* `WALLOS_API.md` §9.2–9.3, plan §1.1
+  **This step fights 1.9 head on, and that is the whole of its design work.** `WebLoginApiImpl`,
+  `SetupRepositoryImpl` and the `@WebSessionHttpClient` are all `@Factory` *specifically* so the
+  session cookie dies with the attempt — and TOTP needs that session to survive a human typing six
+  digits. Resolve it deliberately (a scoped session held for one attempt with an explicit
+  lifetime, say), don't quietly promote anything to `@Single`: `CLAUDE.md` warns that a `@Single`
+  anywhere above a `@Factory` silently undoes it, and nothing fails loudly when it does.
+  **On-device verification needs TOTP enabled on the user's real account** — that is a mutation of
+  their live instance, so **ask first**, and offer the MockEngine tests as the alternative.
+  *Note:* the `@Factory` fight resolved to **no change at all** — Koin resolves a `@Factory` once
+  per *injection point*, and the only one in the chain is `LoginViewModel`'s constructor, so the
+  cookie jar already spanned the screen rather than the call. What the step actually needed was to
+  say so (*now in plan §1.1*). Asked, and verified on a **throwaway `bellamy/wallos` container**
+  instead of the user's account — a scratch user with a known TOTP secret written straight into
+  its SQLite, zero mutation of live data; recipe below. `totp.php` turned out to have a **third**
+  answer the API doc didn't carry (*now in `WALLOS_API.md` §9.2*), and all three were driven on
+  the emulator, expired session included.
+
+- [x] **3.10 — feature:setup: password-login probe and backoff**
+  Probe `login.php`'s form for `password_login_disabled` / OIDC and degrade to Path B before the
+  user types a password that cannot work. Plus client-side backoff on repeated failures: plan §9
+  notes the **server has no rate limiting or lockout of its own**, which makes an unthrottled
+  retry loop a brute-force tool pointed at the user's own instance.
+  *Verify:* `./gradlew :feature:setup:data:testAndroidHostTest`  ·  *Ref:* plan §9, §1.1
+  1.9 left the probe unowned on purpose ("a degrade-to-Path-B affordance, not a blocker"). It is
+  cheap here because 3.1 already touched this screen's copy.
+  *Note:* the probe runs off the **URL field** (700 ms debounce), not off Connect — Connect isn't
+  earlier than the password, which was the point. Reading `login.php` out of the container paid for
+  itself twice (*now in `WALLOS_API.md` §9.1, §9.5*): a GET of it **clears
+  `$_SESSION['totp_user_id']`**, so an unguarded probe would kill a live TOTP challenge, and
+  `password_login_disabled` is only read when OIDC is *configured*, which is why "no password
+  input" can be reported as SSO rather than as a generic refusal. Both branches were driven on the
+  emulator against a throwaway `bellamy/wallos` — OIDC needs no IdP, just
+  `OIDC_ENABLED=1 OIDC_DISABLE_PASSWORD_LOGIN=1` plus the seven fields `is_configured` checks
+  (recipe in `CLAUDE.md`) — and the backoff's 1s/2s/4s were read off `LoginThrottle`'s own logcat
+  line on device. Both halves are *now in plan §1.1*. **What the backoff does not do is say
+  anything**: the wait is spent under the existing spinner, so a user on their fifth attempt sees
+  a slow login and no explanation. Filed under "Still open after v1".
+
+- [x] **3.11 — currency conversion hint**
+  Send `convert_currency` and handle the silent failure: `WALLOS_API.md` §3.2 says conversion only
+  happens once exchange rates have been fetched at least one time, and otherwise prices come back
+  **unconverted with nothing in `notes` to say so**. Show that state rather than displaying a
+  converted-looking total that isn't.
+  *Verify:* `./gradlew :feature:subscriptions:data:testAndroidHostTest`  ·  *Ref:* `WALLOS_API.md` §3.2
+  Check the live instance for `last_exchange_update` before designing the UI — if the user's own
+  rates have never been fetched, this state is the *default* one and not an edge case.
+  *Note:* that check said yes — empty table, all 32 rates at `1`, every row already in the main
+  currency, so the state is the default three times over. But reading the PHP found something bigger
+  that **inverts the step's premise** (*now in `WALLOS_API.md` §5.5, plan §7.1*): a conversion that
+  *succeeds* rewrites `price` and leaves `currency_id` naming the source currency, so sending the
+  flag naively would have drawn `$29.35` on an amount in euros — worse than not converting at all.
+  §5.5's own "compare `currency_id` against `main_currency`" detection **cannot work**, and is
+  corrected there. Measured, not inferred: `31.99 → 29.348623853211006` with `currency_id` still
+  `2` and `notes` empty. Asked, and chose to **honour the instance's own `convert_currency` setting**
+  (`get_settings.php`) rather than override it — the user's is off, so their app is unchanged and the
+  banner carries the step. All four branches driven on the emulator against a throwaway copy of their
+  database: converted rows in `€`, rates removed → `$` plus the banner, setting off → neither, and a
+  cold offline start showing the stale and conversion banners stacked. **Two things this does not
+  do** are filed under "Still open after v1".
+
+- [x] **3.12 — Phase 2b acceptance**
+  *Verify:* plan §8's two conditions, end to end on the emulator — fetch the list online, go
+  offline, cold-start, and see real data marked stale; then connect to a self-signed instance from
+  a fresh install. Plus a filter and a sort that survive a rotation, and the `am kill` cycle from
+  `CLAUDE.md` once, from a clean task.
+  Same shape as 2.7: this is a verification step, so anything it uncovers that is a *behaviour*
+  change goes to "Still open after v1" rather than being fixed here.
+  Reconsider two parked things with M3's evidence rather than on a schedule: the **Kover floor**
+  (3.3 and 3.4 add the first logic in the project with real branch depth) and **instrumented
+  Compose tests** (3.5's stale/offline/empty/error matrix is the screen 2.7 predicted would
+  outgrow a ViewModel test — if 3.3 already forced instrumentation for the DAOs, the setup cost is
+  paid).
+  *Note:* **M3 closes — both of plan §8's conditions passed**, each proven against the thing that
+  could have faked it. The offline half ran from a `force-stop` cold start with airplane mode on and
+  **every request logged as `ConnectException`**, so the 35 rows under the offline-worded stale
+  banner were provably Room's rather than a refresh that quietly succeeded. The self-signed half ran
+  from a **fresh install** against a rebuilt nginx front, with the prompt's fingerprint compared to
+  `openssl x509 -fingerprint -sha256` before accepting; accept retried and landed on the list. Filter
+  + sort survived a rotation, and the `am kill` cycle from a clean task (`sz=1`, process confirmed
+  gone) restored the detail screen it was on, with Back landing on the list. No `FATAL` anywhere in
+  the run.
+  **One real defect found, and it sits in 3.7/3.8's blind spot: logos never load on a self-signed
+  instance.** `AsyncImage` is Coil's own network stack and no `ImageLoader` is configured anywhere in
+  the repo, so the trust the app pins belongs to the *HTTP client* and Coil never sees it — over the
+  TLS front every row draws a blank gap, because `SubscriptionLogo`'s initial-letter placeholder only
+  fires on an **empty** filename and not on a failed load. Evidenced, not inferred: `curl -k` serves
+  the same logo `200 image/png` and the same build renders logos over plain HTTP. Filed under "Still
+  open after v1".
+  **Both parked decisions are now answered with numbers, and both answers are "not an aggregate
+  gate".** Kover reads **48.8% line** overall, but **388 of the 2012 measured lines are Room's
+  generated `*_Impl` classes at 0%** — uncoverable by any host test, since Kover never sees the
+  instrumented DAO suite — while every hand-written class in that package is at 100%. Composables are
+  the other 0%: `ui/list/widgets` (159 lines), `ui/widgets` (84), `uikit` (98). The logic layers are
+  **82–100% with no floor asking them to be**. So an aggregate floor would be a number about
+  generated code and unrendered Compose, and the only useful floor is a scoped one — a `kover { }`
+  edit, i.e. a `Gate-change:`, not a verification step's work. The same numbers date the Compose
+  fork: M3's entire rendering surface (stale banner, filter sheet, conversion banner, trust dialog)
+  is at 0% and is verified only by runs like this one. Both stay parked, now with a shape rather than
+  a date.

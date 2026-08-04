@@ -473,6 +473,16 @@ Two deliberate omissions: **Kover/Codecov is not in CI** (the upload wants a `CO
 repo doesn't have; `koverXmlReport` stays a local command), and `paths-ignore` skips `**.md` and
 `docs/**`, so a **docs-only commit produces no run** — an absent run is not a failed one.
 
+**There is still no coverage floor, and 3.12 measured why an aggregate one would be the wrong
+instrument.** The project reads 48.8% line overall, which sounds like a floor worth setting until the
+report is read per package: **388 of the 2012 measured lines are Room's generated `*_Impl` classes at
+0%**, unreachable from a host test because Kover never sees the instrumented DAO suite above, while
+every hand-written class in `core/storage/db` is at 100%. The remaining 0% is Composables (`uikit`,
+and the list's widget packages). The layers a floor would be *for* — repositories, mappers,
+ViewModels, `core:api`, the formatters — already sit at 82–100% without one. So the useful gate is
+scoped to those modules rather than aggregated over the project, and setting it edits `kover { }`,
+which is a guardrail tripwire (§3.6) and needs a `Gate-change:` line.
+
 A third omission arrived with the Room cache and was not planned: **`allTests` does not fan out to
 device tests**, and this job has no emulator, so `:core:storage:connectedAndroidDeviceTest` (§4.7)
 is not a CI gate. It is the first suite in the project that isn't. Growing an emulator job is the
@@ -740,10 +750,16 @@ What 3.7 kept from that port, and what it dropped:
   included: onboarding is the first thing to touch the server, so it is where an untrusted
   certificate surfaces. Hostname verification is left at OkHttp's default — this replaces *chain*
   trust and nothing else.
-- **Coil does not go through it.** The logo loader builds its own client by autodiscovery (2.4),
-  so on an HTTPS instance with an accepted-but-still-private certificate the data will load and
-  the logos will not. Giving Coil an `ImageLoader` over the same engine is the fix if that turns
-  out to matter; nothing in M3 needs it, since every on-device verify runs over plain HTTP.
+- **Coil does not go through it — confirmed on device in 3.12, not just predicted.** The logo
+  loader builds its own client by autodiscovery (2.4), so on an HTTPS instance with an
+  accepted-but-still-private certificate the data loads and the logos do not. What the emulator run
+  added is that it is **silent twice over**: nothing reports the failed load, and
+  `SubscriptionLogo`'s initial-letter placeholder branches on an **empty** filename rather than on a
+  load failure, so every row draws a blank gap where a fallback already exists. The fix is a
+  `SingletonImageLoader` over the same engine, which puts the DI root inside a `feature:*:ui`
+  widget's business — listed under "Still open after v1" rather than folded into 3.8. The clause
+  this bullet used to carry — "nothing in M3 needs it, since every on-device verify runs over plain
+  HTTP" — was wrong about its own milestone: 3.8 and 3.12 both verify over the TLS front.
 
 The prompt itself is 3.8, and it lives on the **login screen only**:
 
@@ -1291,6 +1307,13 @@ outside `allTests`, and CI therefore doesn't run it (§3.5). `:testing` is *not*
 `configureTests()` wires `commonTest` only — so a device test either declares what it needs or
 does without.
 
+**The second one is named, as of 3.12: the subscriptions list screen.** Every Composable in the
+project is at 0% coverage, so the four derived states 3.5/3.6 built (stale, failed, empty, no-match)
+plus 3.11's conversion banner and 3.8's trust dialog are verified only by manual emulator runs like
+3.12's — which is precisely the "logic outgrows its ViewModel test" bar 2.7 set for reaching here.
+What still has to be decided when it lands is whether it earns an emulator job in CI, since a second
+device-only suite doubles the surface no other session's commit can feel.
+
 ### Domain modelling notes
 
 - **`BillingCycle`** enum (`DAYS, WEEKS, MONTHS, YEARS, ONE_TIME`) + `frequency` multiplier. The
@@ -1609,10 +1632,15 @@ offline-first repository, certificate trust prompt for self-signed instances, TO
 category, payment method, active/inactive) and sort, currency-conversion hint when rates are
 missing.
 *Done when:* ~~the list renders offline after one online fetch~~ (**3.5** — verified on a *cold*
-start with airplane mode on: the whole cached list, marked stale), and a self-signed instance
-connects (3.7/3.8).
-*Decomposed as **M3** in `docs/CHECKLIST.md`* (12 steps), chosen over Phase 3 because three of
-M2's steps deferred cache debt to it and because Phase 3's writes need its `NetworkMonitor`.
+start with airplane mode on: the whole cached list, marked stale), and ~~a self-signed instance
+connects~~ (3.7/3.8). **Both re-verified end to end in 3.12 and the phase is closed** — the offline
+half from a `force-stop` cold start with every request logged as a `ConnectException`, the
+certificate half from a fresh install against an nginx TLS front with the prompt's fingerprint
+checked against `openssl`. 3.12 also settled the two questions §3.5 and §6.1 had parked (no
+aggregate Kover floor; the first instrumented Compose test belongs on the list screen) and found one
+defect it deliberately did not fix: Coil's logo loads ignore the accepted certificate (§4.5).
+*Decomposed as **M3** in `docs/CHECKLIST.md`* (12 steps, all ticked), chosen over Phase 3 because
+three of M2's steps deferred cache debt to it and because Phase 3's writes need its `NetworkMonitor`.
 The Room step also brought **instrumented tests into the project**, earlier than §6.1 expected —
 a DAO cannot be exercised from a host test at all (§4.7).
 

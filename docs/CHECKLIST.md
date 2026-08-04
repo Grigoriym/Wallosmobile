@@ -4,8 +4,9 @@ The executable companion to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
 the *why*; this file holds the *what next*. Every step is written to be doable in one fresh
 context, with no memory of previous sessions.
 
-**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `11/12`
-**Current step:** 3.12
+**Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done**
+**Current step:** none — M3 is closed. The next milestone is plan §8's **Phase 3** (writes), and it
+is not decomposed yet: decomposing it is the next session's work.
 
 ---
 
@@ -50,137 +51,53 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 
 ---
 
-Completed steps live in [`CHECKLIST-DONE.md`](./CHECKLIST-DONE.md) — M0, M1, M2 and 3.1–3.7,
+Completed steps live in [`CHECKLIST-DONE.md`](./CHECKLIST-DONE.md) — **all of M0, M1, M2 and M3**,
 verbatim. This file carries what is still open, plus the Deviations log, which keeps growing.
 
-## M3 — Hardening and offline (plan §8, Phase 2b)
-
-Goal: the list survives a lost connection, and an instance behind a homelab certificate can be
-reached at all. **Done when** the list renders offline after one online fetch, *and* a self-signed
-instance connects — plan §8's own two conditions.
-
-No writes in this milestone. Phase 3 is the first one that sends anything, and it depends on 3.2
-existing (`CLAUDE.md`: "Offline → **disable** write actions", which needs a `NetworkMonitor` the
-app doesn't have yet).
-
-Two things that constrain the steps below, worth knowing before starting any of them (a third,
-about wiring Room and KSP, was 3.3's and is spent):
-
-- **Filtering and sorting stay client-side**, over whatever the cache holds. 2.3 chose this and
-  told Phase 2b to keep it: v1 sends `api_key` and nothing else, and with neither filters nor
-  `all-user-subscription` on the wire, `WALLOS_API.md` §3.2's "no `WHERE` clause" SQL bug is
-  unreachable *by construction*. Sending server-side filters would put it back within reach for
-  one admin account and no benefit — there is no pagination to save.
-- **Any step that touches `build-logic/`, `gradle/libs.versions.toml`, `config/detekt/` or
-  `.github/` needs a `Gate-change:` line in its commit** (2.7). 3.2 and 3.3 both did.
-
-- [x] **3.8 — feature:setup ui: the trust prompt**
-  The dialog and the retry: an untrusted certificate on connect surfaces the host and fingerprint,
-  and accepting it stores the trust and retries the attempt that failed.
-  *Verify:* on the emulator, against a **TLS front for the local instance** — plain
-  `http://10.0.2.2:8282` cannot exercise this. `TaigaMobileNova/docs/features/private-cert-trust/server-setup.md`
-  has the recipe; put a self-signed proxy in front of port 8282 rather than touching the Wallos
-  container. This is the **second half of plan §8's "done when"**.
-  *Note:* the recipe works verbatim — an `nginx:alpine` container on `wallos_default` proxying to
-  `http://wallos:80`, leaf `CN=10.0.2.2` with `subjectAltName=IP:10.0.2.2`. Verified beyond the
-  step: cancel persists nothing (the prompt returns), accept pins + retries + lands on the list,
-  the pin survives `force-stop`, and a **rotated** leaf on the same host is rejected again — the
-  fingerprint on screen matched `openssl x509 -fingerprint -sha256` every time. **What that last
-  check exposed belongs to a later step**: a certificate that changes *after* connecting is a dead
-  end on the list screen, which has no prompt — 3.5's stale banner says "couldn't reach that
-  server" and the only way out is Disconnect and log in again. Filed under "Still open after v1".
-
-- [x] **3.9 — feature:setup: TOTP second step**
-  Drive `totp.php` instead of degrading to manual key entry: `LoginOutcome.NeedsTotp` becomes a
-  code field, and `POST one-time-code` on the **same session** completes the login
-  (`WALLOS_API.md` §9.2, §9.3).
-  *Verify:* `./gradlew :feature:setup:data:testAndroidHostTest :feature:setup:ui:testAndroidHostTest`
-  ·  *Ref:* `WALLOS_API.md` §9.2–9.3, plan §1.1
-  **This step fights 1.9 head on, and that is the whole of its design work.** `WebLoginApiImpl`,
-  `SetupRepositoryImpl` and the `@WebSessionHttpClient` are all `@Factory` *specifically* so the
-  session cookie dies with the attempt — and TOTP needs that session to survive a human typing six
-  digits. Resolve it deliberately (a scoped session held for one attempt with an explicit
-  lifetime, say), don't quietly promote anything to `@Single`: `CLAUDE.md` warns that a `@Single`
-  anywhere above a `@Factory` silently undoes it, and nothing fails loudly when it does.
-  **On-device verification needs TOTP enabled on the user's real account** — that is a mutation of
-  their live instance, so **ask first**, and offer the MockEngine tests as the alternative.
-  *Note:* the `@Factory` fight resolved to **no change at all** — Koin resolves a `@Factory` once
-  per *injection point*, and the only one in the chain is `LoginViewModel`'s constructor, so the
-  cookie jar already spanned the screen rather than the call. What the step actually needed was to
-  say so (*now in plan §1.1*). Asked, and verified on a **throwaway `bellamy/wallos` container**
-  instead of the user's account — a scratch user with a known TOTP secret written straight into
-  its SQLite, zero mutation of live data; recipe below. `totp.php` turned out to have a **third**
-  answer the API doc didn't carry (*now in `WALLOS_API.md` §9.2*), and all three were driven on
-  the emulator, expired session included.
-
-- [x] **3.10 — feature:setup: password-login probe and backoff**
-  Probe `login.php`'s form for `password_login_disabled` / OIDC and degrade to Path B before the
-  user types a password that cannot work. Plus client-side backoff on repeated failures: plan §9
-  notes the **server has no rate limiting or lockout of its own**, which makes an unthrottled
-  retry loop a brute-force tool pointed at the user's own instance.
-  *Verify:* `./gradlew :feature:setup:data:testAndroidHostTest`  ·  *Ref:* plan §9, §1.1
-  1.9 left the probe unowned on purpose ("a degrade-to-Path-B affordance, not a blocker"). It is
-  cheap here because 3.1 already touched this screen's copy.
-  *Note:* the probe runs off the **URL field** (700 ms debounce), not off Connect — Connect isn't
-  earlier than the password, which was the point. Reading `login.php` out of the container paid for
-  itself twice (*now in `WALLOS_API.md` §9.1, §9.5*): a GET of it **clears
-  `$_SESSION['totp_user_id']`**, so an unguarded probe would kill a live TOTP challenge, and
-  `password_login_disabled` is only read when OIDC is *configured*, which is why "no password
-  input" can be reported as SSO rather than as a generic refusal. Both branches were driven on the
-  emulator against a throwaway `bellamy/wallos` — OIDC needs no IdP, just
-  `OIDC_ENABLED=1 OIDC_DISABLE_PASSWORD_LOGIN=1` plus the seven fields `is_configured` checks
-  (recipe in `CLAUDE.md`) — and the backoff's 1s/2s/4s were read off `LoginThrottle`'s own logcat
-  line on device. Both halves are *now in plan §1.1*. **What the backoff does not do is say
-  anything**: the wait is spent under the existing spinner, so a user on their fifth attempt sees
-  a slow login and no explanation. Filed under "Still open after v1".
-
-- [x] **3.11 — currency conversion hint**
-  Send `convert_currency` and handle the silent failure: `WALLOS_API.md` §3.2 says conversion only
-  happens once exchange rates have been fetched at least one time, and otherwise prices come back
-  **unconverted with nothing in `notes` to say so**. Show that state rather than displaying a
-  converted-looking total that isn't.
-  *Verify:* `./gradlew :feature:subscriptions:data:testAndroidHostTest`  ·  *Ref:* `WALLOS_API.md` §3.2
-  Check the live instance for `last_exchange_update` before designing the UI — if the user's own
-  rates have never been fetched, this state is the *default* one and not an edge case.
-  *Note:* that check said yes — empty table, all 32 rates at `1`, every row already in the main
-  currency, so the state is the default three times over. But reading the PHP found something bigger
-  that **inverts the step's premise** (*now in `WALLOS_API.md` §5.5, plan §7.1*): a conversion that
-  *succeeds* rewrites `price` and leaves `currency_id` naming the source currency, so sending the
-  flag naively would have drawn `$29.35` on an amount in euros — worse than not converting at all.
-  §5.5's own "compare `currency_id` against `main_currency`" detection **cannot work**, and is
-  corrected there. Measured, not inferred: `31.99 → 29.348623853211006` with `currency_id` still
-  `2` and `notes` empty. Asked, and chose to **honour the instance's own `convert_currency` setting**
-  (`get_settings.php`) rather than override it — the user's is off, so their app is unchanged and the
-  banner carries the step. All four branches driven on the emulator against a throwaway copy of their
-  database: converted rows in `€`, rates removed → `$` plus the banner, setting off → neither, and a
-  cold offline start showing the stale and conversion banners stacked. **Two things this does not
-  do** are filed under "Still open after v1".
-
-- [ ] **3.12 — Phase 2b acceptance**
-  *Verify:* plan §8's two conditions, end to end on the emulator — fetch the list online, go
-  offline, cold-start, and see real data marked stale; then connect to a self-signed instance from
-  a fresh install. Plus a filter and a sort that survive a rotation, and the `am kill` cycle from
-  `CLAUDE.md` once, from a clean task.
-  Same shape as 2.7: this is a verification step, so anything it uncovers that is a *behaviour*
-  change goes to "Still open after v1" rather than being fixed here.
-  Reconsider two parked things with M3's evidence rather than on a schedule: the **Kover floor**
-  (3.3 and 3.4 add the first logic in the project with real branch depth) and **instrumented
-  Compose tests** (3.5's stale/offline/empty/error matrix is the screen 2.7 predicted would
-  outgrow a ViewModel test — if 3.3 already forced instrumentation for the DAOs, the setup cost is
-  paid).
+**There are no open steps right now**, for the first time since 0.1: 3.12 closed M3 and no milestone
+has been decomposed to replace it. Plan §8's **Phase 3** (subscription writes, reference-data
+pickers) is next in the phase order and needs breaking into steps the way §8's Phase 2b was broken
+into M3 — that decomposition is a session's work in itself, and the two "Still open after v1" items
+about *gates* (a scoped Kover floor, the first instrumented Compose test) are the other candidates,
+since Phase 3 is the first milestone whose steps send data.
 
 ---
 
 ## Still open after v1
 
-The tick above closes M2, so these are the pointers that would otherwise vanish with it.
+Written when M2 closed, and now the list that outlived M3 too — these are the pointers that would
+otherwise have vanished with the steps that found them. **3.12 kept to that shape**: a verification
+step files what it finds here rather than fixing it, and it found the first two entries below.
 
+- **Logos never load on a self-signed instance** (3.12). The certificate the user accepts is pinned
+  for the *HTTP client*; `AsyncImage` is Coil's own network stack and no `ImageLoader` is configured
+  anywhere, so image loads keep failing after the trust prompt has been accepted. It is silent twice
+  over: nothing reports the failure, and `SubscriptionLogo`'s initial-letter placeholder only fires
+  on an **empty** filename, so a failed load draws a blank gap rather than the fallback that exists.
+  The fix is a `SingletonImageLoader` built on the app's own `HttpClient` — which is `composeApp`'s
+  DI root reaching into a `feature:*:ui` widget's business, so it is more than 3.7's title covered.
+  Confirmed on the emulator against the nginx front, with `curl -k` proving the server serves the
+  image.
+- **The filter and sort don't survive process death, though the back stack does** (3.12). After
+  `am kill` the app restores the detail screen it was on, and the list behind it has forgotten its
+  filter — 3.6 put both in `MutableStateFlow`s, which outlive a rotation and not a process. The
+  inconsistency is what makes it worth a line: the nav state is carefully saved and the criteria
+  beside it are not. A `SavedStateHandle` would close it, and that is a change to 3.6's surface.
 - **The pre-v1 no-backcompat bullet in `CLAUDE.md` expires at the first outside install** — see
   2.7's first deferred item. Nothing has changed yet: nobody but us has installed the app.
-  **M3 raises the stakes**: once 3.3 lands there is a Room schema in the picture too, and a
-  released app needs a real migration for it rather than a destructive fallback.
+  **M3 raised the stakes and 3.11 raised them again**: there is now a Room schema in the picture, and
+  it is already at version 2, so a released app needs real migrations rather than the destructive
+  fallback the pre-v1 rule permits.
 - **A Kover floor and a Compose UI test setup**, on the terms in 2.7's second deferred item —
-  instrumented, not Robolectric, and grown one screen at a time. 3.12 revisits both.
+  instrumented, not Robolectric, and grown one screen at a time. **3.12 revisited both and measured
+  them**, which changed the question from *when* to *what*: the aggregate is 48.8% line, but 388 of
+  the 2012 measured lines are Room's generated `*_Impl` classes at 0% (Kover cannot see the
+  instrumented DAO suite) and the rest of the 0% is Composables, while the logic layers already sit
+  at 82–100%. So a **whole-project floor is the wrong instrument** — it would gate on generated code;
+  a floor scoped to the logic modules is the real one, and setting it edits `kover { }` and costs a
+  `Gate-change:`. The Compose half is now dated rather than open-ended: M3's whole rendering surface
+  is at 0%, so the first instrumented Compose test should cover the list screen's four derived states
+  plus the two banners, and 3.3 has already paid the `androidDeviceTest` setup cost.
 - ~~The login screen doesn't prefill the server URL~~ — **done in 3.1**.
 - ~~Plan §9's non-HTTPS warning~~ — **done in 3.1** (warn and steer to Path B, never disable).
   ~~1.9's `password_login_disabled` probe~~ — **done in 3.10**, off the URL field rather than off
@@ -323,4 +240,6 @@ structural into the plan itself.
 | 3.11 | `hasRates` is read off the rate table, not off `last_exchange_update` | No endpoint exposes the row the server actually gates on; every rate is exactly `1` until the first update writes both, and where the proxy is wrong `price / 1` makes it harmless — *now in plan §7.1* |
 | 3.11 | `isConversionUnavailable` is a stored field asked of the **filtered** rows, the opposite of 3.6's `hasCachedRows` | Narrowing to one currency removes the comparison the banner warns about; `items` carries `price` as formatted text, so nothing derivable can count currencies — *now in plan §7.1* |
 | 3.11 | The banner fires only on the silent failure, not on conversion being switched off | Prices in their own currencies with their own symbols are correct; a banner over a deliberate setting is nagging — the sort-by-price half is parked in "Still open after v1" |
+| 3.12 | §4.5 already predicted Coil bypasses the pin; what was wrong is its "nothing in M3 needs it" | 3.8 and 3.12 both verify over the TLS front, so the gap is *in* the milestone that dismissed it — and a failed load draws a blank gap, since the placeholder branches on an empty filename — *now in plan §4.5* |
+| 3.12 | No Kover floor was set, though the step reconsidered one | 19% of the measured lines are Room's generated `*_Impl` classes at 0% and unreachable from a host test, so an aggregate floor would gate on codegen; the logic modules are 82–100% already — *now in plan §3.5* |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |
