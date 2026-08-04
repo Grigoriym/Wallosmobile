@@ -107,6 +107,35 @@ adb emu kill                           # don't leave it running
 `screencap` is 1080×2400 while the image comes back scaled — multiply the coordinates read off
 the screenshot by the stated factor before feeding them to `input tap`.
 
+**"Is it dark?" is a pixel, not an impression.** `python3 -c "from PIL import Image; print(
+Image.open('shot.png').convert('RGB').getpixel((540, 220)))"` answers it in one line —
+`(26, 27, 31)` is `SurfaceDark`, `(253, 251, 255)` is `SurfaceLight` — and it is the only way to
+compare two screenshots that differ by one role. It is also what makes a *crop* worth taking:
+the dark-on-dark status bar of 4.2 is invisible at full-page scale and obvious at 2× on the top
+90 rows.
+
+**A stored preference can be planted before its UI exists** (4.2), which is what lets a storage
+step verify on device instead of waiting for the screen that sets it. DataStore Preferences is a
+plain protobuf `map<string, Value>` with **no checksum**, and protobuf merges repeated fields — so
+appending one encoded entry to `files/datastore/wallos_storage.preferences_pb` sets a key without
+disturbing the stored URL, key or cert pins; appending the same key twice makes the last win; and
+`truncate -s <original size>` undoes all of it. Force-stop first, or the running app overwrites it.
+
+```bash
+python3 -c "
+import base64
+def ld(b): return bytes([len(b)])+b
+v=b'\x2a'+ld(b'dark'); e=b'\x0a'+ld(b'theme_mode')+b'\x12'+ld(v)   # key, then Value.string
+print(base64.b64encode(b'\x0a'+ld(e)).decode())"
+adb shell "run-as com.grappim.wallosmobile sh -c 'echo <b64> | base64 -d >> \
+  /data/data/com.grappim.wallosmobile/files/datastore/wallos_storage.preferences_pb'"
+```
+
+**Note the quoting**: `adb` flattens its arguments into one string that the *device's* shell
+re-parses, so inner single quotes are stripped and a `$VAR` expands on the device — hence the outer
+double quotes, no shell variables, and an absolute path (`run-as` does not leave you in the app's
+data directory).
+
 Filling a form: **tap the first field once, then `input keyevent KEYCODE_TAB` between fields.**
 Compose honours TAB for focus, and re-tapping by coordinate goes wrong the moment the keyboard
 opens and shifts the layout — a mis-tap lands on whatever moved into that spot (typing an API key
@@ -333,6 +362,11 @@ vertical slices, **all source in `commonMain`**.
   `NavDisplay` a pass later and the restored back stack is dropped with no error: the app comes
   back alive, on the start destination. `WallosAppContent`'s startup branch is seeded from
   `rememberSaveable` for exactly this reason. Don't put a loading state above the shell.
+  **There are now two DataStore flows up there** — the startup branch and `ThemeStorage` (4.2) —
+  and the second one shows the cheaper way to obey this rule: a value with a sensible default
+  (`collectAsState(initial = ThemeMode.default())`) never gates anything, so it needs no
+  `rememberSaveable` at all and the stored value simply arrives a frame later. Reach for the
+  seeded-`rememberSaveable` shape only when there is no default that can render.
 - **Not everything on screen is a route.** Login isn't — the startup branch renders it *instead of*
   the shell, so it has no `NavDisplay`, no back-stack entry, and nothing to register. The test is
   whether anything can navigate *back* to it; a screen the app is either on or not is state.

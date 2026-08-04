@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.composeapp
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -11,6 +12,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
+import com.grappim.wallosmobile.core.storage.theme.ThemeMode
+import com.grappim.wallosmobile.core.storage.theme.ThemeStorage
 import com.grappim.wallosmobile.feature.setup.ui.LoginScreen
 import com.grappim.wallosmobile.uikit.WallosMobileTheme
 import org.koin.compose.koinInject
@@ -24,7 +27,7 @@ import org.koin.compose.koinInject
  * `NavKeySerializers` has nothing to register for it.
  */
 @Composable
-fun WallosAppContent(apiKeyStorage: ApiKeyStorage = koinInject()) {
+fun WallosAppContent(apiKeyStorage: ApiKeyStorage = koinInject(), themeStorage: ThemeStorage = koinInject()) {
     /*
      * Seeding the branch from saved instance state is load-bearing, not an optimisation.
      * `isConnected` is a DataStore flow with no value for the first frame, so waiting for it
@@ -39,7 +42,23 @@ fun WallosAppContent(apiKeyStorage: ApiKeyStorage = koinInject()) {
         lastKnownConnected = isConnected
     }
 
-    WallosMobileTheme {
+    /*
+     * The second DataStore flow above the shell, and it plays by the same rule as the branch
+     * above: it must never decide *whether* to compose. Seeding it with `ThemeMode.default()`
+     * means the tree renders on the first pass and a stored Light/Dark simply arrives a frame
+     * later — a `when` that drew a placeholder while this loads would push `NavDisplay` into a
+     * later composition and drop the restored back stack with no error at all.
+     *
+     * No ViewModel for it: one flow read in one place doesn't need one.
+     */
+    val themeMode by themeStorage.themeMode.collectAsState(initial = ThemeMode.default())
+    val darkTheme = when (themeMode) {
+        ThemeMode.System -> isSystemInDarkTheme()
+        ThemeMode.Light -> false
+        ThemeMode.Dark -> true
+    }
+
+    WallosMobileTheme(darkTheme = darkTheme) {
         when (isConnected) {
             // Only on a genuinely first launch: nothing saved, and DataStore has not answered.
             // Blank rather than a spinner — it lasts a frame, and a flash of progress reads as

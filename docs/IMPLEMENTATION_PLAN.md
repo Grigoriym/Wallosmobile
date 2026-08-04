@@ -823,6 +823,11 @@ the server no longer sends.
   only one in the repo, hence the `@SuppressLint("MissingPermission")` on a class that cannot see
   it. It answers "is there a network at all", never "is the Wallos instance reachable" — a
   self-hosted server on a LAN the phone has left is online here and still fails.
+- **`ThemeStorage` is the counter-example to `clear()`** (4.2). Everything else in this module is
+  either account state (the key, the cache) or server state (the URL, the pins); the palette
+  belongs to the *install*, so it survives disconnect — sharing the file costs it nothing, since
+  `clear()` removes only its own key. Stored as `ThemeMode.value` (`"system"`/`"light"`/`"dark"`)
+  rather than the ordinal, and an unrecognised value reads as the default instead of throwing.
 - **`ServerUrlStorage.serverUrl` is not `suspend`** (§4.1): the implementation blocks on the first
   read via `runBlocking`, then serves an in-memory cache that `saveServerUrl` keeps current.
   `runBlocking` is reachable from `commonMain` here only because Android is the sole target and
@@ -1646,9 +1651,9 @@ a DAO cannot be exercised from a host test at all (§4.7).
 
 ### Phase 2c — Appearance and the deferred fixes
 Not in the original phase list, and inserted here rather than appended because its steps are defects
-in screens that already ship: the login screen renders unthemed in dark mode, there is no theme
-preference, Settings has a single row, and §4.5's Coil gap means an accepted certificate doesn't
-reach the logos. **Done when** a dark-mode device shows no light-mode screen, the choice survives a
+in screens that already ship: the login screen rendered unthemed in dark mode (fixed in 4.1), there
+was no theme preference (4.2 stores one; 4.3 is the screen that sets it), Settings has a single row,
+and §4.5's Coil gap means an accepted certificate doesn't reach the logos. **Done when** a dark-mode device shows no light-mode screen, the choice survives a
 restart, and a self-signed instance renders logos.
 *Decomposed as **M4** in `docs/CHECKLIST.md`* (5 steps). It runs before Phase 3 so the write screens
 are built on a shell that draws correctly; nothing in it sends data, so it needs none of Phase 3's
@@ -1675,6 +1680,14 @@ Two things follow, and they are the reason this is in the plan rather than only 
   checking which token it reads (`Card` → `surfaceContainerHighest`, `AlertDialog` →
   `surfaceContainerHigh`, `ModalBottomSheet`/`ModalDrawerSheet` → `surfaceContainerLow`); only the
   `*Fixed` family is still on the baseline, since nothing here draws it.
+- **The window is themed by *configuration*, the app by preference, and 4.2 lets them disagree.**
+  `ThemeStorage` is collected in `WallosAppContent` and reduced to the `darkTheme` boolean
+  `WallosMobileTheme` takes — one flow, no `MainViewModel` (Mealie's shape), seeded with
+  `ThemeMode.default()` so it never gates the first composition (§5.5). What it does *not* reach is
+  `MainActivity`: bare `enableEdgeToEdge()` picks its system-bar icon tint from the resource
+  configuration, so Light-on-a-night-device leaves the status bar icons invisible. The same boolean
+  has to reach `androidApp` as a `SystemBarStyle`, which is 4.3's work — the divergence is not
+  user-reachable until the Interface screen exists.
 
 ### Phase 3 — Subscriptions, write + reference data
 Add / edit / delete, including the multipart logo upload and `logo_url` fetch. `feature:categories`,

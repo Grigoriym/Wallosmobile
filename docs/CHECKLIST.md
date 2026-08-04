@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `1/5`
-**Current step:** 4.2
+M4 `2/5`
+**Current step:** 4.3
 
 ---
 
@@ -117,7 +117,7 @@ Three things that constrain the steps below:
   Verified on the emulator across login / list / detail / drawer / filter sheet / trust dialog in
   both modes, over the nginx TLS front so the dialog was real.
 
-- [ ] **4.2 — core:storage: `ThemeMode` + `ThemeStorage`, honoured above the shell**
+- [x] **4.2 — core:storage: `ThemeMode` + `ThemeStorage`, honoured above the shell**
   A three-value preference (`System` / `Light` / `Dark`) in the existing DataStore, collected by
   `WallosAppContent` and passed to `WallosMobileTheme(darkTheme = …)`. **No new ViewModel** — inject
   `ThemeStorage` the way `apiKeyStorage` already is; MealieMobile routes this through a
@@ -132,6 +132,25 @@ Three things that constrain the steps below:
   later composition and silently drop the restored back stack — the failure has no error and only
   shows up under `am kill`. Also make sure Disconnect does **not** clear it (see the milestone note),
   and test that.
+  **Note:** `ThemeStorage.themeMode` (not Mealie's `themeModeFlow` — the type says it is a `Flow`),
+  `distinctUntilChanged` because every write to the shared DataStore file re-emits the whole
+  `Preferences`. Verified on the emulator all three ways: stored Dark on a light device, stored
+  Light on a night device, and no stored value tracking `cmp uimode night` both directions; Dark
+  survived `force-stop`, and the `am kill` cycle restored the detail screen, so the second flow
+  above the shell did not cost the back stack.
+  **There is no UI to set the mode until 4.3, so the device check plants the preference by hand.**
+  DataStore Preferences is a plain protobuf `map<string, Value>` with no checksum, and protobuf
+  merges repeated fields — so *appending* an encoded entry to
+  `files/datastore/wallos_storage.preferences_pb` through `run-as` sets a key without disturbing
+  the stored URL, key or pins, appending it twice makes the last one win, and `truncate -s` back to
+  the original size undoes the lot. `adb shell "run-as … sh -c '…'"` needs the **outer** double
+  quotes and an absolute path: `adb` flattens its arguments, so single quotes are stripped and a
+  `$VAR` would be expanded by the device's own shell.
+  **Found, and it belongs to 4.3:** `MainActivity` calls bare `enableEdgeToEdge()`, whose
+  `SystemBarStyle.auto` picks the status-bar *icon* tint from the resource configuration, not from
+  the Compose theme. So the moment the two diverge — which is exactly what this step makes possible
+  — the icons are dark-on-dark (or light-on-light) and all but invisible. Nothing user-reachable
+  can produce the divergence until the Interface screen ships, so it is left for that step.
 
 - [ ] **4.3 — feature:settings ui: the Interface screen**
   A settings sub-screen with a radio group over the three modes, reached from a row on the settings
@@ -146,6 +165,11 @@ Three things that constrain the steps below:
   **The new route must go in `NavKeySerializers`' polymorphic module**, and `NavKeySerializersTest`
   **cannot catch a missing one** — it walks `DrawerDestination.entries` and this route is not a
   drawer destination. The `am kill` cycle is the only check that exists.
+  **This step also owns the status bar** (found in 4.2): `MainActivity`'s bare `enableEdgeToEdge()`
+  tints the system-bar icons from the resource configuration rather than from the Compose theme, so
+  picking Light on a night-mode device — the very thing this screen adds — leaves them invisible.
+  It needs `SystemBarStyle` driven by the same `darkTheme` boolean `WallosAppContent` computes,
+  which is `androidApp`'s side of a value that currently never leaves `composeApp`.
 
 - [ ] **4.4 — feature:settings ui: the About screen**
   Version and build info plus a link out to the project. `AppInfoProvider` (`core:appinfo-api`)
@@ -370,3 +394,4 @@ structural into the plan itself.
 | 4.1 | The `Surface` went into `WallosMobileTheme` and *out* of `WallosMobilePreviewTheme`, which the step didn't ask for | Leaving both would double-`Surface` every preview and keep previews rendering something the app doesn't; moving it is what makes a preview evidence about colour |
 | 4.1 | `Card` reads `surfaceContainerHighest`, not `surfaceContainerLow` as the step said | `FilledCardTokens.ContainerColor` is `SurfaceContainerHighest`; `surfaceContainerLow` is the drawer's and the bottom sheet's. The whole ladder is filled in, so the step's conclusion held |
 | 4.1 | The `*Fixed` colour roles are left on Material's baseline | Only expressive components read them and none are used here; every role anything in this app draws is now a Wallos colour |
+| 4.2 | The status-bar icon tint does not follow the app theme, and the fix is 4.3's | `enableEdgeToEdge()`'s `SystemBarStyle.auto` reads the resource configuration, not the Compose theme, so it only misbehaves once the two can diverge — and nothing can diverge them until the Interface screen exists |

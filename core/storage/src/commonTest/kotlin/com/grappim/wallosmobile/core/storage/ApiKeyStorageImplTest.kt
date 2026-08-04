@@ -9,6 +9,8 @@ import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
 import com.grappim.wallosmobile.core.storage.db.PriceConversionEntity
 import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
 import com.grappim.wallosmobile.core.storage.db.SubscriptionEntity
+import com.grappim.wallosmobile.core.storage.theme.ThemeMode
+import com.grappim.wallosmobile.core.storage.theme.ThemeStorageImpl
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -92,6 +94,21 @@ class ApiKeyStorageImplTest {
 
         assertNull(storage.getKey())
         assertEquals("https://wallos.example.com/", serverUrlStorage.serverUrl)
+    }
+
+    /** The counter-example to the cache: the palette belongs to the device, not to the key (4.2). */
+    @Test
+    fun `clear keeps the theme mode`() = runTest {
+        val themeStorage = ThemeStorageImpl(dataStore)
+        themeStorage.setThemeMode(ThemeMode.Dark)
+        storage.setKey("abc123")
+
+        storage.clear()
+
+        assertNull(storage.getKey())
+        themeStorage.themeMode.test {
+            assertEquals(ThemeMode.Dark, awaitItem())
+        }
     }
 
     /** The cached rows belong to the account whose key is being dropped (3.4). */
