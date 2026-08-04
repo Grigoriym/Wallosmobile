@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        The window background is what shows through before Compose draws and behind anything that
+        does not paint its own. Hardcoding a light platform theme here is what made the login screen
+        white in dark mode; the values-night/ copy is the whole fix, so no Material Components
+        dependency is needed. `windowBackground` tracks uikit's SurfaceLight / SurfaceDark.
+    -->
+    <style name="Theme.WallosMobile" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+
+</resources>

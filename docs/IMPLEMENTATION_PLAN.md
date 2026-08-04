@@ -1654,13 +1654,27 @@ restart, and a self-signed instance renders logos.
 are built on a shell that draws correctly; nothing in it sends data, so it needs none of Phase 3's
 groundwork.
 
-The one structural fact worth stating here rather than in a step: **`WallosMobileTheme` paints no
-background and `WallosMobilePreviewTheme` does**, via a `Surface` only the preview has. That is why
-the login screen — the only screen with no `Scaffold` above it, since everything else sits under
-`AuthenticatedMainScreen` — shows the *window* background, which the manifest pins to a light theme.
-It also means no `@PreviewWallosDarkLight` in the repo can catch a background or content-colour bug:
-previews have been rendering a themed surface the app never draws. M4.1 gives the real theme the same
-`Surface`, after which the two agree.
+The one structural fact worth stating here rather than in a step, settled by M4.1: **the `Surface`
+belongs to `WallosMobileTheme`, not to `WallosMobilePreviewTheme`.** It used to be the other way
+round, which is why the login screen — the only screen with no `Scaffold` above it, since everything
+else sits under `AuthenticatedMainScreen` — showed the *window* background, which the manifest pinned
+to a light theme; and why no `@PreviewWallosDarkLight` in the repo could catch a background or
+content-colour bug, previews having rendered a themed surface the app never drew. The preview theme
+now adds composition locals and nothing else, so a preview is evidence about colour.
+
+Two things follow, and they are the reason this is in the plan rather than only in the step:
+
+- **`androidApp` owns a `values/` + `values-night/` `themes.xml`** whose `windowBackground` tracks
+  `SurfaceLight`/`SurfaceDark`. It is what the window paints before Compose does. Deliberately no
+  `com.google.android.material` dependency: `Theme.Material3.DayNight.NoActionBar` would need one,
+  `Theme.DeviceDefault.DayNight` is API 29 against a minSdk of 24, and a colour per configuration
+  needs neither.
+- **A colour role left out of `lightColorScheme`/`darkColorScheme` is not derived from `surface`** —
+  it falls back to Material's baseline lavender. So the surface-container ladder, `outlineVariant`
+  and the inverse roles are all set explicitly in `Color.kt`/`Theme.kt`. Adding a component means
+  checking which token it reads (`Card` → `surfaceContainerHighest`, `AlertDialog` →
+  `surfaceContainerHigh`, `ModalBottomSheet`/`ModalDrawerSheet` → `surfaceContainerLow`); only the
+  `*Fixed` family is still on the baseline, since nothing here draws it.
 
 ### Phase 3 — Subscriptions, write + reference data
 Add / edit / delete, including the multipart logo upload and `logo_url` fetch. `feature:categories`,

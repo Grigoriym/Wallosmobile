@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `0/5`
-**Current step:** 4.1
+M4 `1/5`
+**Current step:** 4.2
 
 ---
 
@@ -74,18 +74,19 @@ be built on top of them. It is small and mostly `ui`; nothing here sends data.
 
 Three things that constrain the steps below:
 
-- **The login screen is the only screen with no `Scaffold`**, which is why it is the only one that
-  looks unthemed. Everything downstream of `AuthenticatedMainScreen` gets a `Scaffold`, and a
-  `Scaffold` paints `colorScheme.background`. Read 4.1 before assuming any screen is at fault.
-- **`WallosMobilePreviewTheme` wraps content in a `Surface` and `WallosMobileTheme` does not.** So
-  `@PreviewWallosDarkLight` renders a *themed* background the app never draws, and no preview in the
-  repo can catch a background or content-colour bug. 4.1 closes that gap; until it lands, believe the
-  emulator over a preview.
+- **The login screen is the only screen with no `Scaffold`**, which is why it was the only one that
+  looked unthemed. Everything downstream of `AuthenticatedMainScreen` gets a `Scaffold`, and a
+  `Scaffold` paints `colorScheme.background`. Since 4.1 `WallosMobileTheme` paints its own `Surface`,
+  so this no longer bites — but it is still the screen to check first for anything colour-related.
+- **Previews became trustworthy for colour in 4.1.** Before it, `WallosMobilePreviewTheme` wrapped
+  content in a `Surface` that `WallosMobileTheme` did not, so `@PreviewWallosDarkLight` rendered a
+  themed background the app never drew. The `Surface` now lives in `WallosMobileTheme` and the
+  preview theme adds only composition locals, so the two render identically.
 - **The theme is device state, not account state.** `ApiKeyStorage.clear()` evicts the Room cache
   because that data belongs to the key (3.4) — the theme is the counter-example and must **survive**
   Disconnect.
 
-- [ ] **4.1 — uikit + androidApp: one themed surface, and the colour roles the palette skips**
+- [x] **4.1 — uikit + androidApp: one themed surface, and the colour roles the palette skips**
   The reported bug, and it is two stacked causes rather than a missing theme. (a) `WallosMobileTheme`
   paints nothing, so on the login screen — the one screen with no `Scaffold` — the visible background
   is the **window's**, and the manifest hardcodes `@android:style/Theme.Material.Light.NoActionBar`:
@@ -108,6 +109,13 @@ Three things that constrain the steps below:
   is the smaller change for a Compose-only app. Decide in the step and record which.
   After this step, previews are trustworthy for background and content colour for the first time —
   say so in the note, because every later step's preview inherits it.
+  **Note:** the `values/` + `values-night/` pair won — no `com.google.android.material` dependency,
+  so no `Gate-change:` line. The `Surface` moved *into* `WallosMobileTheme`
+  (`Modifier.fillMaxSize()`, which is a no-op under a preview's unbounded constraints) and came
+  *out* of `WallosMobilePreviewTheme`, so a preview and the app now render on the same background
+  with the same `LocalContentColor` — **previews are trustworthy for colour from here on**.
+  Verified on the emulator across login / list / detail / drawer / filter sheet / trust dialog in
+  both modes, over the nginx TLS front so the dialog was real.
 
 - [ ] **4.2 — core:storage: `ThemeMode` + `ThemeStorage`, honoured above the shell**
   A three-value preference (`System` / `Light` / `Dark`) in the existing DataStore, collected by
@@ -359,3 +367,6 @@ structural into the plan itself.
 | 3.12 | §4.5 already predicted Coil bypasses the pin; what was wrong is its "nothing in M3 needs it" | 3.8 and 3.12 both verify over the TLS front, so the gap is *in* the milestone that dismissed it — and a failed load draws a blank gap, since the placeholder branches on an empty filename — *now in plan §4.5* |
 | 3.12 | No Kover floor was set, though the step reconsidered one | 19% of the measured lines are Room's generated `*_Impl` classes at 0% and unreachable from a host test, so an aggregate floor would gate on codegen; the logic modules are 82–100% already — *now in plan §3.5* |
 | 2.7 | Agent guardrails are their own workflow, and the two rule documents are gated by *structure*, not by any edit | `ci.yml`'s `paths-ignore` means a docs-only commit gets no run, so the check can't live there; and gating any edit to `CLAUDE.md`/`CHECKLIST.md` fires on every reflow — counting Non-negotiables and steps instead was clean over all 35 commits of history — *now in plan §3.6* |
+| 4.1 | The `Surface` went into `WallosMobileTheme` and *out* of `WallosMobilePreviewTheme`, which the step didn't ask for | Leaving both would double-`Surface` every preview and keep previews rendering something the app doesn't; moving it is what makes a preview evidence about colour |
+| 4.1 | `Card` reads `surfaceContainerHighest`, not `surfaceContainerLow` as the step said | `FilledCardTokens.ContainerColor` is `SurfaceContainerHighest`; `surfaceContainerLow` is the drawer's and the bottom sheet's. The whole ladder is filled in, so the step's conclusion held |
+| 4.1 | The `*Fixed` colour roles are left on Material's baseline | Only expressive components read them and none are used here; every role anything in this app draws is now a Wallos colour |

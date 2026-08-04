@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.uikit
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
@@ -8,6 +9,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
 import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
@@ -36,7 +38,18 @@ internal val LightColorScheme = lightColorScheme(
     onSurface = OnSurfaceLight,
     surfaceVariant = SurfaceVariantLight,
     onSurfaceVariant = OnSurfaceVariantLight,
-    outline = OutlineLight
+    inversePrimary = Navy80,
+    inverseSurface = InverseSurfaceLight,
+    inverseOnSurface = InverseOnSurfaceLight,
+    outline = OutlineLight,
+    outlineVariant = OutlineVariantLight,
+    surfaceBright = SurfaceLight,
+    surfaceDim = SurfaceDimLight,
+    surfaceContainerLowest = SurfaceContainerLowestLight,
+    surfaceContainerLow = SurfaceContainerLowLight,
+    surfaceContainer = SurfaceContainerLight,
+    surfaceContainerHigh = SurfaceContainerHighLight,
+    surfaceContainerHighest = SurfaceContainerHighestLight
 )
 
 internal val DarkColorScheme = darkColorScheme(
@@ -62,23 +75,45 @@ internal val DarkColorScheme = darkColorScheme(
     onSurface = OnSurfaceDark,
     surfaceVariant = SurfaceVariantDark,
     onSurfaceVariant = OnSurfaceVariantDark,
-    outline = OutlineDark
+    inversePrimary = Navy40,
+    inverseSurface = InverseSurfaceDark,
+    inverseOnSurface = InverseOnSurfaceDark,
+    outline = OutlineDark,
+    outlineVariant = OutlineVariantDark,
+    surfaceBright = SurfaceBrightDark,
+    surfaceDim = SurfaceDark,
+    surfaceContainerLowest = SurfaceContainerLowestDark,
+    surfaceContainerLow = SurfaceContainerLowDark,
+    surfaceContainer = SurfaceContainerDark,
+    surfaceContainerHigh = SurfaceContainerHighDark,
+    surfaceContainerHighest = SurfaceContainerHighestDark
 )
 
+/**
+ * The `Surface` is the theme's, not a caller's. It is the only thing that paints
+ * `colorScheme.surface` and provides `LocalContentColor` on a screen that has no `Scaffold` — and
+ * the login screen is exactly that screen. Without it the visible background is the *window's*
+ * (see `androidApp`'s `themes.xml`) and Compose's default black wins for any text that doesn't
+ * name a colour, which in dark mode is black on white.
+ */
 @Composable
 fun WallosMobileTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
-        typography = WallosTypography,
-        content = content
-    )
+        typography = WallosTypography
+    ) {
+        Surface(modifier = Modifier.fillMaxSize(), content = content)
+    }
 }
 
 /**
- * The theme every `@Preview` goes through. `Surface` is what gives previews a themed background
- * instead of a transparent one, and [LocalTopBarConfig] is provided because any screen that
- * declares its own top bar reads it — without it every screen preview crashes. [LocalIsOffline]
- * is there for the same reason; a preview of the offline variant provides it again itself.
+ * The theme every `@Preview` goes through. It adds only the composition locals the shell would
+ * otherwise provide: [LocalTopBarConfig], because any screen that declares its own top bar reads it
+ * and would crash without it, and [LocalIsOffline] for the same reason — a preview of the offline
+ * variant provides that one again itself.
+ *
+ * It deliberately adds no `Surface` of its own: [WallosMobileTheme] owns that now, so a preview
+ * renders on the same background and with the same `LocalContentColor` as the running app.
  */
 @Composable
 fun WallosMobilePreviewTheme(content: @Composable () -> Unit) {
@@ -87,9 +122,7 @@ fun WallosMobilePreviewTheme(content: @Composable () -> Unit) {
             LocalTopBarConfig provides remember { TopBarController() },
             LocalIsOffline provides false
         ) {
-            Surface {
-                content()
-            }
+            content()
         }
     }
 }

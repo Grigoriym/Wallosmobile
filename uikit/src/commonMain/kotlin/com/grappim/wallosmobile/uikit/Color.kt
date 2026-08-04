@@ -51,6 +51,35 @@ val OnSurfaceVariantLight = Color(0xFF44474F)
 val OnSurfaceVariantDark = Color(0xFFC4C6D0)
 val OutlineLight = Color(0xFF74777F)
 val OutlineDark = Color(0xFF8E9099)
+val OutlineVariantLight = Color(0xFFC4C6D0)
+val OutlineVariantDark = Color(0xFF44474F)
+
+// The M3 surface-container ladder. `Card` reads `surfaceContainerLow`, `AlertDialog`
+// `surfaceContainerHigh`, `ModalBottomSheet` and `ModalDrawerSheet` `surfaceContainerLow` — none of
+// which `lightColorScheme`/`darkColorScheme` derive from `surface`, so left unset they stay on
+// Material's lavender baseline. Tones are Material's (dim 87 … lowest 100 in light, shifted up four
+// in dark because [SurfaceDark] sits at tone 10 rather than the baseline's 6), tinted to the same
+// blue neutral as the rest of this file.
+val SurfaceDimLight = Color(0xFFD9DADE)
+val SurfaceContainerLowestLight = Color(0xFFFFFFFF)
+val SurfaceContainerLowLight = Color(0xFFF2F3F7)
+val SurfaceContainerLight = Color(0xFFEDEEF2)
+val SurfaceContainerHighLight = Color(0xFFE7E8EC)
+val SurfaceContainerHighestLight = Color(0xFFE1E2E6)
+
+val SurfaceBrightDark = Color(0xFF414246)
+val SurfaceContainerLowestDark = Color(0xFF16171B)
+val SurfaceContainerLowDark = Color(0xFF232428)
+val SurfaceContainerDark = Color(0xFF27282C)
+val SurfaceContainerHighDark = Color(0xFF313236)
+val SurfaceContainerHighestDark = Color(0xFF3D3E42)
+
+// Inverse — nothing draws these yet (there is no `Snackbar` in the app), but they are part of the
+// same baseline-lavender set.
+val InverseSurfaceLight = Color(0xFF2F3034)
+val InverseOnSurfaceLight = Color(0xFFF0F1F5)
+val InverseSurfaceDark = Color(0xFFE3E2E6)
+val InverseOnSurfaceDark = Color(0xFF2F3034)
 
 /** [SurfaceDark] as the plain RGB `Long` that `@Preview(backgroundColor = …)` wants. */
 const val DARK_BACKGROUND_COLOR_FOR_PREVIEW = 0x1A1B1FL

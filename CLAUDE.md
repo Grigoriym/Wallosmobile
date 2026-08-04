@@ -122,6 +122,17 @@ a known-good attempt before believing the error. Clearing a field to retry:
 `input keycombination 113 29` (Ctrl+A) then `input keyevent KEYCODE_DEL`.
 On the *last* field, `input keyevent KEYCODE_ENTER` submits — the login screen's `ImeAction.Done`
 calls `onConnectClick`, so there is no need to hunt for the button's coordinates under a keyboard.
+**Disconnect returns to a login screen that still has the last attempt in its fields** (4.1): login
+is state, not a route, so nothing is destroyed and the ViewModel keeps its values within the same
+process. Typing then *appends* — `gregorzgregorz`, a URL glued to the previous URL — and the error
+is `error_unreachable`, which reads like a dead server. Clear every field before retyping, or
+screenshot first.
+
+**Flipping night mode does not disturb the screen**, which is what makes a two-mode verify cheap:
+`adb shell cmd uimode night yes` / `no` recreates the activity but keeps the back stack, the
+ViewModel and any transient surface — an open `AlertDialog` and an open `ModalBottomSheet` both
+survived it in 4.1. So capture a state once, flip, and capture the other mode, instead of driving
+the app back to it twice.
 
 **Since 3.4 a screenshot of the list proves nothing about the network** — those rows are Room's,
 and they render identically whether the refresh succeeded, failed or never ran. To prove a request
@@ -258,6 +269,13 @@ vertical slices, **all source in `commonMain`**.
   `TextButton` with a word in it (the login password toggle is Show/Hide text), or say you're
   growing it. To list the set without a compile: `unzip` the `material-icons-core-*.jar` from
   `~/.gradle/caches` and `ls` its `androidx/compose/material/icons/filled/` directory.
+- **Material 3's own source is in the Gradle cache, and it is the authority on which colour role a
+  component reads** — `unzip` `material3-desktop-*-sources.jar` from
+  `~/.gradle/caches/modules-2/files-2.1/org.jetbrains.compose.material3/` and read
+  `commonMain/androidx/compose/material3/tokens/*Tokens.kt` (`FilledCardTokens.ContainerColor` and
+  friends) or `ColorScheme.kt` for the full parameter list of `lightColorScheme`. 4.1's step text
+  said `Card` takes `surfaceContainerLow`; it takes `surfaceContainerHighest`, and this is a
+  ten-second read rather than a guess.
 
 ## Non-negotiables
 
@@ -427,7 +445,16 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
 - **`ImmutableList` / `persistentListOf()`** over `List` in state classes and Composable params,
   for stable recomposition.
 - **Always write previews** for screens and reusable widgets, using `@PreviewWallosDarkLight` +
-  `WallosMobilePreviewTheme` (both from `uikit`).
+  `WallosMobilePreviewTheme` (both from `uikit`). Since 4.1 the `Surface` belongs to
+  `WallosMobileTheme` and the preview theme adds only composition locals, so a preview draws the
+  same background and the same `LocalContentColor` as the app — a preview is now evidence about
+  colour, which before 4.1 it was not. Don't add a `Surface` back into a preview.
+- **A colour role left out of `lightColorScheme`/`darkColorScheme` is not derived from `surface`** —
+  it falls back to Material's baseline lavender, on screen, silently. 4.1 filled in the
+  surface-container ladder, `outlineVariant` and the inverse roles in `Color.kt`/`Theme.kt`; the
+  `*Fixed` family is still on the baseline because nothing draws it. Adding a component means
+  checking which token it reads (see the sources-jar note under Architecture) and, if that role is
+  still unset, setting it rather than passing a colour at the call site.
 - Fixed-item screens (settings) use `Column`, not `LazyColumn`.
 - **A new `CompositionLocal` fails `ktlintCheck`** (`compose:compositionlocal-allowlist`) until it
   is named in `.editorconfig`'s `compose_allowed_composition_locals` — which is a tripwire path, so
