@@ -1167,3 +1167,195 @@ about wiring Room and KSP, was 3.3's and is spent):
   fork: M3's entire rendering surface (stale banner, filter sheet, conversion banner, trust dialog)
   is at 0% and is verified only by runs like this one. Both stay parked, now with a shape rather than
   a date.
+
+## M4 — Appearance, and the fixes v1 deferred (plan §8, Phase 2c)
+
+Goal: the app looks right in **both** light and dark on every screen, the user can pick which, and
+the certificate they accepted covers the logos too. **Done when** a dark-mode device shows no
+light-mode screen anywhere, the choice in Settings survives a restart, and a self-signed instance
+renders its logos.
+
+This milestone is **not in plan §8's phase order** — it jumped ahead of Phase 3 because 3.12 and a
+look at the running app turned up defects in shipped screens, and Phase 3's write surface would only
+be built on top of them. It is small and mostly `ui`; nothing here sends data.
+
+Three things that constrain the steps below:
+
+- **The login screen is the only screen with no `Scaffold`**, which is why it was the only one that
+  looked unthemed. Everything downstream of `AuthenticatedMainScreen` gets a `Scaffold`, and a
+  `Scaffold` paints `colorScheme.background`. Since 4.1 `WallosMobileTheme` paints its own `Surface`,
+  so this no longer bites — but it is still the screen to check first for anything colour-related.
+- **Previews became trustworthy for colour in 4.1.** Before it, `WallosMobilePreviewTheme` wrapped
+  content in a `Surface` that `WallosMobileTheme` did not, so `@PreviewWallosDarkLight` rendered a
+  themed background the app never drew. The `Surface` now lives in `WallosMobileTheme` and the
+  preview theme adds only composition locals, so the two render identically.
+- **The theme is device state, not account state.** `ApiKeyStorage.clear()` evicts the Room cache
+  because that data belongs to the key (3.4) — the theme is the counter-example and must **survive**
+  Disconnect.
+
+- [x] **4.1 — uikit + androidApp: one themed surface, and the colour roles the palette skips**
+  The reported bug, and it is two stacked causes rather than a missing theme. (a) `WallosMobileTheme`
+  paints nothing, so on the login screen — the one screen with no `Scaffold` — the visible background
+  is the **window's**, and the manifest hardcodes `@android:style/Theme.Material.Light.NoActionBar`:
+  white in dark mode. (b) With no `Surface` there is no `LocalContentColor`, so Compose's default
+  **black** wins for text that doesn't name a colour while `OutlinedTextField`'s placeholder reads
+  the dark scheme's pale `onSurfaceVariant` — pale grey on white, which is the "grey text" as
+  reported. Wrap `WallosMobileTheme`'s content in a `Surface`, give `androidApp` a real
+  `res/values/themes.xml` + `values-night/` so the window background follows night mode, and fill in
+  the M3 roles `lightColorScheme`/`darkColorScheme` leave unset — `Card` takes
+  `surfaceContainerLow`, which is **not** in the palette, so every card in the app is currently
+  drawing Material's baseline lavender rather than a Wallos colour.
+  *Verify:* on the emulator, `adb shell cmd uimode night yes` / `no` across **login, list, detail,
+  drawer, filter sheet and the trust dialog** — screenshots in both modes, since this is the one step
+  whose whole content is what the screen looks like.  ·  *Ref:* `uikit/.../Theme.kt`, `Color.kt`;
+  `MealieMobile/app/src/main/res/values/themes.xml`
+  **minSdk is 24, which rules out the obvious parents.** `Theme.DeviceDefault.DayNight` is API 29,
+  and `Theme.Material3.DayNight.NoActionBar` needs `com.google.android.material:material` — the
+  alias exists in `libs.versions.toml` already, so adding it costs no `Gate-change:`, but a
+  `values/` + `values-night/` pair with a `windowBackground` colour needs no dependency at all and
+  is the smaller change for a Compose-only app. Decide in the step and record which.
+  After this step, previews are trustworthy for background and content colour for the first time —
+  say so in the note, because every later step's preview inherits it.
+  **Note:** the `values/` + `values-night/` pair won — no `com.google.android.material` dependency,
+  so no `Gate-change:` line. The `Surface` moved *into* `WallosMobileTheme`
+  (`Modifier.fillMaxSize()`, which is a no-op under a preview's unbounded constraints) and came
+  *out* of `WallosMobilePreviewTheme`, so a preview and the app now render on the same background
+  with the same `LocalContentColor` — **previews are trustworthy for colour from here on**.
+  Verified on the emulator across login / list / detail / drawer / filter sheet / trust dialog in
+  both modes, over the nginx TLS front so the dialog was real.
+
+- [x] **4.2 — core:storage: `ThemeMode` + `ThemeStorage`, honoured above the shell**
+  A three-value preference (`System` / `Light` / `Dark`) in the existing DataStore, collected by
+  `WallosAppContent` and passed to `WallosMobileTheme(darkTheme = …)`. **No new ViewModel** — inject
+  `ThemeStorage` the way `apiKeyStorage` already is; MealieMobile routes this through a
+  `MainViewModel` it has and this project doesn't, and a whole ViewModel for one flow is the
+  abstraction `CLAUDE.md` says not to add.
+  *Verify:* `./gradlew :core:storage:testAndroidHostTest`, then on device: set Dark, `force-stop`,
+  relaunch, still dark — **and the `am kill` back-stack cycle still restores**, which is the real
+  check here.  ·  *Ref:* `MealieMobile/core/storage/.../theme/`, plan §4.7, §5.5
+  **This is a second DataStore flow above the shell, which is exactly 1.11's trap.** It must never
+  gate rendering: collect with `initial = ThemeMode.default()` and let the stored value arrive late.
+  A `when (themeMode)` that renders a placeholder while it loads would push `NavDisplay` into a
+  later composition and silently drop the restored back stack — the failure has no error and only
+  shows up under `am kill`. Also make sure Disconnect does **not** clear it (see the milestone note),
+  and test that.
+  **Note:** `ThemeStorage.themeMode` (not Mealie's `themeModeFlow` — the type says it is a `Flow`),
+  `distinctUntilChanged` because every write to the shared DataStore file re-emits the whole
+  `Preferences`. Verified on the emulator all three ways: stored Dark on a light device, stored
+  Light on a night device, and no stored value tracking `cmp uimode night` both directions; Dark
+  survived `force-stop`, and the `am kill` cycle restored the detail screen, so the second flow
+  above the shell did not cost the back stack.
+  **There is no UI to set the mode until 4.3, so the device check plants the preference by hand.**
+  DataStore Preferences is a plain protobuf `map<string, Value>` with no checksum, and protobuf
+  merges repeated fields — so *appending* an encoded entry to
+  `files/datastore/wallos_storage.preferences_pb` through `run-as` sets a key without disturbing
+  the stored URL, key or pins, appending it twice makes the last one win, and `truncate -s` back to
+  the original size undoes the lot. `adb shell "run-as … sh -c '…'"` needs the **outer** double
+  quotes and an absolute path: `adb` flattens its arguments, so single quotes are stripped and a
+  `$VAR` would be expanded by the device's own shell.
+  **Found, and it belongs to 4.3:** `MainActivity` calls bare `enableEdgeToEdge()`, whose
+  `SystemBarStyle.auto` picks the status-bar *icon* tint from the resource configuration, not from
+  the Compose theme. So the moment the two diverge — which is exactly what this step makes possible
+  — the icons are dark-on-dark (or light-on-light) and all but invisible. Nothing user-reachable
+  can produce the divergence until the Interface screen ships, so it is left for that step.
+
+- [x] **4.3 — feature:settings ui: the Interface screen**
+  A settings sub-screen with a radio group over the three modes, reached from a row on the settings
+  root. The ViewModel takes `ThemeStorage` directly — `feature:settings` is `ui`-only by design
+  (2.6), and this is the same one-seam case as Disconnect.
+  *Verify:* `./gradlew :feature:settings:ui:testAndroidHostTest`, then on device switch all three and
+  watch it apply live; plus **`am kill` while on the Interface screen**, to prove the new route was
+  registered.  ·  *Ref:* `MealieMobile/feature/settings/ui/.../appearance/`, plan §5.3
+  **Mealie's screen is the wrong shape for this repo** and copying it will fail review: it passes
+  `selectedTheme` + `onThemeSelect` as parameters, where `CLAUDE.md` wants a state class carrying its
+  own callbacks with no-op defaults. Take its layout, not its signature.
+  **The new route must go in `NavKeySerializers`' polymorphic module**, and `NavKeySerializersTest`
+  **cannot catch a missing one** — it walks `DrawerDestination.entries` and this route is not a
+  drawer destination. The `am kill` cycle is the only check that exists.
+  **This step also owns the status bar** (found in 4.2): `MainActivity`'s bare `enableEdgeToEdge()`
+  tints the system-bar icons from the resource configuration rather than from the Compose theme, so
+  picking Light on a night-mode device — the very thing this screen adds — leaves them invisible.
+  It needs `SystemBarStyle` driven by the same `darkTheme` boolean `WallosAppContent` computes,
+  which is `androidApp`'s side of a value that currently never leaves `composeApp`.
+  **Note:** the boolean leaves `composeApp` as a callback — `WallosAppContent(onDarkThemeChange =
+  ::applyEdgeToEdge)`, fired from a `LaunchedEffect(darkTheme)` — rather than as a value the
+  activity computes for itself, which would have meant a second `ThemeStorage` collection above the
+  shell and 1.11's trap twice over. `enableEdgeToEdge` is re-callable by design, and the scrims it
+  takes are androidx's own `DefaultLightScrim`/`DefaultDarkScrim` copied out (they are `internal`),
+  so only the dark-mode *detection* changes.
+  `SettingsScreen` grew an `onInterfaceClick` plain parameter and `settingsEntry` now takes the
+  `Navigator` it didn't need before. Verified on the emulator: all three modes apply live, the
+  status-bar icons are white on Dark over a light device and black on Light over a night device
+  (the 2× crop of the top 90 rows is what shows it), and the `am kill` cycle came back **on the
+  Interface screen** with Settings still under it. Both checks needed the device's night mode and
+  the stored mode *diverged* — matching them proves nothing, since three different mechanisms
+  produce the same screenshot (now in `CLAUDE.md`).
+  **`InterfaceRoute` is deliberately not in `RouteConfigProvider`**, so the drawer stays
+  swipe-openable on it. `SubscriptionDetailRoute` disables gestures because a horizontal swipe is
+  the *screen's* there; a radio list has no horizontal gesture to protect. 4.4's About screen is
+  the same case — leave it out too unless it grows one.
+
+- [x] **4.4 — feature:settings ui: the About screen**
+  Version and build info plus a link out to the project. `AppInfoProvider` (`core:appinfo-api`)
+  currently exposes `isDebug()` alone, so it gains whatever the screen shows — the impl in
+  `androidApp` is the only place `BuildConfig` exists (1.3's deviation is why the interface and its
+  impl live apart). Link handling is `LocalUriHandler`, not an intent.
+  *Verify:* `./gradlew :feature:settings:ui:testAndroidHostTest` with a fake `AppInfoProvider`, and
+  on device: open About, check the version matches the installed build, tap the link.
+  ·  *Ref:* `MealieMobile/feature/settings/ui/.../about/`
+  Same route-registration rule as 4.3. Nothing here is user data, so there is nothing to redact and
+  no reason for this screen to talk to the network.
+  **Note:** `AppInfoProvider` gained `versionName()` and `versionCode()` — the *raw* fields, not
+  Mealie's rendered `getAppInfo(): String`. The formatting is `about_version_value` (`%1$s (%2$d)`)
+  and the Debug/Release word is a resource pair, neither of which an `androidApp` impl can reach;
+  a rendered string would also have put presentation in the one class no host test can construct.
+  `AboutViewModel` reads all three in its constructor and never touches `viewModelScope`, so its
+  test is the first ViewModel test here with **no `MainDispatcherRule`**.
+  **`SettingsScreen`'s signature had to be reordered**: a second callback without a default makes
+  `compose:parameter-order` fail, because it exempts only a *single* trailing function from
+  following the defaulted params. `viewModel` moved last, which is what the subscriptions screens
+  already do — 4.3's `viewModel`-first shape passed on the one-callback exemption alone.
+  Verified on the emulator: About shows `0.1.0 (1)` against `dumpsys package`'s `versionName=0.1.0
+  versionCode=1`, the button fires `capturedLink=https://github.com/Grigoriym/Wallosmobile` into
+  Chrome, the `am kill` cycle came back **on the About screen**, and the screen was read in both
+  modes with the stored mode and the device's night mode diverged.
+
+- [x] **4.5 — composeApp: an `ImageLoader` that trusts what the user trusted**
+  3.12's defect. Coil builds its own client through a `FetcherServiceLoaderTarget`, so it never sees
+  the trust manager and a self-signed instance loads its data and none of its logos. Register a
+  singleton `ImageLoader` whose network layer is `KtorNetworkFetcher.factory(client)` over a client
+  built on `createPlatformHttpClientEngine(trustedCertStorage)`.
+  *Verify:* on the emulator **against the nginx TLS front** (`CLAUDE.md`'s recipe, as in 3.8 and
+  3.12): accept the certificate, then see logos. Plain HTTP passes today and proves nothing.
+  ·  *Ref:* plan §4.5, `core/api/.../NetworkModule.kt`
+  **Give it its own minimal client, not the `@Single HttpClient`.** That one carries
+  `Logging(LogLevel.ALL)` in debug — every logo would dump its PNG bytes into logcat, right after
+  3.12 added a `CLAUDE.md` note about the Ktor log being unreadable — plus a retry predicate written
+  for API paths. The engine is the only part that carries the pin. The API confirmed against the
+  artifact on disk: `KtorNetworkFetcher.factory(HttpClient)` in `coil-network-ktor3`, and
+  `coil3.network.ktor3.internal.KtorNetworkFetcherServiceLoaderTarget` is the autodiscovery this
+  replaces. No need to read Coil's sources.
+  **Second half, and it is what makes the failure visible**: `SubscriptionLogo` branches on an
+  *empty* filename, so a load that fails draws a blank gap while a perfectly good initial-letter
+  placeholder sits unused. Give `AsyncImage` its `error` slot so a broken load falls back to it.
+  **Note:** the Kotlin name is `KtorNetworkFetcherFactory(client)` — `KtorNetworkFetcher.factory` is
+  the `@JvmName`, and the single-argument overload the step quotes is `DeprecationLevel.HIDDEN`, so
+  Kotlin binds the one that also takes a `ConcurrentRequestStrategy` default. `AsyncImage`'s `error`
+  slot is a **`Painter`**, and the fallback here is an initial to lay out, so this is
+  `SubcomposeAsyncImage` with a composable `error` slot and the placeholder extracted into a private
+  `LogoPlaceholder`.
+  **The definition had to move into `AppModule` itself, and `core:storage` had to become `api`.**
+  A `@Factory class ImageLoaderProvider` in `composeApp` failed to compile with `[KOIN-D001] Missing
+  dependency: TrustedCertStorage` — the compiler plugin re-checks the definitions of every
+  `@Configuration` class the `startKoin` compilation can read, and `:androidApp` can read `AppModule`
+  (a direct dependency) but not the `includes`, which arrive through `implementation`. So the check
+  needs both the parameter *type* and the definition binding it on that classpath. Making it a
+  module function did not help — the fix is `api(projects.core.storage)` in `composeApp`.
+  That is why `NetworkModule.provideHttpClient(trustedCertStorage)` has never tripped this: it is
+  invisible from `:androidApp`, so it is never re-checked there.
+  `feature:subscriptions:ui` gave up `coil-network-ktor3`; it held it only for the autodiscovery
+  this replaces. Verified on the emulator over the nginx TLS front: after *Trust and connect*, all
+  35 logos render, and the front's access log shows the `GET /images/uploads/logos/*` requests
+  arriving as `ktor-client` with `200`s. With the front stopped and `cache/coil3_disk_cache` deleted,
+  the cached rows render initial letters instead of blank gaps.
+
