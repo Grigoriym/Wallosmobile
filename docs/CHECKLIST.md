@@ -5,7 +5,7 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `2/6`
+M4 `5/5` — **Phase 2c done** · M5 `2/6` · M6 `0/2`
 **Current step:** 5.3
 
 ---
@@ -63,7 +63,9 @@ verbatim. This file carries what is still open, plus the Deviations log, which k
 Plan §8's **Phase 3** (subscription writes, reference-data pickers) is still next in the *phase*
 order and still needs decomposing into steps the way Phase 2b became M3. **M5 goes first, on M4's
 argument**: its steps are defects in screens that already ship, and a write surface built on top of
-them inherits them.
+them inherits them. **M6 is two housekeeping steps** — the launcher icon and the store flavours —
+that belong to no phase and are not urgent, but which every feature step will keep displacing until
+they are written down as steps.
 
 ---
 
@@ -175,6 +177,68 @@ Three things that shape these steps:
   *Verify:* on device over the TLS front — stop the front, delete `cache/coil3_disk_cache`, relaunch
   to initial letters, start the front, tap *Try again*, and see logos **without scrolling**.
   ·  *Ref:* 4.5's `SubscriptionLogo`, `CLAUDE.md`'s note on Coil's disk cache
+
+---
+
+## M6 — packaging and identity (not in plan §8's phase order)
+
+Goal: the app stops looking and installing like a scaffold. **Done when** the launcher shows the
+user's logo, and a debug build can sit on the same device as a release one without either of them
+being ambiguous about which is which.
+
+Neither step is a defect and neither blocks the other — they are here because they are the two
+things that are *only* obvious from outside the code, and both get forgotten the moment a feature
+step is available to do instead. Take them in either order, or between M5 steps.
+
+Both are cheap in code and expensive in **documentation**: `CLAUDE.md`'s emulator recipes hardcode
+`com.grappim.wallosmobile` and `installDebug`, and 6.2 invalidates every one of them.
+
+- [ ] **6.1 — androidApp: the launcher icon is the app's own**
+  The icon is still Android Studio's scaffold — `drawable/ic_launcher_background.xml` plus
+  `drawable-v24/ic_launcher_foreground.xml` (the green droid), with legacy PNG pairs in all five
+  `mipmap-*dpi/`. **The user supplies the artwork; don't draw or generate one.** Replace the
+  adaptive layers, regenerate the legacy PNGs — `minSdk = 24`, so the `mipmap-*dpi` bitmaps are
+  still the icon on API 24–25 and cannot simply be deleted — and add a `<monochrome>` layer to
+  `mipmap-anydpi-v26/ic_launcher.xml` and `ic_launcher_round.xml`, which the current scaffold has
+  no entry for and which is what Android 13+ themed icons read.
+  Scope is the **launcher** icon. The drawer header draws `stringResource(RString.app_name)` as
+  text (`WallosDrawerWidget`) and the login screen has no mark at all; putting the logo in either is
+  a separate ask, so do it only if the user says so when handing over the asset.
+  *Verify:* install on the emulator, `adb shell input keyevent KEYCODE_HOME`, and screencap the
+  launcher — plus one `adb shell cmd uimode night yes` capture, since a logo with a light background
+  is the one that disappears against a dark launcher. Say in the note which shapes were checked
+  (adaptive mask, round, themed).  ·  *Ref:* `androidApp/src/main/res/`, `AndroidManifest.xml`'s
+  `android:icon` / `android:roundIcon`
+
+- [ ] **6.2 — build-logic: gplay and fdroid flavors, and a debug build that says it is one**
+  There are no product flavors today (0.3 dropped Taiga's deliberately) and no
+  `applicationIdSuffix`, so a debug install *replaces* a release one and both are called
+  "Wallosmobile" on the launcher. Port Taiga's `AppFlavors.kt` + `configureFlavors()` — one `store`
+  dimension, `gplay` and `fdroid`, the latter with `applicationIdSuffix = ".fdroid"` — and Taiga's
+  `AppBuildTypes` `.debug` suffix on the debug build type. The debug *name* is Taiga's shape too:
+  `androidApp/src/debug/AndroidManifest.xml` overriding `android:label="@string/app_name_debug"`,
+  with a per-flavour-debug `strings.xml` under `src/gplayDebug/` and `src/fdroidDebug/`.
+  **Nothing in this app differs by store** — no Play Services, no Firebase, nothing proprietary to
+  strip — so this is distribution identity and side-by-side installs, not a source split. Don't
+  create empty `src/gplay/kotlin` trees, and don't put the flavour in the About screen unless the
+  user asks.
+  *Verify:* `./gradlew :androidApp:assembleGplayDebug :androidApp:assembleFdroidDebug`, install
+  both, `adb shell pm list packages | grep wallosmobile` showing two ids, and a launcher screencap
+  showing two distinguishable names.
+  ·  *Ref:* TaigaMobileNova `build-logic/.../AppFlavors.kt`, `AppBuildTypes.kt`,
+  `androidApp/src/debug/AndroidManifest.xml`
+  **Three things make this bigger than the diff.** It edits `build-logic/`, so the commit needs a
+  `Gate-change:` line (`CLAUDE.md`, "Changing a gate means saying so"). It **breaks every emulator
+  recipe in `CLAUDE.md`**: `installDebug` stops existing (it is `installGplayDebug` /
+  `installFdroidDebug`), `compileDebugKotlin` — the Koin `--rerun-tasks` line — gains a flavour, the
+  installed id becomes `com.grappim.wallosmobile.fdroid.debug` so every `run-as`, `am kill`,
+  `force-stop` and DataStore-planting command changes, and `am start -n <pkg>/.MainActivity` needs
+  the **full** class name because the class is not suffixed with the id. Updating those commands is
+  part of the step, not follow-up. And `app_name` is **two** resources: the Android one in
+  `androidApp/src/main/res/values/strings.xml` that the manifest labels with, and `:strings`'
+  Compose resource that the drawer header reads — renaming only the first leaves the drawer saying
+  the release name inside the debug app, which is either fine or the point, and the note should say
+  which was chosen.
 
 ---
 
