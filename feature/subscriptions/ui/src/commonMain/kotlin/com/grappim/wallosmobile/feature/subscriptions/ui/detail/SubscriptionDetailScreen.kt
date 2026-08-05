@@ -28,6 +28,7 @@ import com.grappim.wallosmobile.feature.subscriptions.ui.widgets.SubscriptionLog
 import com.grappim.wallosmobile.feature.subscriptions.ui.widgets.cycleText
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_category
+import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_converted_from
 import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_cycle
 import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_next_payment
 import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_notes
@@ -143,6 +144,19 @@ private fun Header(subscription: SubscriptionDetailUiItem, modifier: Modifier = 
 
         Text(text = subscription.price, style = MaterialTheme.typography.titleLarge)
 
+        // The price above is in the instance's main currency and says nothing about having been
+        // converted (3.11). The original amount is gone — only the currency it came from survives.
+        if (subscription.convertedFrom.isNotBlank()) {
+            Text(
+                text = stringResource(
+                    RString.subscription_detail_converted_from,
+                    subscription.convertedFrom
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
         if (!subscription.isActive) {
             InactiveBadge()
         }
@@ -206,6 +220,7 @@ private val previewItem = SubscriptionDetailUiItem(
     name = "1&1 Telekom",
     logoUrl = "",
     price = "€18.00",
+    convertedFrom = "",
     cycle = BillingCycle.MONTHS,
     frequency = 6,
     nextPayment = "12 Feb 2026",
@@ -236,6 +251,17 @@ private fun SubscriptionDetailContentSparsePreview() = WallosMobilePreviewTheme 
                 url = "",
                 isActive = false
             )
+        )
+    )
+}
+
+/** A row the instance converted: the amount is in its main currency, the label names the other. */
+@PreviewWallosDarkLight
+@Composable
+private fun SubscriptionDetailContentConvertedPreview() = WallosMobilePreviewTheme {
+    SubscriptionDetailContent(
+        uiState = SubscriptionDetailUiState(
+            subscription = previewItem.copy(price = "€16.51", convertedFrom = "USD")
         )
     )
 }

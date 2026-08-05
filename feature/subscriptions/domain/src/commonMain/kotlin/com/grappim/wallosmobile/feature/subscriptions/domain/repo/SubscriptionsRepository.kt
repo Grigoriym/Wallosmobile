@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.subscriptions.domain.repo
 
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import kotlinx.coroutines.flow.Flow
@@ -27,6 +28,14 @@ interface SubscriptionsRepository {
      * currencies" and is the assumption that cannot mislabel a price.
      */
     fun observePriceConversion(): Flow<PriceConversion>
+
+    /**
+     * The instance's currency list, cached by the same refresh (2.3). A price already carries the
+     * symbol it is rendered with, so this is for the *other* question a converted row raises —
+     * which currency the amount was converted **from**, which only an id and this table can name
+     * (5.4). Empty until a refresh has answered.
+     */
+    fun observeCurrencies(): Flow<List<Currency>>
 
     /** Replaces the cached list with the instance's, wholesale — a row it no longer sends is gone. */
     suspend fun refreshSubscriptions(): Result<Unit>

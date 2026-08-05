@@ -12,11 +12,16 @@ import com.grappim.wallosmobile.utils.ui.NativeText
  * than showing an empty label. That is the only reason the resolved `*Name` fields are plain
  * strings: Wallos answers `"No category"` itself for an unmatched id, so there is no "unset" to
  * describe.
+ *
+ * @param convertedFrom names the currency [price] was converted **from**, blank when it wasn't
+ *   converted at all (5.4). The amount itself is unrecoverable — the server overwrites `price` and
+ *   keeps the source `currency_id` (3.11) — so this is a label, never a second number.
  */
 data class SubscriptionDetailUiItem(
     val name: String,
     val logoUrl: String,
     val price: String,
+    val convertedFrom: String,
     val cycle: BillingCycle?,
     val frequency: Int,
     val nextPayment: String,

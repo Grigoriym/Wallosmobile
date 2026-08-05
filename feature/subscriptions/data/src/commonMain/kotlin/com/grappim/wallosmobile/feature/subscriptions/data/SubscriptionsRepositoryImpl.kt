@@ -4,6 +4,7 @@ import com.grappim.wallosmobile.core.asynckmp.IoDispatcher
 import com.grappim.wallosmobile.core.domain.resultOf
 import com.grappim.wallosmobile.core.logger.LogPriority
 import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
@@ -43,6 +44,8 @@ internal class SubscriptionsRepositoryImpl(
     override fun observeSubscription(id: Int): Flow<Subscription?> = cache.observeSubscription(id).flowOn(dispatcher)
 
     override fun observePriceConversion(): Flow<PriceConversion> = cache.observePriceConversion().flowOn(dispatcher)
+
+    override fun observeCurrencies(): Flow<List<Currency>> = cache.observeCurrencies().flowOn(dispatcher)
 
     /**
      * The full sync, and the only thing that fills the currency table: subscriptions first, so a

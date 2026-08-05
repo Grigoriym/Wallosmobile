@@ -132,6 +132,19 @@ class WallosDBTest {
         assertEquals(listOf(euro, dollar), currencyDao.getAll())
     }
 
+    /** 5.4 reads this table as a flow, so it has to re-emit when a refresh replaces it. */
+    @Test
+    fun observeAllEmitsAgainWhenTheCurrencyTableIsReplaced() = runBlocking {
+        currencyDao.replaceAll(listOf(CurrencyEntity(id = 1, name = "Euro", symbol = "€", code = "EUR")))
+        val before = currencyDao.observeAll().first()
+
+        currencyDao.replaceAll(listOf(CurrencyEntity(id = 2, name = "US Dollar", symbol = "$", code = "USD")))
+        val after = currencyDao.observeAll().first()
+
+        assertEquals(listOf("EUR"), before.map { it.code })
+        assertEquals(listOf("USD"), after.map { it.code })
+    }
+
     @Test
     fun deletingAllCurrenciesEmptiesTheTable() = runBlocking {
         currencyDao.replaceAll(listOf(CurrencyEntity(id = 1, name = "Euro", symbol = "€", code = "EUR")))

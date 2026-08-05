@@ -703,9 +703,20 @@ all — not the working case, not the failing one. That needs a scratch containe
 
 **That container exists, stopped, as `wallos-scratch` on port 8284** (5.3) — a `bellamy/wallos` over
 a copy of the live database with 8 of the 35 rows moved to `currency_id = 2` and the copied key
-rotated to `5c3aa1de…7b8c`. `docker start wallos-scratch`, then `http://10.0.2.2:8284`. Rates are
-still all `1`, so it shows conversion *off* over mixed currencies and not conversion working; that
-needs an `UPDATE currencies SET rate = …` on top. Copying the database in is three commands, since
+rotated to `5c3aa1de…7b8c`. `docker start wallos-scratch`, then `http://10.0.2.2:8284`.
+**Since 5.4 it converts**: `currencies.rate = 1.17` for USD, `settings.convert_currency = 1`, and a
+`last_exchange_update` row — which is the flag the server actually gates on, and the one the app can
+only infer from a rate that isn't `1`. So the 8 USD rows come back divided by 1.17 with
+`currency_id` still `2`. Three `UPDATE`s undo it if a step needs the *unconverted* state 5.3 had:
+
+```bash
+docker exec wallos-scratch php -r '$d=new SQLite3("/var/www/html/db/wallos.db");
+$d->exec("UPDATE currencies SET rate = 1.17 WHERE id = 2");
+$d->exec("UPDATE settings SET convert_currency = 1 WHERE user_id = 1");
+$d->exec("INSERT INTO last_exchange_update (date, user_id) VALUES (\"2026-08-05\", 1)");'
+```
+
+Copying the database in is three commands, since
 the files are uid 82 and the container's are not a volume:
 
 ```bash

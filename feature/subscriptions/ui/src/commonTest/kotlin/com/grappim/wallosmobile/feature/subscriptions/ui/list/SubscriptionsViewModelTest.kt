@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
@@ -18,6 +19,7 @@ import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
@@ -679,6 +681,8 @@ class SubscriptionsViewModelTest {
         override fun observeSubscriptions(): Flow<List<Subscription>> = cached
 
         override fun observePriceConversion(): Flow<PriceConversion> = conversion
+
+        override fun observeCurrencies(): Flow<List<Currency>> = flowOf(emptyList())
 
         override suspend fun refreshSubscriptions(): Result<Unit> {
             callCount++

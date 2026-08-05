@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.logger.LogPriority
 import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
 import com.grappim.wallosmobile.feature.subscriptions.ui.toLogoUrl
@@ -15,8 +17,8 @@ import com.grappim.wallosmobile.utils.ui.getErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.InjectedParam
@@ -48,11 +50,20 @@ class SubscriptionDetailViewModel(
         load()
     }
 
-    /** The same row the list refresh rewrites, so this outlives the one-shot refresh below. */
+    /**
+     * The same row the list refresh rewrites, so this outlives the one-shot refresh below.
+     *
+     * The conversion state and the currency table come along it because the row alone cannot say
+     * what its price *means* (5.4): they are cached by the same refresh, so combining them keeps
+     * one render path rather than letting a second collector disagree with this one.
+     */
     private fun observeCache() {
-        subscriptionsRepository.observeSubscription(subscriptionId)
-            .onEach(::onCached)
-            .launchIn(viewModelScope)
+        combine(
+            subscriptionsRepository.observeSubscription(subscriptionId),
+            subscriptionsRepository.observePriceConversion(),
+            subscriptionsRepository.observeCurrencies(),
+            ::onCached
+        ).launchIn(viewModelScope)
     }
 
     private fun load() {
@@ -71,10 +82,10 @@ class SubscriptionDetailViewModel(
      * would be the lie. A row absent because nothing has cached it yet is the same `null`, and
      * the refresh below is already on its way.
      */
-    private fun onCached(subscription: Subscription?) {
+    private fun onCached(subscription: Subscription?, conversion: PriceConversion, currencies: List<Currency>) {
         _uiState.update {
             it.copy(
-                subscription = subscription?.let(::toUiItem),
+                subscription = subscription?.let { row -> toUiItem(row, conversion, currencies) },
                 isLoading = it.isLoading && subscription == null
             )
         }
@@ -97,19 +108,44 @@ class SubscriptionDetailViewModel(
         }
     }
 
-    private fun toUiItem(subscription: Subscription) = SubscriptionDetailUiItem(
-        name = subscription.name,
-        logoUrl = baseUrlProvider.toLogoUrl(subscription.logo),
-        price = moneyFormatter.format(subscription.price, subscription.currencySymbol),
-        cycle = subscription.cycle,
-        frequency = subscription.frequency,
-        nextPayment = subscription.nextPayment?.let(dateFormatter::formatDisplayDate).orEmpty(),
-        startDate = subscription.startDate?.let(dateFormatter::formatDisplayDate).orEmpty(),
-        categoryName = subscription.categoryName,
-        paymentMethodName = subscription.paymentMethodName,
-        payerName = subscription.payerName,
-        notes = subscription.notes,
-        url = subscription.url,
-        isActive = subscription.isActive
-    )
+    /**
+     * The currency this row's price was converted **from**, blank when it wasn't converted (5.4).
+     *
+     * [PriceConversion.converts] is the same question the repository asked when it chose the symbol
+     * the price is denominated in, so the label cannot contradict the amount above it: a row already
+     * in the main currency, an instance not converting, and one that cannot convert all answer
+     * `false` and say nothing.
+     *
+     * The **code** rather than the name — "USD" is what a price is labelled with everywhere else,
+     * and it is unambiguous where a symbol isn't (five currencies here share `$`). Blank for a
+     * `currency_id` the cached table doesn't hold, on the same reasoning as the missing symbol it
+     * would have had: no label beats naming the wrong currency.
+     */
+    private fun convertedFrom(
+        subscription: Subscription,
+        conversion: PriceConversion,
+        currencies: List<Currency>
+    ): String {
+        if (!conversion.converts(subscription.currencyId)) return ""
+        val source = currencies.firstOrNull { it.id == subscription.currencyId } ?: return ""
+        return source.code.ifBlank { source.name }
+    }
+
+    private fun toUiItem(subscription: Subscription, conversion: PriceConversion, currencies: List<Currency>) =
+        SubscriptionDetailUiItem(
+            name = subscription.name,
+            logoUrl = baseUrlProvider.toLogoUrl(subscription.logo),
+            price = moneyFormatter.format(subscription.price, subscription.currencySymbol),
+            convertedFrom = convertedFrom(subscription, conversion, currencies),
+            cycle = subscription.cycle,
+            frequency = subscription.frequency,
+            nextPayment = subscription.nextPayment?.let(dateFormatter::formatDisplayDate).orEmpty(),
+            startDate = subscription.startDate?.let(dateFormatter::formatDisplayDate).orEmpty(),
+            categoryName = subscription.categoryName,
+            paymentMethodName = subscription.paymentMethodName,
+            payerName = subscription.payerName,
+            notes = subscription.notes,
+            url = subscription.url,
+            isActive = subscription.isActive
+        )
 }

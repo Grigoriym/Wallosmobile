@@ -58,6 +58,9 @@ internal class SubscriptionsCache(
     suspend fun currencySymbols(): Map<Int, String> =
         currencyDao.getAll().map(currencyEntityMapper::toDomain).associate { it.id to it.symbol }
 
+    fun observeCurrencies(): Flow<List<Currency>> = currencyDao.observeAll()
+        .map { rows -> rows.map(currencyEntityMapper::toDomain) }
+
     fun observePriceConversion(): Flow<PriceConversion> = priceConversionDao.observe()
         .map(priceConversionEntityMapper::toDomain)
 

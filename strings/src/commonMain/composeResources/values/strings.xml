@@ -79,6 +79,7 @@
     <string name="subscription_detail_payer">Paid by</string>
     <string name="subscription_detail_url">Website</string>
     <string name="subscription_detail_notes">Notes</string>
+    <string name="subscription_detail_converted_from">Converted from %1$s</string>
 
     <string name="settings_disconnect">Disconnect</string>
     <string name="settings_disconnect_description">Disconnecting clears the API key stored on this device. Nothing changes on the server.</string>

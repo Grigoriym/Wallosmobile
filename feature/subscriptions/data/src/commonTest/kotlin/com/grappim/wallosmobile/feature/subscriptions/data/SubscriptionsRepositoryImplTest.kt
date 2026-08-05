@@ -342,6 +342,33 @@ class SubscriptionsRepositoryImplTest {
         }
     }
 
+    /**
+     * The table behind 5.4's label: a converted row keeps the `currency_id` it came from, and only
+     * this list turns that id into something a screen can name.
+     */
+    @Test
+    fun `a refresh leaves the currency list where a screen can read it`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = emptyList(),
+            currencies = listOf(euro(), dollar()),
+            mainCurrencyId = 1
+        )
+        val repository = repository(api)
+
+        repository.refreshSubscriptions().getOrThrow()
+
+        repository.observeCurrencies().test {
+            assertEquals(listOf("EUR", "USD"), awaitItem().map { it.code })
+        }
+    }
+
+    @Test
+    fun `observing currencies before any refresh emits an empty list`() = runTest {
+        repository().observeCurrencies().test {
+            assertTrue(awaitItem().isEmpty())
+        }
+    }
+
     /** Nothing refreshed yet is indistinguishable from nothing converted, and reads as such. */
     @Test
     fun `observing the conversion state before any refresh converts nothing`() = runTest {
@@ -539,9 +566,17 @@ private class FakeSubscriptionDao : SubscriptionDao {
 
 private class FakeCurrencyDao : CurrencyDao {
 
-    var rows: List<CurrencyEntity> = emptyList()
+    private val state = MutableStateFlow<List<CurrencyEntity>>(emptyList())
 
-    override suspend fun getAll(): List<CurrencyEntity> = rows.sortedBy { it.id }
+    var rows: List<CurrencyEntity>
+        get() = state.value
+        set(value) {
+            state.value = value.sortedBy { it.id }
+        }
+
+    override suspend fun getAll(): List<CurrencyEntity> = rows
+
+    override fun observeAll(): Flow<List<CurrencyEntity>> = state
 
     override suspend fun deleteAll() {
         rows = emptyList()

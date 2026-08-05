@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `3/6` · M6 `0/2`
-**Current step:** 5.4
+M4 `5/5` — **Phase 2c done** · M5 `4/6` · M6 `0/2`
+**Current step:** 5.5
 
 ---
 
@@ -160,7 +160,7 @@ Three things that shape these steps:
   `currency_id = 2` and the copied API key rotated. It is **stopped, not removed**, since 5.4 needs
   the same rig (plus rates, which this copy still has at `1`).
 
-- [ ] **5.4 — feature:subscriptions:ui: a converted price says what it was converted from**
+- [x] **5.4 — feature:subscriptions:ui: a converted price says what it was converted from**
   3.11's. The amount is right and the symbol is right — `symbolFor` denominates a converted row in
   the main currency — but nothing on either screen says a conversion happened, which Wallos' own web
   UI offers as `show_original_price`. **The original amount is unrecoverable**: the server overwrites
@@ -170,6 +170,18 @@ Three things that shape these steps:
   *Verify:* a test on whatever derives it, plus a preview. Same scratch container as 5.3, same
   requirement to say which instance.  ·  *Ref:* `SubscriptionsRepositoryImpl.symbolFor`,
   `PriceConversionEntity`
+  *Note:* the row carries a `currency_id` and nothing that names it, so the label needed the
+  **currency table** — a new `observeCurrencies()` on the repository, and a `CurrencyDao.observeAll()`
+  under it. It is the third flow the detail screen combines and the derivation stayed in the
+  ViewModel, reproducing `converts(currencyId)` exactly as 5.3's `spansCurrencies` reproduces
+  `symbolFor`: the same question, asked where the rows are. The **code** (`USD`) rather than the
+  symbol, since a symbol is not a currency, and blank rather than a guess when the cached table
+  no longer holds the id. **5.3's rig could not show this at all** — its rates were still `1`, so
+  nothing converted. The scratch instance on `:8284` now has `rate = 1.17` on USD,
+  `convert_currency = 1` and a `last_exchange_update` row (the flag the server really gates on),
+  which is what makes the 8 USD rows come back divided; that state is left in place and written up
+  in `CLAUDE.md`. Screenshots: `Mullvad VPN` at `€4.27 / Converted from USD` in both modes, and
+  `icloud` — already in the main currency — with nothing under its price.
 
 - [ ] **5.5 — feature:setup:ui: the login backoff is visible**
   3.10's. Past three refused attempts the next one waits 1–8 seconds under the spinner that was
@@ -300,7 +312,9 @@ nobody has started. **Don't re-open the first two per step; they have both been 
   A prompt *wherever* a refresh can fail is still unowned, and is a bigger change than naming the
   cause: it would put a pin write outside `SetupRepository`.
 - ~~The backoff is invisible~~ (3.10) — **5.5**.
-- ~~A converted price loses its original currency~~ (3.11) — **5.4**.
+- ~~A converted price loses its original currency~~ (3.11) — **done in 5.4**: the detail screen
+  names the currency the amount was converted from. The amount itself stays unrecoverable, which is
+  the server's doing, not a deferral.
 - ~~Sort by price still compares across currencies~~ (3.6) — **done in 5.3**: the option is taken
   off while the drawn rows are in more than one denomination, and says why.
 - **Version gating (plan §4.6) is still unowned.** It gates `get_period_budget`, `set_budget`'s
@@ -440,4 +454,6 @@ structural into the plan itself.
 | 5.2 | The criteria are stored as one JSON string, not through `androidx.savedstate`'s `encodeToSavedState` | On Android `SavedState` *is* `Bundle`, so the idiomatic encoder can't run in a host test and `SubscriptionFilter`'s `ImmutableSet`s have no serializer either — a String key is testable in both directions |
 | 5.3 | "Spans more than one denomination" is asked of `PriceConversion` plus `currencyId`, not of the `currencySymbol` the step named | A symbol is not a currency (four dollars share `$`) and a working conversion leaves every row in one unit with its source `currency_id` intact — so each field alone gets one of the two cases wrong; reproducing `symbolFor`'s choice makes 3.11's banner a strict subset of the same computation — *now in plan §7.1* |
 | 5.3 | The Price option is disabled **and** annotated, where the step offered either | Disabling alone is silent about the order the user is already in: a sort chosen while the rows were comparable survives a widened filter, and the chip is then selected, greyed and still wrong — *now in plan §7.1* |
+| 5.4 | The label is derived in the ViewModel from a third cached flow (`observeCurrencies`), not stored on the row | The entity holds SQLite primitives and a "converted from" column would be derived data at schema version 3; the conversion state and the currency table are cached by the same refresh, so combining them keeps one render path — *now in plan §7.1* |
+| 5.4 | The source currency is named by its **code**, not its symbol or name | Same objection 5.3 raised to `currencySymbol`: five currencies here share `$`. `code` falls back to `name` only because the DTO defaults it — *now in plan §7.1* |
 | 5.2 | `NavDisplay`'s default `entryDecorators` is `rememberSaveableStateHolderNavEntryDecorator()` alone — no ViewModel-store decorator — and that says **nothing** about ViewModel lifetime | It reads as "every ViewModel is activity-scoped, so a second detail route reuses the first's", which is a phantom defect: measured on device, the list ViewModel survives a detail round trip while each detail route builds its own (`Refreshing subscription 4`, then `26`). Measure this, never infer it from the decorator list |

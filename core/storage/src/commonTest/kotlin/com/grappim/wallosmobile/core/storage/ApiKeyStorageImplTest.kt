@@ -171,6 +171,8 @@ private class FakeCurrencyDao : CurrencyDao {
 
     override suspend fun getAll(): List<CurrencyEntity> = rows
 
+    override fun observeAll(): Flow<List<CurrencyEntity>> = flowOf(rows)
+
     override suspend fun deleteAll() {
         rows = emptyList()
     }

@@ -3,6 +3,7 @@ package com.grappim.wallosmobile.feature.subscriptions.ui.detail
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
@@ -14,7 +15,6 @@ import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
 import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
@@ -215,6 +215,72 @@ class SubscriptionDetailViewModelTest {
         assertEquals(2, repository.callCount)
     }
 
+    /**
+     * 5.4: the amount is in the instance's main currency and the row still carries the id of the
+     * one it was converted from (3.11), which is the only thing left to name it with.
+     */
+    @Test
+    fun `a converted price names the currency it was converted from`() = runTest {
+        repository.conversion.value = CONVERTING
+        repository.currencies.value = CURRENCIES
+        repository.result = Result.success(subscription().copy(currencyId = 2, currencySymbol = "€"))
+
+        val item = assertNotNull(viewModel().uiState.value.subscription)
+
+        assertEquals("USD", item.convertedFrom)
+    }
+
+    /** Wallos leaves a row that is already in the main currency alone, so there is nothing to say. */
+    @Test
+    fun `a row already in the main currency says nothing`() = runTest {
+        repository.conversion.value = CONVERTING
+        repository.currencies.value = CURRENCIES
+        repository.result = Result.success(subscription().copy(currencyId = 1))
+
+        val item = assertNotNull(viewModel().uiState.value.subscription)
+
+        assertTrue(item.convertedFrom.isEmpty())
+    }
+
+    /**
+     * The instance was asked to convert and cannot (3.11's silent failure): the price is the row's
+     * own, so claiming a conversion would be the one thing worse than the missing banner.
+     */
+    @Test
+    fun `a conversion that could not run leaves the price unlabelled`() = runTest {
+        repository.conversion.value = CONVERTING.copy(hasRates = false)
+        repository.currencies.value = CURRENCIES
+        repository.result = Result.success(subscription().copy(currencyId = 2, currencySymbol = "$"))
+
+        val item = assertNotNull(viewModel().uiState.value.subscription)
+
+        assertTrue(item.convertedFrom.isEmpty())
+    }
+
+    /** Same answer as the symbol the row would have had: no label beats the wrong currency. */
+    @Test
+    fun `a source currency the cache does not hold is not named`() = runTest {
+        repository.conversion.value = CONVERTING
+        repository.currencies.value = listOf(EURO)
+        repository.result = Result.success(subscription().copy(currencyId = 2, currencySymbol = "€"))
+
+        val item = assertNotNull(viewModel().uiState.value.subscription)
+
+        assertTrue(item.convertedFrom.isEmpty())
+    }
+
+    /** `code` is defaulted on the wire, so an instance that omits it still gets a real label. */
+    @Test
+    fun `a currency with no code is named by its name`() = runTest {
+        repository.conversion.value = CONVERTING
+        repository.currencies.value = listOf(EURO, DOLLAR.copy(code = ""))
+        repository.result = Result.success(subscription().copy(currencyId = 2, currencySymbol = "€"))
+
+        val item = assertNotNull(viewModel().uiState.value.subscription)
+
+        assertEquals("US Dollar", item.convertedFrom)
+    }
+
     private fun subscription(
         id: Int = SUBSCRIPTION_ID,
         logo: String = "",
@@ -242,6 +308,13 @@ class SubscriptionDetailViewModelTest {
     private companion object {
         const val SERVER_URL = "http://10.0.2.2:8282"
         const val SUBSCRIPTION_ID = 1
+
+        val EURO = Currency(id = 1, name = "Euro", symbol = "€", code = "EUR")
+        val DOLLAR = Currency(id = 2, name = "US Dollar", symbol = "$", code = "USD")
+        val CURRENCIES = listOf(EURO, DOLLAR)
+
+        /** Asked for, able to, and converting into currency 1 — the state that produces a label. */
+        val CONVERTING = PriceConversion(isEnabled = true, mainCurrencyId = 1, hasRates = true)
     }
 
     /**
@@ -260,13 +333,19 @@ class SubscriptionDetailViewModelTest {
         var requestedId: Int? = null
         var callCount = 0
 
+        /** What the same refresh left behind about the cached prices, and what names them (3.11). */
+        val conversion = MutableStateFlow(PriceConversion())
+        val currencies = MutableStateFlow<List<Currency>>(emptyList())
+
         fun seed(subscription: Subscription) {
             cached.value = listOf(subscription)
         }
 
         override fun observeSubscriptions(): Flow<List<Subscription>> = cached
 
-        override fun observePriceConversion(): Flow<PriceConversion> = flowOf(PriceConversion())
+        override fun observePriceConversion(): Flow<PriceConversion> = conversion
+
+        override fun observeCurrencies(): Flow<List<Currency>> = currencies
 
         override suspend fun refreshSubscriptions(): Result<Unit> = Result.success(Unit)
 

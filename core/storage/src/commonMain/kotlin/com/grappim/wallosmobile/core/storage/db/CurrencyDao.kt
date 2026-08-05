@@ -5,12 +5,17 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CurrencyDao {
 
     @Query("SELECT * FROM $CURRENCY_TABLE ORDER BY id")
     suspend fun getAll(): List<CurrencyEntity>
+
+    /** The same rows a screen can keep reading: re-emits whenever a refresh replaces the table. */
+    @Query("SELECT * FROM $CURRENCY_TABLE ORDER BY id")
+    fun observeAll(): Flow<List<CurrencyEntity>>
 
     /** A snapshot of the instance's whole currency list, for the same reason as the subscriptions. */
     @Transaction

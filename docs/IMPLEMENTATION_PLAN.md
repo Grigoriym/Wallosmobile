@@ -1632,8 +1632,19 @@ is that.
   on screen: a sort chosen while they were comparable stays selected when a widened filter brings a
   second currency back, and in that state the chip is inert and the order is already wrong — the
   disable cannot reach it, so the sentence has to.
-- **What this leaves undone**: a converted row still shows its original currency nowhere — 5.4. The
-  price sort half was closed by 5.3.
+- **A converted row names the currency it came from, and only that** (5.4). The original amount is
+  unrecoverable — the server overwrites `price` — so the detail screen carries a *label* under the
+  price, never a second number, and the list row carries nothing (no space, and the banner already
+  covers the instance-wide case). It is the same `converts(currencyId)` the repository asked when it
+  chose the symbol, so the label cannot contradict the amount above it: a row already in the main
+  currency, an instance not converting and one that cannot convert all say nothing.
+  Naming it needs the **currency table**, because `currency_id` is the only thing the row carries —
+  hence `SubscriptionsRepository.observeCurrencies()`, the cache read that turns that id into a
+  code. The **code** (`USD`), not the symbol, for the same reason the comparison above is not asked
+  of `currencySymbol`; blank for an id the cached table no longer holds, on the same reasoning as
+  the blank symbol it would have had.
+- **What this leaves undone**: nothing about currency — 5.3 closed the price sort and 5.4 the
+  missing source currency.
 
 ### 7.2 Explicitly out of v1
 
