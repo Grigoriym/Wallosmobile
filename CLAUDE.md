@@ -107,6 +107,13 @@ adb emu kill                           # don't leave it running
 `screencap` is 1080×2400 while the image comes back scaled — multiply the coordinates read off
 the screenshot by the stated factor before feeding them to `input tap`.
 
+**The launcher icon lives in the app *drawer*, not the home screen** (6.1) — Pixel Launcher only
+pins favourites to home, so verifying it needs `adb shell input swipe 540 1800 540 600` to pull
+the drawer up first. That swipe is flaky back-to-back: it silently no-ops and leaves you on the
+home screen roughly as often as it works, with no error either way — screenshot after every
+attempt and retry the swipe rather than trusting one call. `pm clear`/`force-stop`-ing the app
+does not reopen or close the drawer; it is independent launcher state.
+
 **"Is it dark?" is a pixel, not an impression.** `python3 -c "from PIL import Image; print(
 Image.open('shot.png').convert('RGB').getpixel((540, 220)))"` answers it in one line —
 `(26, 27, 31)` is `SurfaceDark`, `(253, 251, 255)` is `SurfaceLight` — and it is the only way to

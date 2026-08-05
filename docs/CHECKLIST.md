@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `0/2`
-**Current step:** 6.1
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `1/2`
+**Current step:** 6.2
 
 ---
 
@@ -82,7 +82,7 @@ step is available to do instead. Take them in either order.
 Both are cheap in code and expensive in **documentation**: `CLAUDE.md`'s emulator recipes hardcode
 `com.grappim.wallosmobile` and `installDebug`, and 6.2 invalidates every one of them.
 
-- [ ] **6.1 — androidApp: the launcher icon is the app's own**
+- [x] **6.1 — androidApp: the launcher icon is the app's own**
   The icon is still Android Studio's scaffold — `drawable/ic_launcher_background.xml` plus
   `drawable-v24/ic_launcher_foreground.xml` (the green droid), with legacy PNG pairs in all five
   `mipmap-*dpi/`. **The user supplies the artwork; don't draw or generate one.** Replace the
@@ -98,6 +98,24 @@ Both are cheap in code and expensive in **documentation**: `CLAUDE.md`'s emulato
   is the one that disappears against a dark launcher. Say in the note which shapes were checked
   (adaptive mask, round, themed).  ·  *Ref:* `androidApp/src/main/res/`, `AndroidManifest.xml`'s
   `android:icon` / `android:roundIcon`
+  Note: the user supplied `art/wallosmobile_logo.png` (a navy circular "sticker" mark, full bleed
+  on transparent) and ran Android Studio's Image Asset Studio to generate the adaptive layers —
+  it already wired `<monochrome android:drawable="@mipmap/ic_launcher_foreground"/>` into both
+  `ic_launcher.xml` and `ic_launcher_round.xml` unprompted, reusing the foreground (fine: themed
+  icons key off alpha, not colour). What the wizard left alone was
+  `drawable/ic_launcher_background.xml` — still the scaffold's opaque green grid. Since the
+  foreground art already bakes in its own navy disc on a transparent canvas (unlike Taiga's/
+  Mealie's bare-glyph foregrounds, which need a background fill for contrast), the leftover
+  scaffold background showed through as a black-ish ring in the adaptive mask's safe-zone margin —
+  confirmed on device before and after. Replaced it with a single fully-transparent path (matching
+  Taiga/Mealie's simplified one-`<path>` vector shape, just transparent instead of their opaque
+  tint), which removed the ring. **A wizard reimport reverts this file** — it happened mid-step —
+  so re-check it after any future regeneration. Verified adaptive mask shape in both light and
+  dark launcher (drawer, `cmd uimode night yes/no`); round icon file was regenerated but not
+  separately forced on-screen (Pixel launcher always masks to its own circle). Themed icons
+  (`settings put secure themed_icons 1`) produced no visible retint for *any* app on this AVD's
+  default wallpaper, ours included — an emulator/wallpaper limitation, not evidence about the
+  monochrome layer, which is correctly wired.
 
 - [ ] **6.2 — build-logic: gplay and fdroid flavors, and a debug build that says it is one**
   There are no product flavors today (0.3 dropped Taiga's deliberately) and no
@@ -323,3 +341,4 @@ structural into the plan itself.
 | 5.2 | `NavDisplay`'s default `entryDecorators` is `rememberSaveableStateHolderNavEntryDecorator()` alone — no ViewModel-store decorator — and that says **nothing** about ViewModel lifetime | It reads as "every ViewModel is activity-scoped, so a second detail route reuses the first's", which is a phantom defect: measured on device, the list ViewModel survives a detail round trip while each detail route builds its own (`Refreshing subscription 4`, then `26`). Measure this, never infer it from the decorator list |
 | 5.5 | The wait reaches the caller as an `onThrottleWait: (Duration) -> Unit` parameter on the two throttled repository methods, defaulted to `{}` | The state exists only for the duration of one call, so a flow beside the repository would have needed a lifetime, an initial value and a clear that a parameter doesn't; the default keeps every existing call site and the unthrottled surface untouched — *now in plan §1.1* |
 | 5.6 | The fix is a `logoRefreshToken: Int` set as a Coil `memoryCacheKeyExtra`, not a change to `logoUrl` itself | `AsyncImageModelEqualityDelegate.Default` compares an `ImageRequest`'s `data` and cache keys, never the model's own `equals`; changing `data` would also change the actual fetch URL, where an extra changes only the request's identity — *now in plan §4.5* |
+| 6.1 | `drawable/ic_launcher_background.xml` is a single fully-transparent `<path>`, not Taiga's/Mealie's opaque `ic_launcher_background_tint` colour | The user's artwork is a self-contained "sticker" — the foreground already bakes in its own navy disc on a transparent canvas — unlike those two references' bare glyphs, which need a background fill for contrast. Leaving the scaffold's opaque green grid behind it showed as a dark ring in the adaptive mask's safe-zone margin; a fully-transparent background removed it. **Android Studio's Image Asset Studio reimport reverts this file to the scaffold on every run** — it happened mid-step — so re-check it after any future logo regeneration, including 6.2's per-flavour debug icon if that step touches the same wizard |
