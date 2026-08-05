@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.subscriptions.ui.list
 
+import androidx.lifecycle.SavedStateHandle
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
@@ -43,6 +44,13 @@ class SubscriptionsViewModelTest {
         mainDispatcherRule.tearDown()
     }
 
+    /**
+     * The handle a real one is given, minus the registry owner behind it: what the system would
+     * have restored is whatever a previous [viewModel] wrote into this same instance, which is
+     * exactly the process boundary 5.2 is about.
+     */
+    private val savedStateHandle = SavedStateHandle()
+
     // The formatters are pure classes with no seam worth faking (plan §6.1), so the assertions
     // below are on the strings the app really renders.
     private fun viewModel() = SubscriptionsViewModel(
@@ -50,7 +58,8 @@ class SubscriptionsViewModelTest {
         baseUrlProvider = baseUrlProvider,
         moneyFormatter = MoneyFormatter(),
         dateFormatter = DateFormatter(),
-        subscriptionSorter = SubscriptionSorter()
+        subscriptionSorter = SubscriptionSorter(),
+        savedStateHandle = savedStateHandle
     )
 
     @Test
@@ -414,6 +423,59 @@ class SubscriptionsViewModelTest {
         sut.uiState.value.filters.onDismiss()
         assertFalse(sut.uiState.value.filters.isVisible)
         assertEquals(1, sut.uiState.value.items.size)
+    }
+
+    // --- 5.2: the criteria outlive the process -------------------------------------------------
+
+    /**
+     * The whole step in one test: a second ViewModel over the same handle is what the system builds
+     * after an `am kill`, and it has to come back narrowed and ordered the way the first one was.
+     */
+    @Test
+    fun `a rebuilt ViewModel comes back with the filter and the sort it was killed with`() = runTest {
+        repository.result = Result.success(listOf(disney, internet))
+        val before = viewModel()
+        before.uiState.value.filters.onFilterChange(
+            SubscriptionFilter(categories = persistentSetOf("Internet"))
+        )
+        before.uiState.value.filters.onSortChange(SubscriptionSort.NAME)
+
+        val after = viewModel().uiState.value
+
+        assertEquals(persistentSetOf("Internet"), after.filters.filter.categories)
+        assertEquals(SubscriptionSort.NAME, after.filters.sort)
+        assertEquals(listOf(2), after.items.map { it.id })
+    }
+
+    @Test
+    fun `the status filter survives too, and an untouched screen restores the defaults`() = runTest {
+        repository.result = Result.success(listOf(disney, internet.copy(isActive = false)))
+        viewModel().uiState.value.filters.onFilterChange(
+            SubscriptionFilter(status = SubscriptionStatusFilter.INACTIVE)
+        )
+        assertEquals(SubscriptionStatusFilter.INACTIVE, viewModel().uiState.value.filters.filter.status)
+
+        viewModel().uiState.value.filters.onClear()
+
+        val after = viewModel().uiState.value
+        assertEquals(SubscriptionFilter(), after.filters.filter)
+        assertEquals(2, after.items.size)
+    }
+
+    /**
+     * A rename in a later build leaves the previous one's state unreadable. Pre-v1 that state is
+     * disposable — but discarding it has to be a default screen, not a crash in the constructor.
+     */
+    @Test
+    fun `state a newer build cannot read is dropped, not thrown`() = runTest {
+        repository.result = Result.success(listOf(disney, internet))
+        savedStateHandle["subscriptions_criteria"] = """{"sort":"BY_SOMETHING_REMOVED"}"""
+
+        val state = viewModel().uiState.value
+
+        assertEquals(SubscriptionFilter(), state.filters.filter)
+        assertEquals(SubscriptionSort.NEXT_PAYMENT, state.filters.sort)
+        assertEquals(2, state.items.size)
     }
 
     // --- 3.11: the conversion banner ----------------------------------------------------------

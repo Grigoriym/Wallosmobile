@@ -307,6 +307,16 @@ vertical slices, **all source in `commonMain`**.
   seventh thing has **no dependencies of its own**, is to stop injecting it: 3.10's `LoginThrottle`
   is a `private val` constructed by `SetupRepositoryImpl`, because DI was buying it nothing but a
   constructor slot — the lifetime it wanted was already its owner's.
+- **A `SavedStateHandle` holds a JSON string here, not an encoded `SavedState`** (5.2). On Android
+  `androidx.savedstate`'s `SavedState` **is** `Bundle`, so `encodeToSavedState`, the `saved { }`
+  property delegate and `savedState { }` all need an Android runtime — unreachable from a host test,
+  and Robolectric is out. `SavedStateHandle()` itself, `get`, `set` and `getMutableStateFlow` are
+  pure Kotlin, so a `String` value is testable in both directions while anything Bundle-shaped is
+  testable in neither. `SubscriptionFilter`'s `ImmutableSet`s have no kotlinx serializer either, so
+  what gets written is a small `@Serializable` companion type (`SavedCriteria`) with plain `Set`s —
+  the same DTO-beside-the-model instinct the wire layer uses. Decoding it catches
+  `IllegalArgumentException`: pre-v1 stored state is disposable, but *discarding* it has to be a
+  default screen rather than a crash in the ViewModel's constructor.
 - **A new module must be added to the root `build.gradle.kts` `kover { }` block** — coverage is
   aggregated by an explicit per-module list, so a module left out of it is silently at 0% and
   nothing fails. `:testing` is deliberately absent (fakes, not production code).
@@ -383,6 +393,11 @@ vertical slices, **all source in `commonMain`**.
   (`org.koin.test.verify.Verify.primitiveTypes`), so a primitive constructor parameter passes
   whether or not it is annotated. MealieMobile takes route params without the annotation and has no
   graph test to disagree — don't read that as precedent.
+  **A `SavedStateHandle` needs the same annotation, and there the graph test *is* the gate** (5.2).
+  Koin builds one from the `CreationExtras` in `AndroidParametersHolder`, never from the graph, so
+  an unannotated one asks for a definition that doesn't exist — and because `SavedStateHandle` is
+  not one of `verify()`'s whitelisted primitives, `KoinGraphTest` fails on it instead of waving it
+  through. Nothing else is needed: no factory, no `parametersOf` at the call site.
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`.
   Every new route must also be registered in the polymorphic `SerializersModule` in
@@ -403,6 +418,13 @@ vertical slices, **all source in `commonMain`**.
   (`collectAsState(initial = ThemeMode.default())`) never gates anything, so it needs no
   `rememberSaveable` at all and the stored value simply arrives a frame later. Reach for the
   seeded-`rememberSaveable` shape only when there is no default that can render.
+  **`MainNavHost` passes no `entryDecorators`, and that tells you nothing about ViewModel lifetime**
+  (5.2). `NavDisplay`'s default is `rememberSaveableStateHolderNavEntryDecorator()` alone — no
+  ViewModel-store decorator — which reads as "every ViewModel is the activity's, so opening a second
+  subscription reuses the first one's ViewModel". It doesn't: on device the list ViewModel survives
+  a detail round trip untouched while each detail route builds its own, and the proof is one grep —
+  `adb logcat | grep "Refreshing subscription"` names the id (`4`, then `26`). Measure a lifetime
+  question here; the wiring does not answer it.
 - **Not everything on screen is a route.** Login isn't — the startup branch renders it *instead of*
   the shell, so it has no `NavDisplay`, no back-stack entry, and nothing to register. The test is
   whether anything can navigate *back* to it; a screen the app is either on or not is state.

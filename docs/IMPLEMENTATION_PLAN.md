@@ -986,6 +986,13 @@ Route arguments reach the ViewModel through the screen via
 route extraction — that is the nav2 pattern and does not apply here. The receiving constructor
 property takes **`@InjectedParam`**, which `KoinGraphTest` cannot enforce (§6.1).
 
+That rules out `SavedStateHandle` as a *route argument* vehicle, not as a vehicle. 5.2 injects one
+into `SubscriptionsViewModel` for state that belongs to no route at all — the filter and sort, which
+the back stack was carefully serializing around while they reset on every process death. It takes
+the same `@InjectedParam` (Koin builds it from the `CreationExtras`, not from the graph), and there
+`KoinGraphTest` *does* enforce it, since `SavedStateHandle` is not one of `verify()`'s whitelisted
+primitives.
+
 `NavKeySerializersTest` walks `DrawerDestination.entries`, so it checks the *top-level* routes and
 nothing else. A detail or editor route left out of `navKeySerializersModule` passes every gate in
 the repo and only shows up as a lost back stack after process death (2.5) — the `am kill` cycle in
@@ -1163,8 +1170,16 @@ will not compile:
    should mean from here on.
 
 Also worth knowing: `io.insert-koin:koin-compose-navigation3` exists and is declared in Mealie's
-catalog but is **not used** — `koinViewModel()` + `rememberViewModelStoreNavEntryDecorator()` is
-enough. Don't add it without a reason.
+catalog but is **not used** — `koinViewModel()` alone is enough. Don't add it without a reason.
+
+6. **This repo wires no `rememberViewModelStoreNavEntryDecorator()` either**, contrary to what the
+   line above used to claim: `MainNavHost` passes no `entryDecorators`, so `NavDisplay` runs on its
+   default of `rememberSaveableStateHolderNavEntryDecorator()` alone. 5.2 went looking for the
+   defect that implies — an activity-scoped ViewModel store would hand a second detail route the
+   first route's ViewModel — and there isn't one: measured on device, the list ViewModel survives a
+   detail round trip untouched while each detail route builds its own (`Refreshing subscription 4`,
+   then `26`, in logcat). So the decorator list is not the authority on ViewModel lifetime here;
+   the log line is, and it costs one `adb logcat`.
 
 ### 5.6 What this changes elsewhere in this plan
 
@@ -1302,6 +1317,8 @@ and `Double` outright (`Verify.primitiveTypes`), so a primitive constructor para
 verified whether or not it is annotated. A route argument therefore needs `@InjectedParam` on the
 ViewModel's constructor property for its own sake — without it the compiler plugin looks for an
 `Int` definition in the graph and the screen crashes at first injection, with no gate in between.
+The whitelist is what makes this blind spot narrow, though: `SavedStateHandle` (5.2) needs the same
+annotation for the same reason and is *not* whitelisted, so there the graph test does fail.
 
 **Not everything gets an interface.** The interfaces in this app are seams over a *platform* or
 over *IO* — `SecretCipher`, `ApiKeyStorage`, `WebLoginApi` — because a host test cannot reach the
@@ -1548,6 +1565,13 @@ the server-resolved `category_name` / `payer_user_name` / `payment_method_name`.
 - **The criteria are `MutableStateFlow`s beside the state**, `combine`d with the DAO flow rather
   than copied into the UI state and read back out of it. So "the filter changed" and "a refresh
   arrived" render through one path, and re-sorting provably costs no refetch.
+  **Since 5.2 they also outlive the process**, through a `SavedStateHandle` — the shape above is
+  untouched, and the handle is written from a `combine(filter, sort)` rather than from each of the
+  three setters, so the saved copy is driven off the flows and cannot disagree with them. The stored
+  form is one JSON string under one key (`CLAUDE.md` has the reason: `SavedState` is `Bundle`, and a
+  Bundle is unreachable from a host test). The UI state's `filters` is *seeded* from the restored
+  values as well as set by `onCached`, because the first frame after a restore is drawn before the
+  DAO flow has emitted anything.
 - **Sorting is a pure class** (`SubscriptionSorter`), because §3.2 fixes the direction *per field*
   — `price` and `id` descend, everything else ascends — and a table like that is worth a test
   rather than a `sortedWith` in a ViewModel. Three of its fields are ids this app never receives,

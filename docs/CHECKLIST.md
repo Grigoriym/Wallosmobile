@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `1/6`
-**Current step:** 5.2
+M4 `5/5` — **Phase 2c done** · M5 `2/6`
+**Current step:** 5.3
 
 ---
 
@@ -110,7 +110,7 @@ Three things that shape these steps:
   (`https://10.0.2.2:8443`), leaf regenerated from the same CA: the pin is per-certificate, so a
   re-issued leaf fails exactly like a new host's would.
 
-- [ ] **5.2 — feature:subscriptions:ui: the filter and sort survive process death**
+- [x] **5.2 — feature:subscriptions:ui: the filter and sort survive process death**
   3.12 filed the inconsistency: the nav back stack is carefully serialized and the two
   `MutableStateFlow`s beside the UI state are not, so `am kill` restores the detail screen the user
   was on and the list behind it has forgotten its filter. Keep 3.6's shape — the criteria stay
@@ -124,6 +124,14 @@ Three things that shape these steps:
   through `koinViewModel()`'s `CreationExtras`, and that is a five-minute check, not an assumption.
   `rememberSaveable` at the screen with the criteria hoisted is the fallback, and it is not a worse
   answer if the first one needs plumbing this app doesn't have.
+  *Note:* `SavedStateHandle` works with no plumbing at all, and the check was worth running — it
+  needs `@InjectedParam`, because Koin builds it from the `CreationExtras` rather than from the
+  graph. What it can *hold* was the real constraint: a value has to be Bundle-safe on Android, and
+  `androidx.savedstate`'s own `encodeToSavedState` is unreachable from a host test for exactly that
+  reason (`SavedState` **is** `Bundle`). So the criteria go in as one JSON string under one key,
+  which a host test reads back with no Android runtime. Verified on device across a real process
+  death — pid 4155 → gone → 4304, task `sz=1` — with the contrast that `force-stop` correctly
+  discards them.
 
 - [ ] **5.3 — feature:subscriptions:ui: the price sort stops comparing across currencies**
   3.6's, unchanged by 3.11. Whenever conversion is off or unavailable, `SubscriptionSort.PRICE`
@@ -349,3 +357,6 @@ structural into the plan itself.
 | 4.5 | The loader is a `@Single fun` in `AppModule`, not the `@Factory class ImageLoaderProvider` TaigaMobileNova uses | Same plugin check: a scanned class in `composeApp` fails identically, so the class bought nothing. `NetworkModule` builds its clients in the module class too |
 | 4.5 | `SubcomposeAsyncImage`, not `AsyncImage` with an `error` slot as the step said | `AsyncImage`'s `error` is a `Painter`; the fallback is an initial-letter `Surface` that has to be laid out, so the composable slot is the only one that takes it |
 | 4.5 | A new `coil-singleton` version-catalog alias (`io.coil-kt.coil3:coil`) | `SingletonImageLoader` is not in `coil-core`; `:androidApp` implements its `Factory` and reached the type only transitively through `coil-compose` — *Gate-change on the commit* |
+| 5.2 | `SavedStateHandle` is injected as an `@InjectedParam`, the repo's second use of that annotation | Koin resolves it from the `CreationExtras` through `AndroidParametersHolder`, not from the graph; unlike 2.5's `Int`, `verify()` **does** catch a missing annotation here, since `SavedStateHandle` isn't one of its whitelisted primitives |
+| 5.2 | The criteria are stored as one JSON string, not through `androidx.savedstate`'s `encodeToSavedState` | On Android `SavedState` *is* `Bundle`, so the idiomatic encoder can't run in a host test and `SubscriptionFilter`'s `ImmutableSet`s have no serializer either — a String key is testable in both directions |
+| 5.2 | `NavDisplay`'s default `entryDecorators` is `rememberSaveableStateHolderNavEntryDecorator()` alone — no ViewModel-store decorator — and that says **nothing** about ViewModel lifetime | It reads as "every ViewModel is activity-scoped, so a second detail route reuses the first's", which is a phantom defect: measured on device, the list ViewModel survives a detail round trip while each detail route builds its own (`Refreshing subscription 4`, then `26`). Measure this, never infer it from the decorator list |
