@@ -6,4 +6,8 @@ package com.grappim.wallosmobile.core.appinfoapi
  */
 interface AppInfoProvider {
     fun isDebug(): Boolean
+
+    fun versionName(): String
+
+    fun versionCode(): Int
 }

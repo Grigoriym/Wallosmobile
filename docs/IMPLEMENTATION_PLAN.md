@@ -1410,7 +1410,17 @@ The module stayed `ui`-only through 4.3, which added the **Interface** sub-scree
 the same one-seam case `ApiKeyStorage` is, so `InterfaceViewModel` takes it directly. What the root
 screen did gain is *navigation* — an `onInterfaceClick` plain parameter (a pure navigation callback,
 so not on the UI state) wired by `settingsEntry`, which therefore now takes the `Navigator` it was
-originally written without.
+originally written without. 4.4's **About** sub-screen is the third such reach (`AppInfoProvider`),
+and it is still `ui`-only: three one-call seams are not a `domain` layer, because there is nothing
+between the call and the screen for an interface to hide. The count that matters is *repositories*,
+not reaches.
+
+**A platform seam hands back facts, not rendered text** (4.4). `AppInfoProvider` gained
+`versionName()` and `versionCode()` rather than MealieMobile's `getAppInfo(): String`, because the
+`androidApp` implementation is the one class in the graph a host test cannot construct and the one
+place `:strings` resources cannot be resolved — `about_version_value` (`%1$s (%2$d)`) and the
+Debug/Release word are both `stringResource` calls in the composable. A seam that pre-renders moves
+presentation into exactly the class that can neither be tested nor localised.
 
 Two consequences of `clear()` keeping the server URL (§4.7) that are easy to conflate: the URL
 really does survive, but the login screen does **not** prefill it, so re-connecting still means

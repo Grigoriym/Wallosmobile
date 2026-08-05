@@ -215,6 +215,14 @@ task, relaunch, get to the screen under test, and only then background + `am kil
 in the `ActivityTaskManager` logcat line tells you which situation you are in — or `sz=` in
 `dumpsys activity activities`, which is the same count and one grep away.
 
+**An outbound link puts the browser in the app's own task**, which is the same dirty state (4.4):
+tapping About's GitHub button leaves the task at `numActivities=2` with Chrome's launcher on top,
+so a kill cycle run straight after it is testing the wrong thing. `force-stop` both, then start the
+cycle. **And the link itself is a logcat check, not a screenshot** — the browser draws its
+first-run page, which is identical for every URL. `adb logcat -c`, tap, then
+`grep "ActivityTaskManager.*START"`: the `dat=` and `capturedLink=` fields carry the URL the app
+actually asked for, which is the only thing `LocalUriHandler.openUri` is responsible for.
+
 **Crossing a process boundary invalidates coordinates as surely as the keyboard does** (3.12). The
 filter and sort live in ViewModel `MutableStateFlow`s, so a `force-stop` resets them and the list
 comes back in a *different order* — tap the row you noted from the pre-kill screenshot and you open
@@ -263,12 +271,19 @@ vertical slices, **all source in `commonMain`**.
   exists.
   **4.3 is the third reach, and it did not change the answer.** `InterfaceViewModel` takes
   `ThemeStorage` the same way `SettingsViewModel` takes `ApiKeyStorage`: still one call on one
-  seam, still nothing for a `domain` interface to hide. Two `ui` → `core` reaches inside one
-  feature is the count to watch — what would flip it is a *repository*, not another storage read.
+  seam, still nothing for a `domain` interface to hide. **4.4's `AboutViewModel` makes three inside
+  `feature:settings`** (`AppInfoProvider`) and the answer is still no — so stop counting reaches.
+  What flips it is a *repository*: something with its own failure modes, callers or caching, which
+  a one-call seam read straight into UI state has none of.
 - **Mappers are classes, not extension functions** — one per file, for testability. Same for
   formatters: pure logic gets **no interface**. An interface here is a seam over a platform or
   over IO (`SecretCipher`, `ApiKeyStorage`, `WebLoginApi`) — something a host test can't reach.
   Faking a pure class only lets the consumer's test assert output the app never produces.
+  **Such a seam returns facts, not rendered text** (4.4): `AppInfoProvider` exposes `versionName()`
+  and `versionCode()` rather than Mealie's `getAppInfo(): String`, because its impl lives in
+  `androidApp` — the one class no host test can construct and the one place a `:strings` resource
+  can't be resolved. Pre-rendering there puts presentation where neither a test nor a translation
+  can reach it.
 - **Storage** is DataStore-backed (KMP), interface + impl, keys in a `private companion object`.
   The **Room cache** (`core/storage/.../db/`, 3.3) is the exception to that shape: entities and
   DAOs, no interface over them, and **every column a SQLite primitive** — no `TypeConverter`, and
@@ -423,7 +438,9 @@ vertical slices, **all source in `commonMain`**.
 - **A ViewModel test must set the main dispatcher.** `viewModelScope` dispatches on
   `Dispatchers.Main`, which a host test doesn't have, so the first `launch` throws. Use
   `MainDispatcherRule` from `:testing` — not a JUnit `@Rule` (this is `kotlin.test`), so call
-  its `setup()`/`tearDown()` from `@BeforeTest`/`@AfterTest`.
+  its `setup()`/`tearDown()` from `@BeforeTest`/`@AfterTest`. The exception is a ViewModel that
+  never touches `viewModelScope` at all: `AboutViewModel` reads three build facts in its
+  constructor, so `AboutViewModelTest` sets no dispatcher and needs no `runTest`.
   **A repository test injects `UnconfinedTestDispatcher()`, not `StandardTestDispatcher()`.**
   Every repository here takes an `@IoDispatcher` and does its work in `withContext(dispatcher)`;
   a `StandardTestDispatcher()` built outside `runTest` carries its *own* scheduler, so that
@@ -488,6 +505,10 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   conditional content.
 - **Lambda params are present tense**: `onClick` not `onClicked`, `onItemAdd` not `onItemAdded`.
   Enforced by the `compose:parameter-naming` lint rule — **not auto-correctable, fails the build.**
+- **`compose:parameter-order` exempts exactly one trailing function**, so a `Screen` composable can
+  keep `viewModel = koinViewModel()` first only while it has a *single* callback. Adding a second
+  fails detekt (4.4's About row on `SettingsScreen`), and the fix is the order the subscriptions
+  screens already use: callbacks first, `viewModel` last with its default.
 - **`ImmutableList` / `persistentListOf()`** over `List` in state classes and Composable params,
   for stable recomposition.
 - **Always write previews** for screens and reusable widgets, using `@PreviewWallosDarkLight` +

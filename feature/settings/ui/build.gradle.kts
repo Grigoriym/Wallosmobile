@@ -16,6 +16,8 @@ kotlin {
             // Phase 5).
             implementation(projects.core.storage)
             implementation(projects.core.domain)
+            // The About screen's version and build type (4.4). Same single-seam case as above.
+            implementation(projects.core.appinfoApi)
 
             // `uikit` carries `utils:ui` as `api`, so `NativeText` needs no declaration here.
             implementation(projects.uikit)

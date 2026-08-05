@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `3/5`
-**Current step:** 4.4
+M4 `4/5`
+**Current step:** 4.5
 
 ---
 
@@ -188,7 +188,7 @@ Three things that constrain the steps below:
   the *screen's* there; a radio list has no horizontal gesture to protect. 4.4's About screen is
   the same case — leave it out too unless it grows one.
 
-- [ ] **4.4 — feature:settings ui: the About screen**
+- [x] **4.4 — feature:settings ui: the About screen**
   Version and build info plus a link out to the project. `AppInfoProvider` (`core:appinfo-api`)
   currently exposes `isDebug()` alone, so it gains whatever the screen shows — the impl in
   `androidApp` is the only place `BuildConfig` exists (1.3's deviation is why the interface and its
@@ -198,6 +198,20 @@ Three things that constrain the steps below:
   ·  *Ref:* `MealieMobile/feature/settings/ui/.../about/`
   Same route-registration rule as 4.3. Nothing here is user data, so there is nothing to redact and
   no reason for this screen to talk to the network.
+  **Note:** `AppInfoProvider` gained `versionName()` and `versionCode()` — the *raw* fields, not
+  Mealie's rendered `getAppInfo(): String`. The formatting is `about_version_value` (`%1$s (%2$d)`)
+  and the Debug/Release word is a resource pair, neither of which an `androidApp` impl can reach;
+  a rendered string would also have put presentation in the one class no host test can construct.
+  `AboutViewModel` reads all three in its constructor and never touches `viewModelScope`, so its
+  test is the first ViewModel test here with **no `MainDispatcherRule`**.
+  **`SettingsScreen`'s signature had to be reordered**: a second callback without a default makes
+  `compose:parameter-order` fail, because it exempts only a *single* trailing function from
+  following the defaulted params. `viewModel` moved last, which is what the subscriptions screens
+  already do — 4.3's `viewModel`-first shape passed on the one-callback exemption alone.
+  Verified on the emulator: About shows `0.1.0 (1)` against `dumpsys package`'s `versionName=0.1.0
+  versionCode=1`, the button fires `capturedLink=https://github.com/Grigoriym/Wallosmobile` into
+  Chrome, the `am kill` cycle came back **on the About screen**, and the screen was read in both
+  modes with the stored mode and the device's night mode diverged.
 
 - [ ] **4.5 — composeApp: an `ImageLoader` that trusts what the user trusted**
   3.12's defect. Coil builds its own client through a `FetcherServiceLoaderTarget`, so it never sees
@@ -413,3 +427,5 @@ structural into the plan itself.
 | 4.1 | The `*Fixed` colour roles are left on Material's baseline | Only expressive components read them and none are used here; every role anything in this app draws is now a Wallos colour |
 | 4.2 | The status-bar icon tint does not follow the app theme, and the fix is 4.3's | `enableEdgeToEdge()`'s `SystemBarStyle.auto` reads the resource configuration, not the Compose theme, so it only misbehaves once the two can diverge — and nothing can diverge them until the Interface screen exists |
 | 4.3 | The `darkTheme` boolean leaves `composeApp` as an `onDarkThemeChange` callback, not as a value `MainActivity` computes | Computing it in the activity means a second `ThemeStorage` collection above the shell, which is 1.11's first-composition trap twice; the callback keeps one reader and one `WallosAppContent` entry point |
+| 4.4 | `AppInfoProvider` gained `versionName()`/`versionCode()` — raw fields, not Mealie's rendered `getAppInfo(): String` | The version line and the Debug/Release word are string resources, which the `androidApp` impl cannot reach; raw fields also keep the only unconstructable class free of presentation, so a fake drives the whole screen — *now in plan §7.1* |
+| 4.4 | `SettingsScreen` takes `viewModel` **last**, unlike 4.1–4.3's screens | `compose:parameter-order` exempts a single trailing function from following the defaulted params, so 4.3's `viewModel`-first shape only passed while there was one callback; a second one fails detekt and the fix is the order the subscriptions screens already use |
