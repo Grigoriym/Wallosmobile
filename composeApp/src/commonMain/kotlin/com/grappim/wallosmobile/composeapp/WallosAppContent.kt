@@ -27,7 +27,11 @@ import org.koin.compose.koinInject
  * `NavKeySerializers` has nothing to register for it.
  */
 @Composable
-fun WallosAppContent(apiKeyStorage: ApiKeyStorage = koinInject(), themeStorage: ThemeStorage = koinInject()) {
+fun WallosAppContent(
+    apiKeyStorage: ApiKeyStorage = koinInject(),
+    themeStorage: ThemeStorage = koinInject(),
+    onDarkThemeChange: (Boolean) -> Unit = {}
+) {
     /*
      * Seeding the branch from saved instance state is load-bearing, not an optimisation.
      * `isConnected` is a DataStore flow with no value for the first frame, so waiting for it
@@ -56,6 +60,16 @@ fun WallosAppContent(apiKeyStorage: ApiKeyStorage = koinInject(), themeStorage: 
         ThemeMode.System -> isSystemInDarkTheme()
         ThemeMode.Light -> false
         ThemeMode.Dark -> true
+    }
+
+    /*
+     * The one value the host activity needs and cannot compute: the system bars are the platform's,
+     * and their icon tint is picked from the *resource* configuration unless something tells it
+     * otherwise (4.2). Once the stored mode can disagree with the device's night mode — which is
+     * exactly what the Interface screen sells — that leaves the status-bar icons dark on dark.
+     */
+    LaunchedEffect(darkTheme) {
+        onDarkThemeChange(darkTheme)
     }
 
     WallosMobileTheme(darkTheme = darkTheme) {

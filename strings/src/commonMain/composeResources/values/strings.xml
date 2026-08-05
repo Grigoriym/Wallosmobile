@@ -82,6 +82,13 @@
     <string name="settings_disconnect">Disconnect</string>
     <string name="settings_disconnect_description">Disconnecting clears the API key stored on this device. Nothing changes on the server.</string>
 
+    <string name="settings_interface">Interface</string>
+    <string name="settings_interface_description">Theme</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">Follow the device</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+
     <plurals name="subscription_cycle_days">
         <item quantity="one">Every day</item>
         <item quantity="other">Every %1$d days</item>

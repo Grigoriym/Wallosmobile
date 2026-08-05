@@ -253,6 +253,10 @@ vertical slices, **all source in `commonMain`**.
   (`getStoredServerUrl(): Result<String>`) instead of pulling `core:storage` into the `ui` module.
   The exception is for a feature with **no** layer to route through, not a licence to skip one that
   exists.
+  **4.3 is the third reach, and it did not change the answer.** `InterfaceViewModel` takes
+  `ThemeStorage` the same way `SettingsViewModel` takes `ApiKeyStorage`: still one call on one
+  seam, still nothing for a `domain` interface to hide. Two `ui` → `core` reaches inside one
+  feature is the count to watch — what would flip it is a *repository*, not another storage read.
 - **Mappers are classes, not extension functions** — one per file, for testability. Same for
   formatters: pure logic gets **no interface**. An interface here is a seam over a platform or
   over IO (`SecretCipher`, `ApiKeyStorage`, `WebLoginApi`) — something a host test can't reach.

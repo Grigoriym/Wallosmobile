@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `2/5`
-**Current step:** 4.3
+M4 `3/5`
+**Current step:** 4.4
 
 ---
 
@@ -152,7 +152,7 @@ Three things that constrain the steps below:
   — the icons are dark-on-dark (or light-on-light) and all but invisible. Nothing user-reachable
   can produce the divergence until the Interface screen ships, so it is left for that step.
 
-- [ ] **4.3 — feature:settings ui: the Interface screen**
+- [x] **4.3 — feature:settings ui: the Interface screen**
   A settings sub-screen with a radio group over the three modes, reached from a row on the settings
   root. The ViewModel takes `ThemeStorage` directly — `feature:settings` is `ui`-only by design
   (2.6), and this is the same one-seam case as Disconnect.
@@ -170,6 +170,17 @@ Three things that constrain the steps below:
   picking Light on a night-mode device — the very thing this screen adds — leaves them invisible.
   It needs `SystemBarStyle` driven by the same `darkTheme` boolean `WallosAppContent` computes,
   which is `androidApp`'s side of a value that currently never leaves `composeApp`.
+  **Note:** the boolean leaves `composeApp` as a callback — `WallosAppContent(onDarkThemeChange =
+  ::applyEdgeToEdge)`, fired from a `LaunchedEffect(darkTheme)` — rather than as a value the
+  activity computes for itself, which would have meant a second `ThemeStorage` collection above the
+  shell and 1.11's trap twice over. `enableEdgeToEdge` is re-callable by design, and the scrims it
+  takes are androidx's own `DefaultLightScrim`/`DefaultDarkScrim` copied out (they are `internal`),
+  so only the dark-mode *detection* changes.
+  `SettingsScreen` grew an `onInterfaceClick` plain parameter and `settingsEntry` now takes the
+  `Navigator` it didn't need before. Verified on the emulator: all three modes apply live, the
+  status-bar icons are white on Dark over a light device and black on Light over a night device
+  (the 2× crop of the top 90 rows is what shows it), and the `am kill` cycle came back **on the
+  Interface screen** with Settings still under it.
 
 - [ ] **4.4 — feature:settings ui: the About screen**
   Version and build info plus a link out to the project. `AppInfoProvider` (`core:appinfo-api`)
@@ -395,3 +406,4 @@ structural into the plan itself.
 | 4.1 | `Card` reads `surfaceContainerHighest`, not `surfaceContainerLow` as the step said | `FilledCardTokens.ContainerColor` is `SurfaceContainerHighest`; `surfaceContainerLow` is the drawer's and the bottom sheet's. The whole ladder is filled in, so the step's conclusion held |
 | 4.1 | The `*Fixed` colour roles are left on Material's baseline | Only expressive components read them and none are used here; every role anything in this app draws is now a Wallos colour |
 | 4.2 | The status-bar icon tint does not follow the app theme, and the fix is 4.3's | `enableEdgeToEdge()`'s `SystemBarStyle.auto` reads the resource configuration, not the Compose theme, so it only misbehaves once the two can diverge — and nothing can diverge them until the Interface screen exists |
+| 4.3 | The `darkTheme` boolean leaves `composeApp` as an `onDarkThemeChange` callback, not as a value `MainActivity` computes | Computing it in the activity means a second `ThemeStorage` collection above the shell, which is 1.11's first-composition trap twice; the callback keeps one reader and one `WallosAppContent` entry point |

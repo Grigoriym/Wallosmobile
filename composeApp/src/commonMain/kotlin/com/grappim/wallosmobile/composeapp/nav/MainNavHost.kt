@@ -22,7 +22,7 @@ import com.grappim.wallosmobile.core.navigation.toEntries
 fun MainNavHost(navigationState: NavigationState, navigator: Navigator, modifier: Modifier = Modifier) {
     val entryProvider = entryProvider {
         subscriptionsEntry(navigator)
-        settingsEntry()
+        settingsEntry(navigator)
     }
 
     NavDisplay(

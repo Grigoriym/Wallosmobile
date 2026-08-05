@@ -1401,10 +1401,16 @@ and it gives logout an obvious home). No FAB until Phase 3 adds the editor.
 **The Settings stub is `feature:settings:ui` and nothing else** (2.6). Disconnect is a single call
 on a single seam, so `SettingsViewModel` takes `ApiKeyStorage` straight from `core:storage`: a
 `domain` layer over one `clear()` would be an abstraction for one use, and the `data`/`domain`/`dto`
-modules §2 lists arrive with Phase 5's server display settings. It also needs no navigation and no
-success signal — `clear()` flips `isConnected` and the startup branch above swaps the tree, so the
-screen is gone before it could render a spinner. A write that fails is logged and leaves the user
+modules §2 lists arrive with Phase 5's server display settings. Disconnect itself needs no navigation
+and no success signal — `clear()` flips `isConnected` and the startup branch above swaps the tree, so
+the screen is gone before it could render a spinner. A write that fails is logged and leaves the user
 connected, which is the truthful outcome and the reason there is no error state.
+
+The module stayed `ui`-only through 4.3, which added the **Interface** sub-screen: `ThemeStorage` is
+the same one-seam case `ApiKeyStorage` is, so `InterfaceViewModel` takes it directly. What the root
+screen did gain is *navigation* — an `onInterfaceClick` plain parameter (a pure navigation callback,
+so not on the UI state) wired by `settingsEntry`, which therefore now takes the `Navigator` it was
+originally written without.
 
 Two consequences of `clear()` keeping the server URL (§4.7) that are easy to conflate: the URL
 really does survive, but the login screen does **not** prefill it, so re-connecting still means
@@ -1683,11 +1689,15 @@ Two things follow, and they are the reason this is in the plan rather than only 
 - **The window is themed by *configuration*, the app by preference, and 4.2 lets them disagree.**
   `ThemeStorage` is collected in `WallosAppContent` and reduced to the `darkTheme` boolean
   `WallosMobileTheme` takes — one flow, no `MainViewModel` (Mealie's shape), seeded with
-  `ThemeMode.default()` so it never gates the first composition (§5.5). What it does *not* reach is
-  `MainActivity`: bare `enableEdgeToEdge()` picks its system-bar icon tint from the resource
-  configuration, so Light-on-a-night-device leaves the status bar icons invisible. The same boolean
-  has to reach `androidApp` as a `SystemBarStyle`, which is 4.3's work — the divergence is not
-  user-reachable until the Interface screen exists.
+  `ThemeMode.default()` so it never gates the first composition (§5.5).
+- **The system bars are the platform's, and 4.3 is what makes them follow the app.** Bare
+  `enableEdgeToEdge()` picks its icon tint from the resource *configuration*, so a stored Light on a
+  night-mode device leaves the status bar icons invisible. The fix is `SystemBarStyle.auto(…) {
+  darkTheme }` for both bars, re-applied whenever the boolean changes — `enableEdgeToEdge` is
+  designed to be called again. The boolean reaches `androidApp` as `WallosAppContent`'s
+  `onDarkThemeChange` callback rather than being recomputed there: a second `ThemeStorage`
+  collection above the shell would be §5.5's first-composition trap a second time, and this keeps
+  one reader and one composable entry point.
 
 ### Phase 3 — Subscriptions, write + reference data
 Add / edit / delete, including the multipart logo upload and `logo_url` fetch. `feature:categories`,
