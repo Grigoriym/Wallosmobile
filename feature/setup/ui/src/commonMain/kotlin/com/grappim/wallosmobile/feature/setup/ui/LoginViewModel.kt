@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.koin.core.annotation.KoinViewModel
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -176,7 +177,7 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
         if (!state.canConnect) return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = NativeText.Empty) }
+            _uiState.update { it.copy(isLoading = true, throttleWaitSeconds = 0, error = NativeText.Empty) }
 
             when {
                 state.isApiKeyMode ->
@@ -187,16 +188,35 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
                 // The session this answers belongs to the repository, so there is nothing to pass
                 // it but the code — see `SetupRepository.submitTotpCode`.
                 state.isTotpRequired ->
-                    setupRepository.submitTotpCode(state.totpCode)
+                    setupRepository.submitTotpCode(state.totpCode, ::onThrottleWait)
                         .onSuccess { onOutcome(it) }
                         .onFailure(::onFailure)
 
                 else ->
-                    setupRepository.loginWithPassword(state.serverUrl, state.username, state.password)
+                    setupRepository.loginWithPassword(
+                        serverUrl = state.serverUrl,
+                        username = state.username,
+                        password = state.password,
+                        onThrottleWait = ::onThrottleWait
+                    )
                         .onSuccess { onOutcome(it) }
                         .onFailure(::onFailure)
             }
+
+            // The attempt is over however it went, so whatever it waited for is no longer news.
+            // One place rather than each terminal branch: the notice belongs to the call, not to
+            // any of the outcomes.
+            _uiState.update { it.copy(throttleWaitSeconds = 0) }
         }
+    }
+
+    /**
+     * The backoff is spent inside the call, under the spinner that was already there (3.10), so
+     * without this the login simply gets slower and says nothing (5.5). It arrives off the IO
+     * dispatcher the repository moved to, which a `MutableStateFlow` is fine with.
+     */
+    private fun onThrottleWait(wait: Duration) {
+        _uiState.update { it.copy(throttleWaitSeconds = wait.inWholeSeconds.toInt()) }
     }
 
     private fun onOutcome(outcome: LoginOutcome) {

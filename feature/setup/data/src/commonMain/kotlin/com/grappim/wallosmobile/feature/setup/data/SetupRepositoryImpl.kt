@@ -17,6 +17,7 @@ import com.grappim.wallosmobile.feature.setup.dto.VersionDTO
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Factory
+import kotlin.time.Duration
 
 /**
  * A `@Factory`, for the same reason [WebLoginApiImpl] is: it owns the web session transitively.
@@ -53,7 +54,8 @@ internal class SetupRepositoryImpl(
     override suspend fun loginWithPassword(
         serverUrl: String,
         username: String,
-        password: String
+        password: String,
+        onThrottleWait: (Duration) -> Unit
     ): Result<LoginOutcome> = resultOf {
         withContext(dispatcher) {
             // Everything below resolves against this, so it has to land before the first call.
@@ -65,7 +67,7 @@ internal class SetupRepositoryImpl(
 
             // The server has no lockout of its own, so this is the only thing between a retry
             // loop and the user's own instance (plan §9).
-            loginThrottle.awaitTurn()
+            loginThrottle.awaitTurn(onThrottleWait)
             when (webLoginApi.login(username, password)) {
                 WebLoginOutcome.NeedsTotp -> LoginOutcome.NeedsTotp
                 WebLoginOutcome.InvalidCredentials -> refused(LoginOutcome.InvalidCredentials)
@@ -80,22 +82,23 @@ internal class SetupRepositoryImpl(
      * No `serverUrl` and no `apiKeyStorage.clear()`: both were done by the [loginWithPassword]
      * that raised the challenge, and this runs on that same attempt's session.
      */
-    override suspend fun submitTotpCode(code: String): Result<LoginOutcome> = resultOf {
-        withContext(dispatcher) {
-            // Six digits against a window 31 codes wide, on a server that counts no attempts —
-            // the one place the backoff matters more than it does on the password itself.
-            loginThrottle.awaitTurn()
-            when (webLoginApi.submitTotpCode(code.trim())) {
-                WebTotpOutcome.InvalidCode -> refused(LoginOutcome.InvalidTotpCode)
+    override suspend fun submitTotpCode(code: String, onThrottleWait: (Duration) -> Unit): Result<LoginOutcome> =
+        resultOf {
+            withContext(dispatcher) {
+                // Six digits against a window 31 codes wide, on a server that counts no attempts —
+                // the one place the backoff matters more than it does on the password itself.
+                loginThrottle.awaitTurn(onThrottleWait)
+                when (webLoginApi.submitTotpCode(code.trim())) {
+                    WebTotpOutcome.InvalidCode -> refused(LoginOutcome.InvalidTotpCode)
 
-                // Not a refused guess: no code was ever weighed, so nothing was learned by
-                // sending it and there is nothing to slow down.
-                WebTotpOutcome.SessionExpired -> LoginOutcome.TotpSessionExpired
+                    // Not a refused guess: no code was ever weighed, so nothing was learned by
+                    // sending it and there is nothing to slow down.
+                    WebTotpOutcome.SessionExpired -> LoginOutcome.TotpSessionExpired
 
-                WebTotpOutcome.LoggedIn -> takeApiKey()
+                    WebTotpOutcome.LoggedIn -> takeApiKey()
+                }
             }
         }
-    }
 
     /** The tail both paths through the web login share, once the session is actually logged in. */
     private suspend fun takeApiKey(): LoginOutcome {

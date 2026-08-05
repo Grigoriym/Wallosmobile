@@ -34,8 +34,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.grappim.wallosmobile.core.domain.PendingCertTrust
+import com.grappim.wallosmobile.strings.RPlurals
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.login_api_key_hint
 import com.grappim.wallosmobile.strings.generated.resources.login_api_key_label
@@ -56,6 +58,7 @@ import com.grappim.wallosmobile.strings.generated.resources.login_password_login
 import com.grappim.wallosmobile.strings.generated.resources.login_password_show
 import com.grappim.wallosmobile.strings.generated.resources.login_server_url_label
 import com.grappim.wallosmobile.strings.generated.resources.login_server_url_placeholder
+import com.grappim.wallosmobile.strings.generated.resources.login_throttle_wait
 import com.grappim.wallosmobile.strings.generated.resources.login_title
 import com.grappim.wallosmobile.strings.generated.resources.login_totp_hint
 import com.grappim.wallosmobile.strings.generated.resources.login_totp_label
@@ -68,6 +71,7 @@ import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.asString
 import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -158,6 +162,20 @@ private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
 
         if (uiState.isLoading) {
             CircularProgressIndicator(modifier = Modifier.size(PROGRESS_SIZE))
+
+            // The wait is spent inside the call, so without this the spinner is the only thing the
+            // backoff has to say for itself (5.5).
+            if (uiState.isThrottled) {
+                Text(
+                    text = pluralStringResource(
+                        RPlurals.login_throttle_wait,
+                        uiState.throttleWaitSeconds,
+                        uiState.throttleWaitSeconds
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center
+                )
+            }
         } else {
             Button(
                 onClick = uiState.onConnectClick,
@@ -379,6 +397,21 @@ private fun LoginContentLoadingPreview() = WallosMobilePreviewTheme {
             username = "demo",
             password = "demo",
             isLoading = true
+        )
+    )
+}
+
+/** The fourth refused attempt: the same spinner as above, now with a reason under it. */
+@PreviewWallosDarkLight
+@Composable
+private fun LoginContentThrottledPreview() = WallosMobilePreviewTheme {
+    LoginContent(
+        uiState = LoginUiState(
+            serverUrl = "https://wallos.example.com",
+            username = "demo",
+            password = "demo",
+            isLoading = true,
+            throttleWaitSeconds = 4
         )
     )
 }

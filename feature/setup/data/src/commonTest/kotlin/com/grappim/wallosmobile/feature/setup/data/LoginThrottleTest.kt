@@ -4,6 +4,8 @@ import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -18,11 +20,44 @@ class LoginThrottleTest {
         val throttle = LoginThrottle()
 
         repeat(3) {
-            throttle.awaitTurn()
+            throttle.awaitTurn { }
             throttle.recordRefusal()
         }
 
         assertEquals(0, currentTime)
+    }
+
+    /**
+     * The wait is spent inside the call the screen is already showing a spinner for, so the only
+     * moment it is worth announcing is before it starts — afterwards it is over and not news.
+     */
+    @Test
+    fun `the wait is announced before it is spent`() = runTest {
+        val throttle = LoginThrottle()
+        repeat(3) { throttle.recordRefusal() }
+
+        var announced: Duration? = null
+        var announcedAt = -1L
+        throttle.awaitTurn {
+            announced = it
+            announcedAt = currentTime
+        }
+
+        assertEquals(1.seconds, announced)
+        assertEquals(0, announcedAt)
+        assertEquals(1.seconds.inWholeMilliseconds, currentTime)
+    }
+
+    /** An attempt that is not held back has nothing to say, and saying it anyway would be noise. */
+    @Test
+    fun `an attempt that waits nothing announces nothing`() = runTest {
+        val throttle = LoginThrottle()
+        repeat(2) { throttle.recordRefusal() }
+
+        var announced: Duration? = null
+        throttle.awaitTurn { announced = it }
+
+        assertNull(announced)
     }
 
     @Test
@@ -32,7 +67,7 @@ class LoginThrottleTest {
 
         repeat(7) {
             val before = currentTime
-            throttle.awaitTurn()
+            throttle.awaitTurn { }
             waits += currentTime - before
             throttle.recordRefusal()
         }
@@ -47,7 +82,7 @@ class LoginThrottleTest {
         repeat(12) { throttle.recordRefusal() }
 
         val before = currentTime
-        throttle.awaitTurn()
+        throttle.awaitTurn { }
 
         assertEquals(8.seconds.inWholeMilliseconds, currentTime - before)
     }
@@ -60,7 +95,7 @@ class LoginThrottleTest {
 
         throttle.reset()
         val before = currentTime
-        throttle.awaitTurn()
+        throttle.awaitTurn { }
 
         assertEquals(0, currentTime - before)
     }

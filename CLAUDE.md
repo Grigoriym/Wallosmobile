@@ -161,7 +161,15 @@ screenshot first.
 `adb shell cmd uimode night yes` / `no` recreates the activity but keeps the back stack, the
 ViewModel and any transient surface — an open `AlertDialog` and an open `ModalBottomSheet` both
 survived it in 4.1. So capture a state once, flip, and capture the other mode, instead of driving
-the app back to it twice.
+the app back to it twice. **A request in flight survives it too** (5.5), so a state that only exists
+mid-call can still be captured in both modes.
+
+**A state that only exists while a call is in flight is caught by backgrounding the tap**, not by
+sleeping first: `adb shell input tap X Y &` then `adb exec-out screencap -p > shot.png`. And
+**choose the instance of it with the widest window** — 5.5's `Verify:` line said four refused
+logins, whose wait is one second; the seventh waits eight and is the readable screenshot. The tap
+coordinate is only valid *between* attempts, since the button is replaced by a spinner while one
+runs.
 
 **Since 4.3 anything about the theme has to be verified with the two *diverged*.** A dark screenshot
 on a night-mode device is consistent with the stored preference working, with it being ignored, and
@@ -313,6 +321,10 @@ vertical slices, **all source in `commonMain`**.
   seventh thing has **no dependencies of its own**, is to stop injecting it: 3.10's `LoginThrottle`
   is a `private val` constructed by `SetupRepositoryImpl`, because DI was buying it nothing but a
   constructor slot — the lifetime it wanted was already its owner's.
+- **What a repository has to say *during* a call is a callback parameter, not a flow beside it**
+  (5.5's `onThrottleWait: (Duration) -> Unit`, defaulted to `{}`). The call is already the scope, so
+  a flow would need a lifetime, an initial value and a clear that a parameter has none of; the
+  default keeps every existing call site and every unthrottled method untouched.
 - **A `SavedStateHandle` holds a JSON string here, not an encoded `SavedState`** (5.2). On Android
   `androidx.savedstate`'s `SavedState` **is** `Bundle`, so `encodeToSavedState`, the `saved { }`
   property delegate and `savedState { }` all need an Android runtime — unreachable from a host test,
@@ -469,6 +481,8 @@ vertical slices, **all source in `commonMain`**.
   data class, not the `private fun subscription(...)` that builds one — so a sixth parameter fails
   the build and the reflex fix, `@Suppress`, is a guardrail tripwire costing a `Gate-change:` line
   for a test helper. Build one canonical fixture and `.copy()` off it.
+  **`UnusedParameter` applies to `commonTest` too** (5.5), so a test that ignores a callback passes
+  `{ }` at the call site — a named `private fun ignore(wait: Duration) = Unit` fails detekt.
   **A fake's settable field must not be named after the method it feeds.** `var baseUrl` beside
   `override fun getBaseUrl()` is a "platform declaration clash" — the property's getter compiles to
   `getBaseUrl()` too. Name the field for what it holds (`var url`), not for the method.

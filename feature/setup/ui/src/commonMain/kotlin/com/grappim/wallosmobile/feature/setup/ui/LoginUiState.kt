@@ -19,6 +19,10 @@ import com.grappim.wallosmobile.utils.ui.NativeText
  * of path away: an SSO-only instance has nothing for the bridge to drive, so the screen stays on
  * Path B and says why. Everything the probe can't answer leaves it `false` — it hides a path, so
  * it may only be set on evidence.
+ *
+ * [throttleWaitSeconds] is a number and not a phrase because the copy is a `<plurals>` the
+ * composable resolves (CLAUDE.md). It exists only while an attempt is in flight — the wait is
+ * spent inside the call — so it is written and cleared by that call and by nothing else.
  */
 data class LoginUiState(
     val serverUrl: String = "",
@@ -31,6 +35,7 @@ data class LoginUiState(
     val isPasswordLoginDisabled: Boolean = false,
     val isTotpRequired: Boolean = false,
     val isLoading: Boolean = false,
+    val throttleWaitSeconds: Int = 0,
     val error: NativeText = NativeText.Empty,
     val pendingCertTrust: PendingCertTrust? = null,
     val onServerUrlChange: (String) -> Unit = {},
@@ -44,6 +49,13 @@ data class LoginUiState(
     val onCertTrustConfirm: () -> Unit = {},
     val onCertTrustDismiss: () -> Unit = {}
 ) {
+
+    /**
+     * A held-back attempt *is* a wait with seconds left to name, so there is no second flag beside
+     * [throttleWaitSeconds] to disagree with it (3.5's rule about a second copy of a fact).
+     */
+    val isThrottled: Boolean
+        get() = throttleWaitSeconds > 0
 
     /** Only the visible path's fields count — the hidden ones keep whatever the user typed. */
     val canConnect: Boolean

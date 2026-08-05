@@ -27,6 +27,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 class SetupRepositoryImplTest {
 
@@ -279,6 +281,21 @@ class SetupRepositoryImplTest {
         assertTrue(currentTime > before)
     }
 
+    /**
+     * The wait is spent in here, so the screen cannot infer it — a login that got slower is all it
+     * would otherwise have to go on (5.5). Only the held-back attempts announce anything.
+     */
+    @Test
+    fun `the backoff it imposes is announced to the caller`() = runTest {
+        webLoginApi.loginOutcome = WebLoginOutcome.InvalidCredentials
+        val repository = repository()
+        val announced = mutableListOf<Duration>()
+
+        repeat(5) { repository.loginWithPassword(SERVER_URL, "demo", "wrong") { announced += it } }
+
+        assertEquals(listOf(1.seconds, 2.seconds), announced)
+    }
+
     /** A wide verification window on a server that counts nothing — the sharper of the two. */
     @Test
     fun `rejected codes count towards the same backoff`() = runTest {
@@ -287,9 +304,11 @@ class SetupRepositoryImplTest {
         repeat(3) { repository.submitTotpCode("000000") }
 
         val before = currentTime
-        repository.submitTotpCode("000000")
+        var announced: Duration? = null
+        repository.submitTotpCode("000000") { announced = it }
 
         assertTrue(currentTime > before)
+        assertEquals(1.seconds, announced)
     }
 
     /** A typo followed by the right password must not leave the next login slow. */

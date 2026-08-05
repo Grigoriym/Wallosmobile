@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `4/6` · M6 `0/2`
-**Current step:** 5.5
+M4 `5/5` — **Phase 2c done** · M5 `5/6` · M6 `0/2`
+**Current step:** 5.6
 
 ---
 
@@ -183,7 +183,7 @@ Three things that shape these steps:
   in `CLAUDE.md`. Screenshots: `Mullvad VPN` at `€4.27 / Converted from USD` in both modes, and
   `icloud` — already in the main currency — with nothing under its price.
 
-- [ ] **5.5 — feature:setup:ui: the login backoff is visible**
+- [x] **5.5 — feature:setup:ui: the login backoff is visible**
   3.10's. Past three refused attempts the next one waits 1–8 seconds under the spinner that was
   already there, so a login that got slow says nothing about why. Announce the wait before it
   starts.
@@ -194,6 +194,20 @@ Three things that shape these steps:
   repository telling a caller something, which changes 3.10's surface. And the state exists only
   *while* a call is in flight, so `MainDispatcherRule`'s unconfined dispatcher will run straight
   past it: the test needs 3.4's `CompletableDeferred` trick to see it at all.
+  *Note:* the shape the repository tells a caller with is an **`onThrottleWait: (Duration) -> Unit`
+  parameter on the two throttled methods**, not a flow beside them: the wait exists only for the
+  duration of one call, so a `Flow` on the repository would have needed a lifetime, an initial value
+  and a clear — three decisions a parameter doesn't have. It defaults to `{}`, which is what keeps
+  the twelve existing `SetupRepositoryImplTest` call sites and the whole non-throttled surface
+  untouched. The UI state carries **seconds as an `Int`**, per the `<plurals>` rule, with
+  `isThrottled` derived from it rather than stored beside it; it is cleared in one place — after the
+  `when` in `onConnectClick`, since the notice belongs to the *call* and not to any of the five
+  outcomes. Verified against the live instance on `:8282`: eight refused attempts, the singular form
+  ("held back for a second") on the fourth and "held back for 8 seconds" from the seventh, the
+  notice gone the moment the attempt landed, and the ninth — with the right password — waiting its
+  8 seconds and then connecting. `cmd uimode night no` mid-wait confirmed the light mode and, as a
+  bonus, that the counter survives an activity recreation: the ViewModel and its `@Factory`
+  repository do.
 
 - [ ] **5.6 — feature:subscriptions:ui: a recovered server reloads its logos**
   4.5's leftover, and the smallest thing here. Coil does not re-issue a request whose state is
@@ -311,7 +325,8 @@ nobody has started. **Don't re-open the first two per step; they have both been 
   a rotated certificate now names itself in the stale banner and points at Disconnect.
   A prompt *wherever* a refresh can fail is still unowned, and is a bigger change than naming the
   cause: it would put a pin write outside `SetupRepository`.
-- ~~The backoff is invisible~~ (3.10) — **5.5**.
+- ~~The backoff is invisible~~ (3.10) — **done in 5.5**: a held-back attempt names its wait under
+  the spinner, announced by the repository as the wait starts rather than inferred by the screen.
 - ~~A converted price loses its original currency~~ (3.11) — **done in 5.4**: the detail screen
   names the currency the amount was converted from. The amount itself stays unrecoverable, which is
   the server's doing, not a deferral.
@@ -457,3 +472,4 @@ structural into the plan itself.
 | 5.4 | The label is derived in the ViewModel from a third cached flow (`observeCurrencies`), not stored on the row | The entity holds SQLite primitives and a "converted from" column would be derived data at schema version 3; the conversion state and the currency table are cached by the same refresh, so combining them keeps one render path — *now in plan §7.1* |
 | 5.4 | The source currency is named by its **code**, not its symbol or name | Same objection 5.3 raised to `currencySymbol`: five currencies here share `$`. `code` falls back to `name` only because the DTO defaults it — *now in plan §7.1* |
 | 5.2 | `NavDisplay`'s default `entryDecorators` is `rememberSaveableStateHolderNavEntryDecorator()` alone — no ViewModel-store decorator — and that says **nothing** about ViewModel lifetime | It reads as "every ViewModel is activity-scoped, so a second detail route reuses the first's", which is a phantom defect: measured on device, the list ViewModel survives a detail round trip while each detail route builds its own (`Refreshing subscription 4`, then `26`). Measure this, never infer it from the decorator list |
+| 5.5 | The wait reaches the caller as an `onThrottleWait: (Duration) -> Unit` parameter on the two throttled repository methods, defaulted to `{}` | The state exists only for the duration of one call, so a flow beside the repository would have needed a lifetime, an initial value and a clear that a parameter doesn't; the default keeps every existing call site and the unthrottled surface untouched — *now in plan §1.1* |

@@ -27,6 +27,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 class LoginViewModelTest {
 
@@ -605,6 +607,69 @@ class LoginViewModelTest {
         assertEquals(resource(RString.login_error_cert_not_trusted), sut.uiState.value.error)
     }
 
+    /**
+     * The state exists only *while* the attempt is in flight — the wait is spent inside the call —
+     * and `MainDispatcherRule` is unconfined, so the gate is what holds the attempt open long
+     * enough to see it at all (3.4).
+     */
+    @Test
+    fun `a held-back attempt says how long it is waiting`() = runTest {
+        repository.loginResult = Result.success(LoginOutcome.InvalidCredentials)
+        repository.throttleWait = 4.seconds
+        repository.attemptGate = CompletableDeferred()
+        val sut = viewModel()
+        sut.fillCredentials()
+
+        sut.uiState.value.onConnectClick()
+
+        assertEquals(4, sut.uiState.value.throttleWaitSeconds)
+        assertTrue(sut.uiState.value.isThrottled)
+        assertTrue(sut.uiState.value.isLoading)
+    }
+
+    /** The attempt is over however it went, so the wait it announced is no longer news. */
+    @Test
+    fun `the wait stops being announced once the attempt lands`() = runTest {
+        repository.loginResult = Result.success(LoginOutcome.InvalidCredentials)
+        repository.throttleWait = 4.seconds
+        repository.attemptGate = CompletableDeferred()
+        val sut = viewModel()
+        sut.fillCredentials()
+        sut.uiState.value.onConnectClick()
+
+        repository.attemptGate.complete(Unit)
+
+        assertFalse(sut.uiState.value.isThrottled)
+        assertEquals(resource(RString.login_error_invalid_credentials), sut.uiState.value.error)
+    }
+
+    /** The sharper of the two guesses (plan §9), so the code step has to announce it as well. */
+    @Test
+    fun `a held-back code says how long it is waiting too`() = runTest {
+        val sut = totpChallenge()
+        repository.totpResult = Result.success(LoginOutcome.InvalidTotpCode)
+        repository.throttleWait = 8.seconds
+        repository.attemptGate = CompletableDeferred()
+
+        sut.uiState.value.onConnectClick()
+
+        assertEquals(8, sut.uiState.value.throttleWaitSeconds)
+    }
+
+    /** Nothing was held back, so there is nothing to say and the spinner stands alone. */
+    @Test
+    fun `an attempt that is not held back announces nothing`() = runTest {
+        repository.loginResult = Result.success(LoginOutcome.InvalidCredentials)
+        repository.attemptGate = CompletableDeferred()
+        val sut = viewModel()
+        sut.fillCredentials()
+
+        sut.uiState.value.onConnectClick()
+
+        assertFalse(sut.uiState.value.isThrottled)
+        assertTrue(sut.uiState.value.isLoading)
+    }
+
     @Test
     fun `connect does nothing while a field is blank`() = runTest {
         val sut = viewModel()
@@ -665,13 +730,22 @@ class LoginViewModelTest {
             return storedServerUrlResult
         }
 
+        /** Announced from inside the call, exactly where the real throttle spends the wait. */
+        var throttleWait: Duration? = null
+
+        /** Open unless a test wants to look at the state an attempt has while it is in flight. */
+        var attemptGate = CompletableDeferred(Unit)
+
         override suspend fun loginWithPassword(
             serverUrl: String,
             username: String,
-            password: String
+            password: String,
+            onThrottleWait: (Duration) -> Unit
         ): Result<LoginOutcome> {
             loginCall = Triple(serverUrl, username, password)
             loginCallCount++
+            throttleWait?.let(onThrottleWait)
+            attemptGate.await()
             return loginResult ?: error("loginResult not set")
         }
 
@@ -681,9 +755,11 @@ class LoginViewModelTest {
             return connectResult ?: error("connectResult not set")
         }
 
-        override suspend fun submitTotpCode(code: String): Result<LoginOutcome> {
+        override suspend fun submitTotpCode(code: String, onThrottleWait: (Duration) -> Unit): Result<LoginOutcome> {
             totpCall = code
             totpCallCount++
+            throttleWait?.let(onThrottleWait)
+            attemptGate.await()
             return totpResult ?: error("totpResult not set")
         }
     }

@@ -3,6 +3,7 @@ package com.grappim.wallosmobile.feature.setup.domain.repo
 import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
+import kotlin.time.Duration
 
 interface SetupRepository {
 
@@ -30,8 +31,18 @@ interface SetupRepository {
      * [com.grappim.wallosmobile.core.domain.WallosError] from validation, or
      * [com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound]. A rejected *credential*
      * is a success carrying [LoginOutcome.InvalidCredentials].
+     *
+     * Past a few refusals the attempt is held back before it is sent (plan §9), and [onThrottleWait]
+     * is how the caller learns of it — called with the wait as it begins, from inside this call and
+     * before anything reaches the network. A caller with nowhere to show it may leave it out; the
+     * throttle applies either way.
      */
-    suspend fun loginWithPassword(serverUrl: String, username: String, password: String): Result<LoginOutcome>
+    suspend fun loginWithPassword(
+        serverUrl: String,
+        username: String,
+        password: String,
+        onThrottleWait: (Duration) -> Unit = {}
+    ): Result<LoginOutcome>
 
     /**
      * The second half of the bridge, for an account with 2FA on: answers the challenge
@@ -42,8 +53,11 @@ interface SetupRepository {
      * `serverUrl` parameter and no way to call this out of order: the session belongs to this
      * repository instance, and this repository instance belongs to one login screen. A caller that
      * has not just been told [LoginOutcome.NeedsTotp] gets [LoginOutcome.TotpSessionExpired].
+     *
+     * [onThrottleWait] carries the same announcement [loginWithPassword] does, and it matters more
+     * here: six digits against a window 31 codes wide is the guess worth slowing down.
      */
-    suspend fun submitTotpCode(code: String): Result<LoginOutcome>
+    suspend fun submitTotpCode(code: String, onThrottleWait: (Duration) -> Unit = {}): Result<LoginOutcome>
 
     /**
      * Path B (plan §1.1): the user already has a key, so this is the tail of the bridge — persist

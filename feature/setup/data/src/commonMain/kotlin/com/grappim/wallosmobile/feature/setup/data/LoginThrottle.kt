@@ -13,7 +13,9 @@ import kotlin.time.Duration.Companion.seconds
  * any moment out of a million.
  *
  * The wait is spent *before* the next attempt, inside the call the screen is already showing a
- * spinner for — so there is nothing new to render and nothing for the user to dismiss. It only
+ * spinner for — so there is nothing for the user to dismiss, but a login that has silently got
+ * slower is a login that says nothing about why (5.5). Hence [awaitTurn]'s callback: the wait is
+ * announced as it starts, not reported once it is over and no longer news. It only
  * ever grows from **refused credentials**; a transport failure is not a guess, and punishing a
  * flaky network would throttle the one case where retrying is the right move.
  *
@@ -30,11 +32,16 @@ internal class LoginThrottle {
 
     private var refusedAttempts = 0
 
-    /** Suspends for however long the failures so far have earned, then returns. */
-    suspend fun awaitTurn() {
+    /**
+     * Suspends for however long the failures so far have earned, then returns. [onWait] is called
+     * with that duration first, and only when there is one — an attempt that waits nothing has
+     * nothing to announce.
+     */
+    suspend fun awaitTurn(onWait: (Duration) -> Unit) {
         val wait = waitAfter(refusedAttempts)
         if (wait > Duration.ZERO) {
             logcat { "$refusedAttempts refused attempts — holding the next one for $wait" }
+            onWait(wait)
             delay(wait)
         }
     }
