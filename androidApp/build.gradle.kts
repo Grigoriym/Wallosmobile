@@ -24,6 +24,10 @@ dependencies {
     implementation(libs.koin.annotations)
     implementation(libs.timber)
 
+    // The `Application` is where Coil looks for a `SingletonImageLoader.Factory`; what it hands
+    // back is built in `:composeApp`, which is the module that can see the trust-aware engine.
+    implementation(libs.coil.singleton)
+
     implementation(libs.androidx.activity.compose)
 
     implementation(libs.jetbrains.compose.ui.tooling.preview)

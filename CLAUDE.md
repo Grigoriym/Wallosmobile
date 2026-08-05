@@ -361,6 +361,15 @@ vertical slices, **all source in `commonMain`**.
   so `androidApp`'s own `AndroidModule` needs no wiring while **every module from another Gradle
   module must be in `AppModule`'s `includes`**. A forgotten line there compiles and crashes at
   first injection; `KoinGraphTest` is what catches it.
+  **That call site also re-checks the definitions of every `@Configuration` class it can read** —
+  `AndroidModule` and `AppModule`, not the `includes`, which reach `:androidApp` only through
+  `composeApp`'s `implementation` dependencies. So a definition **declared in `AppModule` itself**
+  needs its parameter types *and the definitions binding them* on `:androidApp`'s classpath, or the
+  build fails with `[KOIN-D001] Missing dependency` — which is why `composeApp` declares
+  `api(projects.core.storage)` for `provideImageLoader`'s `TrustedCertStorage` (4.5), and why
+  `NetworkModule` takes the same type with no such ceremony. Moving the definition from a scanned
+  `@Factory` class to a module function does **not** dodge it; only visibility does. Prefer putting
+  a new definition in the module that already owns its dependencies.
   **The graph test uses `koin-test`'s `verify()`, never `checkModules()`** — `checkModules`
   instantiates definitions, which here means a DataStore file and an HTTP engine. `verify()` reads
   a definition through its **bound type's** constructor, so for a `@Single fun provideX(): T` it
@@ -681,6 +690,16 @@ is marked optional in Taiga's recipe and it is the check that found 3.8's real g
 Conscrypt preserves the cause chain, confirmed on device — the failure arrives as
 `SSLHandshakeException: …UntrustedCertificateException`, which is what makes
 `findPendingCertTrust()` work at all.
+
+**The front's own access log is the proof for anything the Ktor logger can't see** (4.5). Image
+loads go through Coil, which has no `Logging` plugin, so `adb logcat` says nothing about them —
+`docker logs wallos-tls | grep images/uploads/logos` does, and the `"ktor-client"` user-agent on a
+`200` is what says the load used the app's pinned engine rather than a stack that would have failed
+the handshake. **Coil caches on disk**, so a second run proves nothing until
+`adb shell run-as com.grappim.wallosmobile rm -rf /data/data/com.grappim.wallosmobile/cache/coil3_disk_cache`
+— that path, and `pm clear` for everything at once. A failed load is also **sticky per request**:
+Coil does not retry a state that is already `Error`, so after the server comes back the rows keep
+their placeholders until they recompose (scroll them off and on).
 
 **A step that wants a server-side *setting* changed gets a throwaway instance, not the user's**
 (3.9). Enabling 2FA, disabling password login, seeding a second account — all of them mutate live

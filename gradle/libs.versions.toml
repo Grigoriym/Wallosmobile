@@ -201,6 +201,8 @@ androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
 androidx-compose-material = { module = "androidx.compose.material:material" }
 
 coil-core = { module = "io.coil-kt.coil3:coil-core", version.ref = "coil" }
+# `SingletonImageLoader` lives here and nowhere else — `coil-core` does not carry it.
+coil-singleton = { module = "io.coil-kt.coil3:coil", version.ref = "coil" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 coil-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }

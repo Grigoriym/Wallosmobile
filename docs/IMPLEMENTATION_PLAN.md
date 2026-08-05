@@ -750,16 +750,25 @@ What 3.7 kept from that port, and what it dropped:
   included: onboarding is the first thing to touch the server, so it is where an untrusted
   certificate surfaces. Hostname verification is left at OkHttp's default — this replaces *chain*
   trust and nothing else.
-- **Coil does not go through it — confirmed on device in 3.12, not just predicted.** The logo
-  loader builds its own client by autodiscovery (2.4), so on an HTTPS instance with an
-  accepted-but-still-private certificate the data loads and the logos do not. What the emulator run
-  added is that it is **silent twice over**: nothing reports the failed load, and
-  `SubscriptionLogo`'s initial-letter placeholder branches on an **empty** filename rather than on a
-  load failure, so every row draws a blank gap where a fallback already exists. The fix is a
-  `SingletonImageLoader` over the same engine, which puts the DI root inside a `feature:*:ui`
-  widget's business — listed under "Still open after v1" rather than folded into 3.8. The clause
-  this bullet used to carry — "nothing in M3 needs it, since every on-device verify runs over plain
-  HTTP" — was wrong about its own milestone: 3.8 and 3.12 both verify over the TLS front.
+- **Coil did not go through it until 4.5.** The logo loader built its own client by autodiscovery
+  (2.4), so on an HTTPS instance with an accepted-but-still-private certificate the data loaded and
+  the logos did not — and it was **silent twice over**: nothing reported the failed load, and
+  `SubscriptionLogo`'s initial-letter placeholder branched on an **empty** filename rather than on a
+  load failure, so every row drew a blank gap where a fallback already existed. Both halves are 4.5:
+  - `AppModule.provideImageLoader` builds a `@Single ImageLoader` whose components name
+    `KtorNetworkFetcherFactory(client)` explicitly, over a **second, minimal** `HttpClient` on the
+    same `createPlatformHttpClientEngine`. The engine is the only part shared: the `@Single
+    HttpClient` carries `Logging(LogLevel.ALL)` in debug, which would dump every logo's bytes into
+    logcat, and a retry predicate written for `get_*.php`.
+  - `:androidApp`'s `WallosApp` implements `SingletonImageLoader.Factory` and hands that instance
+    back. Coil asks the `Application` before it builds a default loader, so this cannot race the
+    first `AsyncImage`; a `SingletonImageLoader.setSafe` from inside the composition could.
+  - `SubscriptionLogo` is `SubcomposeAsyncImage` with a composable `error` slot — `AsyncImage`'s
+    `error` takes a `Painter`, and the fallback is an initial to lay out. A failed load and a
+    missing filename now draw the same placeholder.
+  **The cost was one `api` dependency**, and it is a Koin compiler-plugin constraint rather than an
+  architectural choice: `composeApp` exposes `core:storage` as `api` because the plugin re-checks
+  `AppModule`'s own definitions at the `startKoin` call site in `:androidApp` — see §6.2.
 
 The prompt itself is 3.8, and it lives on the **login screen only**:
 
@@ -1268,6 +1277,18 @@ Two things to know before reading a failure:
 - `AppModule`'s `includes` list is load-bearing. The compiler plugin auto-gathers `@Configuration`
   modules only from the compilation that calls `startKoin`, which is why `androidApp`'s
   `AndroidModule` needs no entry and every cross-module one does.
+- **The plugin also re-*checks*, at that same call site, every definition whose declaring
+  `@Configuration` class it can read** (4.5). From `:androidApp` that is `AndroidModule` and
+  `AppModule` — a direct dependency — and *not* the `includes`, which arrive through `composeApp`'s
+  `implementation` dependencies. So a definition declared in `AppModule` itself must have both its
+  parameter types **and the definitions binding them** resolvable from `:androidApp`'s classpath,
+  or it fails to compile with `[KOIN-D001] Missing dependency`. That is the whole reason
+  `composeApp` exposes `core:storage` as `api`: `provideImageLoader` takes a `TrustedCertStorage`.
+  A definition inside an `includes` module is never re-checked there, which is why
+  `NetworkModule.provideHttpClient` takes the same type freely — and moving the definition from a
+  scanned class to a module function does *not* help, since the check is on the definition, not on
+  its shape. Anything new in `AppModule` that reaches into another module pays this again; a
+  definition that belongs to a module already in `includes` does not.
 
 And one thing the graph test **cannot** see (2.5): `verify()` whitelists `String`, `Int`, `Long`
 and `Double` outright (`Verify.primitiveTypes`), so a primitive constructor parameter is reported
@@ -1454,8 +1475,9 @@ filename and the full URL is `{base}/images/uploads/logos/{logo}`, so the *ViewM
 `feature:subscriptions:ui` takes `core:api` for `BaseUrlProvider` alone, which is the one place the
 instance root is normalized (2.4). Blank in, blank out: no logo, or no stored server, yields no URL
 rather than a relative one Coil would fail on. Wallos serves that directory **unauthenticated**, so
-a plain URL load needs no header plumbing — `coil.compose` + `coil.ktor`, no `ImageLoader` setup,
-the ktor3 fetcher finding okhttp by autodiscovery.
+a plain URL load needs no header plumbing — the module takes `coil.compose` alone. It took
+`coil.ktor` too until 4.5, for the autodiscovery that step replaced: the `ImageLoader` is now
+configured, in `composeApp`, so the certificate the user accepted covers the logos (§4.5).
 
 **The detail screen re-reads its own row** (2.5) rather than being handed one by the list, and
 since 3.4 it reads it *from the cache* and refreshes behind it — one round trip, not two, because
@@ -1659,7 +1681,8 @@ half from a `force-stop` cold start with every request logged as a `ConnectExcep
 certificate half from a fresh install against an nginx TLS front with the prompt's fingerprint
 checked against `openssl`. 3.12 also settled the two questions §3.5 and §6.1 had parked (no
 aggregate Kover floor; the first instrumented Compose test belongs on the list screen) and found one
-defect it deliberately did not fix: Coil's logo loads ignore the accepted certificate (§4.5).
+defect it deliberately did not fix: Coil's logo loads ignored the accepted certificate — filed, then
+fixed in 4.5 (§4.5).
 *Decomposed as **M3** in `docs/CHECKLIST.md`* (12 steps, all ticked), chosen over Phase 3 because
 three of M2's steps deferred cache debt to it and because Phase 3's writes need its `NetworkMonitor`.
 The Room step also brought **instrumented tests into the project**, earlier than §6.1 expected —
@@ -1669,9 +1692,10 @@ a DAO cannot be exercised from a host test at all (§4.7).
 Not in the original phase list, and inserted here rather than appended because its steps are defects
 in screens that already ship: the login screen rendered unthemed in dark mode (fixed in 4.1), there
 was no theme preference (4.2 stores one; 4.3 is the screen that sets it), Settings has a single row,
-and §4.5's Coil gap means an accepted certificate doesn't reach the logos. **Done when** a dark-mode device shows no light-mode screen, the choice survives a
-restart, and a self-signed instance renders logos.
-*Decomposed as **M4** in `docs/CHECKLIST.md`* (5 steps). It runs before Phase 3 so the write screens
+and §4.5's Coil gap meant an accepted certificate didn't reach the logos (4.5). **Done when** a
+dark-mode device shows no light-mode screen, the choice survives a restart, and a self-signed
+instance renders logos — **all three met; the phase is closed.**
+*Decomposed as **M4** in `docs/CHECKLIST.md`* (5 steps, all ticked). It runs before Phase 3 so the write screens
 are built on a shell that draws correctly; nothing in it sends data, so it needs none of Phase 3's
 groundwork.
 

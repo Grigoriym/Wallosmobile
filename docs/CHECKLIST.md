@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `4/5`
-**Current step:** 4.5
+M4 `5/5` — **M4 done**
+**Current step:** none — Phase 3 still needs decomposing into steps
 
 ---
 
@@ -42,6 +42,12 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
   domain model", which taken literally would have put a `feature:*:domain` dependency inside
   `core:storage`). The steps were written before
   the code existed; the rules were written from it.
+- **A step that says it already checked an API still gets checked.** 4.5's text carried "the API
+  confirmed against the artifact on disk … no need to read Coil's sources", and both API claims in
+  it were wrong — the factory's Kotlin name (`KtorNetworkFetcher.factory` is a `@JvmName`) and
+  `AsyncImage`'s `error` slot, which takes a `Painter` and cannot hold the fallback the step wanted.
+  A step's confirmation is the previous session's reading, exactly like a `Ref:` into
+  `WALLOS_API.md`; the `unzip`-the-sources-jar read that settles it takes seconds.
 - `./gradlew detekt ktlintCheck` must pass before a step is ticked.
 - A step that adds logic adds its tests in the **same** step — hand-written fakes in `:testing`,
   no mocking library (plan §6.1).
@@ -213,7 +219,7 @@ Three things that constrain the steps below:
   Chrome, the `am kill` cycle came back **on the About screen**, and the screen was read in both
   modes with the stored mode and the device's night mode diverged.
 
-- [ ] **4.5 — composeApp: an `ImageLoader` that trusts what the user trusted**
+- [x] **4.5 — composeApp: an `ImageLoader` that trusts what the user trusted**
   3.12's defect. Coil builds its own client through a `FetcherServiceLoaderTarget`, so it never sees
   the trust manager and a self-signed instance loads its data and none of its logos. Register a
   singleton `ImageLoader` whose network layer is `KtorNetworkFetcher.factory(client)` over a client
@@ -231,6 +237,26 @@ Three things that constrain the steps below:
   **Second half, and it is what makes the failure visible**: `SubscriptionLogo` branches on an
   *empty* filename, so a load that fails draws a blank gap while a perfectly good initial-letter
   placeholder sits unused. Give `AsyncImage` its `error` slot so a broken load falls back to it.
+  **Note:** the Kotlin name is `KtorNetworkFetcherFactory(client)` — `KtorNetworkFetcher.factory` is
+  the `@JvmName`, and the single-argument overload the step quotes is `DeprecationLevel.HIDDEN`, so
+  Kotlin binds the one that also takes a `ConcurrentRequestStrategy` default. `AsyncImage`'s `error`
+  slot is a **`Painter`**, and the fallback here is an initial to lay out, so this is
+  `SubcomposeAsyncImage` with a composable `error` slot and the placeholder extracted into a private
+  `LogoPlaceholder`.
+  **The definition had to move into `AppModule` itself, and `core:storage` had to become `api`.**
+  A `@Factory class ImageLoaderProvider` in `composeApp` failed to compile with `[KOIN-D001] Missing
+  dependency: TrustedCertStorage` — the compiler plugin re-checks the definitions of every
+  `@Configuration` class the `startKoin` compilation can read, and `:androidApp` can read `AppModule`
+  (a direct dependency) but not the `includes`, which arrive through `implementation`. So the check
+  needs both the parameter *type* and the definition binding it on that classpath. Making it a
+  module function did not help — the fix is `api(projects.core.storage)` in `composeApp`.
+  That is why `NetworkModule.provideHttpClient(trustedCertStorage)` has never tripped this: it is
+  invisible from `:androidApp`, so it is never re-checked there.
+  `feature:subscriptions:ui` gave up `coil-network-ktor3`; it held it only for the autodiscovery
+  this replaces. Verified on the emulator over the nginx TLS front: after *Trust and connect*, all
+  35 logos render, and the front's access log shows the `GET /images/uploads/logos/*` requests
+  arriving as `ktor-client` with `200`s. With the front stopped and `cache/coil3_disk_cache` deleted,
+  the cached rows render initial letters instead of blank gaps.
 
 ---
 
@@ -239,16 +265,14 @@ Three things that constrain the steps below:
 Written when M2 closed, and now the list that outlived M3 too — these are the pointers that would
 otherwise have vanished with the steps that found them. **3.12 kept to that shape**: a verification
 step files what it finds here rather than fixing it, and it found the first two entries below.
+**The first of them is now closed** — 3.12's logo defect was 4.5, which is what a filed entry is
+for; the entry is gone rather than ticked, since this list has no boxes.
 
-- **Logos never load on a self-signed instance** (3.12). The certificate the user accepts is pinned
-  for the *HTTP client*; `AsyncImage` is Coil's own network stack and no `ImageLoader` is configured
-  anywhere, so image loads keep failing after the trust prompt has been accepted. It is silent twice
-  over: nothing reports the failure, and `SubscriptionLogo`'s initial-letter placeholder only fires
-  on an **empty** filename, so a failed load draws a blank gap rather than the fallback that exists.
-  The fix is a `SingletonImageLoader` built on the app's own `HttpClient` — which is `composeApp`'s
-  DI root reaching into a `feature:*:ui` widget's business, so it is more than 3.7's title covered.
-  Confirmed on the emulator against the nginx front, with `curl -k` proving the server serves the
-  image.
+- **A logo that failed once stays a letter until its row recomposes** (4.5). Coil does not re-issue
+  a request whose state is already `Error`, so after the server comes back the stale banner's *Try
+  again* refreshes the data and leaves the visible placeholders alone; scrolling the row off and
+  back on loads it. Harmless — the fallback is a real logo substitute, not a blank — and closing it
+  means keying the request on something that changes when a refresh succeeds.
 - **The filter and sort don't survive process death, though the back stack does** (3.12). After
   `am kill` the app restores the detail screen it was on, and the list behind it has forgotten its
   filter — 3.6 put both in `MutableStateFlow`s, which outlive a rotation and not a process. The
@@ -429,3 +453,7 @@ structural into the plan itself.
 | 4.3 | The `darkTheme` boolean leaves `composeApp` as an `onDarkThemeChange` callback, not as a value `MainActivity` computes | Computing it in the activity means a second `ThemeStorage` collection above the shell, which is 1.11's first-composition trap twice; the callback keeps one reader and one `WallosAppContent` entry point |
 | 4.4 | `AppInfoProvider` gained `versionName()`/`versionCode()` — raw fields, not Mealie's rendered `getAppInfo(): String` | The version line and the Debug/Release word are string resources, which the `androidApp` impl cannot reach; raw fields also keep the only unconstructable class free of presentation, so a fake drives the whole screen — *now in plan §7.1* |
 | 4.4 | `SettingsScreen` takes `viewModel` **last**, unlike 4.1–4.3's screens | `compose:parameter-order` exempts a single trailing function from following the defaulted params, so 4.3's `viewModel`-first shape only passed while there was one callback; a second one fails detekt and the fix is the order the subscriptions screens already use |
+| 4.5 | `composeApp` exposes `core:storage` as **`api`**, the only `api` project dependency it has | The Koin compiler plugin re-checks `AppModule`'s own definitions at the `startKoin` call site in `:androidApp`, which reaches `core:storage` only through an `implementation` dependency — so `provideImageLoader`'s `TrustedCertStorage` and the definition binding it both have to be visible from there. The `includes` are never re-checked, which is why `NetworkModule` takes the same type freely |
+| 4.5 | The loader is a `@Single fun` in `AppModule`, not the `@Factory class ImageLoaderProvider` TaigaMobileNova uses | Same plugin check: a scanned class in `composeApp` fails identically, so the class bought nothing. `NetworkModule` builds its clients in the module class too |
+| 4.5 | `SubcomposeAsyncImage`, not `AsyncImage` with an `error` slot as the step said | `AsyncImage`'s `error` is a `Painter`; the fallback is an initial-letter `Surface` that has to be laid out, so the composable slot is the only one that takes it |
+| 4.5 | A new `coil-singleton` version-catalog alias (`io.coil-kt.coil3:coil`) | `SingletonImageLoader` is not in `coil-core`; `:androidApp` implements its `Factory` and reached the type only transitively through `coil-compose` — *Gate-change on the commit* |

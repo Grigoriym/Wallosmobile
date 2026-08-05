@@ -23,8 +23,10 @@ kotlin {
             implementation(projects.utils.formatter.decimal)
             implementation(projects.utils.formatter.datetime)
 
+            // `coil-network-ktor3` is *not* declared here any more (4.5): this module drew its
+            // network layer from that artifact's autodiscovery, and the loader is now built in
+            // `:composeApp`, where the trust-aware engine is visible.
             implementation(libs.coil.compose)
-            implementation(libs.coil.ktor)
         }
 
         commonTest.dependencies {

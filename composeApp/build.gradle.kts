@@ -17,7 +17,12 @@ kotlin {
 
             // Named by `AppModule`'s `includes`, and `core:storage` also feeds the startup branch.
             implementation(projects.core.api)
-            implementation(projects.core.storage)
+
+            // `api`, uniquely, because of the Koin compiler plugin (4.5): `AppModule` is the one
+            // module class the `startKoin` compilation in `:androidApp` can read, so it re-checks
+            // that module's own definitions there — and `provideImageLoader`'s `TrustedCertStorage`
+            // has to be resolvable from *that* classpath, definition included.
+            api(projects.core.storage)
             implementation(projects.core.asyncKmp)
             implementation(projects.feature.setup.data)
             implementation(projects.feature.setup.ui)
@@ -27,6 +32,11 @@ kotlin {
             implementation(projects.feature.subscriptions.ui)
             implementation(projects.utils.formatter.datetime)
             implementation(projects.utils.formatter.decimal)
+
+            // The logo loader's own components: `ImageLoader` plus the Ktor fetcher that
+            // replaces Coil's autodiscovered one, so the accepted certificate reaches images too.
+            implementation(libs.coil.core)
+            implementation(libs.coil.ktor)
         }
 
         commonTest.dependencies {
