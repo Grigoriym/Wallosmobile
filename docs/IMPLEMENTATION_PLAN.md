@@ -1617,9 +1617,23 @@ is that.
   `hasCachedRows` it is asked of the **filtered** rows, and for the opposite reason — narrowing to
   one currency removes the comparison the banner exists to warn about. It carries no retry, since
   nothing the app can send fixes it; the fix is a Fixer API key on the server, so the copy names it.
-- **What this leaves undone**: a converted row no longer shows its original currency anywhere, and
-  the price sort (3.6) still compares raw numbers across currencies whenever conversion is off or
-  unavailable. Both are in "Still open after v1".
+- **"Which currency is this price in" has no field, and 5.3 is where that bites twice.** The answer
+  is the repository's `symbolFor` decision — `converts(currencyId)` ? the main currency : the row's
+  own — and **neither** thing on the row reproduces it. `currencySymbol` is not a currency: the
+  instance ships four dollars and three kroner, so equal symbols do not mean comparable amounts.
+  `currencyId` is not the denomination: a working conversion puts every row in one unit while each
+  keeps the id it was converted *from*. So anything asking "are these prices comparable?" asks
+  `PriceConversion` **and** the ids — `!isActive && distinctBy(currencyId).size > 1` — and the
+  banner's condition above turns out to be a strict subset of it, since conversion asked for without
+  rates is one way of not being active. One computation feeds both.
+- **A comparison the data doesn't support is withdrawn *and* explained** (5.3). The Price sort is
+  disabled while the drawn rows span denominations, and the sheet says why underneath rather than
+  leaving a greyed chip to be interpreted. Both halves are needed because the flag is about the rows
+  on screen: a sort chosen while they were comparable stays selected when a widened filter brings a
+  second currency back, and in that state the chip is inert and the order is already wrong — the
+  disable cannot reach it, so the sentence has to.
+- **What this leaves undone**: a converted row still shows its original currency nowhere — 5.4. The
+  price sort half was closed by 5.3.
 
 ### 7.2 Explicitly out of v1
 

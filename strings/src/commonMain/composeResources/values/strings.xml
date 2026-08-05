@@ -69,6 +69,7 @@
     <string name="subscriptions_sort_category">Category</string>
     <string name="subscriptions_sort_payment_method">Payment method</string>
     <string name="subscriptions_sort_inactive">Active first</string>
+    <string name="subscriptions_sort_price_mixed">These prices are in more than one currency, so sorting by price would rank amounts that don't compare.</string>
 
     <string name="subscription_detail_cycle">Billing cycle</string>
     <string name="subscription_detail_next_payment">Next payment</string>

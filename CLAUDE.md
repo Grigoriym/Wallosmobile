@@ -172,7 +172,13 @@ most: its icon tint has *two* possible sources, the resource configuration and t
 divergence says which one won.
 
 **Since 3.4 a screenshot of the list proves nothing about the network** — those rows are Room's,
-and they render identically whether the refresh succeeded, failed or never ran. To prove a request
+and they render identically whether the refresh succeeded, failed or never ran. **They also survive
+a change of server**, which is what a step verifying against a scratch instance has to get past:
+the app comes up on the *last* instance's cached rows, and a screenshot of them is a screenshot of
+the wrong instance. `adb shell pm clear com.grappim.wallosmobile` and log in again is the shortest
+way in (Disconnect works too — `ApiKeyStorage.clear()` evicts the cache — but it is several taps
+deeper), and the stale banner ("Showing saved data") over a full list is the tell that the rows on
+screen belong to a server that is no longer the one configured. To prove a request
 actually happened, `adb logcat -c`, act, then read the `Ktor` lines (`REQUEST` / `RESPONSE: 200`)
 — the debug build logs every call. That is the check worth running whenever a change sits under
 *every* request (3.7's engine swap) even though the step's own `Verify:` line is a test task.
@@ -694,6 +700,19 @@ a `&` in its category name.
 is empty and all 32 rates are exactly `1`. So nothing about currency conversion can be seen here at
 all — not the working case, not the failing one. That needs a scratch container, which is one
 `cp -a` of the database plus two `UPDATE`s.
+
+**That container exists, stopped, as `wallos-scratch` on port 8284** (5.3) — a `bellamy/wallos` over
+a copy of the live database with 8 of the 35 rows moved to `currency_id = 2` and the copied key
+rotated to `5c3aa1de…7b8c`. `docker start wallos-scratch`, then `http://10.0.2.2:8284`. Rates are
+still all `1`, so it shows conversion *off* over mixed currencies and not conversion working; that
+needs an `UPDATE currencies SET rate = …` on top. Copying the database in is three commands, since
+the files are uid 82 and the container's are not a volume:
+
+```bash
+docker run --rm -v /home/gregory/data/wallos/db:/src:ro alpine cat /src/wallos.db > wallos.db
+docker cp wallos.db wallos-scratch:/var/www/html/db/wallos.db
+docker exec wallos-scratch chown www-data:www-data /var/www/html/db/wallos.db
+```
 
 **It speaks plain HTTP, so certificate work needs a TLS front for it** (3.8, and 3.12 again).
 Don't touch the Wallos container — put a throwaway nginx beside it. The whole recipe:

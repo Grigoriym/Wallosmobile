@@ -44,6 +44,7 @@ import com.grappim.wallosmobile.strings.generated.resources.subscriptions_sort_n
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_sort_payer
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_sort_payment_method
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_sort_price
+import com.grappim.wallosmobile.strings.generated.resources.subscriptions_sort_price_mixed
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_sort_title
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
@@ -96,7 +97,11 @@ private fun FilterSheetContent(uiState: SubscriptionsFilterUiState, modifier: Mo
             }
         }
 
-        SortSection(sort = uiState.sort, onSortChange = uiState.onSortChange)
+        SortSection(
+            sort = uiState.sort,
+            spansCurrencies = uiState.spansCurrencies,
+            onSortChange = uiState.onSortChange
+        )
 
         StatusSection(
             status = filter.status,
@@ -126,19 +131,40 @@ private fun FilterSheetContent(uiState: SubscriptionsFilterUiState, modifier: Mo
     }
 }
 
-/** Single-select, and always one selected: there is no unsorted list, only a default order. */
+/**
+ * Single-select, and always one selected: there is no unsorted list, only a default order.
+ *
+ * [SubscriptionSort.PRICE] is the one option that can stop meaning anything (5.3): with the drawn
+ * rows in more than one currency it orders raw amounts as though they shared a unit, so it is taken
+ * off and the reason goes under the chips rather than being left to be inferred from a greyed one.
+ * The note is written to read true either way, because a sort chosen while the rows *were*
+ * comparable stays selected when a widened filter brings a second currency back in — that order is
+ * as incomparable as the one the chip now refuses, and saying so is the honest half of it.
+ */
 @Composable
 private fun SortSection(
     sort: SubscriptionSort,
+    spansCurrencies: Boolean,
     onSortChange: (SubscriptionSort) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Section(title = RString.subscriptions_sort_title, modifier = modifier) {
-        SubscriptionSort.entries.forEach { entry ->
-            FilterChip(
-                selected = entry == sort,
-                onClick = { onSortChange(entry) },
-                label = { Text(stringResource(entry.label)) }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(TITLE_SPACING)) {
+        Section(title = RString.subscriptions_sort_title) {
+            SubscriptionSort.entries.forEach { entry ->
+                FilterChip(
+                    selected = entry == sort,
+                    onClick = { onSortChange(entry) },
+                    label = { Text(stringResource(entry.label)) },
+                    enabled = !spansCurrencies || entry != SubscriptionSort.PRICE
+                )
+            }
+        }
+
+        if (spansCurrencies) {
+            Text(
+                text = stringResource(RString.subscriptions_sort_price_mixed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -257,4 +283,11 @@ private fun FilterSheetContentFilteredPreview() = WallosMobilePreviewTheme {
             )
         )
     )
+}
+
+/** 5.3: the same sheet over rows in two currencies — Price refused, and the reason under it. */
+@PreviewWallosDarkLight
+@Composable
+private fun FilterSheetContentMixedCurrencyPreview() = WallosMobilePreviewTheme {
+    FilterSheetContent(uiState = previewUiState.copy(spansCurrencies = true))
 }

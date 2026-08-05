@@ -536,6 +536,70 @@ class SubscriptionsViewModelTest {
         assertFalse(sut.uiState.value.isConversionUnavailable)
     }
 
+    // --- 5.3: sorting by price across currencies -----------------------------------------------
+
+    /**
+     * The defect itself: with conversion off, `8.99 €` and `10.00 $` are ordered as bare doubles.
+     * The flag is what the sheet takes the Price option off with — and unlike the banner above it,
+     * it does not ask whether conversion was *wanted*, only whether the amounts share a unit.
+     */
+    @Test
+    fun `rows in two currencies make the price sort meaningless, conversion off and all`() = runTest {
+        repository.result = Result.success(listOf(disney, dollarRow))
+
+        val state = viewModel().uiState.value
+
+        assertTrue(state.filters.spansCurrencies)
+        assertFalse(state.isConversionUnavailable)
+    }
+
+    @Test
+    fun `one currency compares fine`() = runTest {
+        repository.result = Result.success(listOf(disney, internet))
+
+        assertFalse(viewModel().uiState.value.filters.spansCurrencies)
+    }
+
+    /**
+     * The case `currencyId` alone gets wrong. A working conversion rewrites every price into the
+     * main currency and leaves `currency_id` naming the source (3.11), so these two rows differ by
+     * that field and are nonetheless in the same unit — which is the only reason the flag asks
+     * [PriceConversion] rather than counting ids.
+     */
+    @Test
+    fun `a working conversion puts every row in one unit, however many currency ids there are`() = runTest {
+        repository.conversion.value = PriceConversion(isEnabled = true, mainCurrencyId = 1, hasRates = true)
+        repository.result = Result.success(listOf(disney, dollarRow))
+
+        assertFalse(viewModel().uiState.value.filters.spansCurrencies)
+    }
+
+    /** Conversion asked for and silently not happening: the banner *and* the sort, one cause. */
+    @Test
+    fun `conversion that cannot run leaves the rows incomparable too`() = runTest {
+        repository.conversion.value = PriceConversion(isEnabled = true, mainCurrencyId = 1, hasRates = false)
+        repository.result = Result.success(listOf(disney, dollarRow))
+
+        val state = viewModel().uiState.value
+
+        assertTrue(state.filters.spansCurrencies)
+        assertTrue(state.isConversionUnavailable)
+    }
+
+    /** Asked of the drawn rows: a filter that leaves one currency standing makes price honest again. */
+    @Test
+    fun `a filter down to a single currency gives the price sort back`() = runTest {
+        repository.result = Result.success(listOf(disney, dollarRow))
+        val sut = viewModel()
+        assertTrue(sut.uiState.value.filters.spansCurrencies)
+
+        sut.uiState.value.filters.onFilterChange(
+            SubscriptionFilter(categories = persistentSetOf("Entertainment"))
+        )
+
+        assertFalse(sut.uiState.value.filters.spansCurrencies)
+    }
+
     private val disney = subscription()
 
     /**

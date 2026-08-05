@@ -30,6 +30,13 @@ data class SubscriptionUiItem(
  * The filter sheet (3.6). The option sets are the distinct values of the rows *the cache holds*,
  * not of [SubscriptionsUiState.items] — narrowing to one category must not take the others out of
  * the sheet the user narrowed them with.
+ *
+ * @param spansCurrencies whether the rows on screen are denominated in more than one currency, and
+ *   so whether [SubscriptionSort.PRICE] is an order that means anything (5.3). A fact rather than a
+ *   verdict: the sheet decides what to do about it. Like
+ *   [SubscriptionsUiState.isConversionUnavailable] it is about the *drawn* rows — a filter down to
+ *   one currency makes the comparison honest again — and for the same reason it is stored rather
+ *   than derived: `price` reaches this state as formatted text.
  */
 data class SubscriptionsFilterUiState(
     val filter: SubscriptionFilter = SubscriptionFilter(),
@@ -37,6 +44,7 @@ data class SubscriptionsFilterUiState(
     val payers: ImmutableList<String> = persistentListOf(),
     val categories: ImmutableList<String> = persistentListOf(),
     val paymentMethods: ImmutableList<String> = persistentListOf(),
+    val spansCurrencies: Boolean = false,
     val isVisible: Boolean = false,
     val onFilterChange: (SubscriptionFilter) -> Unit = {},
     val onSortChange: (SubscriptionSort) -> Unit = {},

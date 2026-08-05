@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `2/6` · M6 `0/2`
-**Current step:** 5.3
+M4 `5/5` — **Phase 2c done** · M5 `3/6` · M6 `0/2`
+**Current step:** 5.4
 
 ---
 
@@ -135,7 +135,7 @@ Three things that shape these steps:
   death — pid 4155 → gone → 4304, task `sz=1` — with the contrast that `force-stop` correctly
   discards them.
 
-- [ ] **5.3 — feature:subscriptions:ui: the price sort stops comparing across currencies**
+- [x] **5.3 — feature:subscriptions:ui: the price sort stops comparing across currencies**
   3.6's, unchanged by 3.11. Whenever conversion is off or unavailable, `SubscriptionSort.PRICE`
   orders raw doubles, so €5 sorts below $10 as though they were the same unit — 3.11's banner tells
   the user their prices don't compare while the sheet beside it still offers the comparison.
@@ -145,6 +145,20 @@ Three things that shape these steps:
   *Verify:* a test on the derived flag, and the filter sheet's preview in both states. **The live
   instance cannot show this** — build 3.11's scratch container, and say in the note which instance
   the screenshot came from.  ·  *Ref:* 3.6's `SubscriptionSorter`, 3.11's conversion banner
+  *Note:* the step's "each row already carries the `currencySymbol` it is denominated in, so it is
+  derivable where the rows are" is **half right, and the wrong half is load-bearing** — neither field
+  on the row answers it alone. A symbol is not a currency (four dollars, three kroner share a sign),
+  and a *working* conversion puts every row in one unit while `currency_id` still names the source it
+  was converted from, so counting ids would refuse the sort exactly where it is honest. The flag
+  therefore reproduces the repository's `symbolFor` decision — `!conversion.isActive &&` distinct
+  `currencyId` — which makes 3.11's banner condition a strict subset of it and left the two sharing
+  one computation. Disabled rather than annotated **and** annotated: the chip goes, and the note under
+  it says why, because a sort chosen while the rows were comparable stays selected when a widened
+  filter brings a second currency back — verified in that exact state, where the chip is selected,
+  greyed and inert and the note still reads true. Screenshots came from a **throwaway
+  `bellamy/wallos` on :8284**: a `cp -a` of the live database with 8 of the 35 rows moved to
+  `currency_id = 2` and the copied API key rotated. It is **stopped, not removed**, since 5.4 needs
+  the same rig (plus rates, which this copy still has at `1`).
 
 - [ ] **5.4 — feature:subscriptions:ui: a converted price says what it was converted from**
   3.11's. The amount is right and the symbol is right — `symbolFor` denominates a converted row in
@@ -287,7 +301,8 @@ nobody has started. **Don't re-open the first two per step; they have both been 
   cause: it would put a pin write outside `SetupRepository`.
 - ~~The backoff is invisible~~ (3.10) — **5.5**.
 - ~~A converted price loses its original currency~~ (3.11) — **5.4**.
-- ~~Sort by price still compares across currencies~~ (3.6) — **5.3**.
+- ~~Sort by price still compares across currencies~~ (3.6) — **done in 5.3**: the option is taken
+  off while the drawn rows are in more than one denomination, and says why.
 - **Version gating (plan §4.6) is still unowned.** It gates `get_period_budget`, `set_budget`'s
   period fields, `logo_variant` and `square_icons` — all Phase 4 and 5 surface, so M3 leaves it
   alone deliberately rather than by oversight.
@@ -423,4 +438,6 @@ structural into the plan itself.
 | 4.5 | A new `coil-singleton` version-catalog alias (`io.coil-kt.coil3:coil`) | `SingletonImageLoader` is not in `coil-core`; `:androidApp` implements its `Factory` and reached the type only transitively through `coil-compose` — *Gate-change on the commit* |
 | 5.2 | `SavedStateHandle` is injected as an `@InjectedParam`, the repo's second use of that annotation | Koin resolves it from the `CreationExtras` through `AndroidParametersHolder`, not from the graph; unlike 2.5's `Int`, `verify()` **does** catch a missing annotation here, since `SavedStateHandle` isn't one of its whitelisted primitives |
 | 5.2 | The criteria are stored as one JSON string, not through `androidx.savedstate`'s `encodeToSavedState` | On Android `SavedState` *is* `Bundle`, so the idiomatic encoder can't run in a host test and `SubscriptionFilter`'s `ImmutableSet`s have no serializer either — a String key is testable in both directions |
+| 5.3 | "Spans more than one denomination" is asked of `PriceConversion` plus `currencyId`, not of the `currencySymbol` the step named | A symbol is not a currency (four dollars share `$`) and a working conversion leaves every row in one unit with its source `currency_id` intact — so each field alone gets one of the two cases wrong; reproducing `symbolFor`'s choice makes 3.11's banner a strict subset of the same computation — *now in plan §7.1* |
+| 5.3 | The Price option is disabled **and** annotated, where the step offered either | Disabling alone is silent about the order the user is already in: a sort chosen while the rows were comparable survives a widened filter, and the chip is then selected, greyed and still wrong — *now in plan §7.1* |
 | 5.2 | `NavDisplay`'s default `entryDecorators` is `rememberSaveableStateHolderNavEntryDecorator()` alone — no ViewModel-store decorator — and that says **nothing** about ViewModel lifetime | It reads as "every ViewModel is activity-scoped, so a second detail route reuses the first's", which is a phantom defect: measured on device, the list ViewModel survives a detail round trip while each detail route builds its own (`Refreshing subscription 4`, then `26`). Measure this, never infer it from the decorator list |

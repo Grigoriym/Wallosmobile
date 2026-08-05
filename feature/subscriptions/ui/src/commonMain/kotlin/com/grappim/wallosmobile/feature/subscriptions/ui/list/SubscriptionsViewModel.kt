@@ -178,6 +178,7 @@ class SubscriptionsViewModel(
         val items = subscriptionSorter.sort(matching, sort)
             .map(::toUiItem)
             .toPersistentList()
+        val spansCurrencies = matching.spanDenominations(conversion)
 
         _uiState.update {
             // Cached rows dismiss the first-load spinner the moment they arrive; an empty cache
@@ -188,25 +189,38 @@ class SubscriptionsViewModel(
                 hasCachedRows = subscriptions.isNotEmpty(),
                 // Asked of the rows on screen, not of the cache: what the banner warns about is
                 // comparing them, and a filter down to one currency has nothing left to warn about.
-                isConversionUnavailable = conversion.isEnabledWithoutRates && matching.spanCurrencies(),
+                // The banner is the narrower of the two questions — an instance that was *asked* to
+                // convert and couldn't — so it can only fire where the sort is incomparable too.
+                isConversionUnavailable = conversion.isEnabledWithoutRates && spansCurrencies,
                 isLoading = it.isLoading && subscriptions.isEmpty(),
                 filters = it.filters.copy(
                     filter = filter,
                     sort = sort,
                     payers = subscriptions.optionsOf(Subscription::payerName),
                     categories = subscriptions.optionsOf(Subscription::categoryName),
-                    paymentMethods = subscriptions.optionsOf(Subscription::paymentMethodName)
+                    paymentMethods = subscriptions.optionsOf(Subscription::paymentMethodName),
+                    spansCurrencies = spansCurrencies
                 )
             )
         }
     }
 
     /**
-     * `currencyId` and not `currencySymbol`: two currencies can share a sign — the instance ships
-     * four different dollars and three different kroner — and rows in USD and AUD are no more
-     * comparable for both saying `$`.
+     * Whether these rows are denominated in more than one currency — which is what decides both the
+     * conversion banner and whether sorting by price means anything (5.3).
+     *
+     * The question is asked of what each `price` is denominated **in**, and that is the repository's
+     * `symbolFor` decision, not either field on the row: a converted row carries the amount in the
+     * main currency while `currencyId` still names the one it was converted *from* (3.11). So a
+     * working conversion puts every row in one denomination however many `currencyId`s there are,
+     * and only where it isn't running does the row's own currency decide.
+     *
+     * `currencyId` and not `currencySymbol` for that second half: two currencies can share a sign —
+     * the instance ships four different dollars and three different kroner — and rows in USD and AUD
+     * are no more comparable for both saying `$`.
      */
-    private fun List<Subscription>.spanCurrencies(): Boolean = distinctBy(Subscription::currencyId).size > 1
+    private fun List<Subscription>.spanDenominations(conversion: PriceConversion): Boolean =
+        !conversion.isActive && distinctBy(Subscription::currencyId).size > 1
 
     /**
      * The sheet's options, straight off the rows: Wallos resolves these names server-side and never
