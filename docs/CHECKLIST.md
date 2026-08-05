@@ -180,7 +180,13 @@ Three things that constrain the steps below:
   `Navigator` it didn't need before. Verified on the emulator: all three modes apply live, the
   status-bar icons are white on Dark over a light device and black on Light over a night device
   (the 2× crop of the top 90 rows is what shows it), and the `am kill` cycle came back **on the
-  Interface screen** with Settings still under it.
+  Interface screen** with Settings still under it. Both checks needed the device's night mode and
+  the stored mode *diverged* — matching them proves nothing, since three different mechanisms
+  produce the same screenshot (now in `CLAUDE.md`).
+  **`InterfaceRoute` is deliberately not in `RouteConfigProvider`**, so the drawer stays
+  swipe-openable on it. `SubscriptionDetailRoute` disables gestures because a horizontal swipe is
+  the *screen's* there; a radio list has no horizontal gesture to protect. 4.4's About screen is
+  the same case — leave it out too unless it grows one.
 
 - [ ] **4.4 — feature:settings ui: the About screen**
   Version and build info plus a link out to the project. `AppInfoProvider` (`core:appinfo-api`)

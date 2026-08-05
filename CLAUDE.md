@@ -163,6 +163,14 @@ ViewModel and any transient surface — an open `AlertDialog` and an open `Modal
 survived it in 4.1. So capture a state once, flip, and capture the other mode, instead of driving
 the app back to it twice.
 
+**Since 4.3 anything about the theme has to be verified with the two *diverged*.** A dark screenshot
+on a night-mode device is consistent with the stored preference working, with it being ignored, and
+with the window theme alone — the three are indistinguishable. Set `cmd uimode night no` and pick
+Dark (then the reverse) and each one has a single explanation. It is the same argument as 3.4's
+"a screenshot of the list proves nothing about the network", and it is what the status bar needs
+most: its icon tint has *two* possible sources, the resource configuration and the app, and only a
+divergence says which one won.
+
 **Since 3.4 a screenshot of the list proves nothing about the network** — those rows are Room's,
 and they render identically whether the refresh succeeded, failed or never ran. To prove a request
 actually happened, `adb logcat -c`, act, then read the `Ktor` lines (`REQUEST` / `RESPONSE: 200`)
