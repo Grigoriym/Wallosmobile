@@ -34,7 +34,12 @@ fun SubscriptionCard(item: SubscriptionUiItem, onClick: () -> Unit, modifier: Mo
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(CARD_PADDING)
         ) {
-            SubscriptionLogo(logoUrl = item.logoUrl, name = item.name, size = LOGO_SIZE)
+            SubscriptionLogo(
+                logoUrl = item.logoUrl,
+                name = item.name,
+                size = LOGO_SIZE,
+                logoRefreshToken = item.logoRefreshToken
+            )
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(

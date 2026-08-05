@@ -15,7 +15,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil3.compose.LocalPlatformContext
 import coil3.compose.SubcomposeAsyncImage
+import coil3.request.ImageRequest
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 
@@ -30,6 +32,15 @@ import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
  * filename alone left every row of a server the loader couldn't reach as a blank gap, with a
  * perfectly good fallback sitting unused. `SubcomposeAsyncImage` rather than `AsyncImage` because
  * the fallback is an initial to lay out, and `AsyncImage`'s `error` slot takes a `Painter`.
+ *
+ * **Coil does not retry a request whose state is already `Error`** (5.6): the equality delegate
+ * that decides whether a model "changed" compares an `ImageRequest`'s `data`, cache keys, size,
+ * scale and precision — none of which differ between one `logoUrl` string and the next recompose
+ * of the same one, so a server coming back left every already-`Error` row exactly where it was.
+ * [logoRefreshToken] rides in as a `memoryCacheKeyExtra`: it changes the request's identity
+ * without changing [logoUrl], the disk cache key, or the memory cache key it is layered onto, so a
+ * row that already loaded successfully is a cheap memory-cache-miss-then-disk-cache-hit and a row
+ * that errored gets a real retry — both without a scroll.
  */
 @Composable
 internal fun SubscriptionLogo(
@@ -37,7 +48,8 @@ internal fun SubscriptionLogo(
     name: String,
     size: Dp,
     modifier: Modifier = Modifier,
-    placeholderTextStyle: TextStyle = MaterialTheme.typography.titleMedium
+    placeholderTextStyle: TextStyle = MaterialTheme.typography.titleMedium,
+    logoRefreshToken: Int = 0
 ) {
     val shape = MaterialTheme.shapes.small
 
@@ -49,8 +61,13 @@ internal fun SubscriptionLogo(
             modifier = modifier.size(size)
         )
     } else {
+        val request = ImageRequest.Builder(LocalPlatformContext.current)
+            .data(logoUrl)
+            .memoryCacheKeyExtra("refreshToken", logoRefreshToken.toString())
+            .build()
+
         SubcomposeAsyncImage(
-            model = logoUrl,
+            model = request,
             contentDescription = null,
             contentScale = ContentScale.Fit,
             error = {

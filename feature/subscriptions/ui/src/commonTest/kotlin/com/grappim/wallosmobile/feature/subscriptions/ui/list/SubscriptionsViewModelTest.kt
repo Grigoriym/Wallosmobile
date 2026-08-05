@@ -602,6 +602,38 @@ class SubscriptionsViewModelTest {
         assertFalse(sut.uiState.value.filters.spansCurrencies)
     }
 
+    // --- 5.6: a recovered server reloads its logos ---------------------------------------------
+
+    /**
+     * The token Coil keys the request on (`SubscriptionLogo`'s `logoRefreshToken`) has to change
+     * for a logo stuck in `Error` to be retried at all — a refresh that leaves it where it was is
+     * a refresh Coil cannot tell apart from the one that failed. The construction-time load already
+     * counts as one success, so the baseline here is `1`, not `0`.
+     */
+    @Test
+    fun `a successful refresh bumps the logo refresh token`() = runTest {
+        repository.result = Result.success(listOf(subscription()))
+        val sut = viewModel()
+        assertEquals(1, sut.uiState.value.items.single().logoRefreshToken)
+
+        sut.uiState.value.onRefresh()
+
+        assertEquals(2, sut.uiState.value.items.single().logoRefreshToken)
+    }
+
+    /** A failed refresh changed nothing about the rows or their logos, so the token must not move. */
+    @Test
+    fun `a failed refresh leaves the logo refresh token alone`() = runTest {
+        repository.result = Result.success(listOf(subscription()))
+        val sut = viewModel()
+        val tokenBefore = sut.uiState.value.items.single().logoRefreshToken
+
+        repository.result = Result.failure(WallosError.Server("boom"))
+        sut.uiState.value.onRefresh()
+
+        assertEquals(tokenBefore, sut.uiState.value.items.single().logoRefreshToken)
+    }
+
     private val disney = subscription()
 
     /**

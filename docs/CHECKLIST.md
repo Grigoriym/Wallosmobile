@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `5/6` · M6 `0/2`
-**Current step:** 5.6
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `0/2`
+**Current step:** 6.1
 
 ---
 
@@ -57,166 +57,15 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 
 ---
 
-Completed steps live in [`CHECKLIST-DONE.md`](./CHECKLIST-DONE.md) — **all of M0 through M4**,
+Completed steps live in [`CHECKLIST-DONE.md`](./CHECKLIST-DONE.md) — **all of M0 through M5**,
 verbatim. This file carries what is still open, plus the Deviations log, which keeps growing.
 
 Plan §8's **Phase 3** (subscription writes, reference-data pickers) is still next in the *phase*
-order and still needs decomposing into steps the way Phase 2b became M3. **M5 goes first, on M4's
-argument**: its steps are defects in screens that already ship, and a write surface built on top of
-them inherits them. **M6 is two housekeeping steps** — the launcher icon and the store flavours —
-that belong to no phase and are not urgent, but which every feature step will keep displacing until
-they are written down as steps.
-
----
-
-## M5 — the defects the verification steps filed (not in plan §8's phase order)
-
-Goal: close the list "Still open after v1" accumulated, so what remains there is policy and
-deferred *features* rather than known-wrong behaviour. **Done when** a rotated certificate, a
-process death and a multi-currency instance each produce something honest on screen.
-
-Every step here is a **defect that was seen, not inferred** — each one names the step that filed it,
-and the entry it closes comes out of "Still open after v1" when it is ticked. That is the same
-filing loop 3.12 and 4.5 used, run in the other direction.
-
-Three things that shape these steps:
-
-- **The live instance can't show two of them.** All 35 rows are `currency_id = 1` with conversion
-  off (`CLAUDE.md`), so nothing about currency comparison is visible there at all — 5.3 and 5.4 need
-  the scratch container 3.11 describes, and each must say which instance its screenshot came from.
-- **The TLS front is the rig for 5.1 and 5.6**, both of which are about what happens *after* a
-  connection was working. Regenerating the leaf and restarting the container — optional in Taiga's
-  recipe, and the check that found 3.8's real gap — is 5.1's whole premise.
-- **Three of them change a surface an earlier step drew** (5.2 and 5.3 change 3.6's, 5.5 changes
-  3.10's).
-  That is why they are steps rather than notes: the earlier step's title didn't cover them, which
-  is exactly what filing them recorded.
-
-- [x] **5.1 — utils:ui: a certificate that rotates after onboarding says so**
-  3.8's gap, and the one with a real trap in it. `getErrorMessage` is exhaustive on `WallosError`
-  and sends **everything else** to `error_unreachable` — "check the URL and your connection" — so an
-  instance whose certificate changed reads as a dead server, and the one route out (Disconnect, log
-  in again, accept the new certificate) is the one the copy argues against. `Throwable
-  .findPendingCertTrust()` (`core:domain`, 3.7) already answers "is it that?"; it is simply not
-  consulted outside the login screen. Add the branch in the non-`WallosError` arm, ahead of
-  `error_unreachable`, plus a string that names the certificate and the route.
-  *Verify:* a case in `GetErrorMessageTest`; on device over the nginx TLS front — connect, then
-  **regenerate the leaf and restart the container**, pull to refresh, read the banner.
-  ·  *Ref:* `utils/ui/.../NativeText.kt`, `core/domain/.../findPendingCertTrust`, plan §4.5
-  **Do not add a second trust prompt.** `feature:subscriptions` has no trust surface, and writing a
-  pin from it would reach past `SetupRepository` — 3.1's rule, restated in plan §4.5. Naming the
-  cause is this step; a prompt anywhere a refresh can fail is a bigger change and needs its own.
-  *Note:* the branch is invisible on the login screen and that is correct — `LoginViewModel.onFailure`
-  asks `findPendingCertTrust()` first and shows the prompt, so `getErrorMessage` is only reached by
-  screens with no trust surface. Verified against the live instance behind the nginx front
-  (`https://10.0.2.2:8443`), leaf regenerated from the same CA: the pin is per-certificate, so a
-  re-issued leaf fails exactly like a new host's would.
-
-- [x] **5.2 — feature:subscriptions:ui: the filter and sort survive process death**
-  3.12 filed the inconsistency: the nav back stack is carefully serialized and the two
-  `MutableStateFlow`s beside the UI state are not, so `am kill` restores the detail screen the user
-  was on and the list behind it has forgotten its filter. Keep 3.6's shape — the criteria stay
-  `combine`d with the DAO flow, one render path — and give them somewhere that survives a process.
-  *Verify:* the `am kill` cycle from `CLAUDE.md`, **from a clean task**: filter and sort, background,
-  kill, relaunch, the list comes back filtered. Plus a ViewModel test.
-  ·  *Ref:* 3.6's `SubscriptionsViewModel`, `CLAUDE.md` "Don't keep activities is not a
-  process-death test"
-  **Check which vehicle is actually available before writing it.** `SavedStateHandle` is the obvious
-  answer and this repo has never injected one — Koin's `@KoinViewModel` has to be able to supply it
-  through `koinViewModel()`'s `CreationExtras`, and that is a five-minute check, not an assumption.
-  `rememberSaveable` at the screen with the criteria hoisted is the fallback, and it is not a worse
-  answer if the first one needs plumbing this app doesn't have.
-  *Note:* `SavedStateHandle` works with no plumbing at all, and the check was worth running — it
-  needs `@InjectedParam`, because Koin builds it from the `CreationExtras` rather than from the
-  graph. What it can *hold* was the real constraint: a value has to be Bundle-safe on Android, and
-  `androidx.savedstate`'s own `encodeToSavedState` is unreachable from a host test for exactly that
-  reason (`SavedState` **is** `Bundle`). So the criteria go in as one JSON string under one key,
-  which a host test reads back with no Android runtime. Verified on device across a real process
-  death — pid 4155 → gone → 4304, task `sz=1` — with the contrast that `force-stop` correctly
-  discards them.
-
-- [x] **5.3 — feature:subscriptions:ui: the price sort stops comparing across currencies**
-  3.6's, unchanged by 3.11. Whenever conversion is off or unavailable, `SubscriptionSort.PRICE`
-  orders raw doubles, so €5 sorts below $10 as though they were the same unit — 3.11's banner tells
-  the user their prices don't compare while the sheet beside it still offers the comparison.
-  Disable or annotate the Price option when the drawn rows span more than one denomination. No new
-  data is needed: each row already carries the `currencySymbol` it is actually denominated in
-  (3.11's `symbolFor`), so "spans more than one" is derivable where the rows are.
-  *Verify:* a test on the derived flag, and the filter sheet's preview in both states. **The live
-  instance cannot show this** — build 3.11's scratch container, and say in the note which instance
-  the screenshot came from.  ·  *Ref:* 3.6's `SubscriptionSorter`, 3.11's conversion banner
-  *Note:* the step's "each row already carries the `currencySymbol` it is denominated in, so it is
-  derivable where the rows are" is **half right, and the wrong half is load-bearing** — neither field
-  on the row answers it alone. A symbol is not a currency (four dollars, three kroner share a sign),
-  and a *working* conversion puts every row in one unit while `currency_id` still names the source it
-  was converted from, so counting ids would refuse the sort exactly where it is honest. The flag
-  therefore reproduces the repository's `symbolFor` decision — `!conversion.isActive &&` distinct
-  `currencyId` — which makes 3.11's banner condition a strict subset of it and left the two sharing
-  one computation. Disabled rather than annotated **and** annotated: the chip goes, and the note under
-  it says why, because a sort chosen while the rows were comparable stays selected when a widened
-  filter brings a second currency back — verified in that exact state, where the chip is selected,
-  greyed and inert and the note still reads true. Screenshots came from a **throwaway
-  `bellamy/wallos` on :8284**: a `cp -a` of the live database with 8 of the 35 rows moved to
-  `currency_id = 2` and the copied API key rotated. It is **stopped, not removed**, since 5.4 needs
-  the same rig (plus rates, which this copy still has at `1`).
-
-- [x] **5.4 — feature:subscriptions:ui: a converted price says what it was converted from**
-  3.11's. The amount is right and the symbol is right — `symbolFor` denominates a converted row in
-  the main currency — but nothing on either screen says a conversion happened, which Wallos' own web
-  UI offers as `show_original_price`. **The original amount is unrecoverable**: the server overwrites
-  `price` and leaves `currency_id` naming the source (plan §4.5's third API surprise), so this is a
-  *label* naming the source currency, not a second number. Detail screen only; the list row has no
-  space and the banner already covers the instance-wide case.
-  *Verify:* a test on whatever derives it, plus a preview. Same scratch container as 5.3, same
-  requirement to say which instance.  ·  *Ref:* `SubscriptionsRepositoryImpl.symbolFor`,
-  `PriceConversionEntity`
-  *Note:* the row carries a `currency_id` and nothing that names it, so the label needed the
-  **currency table** — a new `observeCurrencies()` on the repository, and a `CurrencyDao.observeAll()`
-  under it. It is the third flow the detail screen combines and the derivation stayed in the
-  ViewModel, reproducing `converts(currencyId)` exactly as 5.3's `spansCurrencies` reproduces
-  `symbolFor`: the same question, asked where the rows are. The **code** (`USD`) rather than the
-  symbol, since a symbol is not a currency, and blank rather than a guess when the cached table
-  no longer holds the id. **5.3's rig could not show this at all** — its rates were still `1`, so
-  nothing converted. The scratch instance on `:8284` now has `rate = 1.17` on USD,
-  `convert_currency = 1` and a `last_exchange_update` row (the flag the server really gates on),
-  which is what makes the 8 USD rows come back divided; that state is left in place and written up
-  in `CLAUDE.md`. Screenshots: `Mullvad VPN` at `€4.27 / Converted from USD` in both modes, and
-  `icloud` — already in the main currency — with nothing under its price.
-
-- [x] **5.5 — feature:setup:ui: the login backoff is visible**
-  3.10's. Past three refused attempts the next one waits 1–8 seconds under the spinner that was
-  already there, so a login that got slow says nothing about why. Announce the wait before it
-  starts.
-  *Verify:* a ViewModel test, plus four refused logins in a row on device.
-  ·  *Ref:* 3.10's `LoginThrottle`, `SetupRepositoryImpl`
-  **Two things make this bigger than it looks.** `LoginThrottle` is a `private val` constructed by
-  `SetupRepositoryImpl` — DI was buying it nothing (plan §4.1) — so surfacing the wait means the
-  repository telling a caller something, which changes 3.10's surface. And the state exists only
-  *while* a call is in flight, so `MainDispatcherRule`'s unconfined dispatcher will run straight
-  past it: the test needs 3.4's `CompletableDeferred` trick to see it at all.
-  *Note:* the shape the repository tells a caller with is an **`onThrottleWait: (Duration) -> Unit`
-  parameter on the two throttled methods**, not a flow beside them: the wait exists only for the
-  duration of one call, so a `Flow` on the repository would have needed a lifetime, an initial value
-  and a clear — three decisions a parameter doesn't have. It defaults to `{}`, which is what keeps
-  the twelve existing `SetupRepositoryImplTest` call sites and the whole non-throttled surface
-  untouched. The UI state carries **seconds as an `Int`**, per the `<plurals>` rule, with
-  `isThrottled` derived from it rather than stored beside it; it is cleared in one place — after the
-  `when` in `onConnectClick`, since the notice belongs to the *call* and not to any of the five
-  outcomes. Verified against the live instance on `:8282`: eight refused attempts, the singular form
-  ("held back for a second") on the fourth and "held back for 8 seconds" from the seventh, the
-  notice gone the moment the attempt landed, and the ninth — with the right password — waiting its
-  8 seconds and then connecting. `cmd uimode night no` mid-wait confirmed the light mode and, as a
-  bonus, that the counter survives an activity recreation: the ViewModel and its `@Factory`
-  repository do.
-
-- [ ] **5.6 — feature:subscriptions:ui: a recovered server reloads its logos**
-  4.5's leftover, and the smallest thing here. Coil does not re-issue a request whose state is
-  already `Error`, so when the server comes back the stale banner's *Try again* refreshes the data
-  and leaves every visible placeholder alone until its row happens to recompose. Key the request on
-  something that changes when a refresh succeeds.
-  *Verify:* on device over the TLS front — stop the front, delete `cache/coil3_disk_cache`, relaunch
-  to initial letters, start the front, tap *Try again*, and see logos **without scrolling**.
-  ·  *Ref:* 4.5's `SubscriptionLogo`, `CLAUDE.md`'s note on Coil's disk cache
+order and still needs decomposing into steps the way Phase 2b became M3. **M5 is done**: the list
+"Still open after v1" filed six defects and all six are now closed, so what remains there is policy
+and deferred *features* rather than known-wrong behaviour. **M6 is two housekeeping steps** — the
+launcher icon and the store flavours — that belong to no phase and are not urgent, but which every
+feature step will keep displacing until they are written down as steps.
 
 ---
 
@@ -228,7 +77,7 @@ being ambiguous about which is which.
 
 Neither step is a defect and neither blocks the other — they are here because they are the two
 things that are *only* obvious from outside the code, and both get forgotten the moment a feature
-step is available to do instead. Take them in either order, or between M5 steps.
+step is available to do instead. Take them in either order.
 
 Both are cheap in code and expensive in **documentation**: `CLAUDE.md`'s emulator recipes hardcode
 `com.grappim.wallosmobile` and `installDebug`, and 6.2 invalidates every one of them.
@@ -473,3 +322,4 @@ structural into the plan itself.
 | 5.4 | The source currency is named by its **code**, not its symbol or name | Same objection 5.3 raised to `currencySymbol`: five currencies here share `$`. `code` falls back to `name` only because the DTO defaults it — *now in plan §7.1* |
 | 5.2 | `NavDisplay`'s default `entryDecorators` is `rememberSaveableStateHolderNavEntryDecorator()` alone — no ViewModel-store decorator — and that says **nothing** about ViewModel lifetime | It reads as "every ViewModel is activity-scoped, so a second detail route reuses the first's", which is a phantom defect: measured on device, the list ViewModel survives a detail round trip while each detail route builds its own (`Refreshing subscription 4`, then `26`). Measure this, never infer it from the decorator list |
 | 5.5 | The wait reaches the caller as an `onThrottleWait: (Duration) -> Unit` parameter on the two throttled repository methods, defaulted to `{}` | The state exists only for the duration of one call, so a flow beside the repository would have needed a lifetime, an initial value and a clear that a parameter doesn't; the default keeps every existing call site and the unthrottled surface untouched — *now in plan §1.1* |
+| 5.6 | The fix is a `logoRefreshToken: Int` set as a Coil `memoryCacheKeyExtra`, not a change to `logoUrl` itself | `AsyncImageModelEqualityDelegate.Default` compares an `ImageRequest`'s `data` and cache keys, never the model's own `equals`; changing `data` would also change the actual fetch URL, where an extra changes only the request's identity — *now in plan §4.5* |

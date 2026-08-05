@@ -779,6 +779,17 @@ What 3.7 kept from that port, and what it dropped:
   **The cost was one `api` dependency**, and it is a Koin compiler-plugin constraint rather than an
   architectural choice: `composeApp` exposes `core:storage` as `api` because the plugin re-checks
   `AppModule`'s own definitions at the `startKoin` call site in `:androidApp` — see §6.2.
+- **4.5 fixed the certificate; 5.6 fixed the other reason a logo stays a placeholder.** Coil3's
+  `AsyncImagePainter` decides whether a model "changed" through `AsyncImageModelEqualityDelegate
+  .Default`, which compares an `ImageRequest`'s `data`, `memoryCacheKey`/`memoryCacheKeyExtras`,
+  `diskCacheKey`, `sizeResolver`, `scale` and `precision` — never the model's own `equals`. A bare
+  `logoUrl` string never differs between recompositions, so a server coming back left every row
+  already in `Error` exactly where it was, no matter how many times the surrounding `ImageRequest`
+  was rebuilt. The fix is a `logoRefreshToken: Int`, bumped only by a successful refresh and set as
+  a `memoryCacheKeyExtra` on an explicit `ImageRequest` — it changes the request's identity without
+  touching `logoUrl`, the disk cache key, or the memory cache key it decorates, so an
+  already-successful row is a cheap memory-miss-then-disk-hit and only a genuinely failed one pays
+  for a network round trip.
 
 The prompt itself is 3.8, and it lives on the **login screen only**:
 

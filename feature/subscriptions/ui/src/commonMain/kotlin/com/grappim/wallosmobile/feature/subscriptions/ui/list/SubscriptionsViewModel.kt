@@ -57,6 +57,13 @@ class SubscriptionsViewModel(
     private val filter = MutableStateFlow(restoredCriteria.toFilter())
     private val sort = MutableStateFlow(restoredCriteria.sort)
 
+    /**
+     * Bumped only by a refresh that succeeds (5.6) — never a failed one, which left the rows and
+     * their logos exactly as they were. Combined into [observeCache] so every [SubscriptionUiItem]
+     * carries the current value, which is what forces Coil to retry a logo stuck in `Error`.
+     */
+    private val refreshGeneration = MutableStateFlow(0)
+
     private val _uiState = MutableStateFlow(
         SubscriptionsUiState(
             filters = SubscriptionsFilterUiState(
@@ -148,6 +155,7 @@ class SubscriptionsViewModel(
             subscriptionsRepository.observePriceConversion(),
             filter,
             sort,
+            refreshGeneration,
             ::onCached
         ).launchIn(viewModelScope)
     }
@@ -172,11 +180,12 @@ class SubscriptionsViewModel(
         subscriptions: List<Subscription>,
         conversion: PriceConversion,
         filter: SubscriptionFilter,
-        sort: SubscriptionSort
+        sort: SubscriptionSort,
+        refreshGeneration: Int
     ) {
         val matching = subscriptions.filter(filter::matches)
         val items = subscriptionSorter.sort(matching, sort)
-            .map(::toUiItem)
+            .map { toUiItem(it, refreshGeneration) }
             .toPersistentList()
         val spansCurrencies = matching.spanDenominations(conversion)
 
@@ -234,6 +243,7 @@ class SubscriptionsViewModel(
 
     private fun onRefreshed() {
         _uiState.update { it.copy(isLoading = false, isRefreshing = false) }
+        refreshGeneration.update { it + 1 }
     }
 
     /**
@@ -247,7 +257,7 @@ class SubscriptionsViewModel(
         }
     }
 
-    private fun toUiItem(subscription: Subscription): SubscriptionUiItem = SubscriptionUiItem(
+    private fun toUiItem(subscription: Subscription, refreshGeneration: Int): SubscriptionUiItem = SubscriptionUiItem(
         id = subscription.id,
         name = subscription.name,
         logoUrl = baseUrlProvider.toLogoUrl(subscription.logo),
@@ -255,7 +265,8 @@ class SubscriptionsViewModel(
         nextPayment = subscription.nextPayment?.let(dateFormatter::formatDisplayDate).orEmpty(),
         cycle = subscription.cycle,
         frequency = subscription.frequency,
-        isActive = subscription.isActive
+        isActive = subscription.isActive,
+        logoRefreshToken = refreshGeneration
     )
 
     private companion object {

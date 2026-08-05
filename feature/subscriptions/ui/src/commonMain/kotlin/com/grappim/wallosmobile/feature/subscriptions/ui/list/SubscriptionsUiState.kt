@@ -14,6 +14,10 @@ import kotlinx.collections.immutable.persistentListOf
  * @param cycle kept as the enum rather than as text: "every 6 months" is a plural, and a plural
  *   can only be resolved where `pluralStringResource` can be called. `null` when the instance
  *   sent a code this build doesn't know, and the card then shows no cycle line at all.
+ * @param logoRefreshToken bumped by every refresh that succeeds (5.6), and passed to
+ *   [com.grappim.wallosmobile.feature.subscriptions.ui.widgets.SubscriptionLogo] as a cache-key
+ *   extra — Coil will not otherwise retry a logo that is already in its `Error` state once the
+ *   server that failed it comes back.
  */
 data class SubscriptionUiItem(
     val id: Int,
@@ -23,7 +27,8 @@ data class SubscriptionUiItem(
     val nextPayment: String,
     val cycle: BillingCycle?,
     val frequency: Int,
-    val isActive: Boolean
+    val isActive: Boolean,
+    val logoRefreshToken: Int = 0
 )
 
 /**

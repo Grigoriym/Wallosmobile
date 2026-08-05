@@ -45,6 +45,9 @@ class SubscriptionDetailViewModel(
     private val _uiState = MutableStateFlow(SubscriptionDetailUiState(onRetryClick = ::load))
     val uiState: StateFlow<SubscriptionDetailUiState> = _uiState.asStateFlow()
 
+    /** Bumped only by a refresh that succeeds (5.6) — see the list ViewModel's field of the same name. */
+    private val refreshGeneration = MutableStateFlow(0)
+
     init {
         observeCache()
         load()
@@ -62,6 +65,7 @@ class SubscriptionDetailViewModel(
             subscriptionsRepository.observeSubscription(subscriptionId),
             subscriptionsRepository.observePriceConversion(),
             subscriptionsRepository.observeCurrencies(),
+            refreshGeneration,
             ::onCached
         ).launchIn(viewModelScope)
     }
@@ -82,10 +86,15 @@ class SubscriptionDetailViewModel(
      * would be the lie. A row absent because nothing has cached it yet is the same `null`, and
      * the refresh below is already on its way.
      */
-    private fun onCached(subscription: Subscription?, conversion: PriceConversion, currencies: List<Currency>) {
+    private fun onCached(
+        subscription: Subscription?,
+        conversion: PriceConversion,
+        currencies: List<Currency>,
+        refreshGeneration: Int
+    ) {
         _uiState.update {
             it.copy(
-                subscription = subscription?.let { row -> toUiItem(row, conversion, currencies) },
+                subscription = subscription?.let { row -> toUiItem(row, conversion, currencies, refreshGeneration) },
                 isLoading = it.isLoading && subscription == null
             )
         }
@@ -93,6 +102,7 @@ class SubscriptionDetailViewModel(
 
     private fun onRefreshed() {
         _uiState.update { it.copy(isLoading = false) }
+        refreshGeneration.update { it + 1 }
     }
 
     /**
@@ -131,21 +141,26 @@ class SubscriptionDetailViewModel(
         return source.code.ifBlank { source.name }
     }
 
-    private fun toUiItem(subscription: Subscription, conversion: PriceConversion, currencies: List<Currency>) =
-        SubscriptionDetailUiItem(
-            name = subscription.name,
-            logoUrl = baseUrlProvider.toLogoUrl(subscription.logo),
-            price = moneyFormatter.format(subscription.price, subscription.currencySymbol),
-            convertedFrom = convertedFrom(subscription, conversion, currencies),
-            cycle = subscription.cycle,
-            frequency = subscription.frequency,
-            nextPayment = subscription.nextPayment?.let(dateFormatter::formatDisplayDate).orEmpty(),
-            startDate = subscription.startDate?.let(dateFormatter::formatDisplayDate).orEmpty(),
-            categoryName = subscription.categoryName,
-            paymentMethodName = subscription.paymentMethodName,
-            payerName = subscription.payerName,
-            notes = subscription.notes,
-            url = subscription.url,
-            isActive = subscription.isActive
-        )
+    private fun toUiItem(
+        subscription: Subscription,
+        conversion: PriceConversion,
+        currencies: List<Currency>,
+        refreshGeneration: Int
+    ) = SubscriptionDetailUiItem(
+        name = subscription.name,
+        logoUrl = baseUrlProvider.toLogoUrl(subscription.logo),
+        price = moneyFormatter.format(subscription.price, subscription.currencySymbol),
+        convertedFrom = convertedFrom(subscription, conversion, currencies),
+        cycle = subscription.cycle,
+        frequency = subscription.frequency,
+        nextPayment = subscription.nextPayment?.let(dateFormatter::formatDisplayDate).orEmpty(),
+        startDate = subscription.startDate?.let(dateFormatter::formatDisplayDate).orEmpty(),
+        categoryName = subscription.categoryName,
+        paymentMethodName = subscription.paymentMethodName,
+        payerName = subscription.payerName,
+        notes = subscription.notes,
+        url = subscription.url,
+        isActive = subscription.isActive,
+        logoRefreshToken = refreshGeneration
+    )
 }

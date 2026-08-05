@@ -133,7 +133,8 @@ private fun Header(subscription: SubscriptionDetailUiItem, modifier: Modifier = 
             logoUrl = subscription.logoUrl,
             name = subscription.name,
             size = HEADER_LOGO_SIZE,
-            placeholderTextStyle = MaterialTheme.typography.headlineMedium
+            placeholderTextStyle = MaterialTheme.typography.headlineMedium,
+            logoRefreshToken = subscription.logoRefreshToken
         )
 
         Text(

@@ -281,6 +281,33 @@ class SubscriptionDetailViewModelTest {
         assertEquals("US Dollar", item.convertedFrom)
     }
 
+    // --- 5.6: a recovered server reloads its logos ---------------------------------------------
+
+    /** The construction-time load already counts as one success, so the baseline is `1`, not `0`. */
+    @Test
+    fun `a successful refresh bumps the logo refresh token`() = runTest {
+        repository.result = Result.success(subscription())
+        val sut = viewModel()
+        assertEquals(1, assertNotNull(sut.uiState.value.subscription).logoRefreshToken)
+
+        sut.uiState.value.onRetryClick()
+
+        assertEquals(2, assertNotNull(sut.uiState.value.subscription).logoRefreshToken)
+    }
+
+    /** A failed refresh changed nothing about the row or its logo, so the token must not move. */
+    @Test
+    fun `a failed refresh leaves the logo refresh token alone`() = runTest {
+        repository.result = Result.success(subscription())
+        val sut = viewModel()
+        val tokenBefore = assertNotNull(sut.uiState.value.subscription).logoRefreshToken
+
+        repository.result = Result.failure(WallosError.Server("boom"))
+        sut.uiState.value.onRetryClick()
+
+        assertEquals(tokenBefore, assertNotNull(sut.uiState.value.subscription).logoRefreshToken)
+    }
+
     private fun subscription(
         id: Int = SUBSCRIPTION_ID,
         logo: String = "",
