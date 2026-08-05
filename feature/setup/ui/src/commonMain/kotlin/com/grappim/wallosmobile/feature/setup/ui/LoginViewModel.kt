@@ -257,8 +257,9 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
     }
 
     /**
-     * The prompt replaces the error rather than joining it: `getErrorMessage` would say "check the
-     * URL and your connection", and the URL and the connection were both right.
+     * The prompt replaces the error rather than joining it: `getErrorMessage` names the
+     * certificate and sends the user to Settings, which is the route for a screen that has no
+     * trust surface — this one does, and it is right here.
      */
     private fun onUntrustedCertificate(pendingCertTrust: PendingCertTrust) {
         _uiState.update { it.copy(isLoading = false, pendingCertTrust = pendingCertTrust) }

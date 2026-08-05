@@ -779,11 +779,15 @@ The prompt itself is 3.8, and it lives on the **login screen only**:
 - **`LoginUiState.pendingCertTrust` non-null *is* the dialog**, and the retry after accepting is
   `onConnectClick()` re-read from state rather than a captured lambda. Both paths are driven from
   that one state and the dialog is modal, so nothing can have changed underneath; the failed
-  attempt stored nothing either. Declining sets its own message — `getErrorMessage` would blame
-  the URL and the connection, and both were right.
-- **Nothing else in the app can raise it.** A certificate that rotates after onboarding fails
-  every refresh, and the list screen has only 3.5's stale banner — the user's way back is
-  Disconnect and log in again. Verified on the emulator, and listed under "Still open after v1".
+  attempt stored nothing either. Declining sets its own message — `getErrorMessage` would send the
+  user to Settings for a certificate this screen is already showing them.
+- **Nothing else in the app can raise the prompt, so elsewhere the copy carries it** (5.1). A
+  certificate that rotates after onboarding fails every refresh, and the list screen has only 3.5's
+  stale banner — so `getErrorMessage` asks `findPendingCertTrust()` in its non-`WallosError` arm and
+  names the certificate, pointing at Disconnect. `LoginViewModel.onFailure` asks the same question
+  *first* and raises the dialog, which is why the branch is invisible there: the copy is for screens
+  with no trust surface. A prompt on those screens would put a pin write outside `SetupRepository`
+  and is still open.
 
 ### 4.6 Version gating
 
@@ -1106,13 +1110,16 @@ tells the user which field to fix:
 | Error | Reads as | Points at |
 |---|---|---|
 | `Malformed`, `UnsupportedEndpoint` | nothing that looks like Wallos answered | the **URL** |
-| anything that isn't a `WallosError` | couldn't reach that server | the **URL** |
+| a throwable carrying an `UntrustedCertificateException` | the certificate isn't the one you trusted | **Disconnect** |
+| anything else that isn't a `WallosError` | couldn't reach that server | the **URL** |
 | `Unauthenticated` | the instance didn't accept this key | the **key** |
 | `Forbidden` / `NotFound` / `Validation` / `InUse` / `Server` | one message each | — |
 
 The `WallosError` branch is an **exhaustive `when` over the sealed class**, not a `when` over
 `Throwable` with an `else`: a new error type has to fail the build rather than quietly render as a
-connection problem. Errors that belong to one feature — `ApiKeyNotFound`, say — are handled in
+connection problem. The certificate row (5.1) is the one thing the `else` arm inspects before
+falling through, because it is the only transport failure the user can act on and the fallback copy
+argues *against* the action — see §4.5. Errors that belong to one feature — `ApiKeyNotFound`, say — are handled in
 that feature's ViewModel, since `utils:ui` must not see a `feature:*:domain` module.
 
 `ObserveAsEvents` is here too, as the collector side of the `Channel` + `receiveAsFlow()` one-off

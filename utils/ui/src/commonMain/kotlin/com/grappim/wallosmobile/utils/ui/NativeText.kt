@@ -2,7 +2,9 @@ package com.grappim.wallosmobile.utils.ui
 
 import androidx.compose.runtime.Composable
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.core.domain.findPendingCertTrust
 import com.grappim.wallosmobile.strings.RString
+import com.grappim.wallosmobile.strings.generated.resources.error_certificate_changed
 import com.grappim.wallosmobile.strings.generated.resources.error_forbidden
 import com.grappim.wallosmobile.strings.generated.resources.error_in_use
 import com.grappim.wallosmobile.strings.generated.resources.error_invalid_api_key
@@ -44,7 +46,8 @@ fun NativeText.asString(): String = when (this) {
  * that is what tells the user which field to fix: a body that never looked like Wallos, or an
  * endpoint the instance doesn't have, means the **URL** is wrong; a well-formed refusal means the
  * URL is right and the **key** is. Anything that isn't a [WallosError] never reached the envelope
- * at all — it is transport, so it points at the URL too.
+ * at all — it is transport, so it points at the URL too, unless the transport carries a
+ * certificate the user is being asked to look at.
  */
 fun getErrorMessage(throwable: Throwable): NativeText = NativeText.Resource(
     if (throwable is WallosError) {
@@ -59,6 +62,10 @@ fun getErrorMessage(throwable: Throwable): NativeText = NativeText.Resource(
             is WallosError.InUse -> RString.error_in_use
             is WallosError.Server -> RString.error_server
         }
+    } else if (throwable.findPendingCertTrust() != null) {
+        // The one transport failure the user can act on, and the one `error_unreachable` argues
+        // *against* acting on: the connection worked until the certificate changed (plan §4.5).
+        RString.error_certificate_changed
     } else {
         RString.error_unreachable
     }

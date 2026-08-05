@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `0/6`
-**Current step:** 5.1
+M4 `5/5` — **Phase 2c done** · M5 `1/6`
+**Current step:** 5.2
 
 ---
 
@@ -90,7 +90,7 @@ Three things that shape these steps:
   That is why they are steps rather than notes: the earlier step's title didn't cover them, which
   is exactly what filing them recorded.
 
-- [ ] **5.1 — utils:ui: a certificate that rotates after onboarding says so**
+- [x] **5.1 — utils:ui: a certificate that rotates after onboarding says so**
   3.8's gap, and the one with a real trap in it. `getErrorMessage` is exhaustive on `WallosError`
   and sends **everything else** to `error_unreachable` — "check the URL and your connection" — so an
   instance whose certificate changed reads as a dead server, and the one route out (Disconnect, log
@@ -104,6 +104,11 @@ Three things that shape these steps:
   **Do not add a second trust prompt.** `feature:subscriptions` has no trust surface, and writing a
   pin from it would reach past `SetupRepository` — 3.1's rule, restated in plan §4.5. Naming the
   cause is this step; a prompt anywhere a refresh can fail is a bigger change and needs its own.
+  *Note:* the branch is invisible on the login screen and that is correct — `LoginViewModel.onFailure`
+  asks `findPendingCertTrust()` first and shows the prompt, so `getErrorMessage` is only reached by
+  screens with no trust surface. Verified against the live instance behind the nginx front
+  (`https://10.0.2.2:8443`), leaf regenerated from the same CA: the pin is per-certificate, so a
+  re-issued leaf fails exactly like a new host's would.
 
 - [ ] **5.2 — feature:subscriptions:ui: the filter and sort survive process death**
   3.12 filed the inconsistency: the nav back stack is carefully serialized and the two
@@ -204,7 +209,8 @@ nobody has started. **Don't re-open the first two per step; they have both been 
 - ~~Plan §9's non-HTTPS warning~~ — **done in 3.1** (warn and steer to Path B, never disable).
   ~~1.9's `password_login_disabled` probe~~ — **done in 3.10**, off the URL field rather than off
   Connect.
-- ~~The trust prompt only exists on the login screen~~ (3.8) — **5.1** owns the copy half of it.
+- ~~The trust prompt only exists on the login screen~~ (3.8) — the copy half is **done in 5.1**:
+  a rotated certificate now names itself in the stale banner and points at Disconnect.
   A prompt *wherever* a refresh can fail is still unowned, and is a bigger change than naming the
   cause: it would put a pin write outside `SetupRepository`.
 - ~~The backoff is invisible~~ (3.10) — **5.5**.

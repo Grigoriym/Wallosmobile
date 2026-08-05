@@ -117,6 +117,7 @@
     </plurals>
 
     <string name="error_unreachable">Couldn't reach that server. Check the URL and your connection.</string>
+    <string name="error_certificate_changed">This server's certificate isn't the one you trusted. Disconnect in Settings and connect again to review the new one.</string>
     <string name="error_not_wallos">Nothing that looks like Wallos answered at that address. Check the server URL.</string>
     <string name="error_invalid_api_key">The instance didn't accept this API key.</string>
     <string name="error_forbidden">This account isn't allowed to do that.</string>

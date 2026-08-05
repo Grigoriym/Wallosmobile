@@ -1,7 +1,10 @@
 package com.grappim.wallosmobile.utils.ui
 
+import com.grappim.wallosmobile.core.domain.PendingCertTrust
+import com.grappim.wallosmobile.core.domain.UntrustedCertificateException
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.strings.RString
+import com.grappim.wallosmobile.strings.generated.resources.error_certificate_changed
 import com.grappim.wallosmobile.strings.generated.resources.error_forbidden
 import com.grappim.wallosmobile.strings.generated.resources.error_in_use
 import com.grappim.wallosmobile.strings.generated.resources.error_invalid_api_key
@@ -42,6 +45,30 @@ class GetErrorMessageTest {
         assertEquals(
             NativeText.Resource(RString.error_unreachable),
             getErrorMessage(IllegalStateException("connection refused"))
+        )
+    }
+
+    @Test
+    fun `a certificate that changed after onboarding is named, not blamed on the connection`() {
+        // The real chain, as it arrives from Conscrypt: the payload is buried under two wrappers.
+        val handshakeFailure = IllegalStateException(
+            IllegalStateException(
+                UntrustedCertificateException(
+                    PendingCertTrust(
+                        host = "wallos.example.com",
+                        subject = "CN=wallos.example.com",
+                        issuer = "CN=Homelab CA",
+                        notBefore = "2026-01-01",
+                        notAfter = "2027-01-01",
+                        sha256Fingerprint = "AA:BB:CC"
+                    )
+                )
+            )
+        )
+
+        assertEquals(
+            NativeText.Resource(RString.error_certificate_changed),
+            getErrorMessage(handshakeFailure)
         )
     }
 }

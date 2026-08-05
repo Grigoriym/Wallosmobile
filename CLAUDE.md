@@ -585,6 +585,12 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   `Throwable.findPendingCertTrust()` (`core:domain`) walks the chain for it. That is what replaced
   TaigaMobileNova's `expect`/`actual` platform-exception mapper; reach for the same shape before
   building a second one.
+  **So any "everything else" arm has to *ask*** (5.1). `getErrorMessage`'s non-`WallosError` branch
+  consults `findPendingCertTrust()` ahead of `error_unreachable`, because a rotated certificate is
+  the one transport failure the user can fix and "check the URL and your connection" argues against
+  fixing it. `LoginViewModel.onFailure` asks the same question first and raises the trust dialog
+  instead — the copy is for screens with no trust surface, so the branch is correctly invisible
+  there and a test on the login path would prove nothing about it.
 
 ## Strings and resources
 
@@ -771,7 +777,8 @@ Getting a key for that `curl`, since the app is the only other thing that has on
 
 ```bash
 curl -s -c /tmp/w.txt -o /dev/null \
-  -d "username=gregorz&password=$(sed -n '$p' docs/local-info.txt)" http://localhost:8282/login.php
+  -d "username=gregorz&password=$(grep -A1 '^gregorz$' docs/local-info.txt | tail -1)" \
+  http://localhost:8282/login.php
 curl -s -b /tmp/w.txt http://localhost:8282/profile.php | grep -o 'id="apikey"[^>]*'
 ```
 
