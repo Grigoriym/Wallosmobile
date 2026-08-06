@@ -475,9 +475,11 @@ second workflow, which runs no Gradle at all):
 Setup is JDK 21 (temurin) + `gradle/actions/setup-gradle` (cache *and* wrapper validation in one
 action, unlike Taiga's separate `wrapper-validation` + `actions/cache` steps) +
 `android-actions/setup-android`. No composite action: Taiga extracts one because it runs two
-workflows, and there is nothing here to share it with. No secrets either — WallosMobile has no
-flavors, no signing configs and no `google-services.json`, so a debug build needs nothing
-restored.
+workflows, and there is nothing here to share it with. No secrets either — the `gplay`/`fdroid`
+flavors added in 6.2 carry no signing configs and no `google-services.json`, so a debug build
+needs nothing restored. `assembleDebug` itself is unaffected: AGP still creates it as an aggregate
+task depending on `assembleGplayDebug` + `assembleFdroidDebug`, so CI's own command didn't need to
+change.
 
 Two deliberate omissions: **Kover/Codecov is not in CI** (the upload wants a `CODECOV_TOKEN` this
 repo doesn't have; `koverXmlReport` stays a local command), and `paths-ignore` skips `**.md` and
