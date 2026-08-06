@@ -44,6 +44,7 @@ include(":core:navigation")
 include(":core:async-kmp")
 include(":core:appinfo-api")
 include(":core:logger")
+include(":core:crud")
 
 include(":utils:ui")
 include(":utils:formatter:decimal")

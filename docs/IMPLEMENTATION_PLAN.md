@@ -467,6 +467,22 @@ Each feature supplies its endpoint path, ID parameter alias and DTO. This keeps 
 data layers at roughly 30 lines each instead of 150, and gives one place to encode the
 "deleting an in-use item fails with `<Resource> in use`" rule.
 
+**Built in 7.1, one type past the sketch above.** `getAll`/`add` can't be generic over `T` with
+only `CrudResource` and `CrudApi` — the list's wrapper key (`categories`, `members`, …) and the id
+alias (`categoryId`, `memberId`, …) differ per resource, and kotlinx.serialization has no way to
+parameterize a `@Serializable` field name. `CrudEndpoint(getPath, setPath, listKey, idParam)`
+carries both, and the one implementation, `WallosCrudApi<T>`, decodes every response to a raw
+`JsonObject` and pulls the list or the created id out by name rather than through a per-resource
+response DTO. A feature composes it by delegation — `CrudApi<CategoryDTO> by
+WallosCrudApi(apiClient, ENDPOINT, CategoryDTO.serializer())` — rather than reimplementing the
+four calls. The "in use" delete failure needed **no** code here at all: `WallosErrorMapper`'s
+`title.endsWith(" in use")` branch (§4.2) already maps it to `WallosError.InUse` for every
+endpoint, `core:crud`'s included, since it throws straight out of `WallosApiClient.post`.
+`core:crud` itself is `kmp.library` + `kmp.serialization` only — no `kmp.di`, since nothing in it
+is Koin-scanned (`WallosCrudApi` is constructed by each feature's data module, the same
+not-injected reasoning §6.1 gives `LoginThrottle`), matching the plugin set `domain`/`dto` modules
+use rather than `data`'s.
+
 ### 3.5 CI
 
 The build workflow — `.github/workflows/ci.yml`, one job, on push and PR to `master` (§3.6 adds a

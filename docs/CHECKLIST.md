@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `0/9`
-**Current step:** 7.1 — core:crud: the shared CRUD contract
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `1/9`
+**Current step:** 7.2 — feature:categories: data + domain + dto + mapper on core:crud
 
 ---
 
@@ -133,7 +133,7 @@ rather than by a step of its own, so no step below has to re-litigate them:
   that existing flow; a standalone module with `add`/`edit` (rate maintenance) is Phase 5's
   management-screen work, and it can sit on `core:crud` like the other three when it lands.
 
-- [ ] **7.1 — core:crud: the shared CRUD contract**
+- [x] **7.1 — core:crud: the shared CRUD contract**
   `CrudResource` (`id`, `name`, `inUse`) and `CrudApi<T>` (`getAll`/`add`/`edit`/`delete`) per plan
   §3.4, plus whatever the four `set_*.php` endpoints genuinely share: the `action=add|edit|delete`
   form shape, the per-resource ID-parameter alias, and the `"<Resource> in use"` delete failure
@@ -142,6 +142,15 @@ rather than by a step of its own, so no step below has to re-litigate them:
   *Verify:* `./gradlew :core:crud:testAndroidHostTest` — a fake resource type declared in the test
   round-tripped through `MockEngine` for `get`/`add`/`edit`/`delete`, plus the "in use" delete
   failure surfacing as a typed error.  ·  *Ref:* plan §3.4, `WALLOS_API.md` §3.10
+  **Note:** the plan sketch was interfaces only; making `getAll`/`add` actually generic needed one
+  more type, `CrudEndpoint` (`getPath`, `setPath`, `listKey`, `idParam`) — the list's wrapper key
+  and the id alias differ per resource (`categories` vs `fakeId`-style aliases in the doc), so the
+  one implementation, `WallosCrudApi<T>`, decodes to a raw `JsonObject` and pulls both out by name
+  rather than needing a per-resource response DTO. The "in use" delete failure needed no crud-side
+  code at all: `WallosErrorMapper`'s `title.endsWith(" in use")` branch already covers it for every
+  endpoint, crud included. A feature's data module is expected to compose `WallosCrudApi` by
+  delegation (`CrudApi<CategoryDTO> by WallosCrudApi(...)`) rather than reimplement the four calls —
+  unverified until 7.2 actually does it.
 
 - [ ] **7.2 — feature:categories: data + domain + dto + mapper on core:crud**
   The simplest of the four resources — `name` only, plus `order` and `in_use`. `CategoryDTO`,

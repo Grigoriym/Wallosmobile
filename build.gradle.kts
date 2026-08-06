@@ -73,6 +73,7 @@ dependencies {
     kover(project(":core:async-kmp"))
     kover(project(":core:appinfo-api"))
     kover(project(":core:logger"))
+    kover(project(":core:crud"))
 
     kover(project(":utils:ui"))
     kover(project(":utils:formatter:decimal"))
