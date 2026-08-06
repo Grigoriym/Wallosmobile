@@ -486,7 +486,8 @@ is Koin-scanned (`WallosCrudApi` is constructed by each feature's data module, t
 not-injected reasoning §6.1 gives `LoginThrottle`), matching the plugin set `domain`/`dto` modules
 use rather than `data`'s.
 
-**7.2 fixed the rest of the shape, for the two catalog modules still to come.** A DTO satisfying
+**7.2 fixed the rest of the shape, for the two catalog modules still to come; 7.3 confirmed it
+travels.** A DTO satisfying
 `CrudResource` (`CategoryDTO : CrudResource`) needs `api(projects.core.crud)` in the `dto`
 module's `build.gradle.kts` — the interface is part of the DTO's own public supertype list, so
 `implementation` would hide it from any consumer that works with the DTO as a `CrudResource`.
@@ -502,6 +503,13 @@ copy is exactly the duplication CLAUDE.md rules out. Because that line is `imple
 own repository test — cannot see `HtmlUnescaper` through `categories:mapper` alone and needs the
 same `implementation(projects.feature.subscriptions.mapper)` line itself. 7.3 and 7.4 hit this
 identically.
+
+**`AppModule`'s `includes` line is necessary but not sufficient** — `composeApp` also needs an
+ordinary Gradle dependency on the new feature's `data` and `mapper` modules
+(`composeApp/build.gradle.kts`), or `Koin.kt` fails to compile with `Unresolved reference` before
+the graph is ever built. 7.2 added that line without remarking on it; 7.3 is where it got named,
+since `:androidApp:compileGplayDebugKotlin --rerun-tasks` is what catches a forgotten one, same as
+it catches a forgotten Koin re-scan.
 
 ### 3.5 CI
 

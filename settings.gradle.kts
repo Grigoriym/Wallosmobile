@@ -71,3 +71,8 @@ include(":feature:categories:data")
 include(":feature:categories:domain")
 include(":feature:categories:dto")
 include(":feature:categories:mapper")
+
+include(":feature:household:data")
+include(":feature:household:domain")
+include(":feature:household:dto")
+include(":feature:household:mapper")

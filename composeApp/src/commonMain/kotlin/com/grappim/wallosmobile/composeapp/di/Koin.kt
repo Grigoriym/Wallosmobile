@@ -10,6 +10,8 @@ import com.grappim.wallosmobile.core.storage.StorageModule
 import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
 import com.grappim.wallosmobile.feature.categories.data.CategoriesDataModule
 import com.grappim.wallosmobile.feature.categories.mapper.CategoriesMapperModule
+import com.grappim.wallosmobile.feature.household.data.HouseholdDataModule
+import com.grappim.wallosmobile.feature.household.mapper.HouseholdMapperModule
 import com.grappim.wallosmobile.feature.settings.ui.SettingsUiModule
 import com.grappim.wallosmobile.feature.setup.data.SetupDataModule
 import com.grappim.wallosmobile.feature.setup.ui.SetupUiModule
@@ -50,6 +52,8 @@ import org.koin.core.annotation.Single
         SubscriptionsUiModule::class,
         CategoriesDataModule::class,
         CategoriesMapperModule::class,
+        HouseholdDataModule::class,
+        HouseholdMapperModule::class,
         DateTimeFormatterModule::class,
         DecimalFormatterModule::class
     ]

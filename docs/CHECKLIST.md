@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `2/9`
-**Current step:** 7.3 — feature:household: data + domain + dto + mapper on core:crud
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `3/9`
+**Current step:** 7.4 — feature:paymentmethods: data + domain + dto + mapper on core:crud
 
 ---
 
@@ -176,12 +176,23 @@ rather than by a step of its own, so no step below has to re-litigate them:
   7.6 — `KoinGraphTest`'s `verify()` costs nothing on an unreached definition and a forgotten
   `includes` line is a runtime crash waiting for whichever step first injects it.
 
-- [ ] **7.3 — feature:household: data + domain + dto + mapper on core:crud**
+- [x] **7.3 — feature:household: data + domain + dto + mapper on core:crud**
   Same shape as 7.2, copied — the second instance of the pattern should take a fraction of 7.2's
   time. Adds the optional `email` field. `memberId`/`id` alias.
   *Verify:* `./gradlew :feature:household:data:testAndroidHostTest`
   `:feature:household:mapper:testAndroidHostTest`, same coverage as 7.2.
   ·  *Ref:* `WALLOS_API.md` §3.10
+  **Note:** confirmed `email` against the live PHP (`api/household/set_household.php`) rather than
+  trusting the doc's summary alone — both `add` and `edit` run `email` through the same `validate()`
+  as `name`, so `HouseholdMemberMapper` unescapes both, not just the name. The response's list key
+  is `"household"`, not the plan's illustrative `"members"` — §3.4's `CrudEndpoint` sketch used a
+  generic placeholder name, not the real one. Domain model is `HouseholdMember` (not `Household`,
+  which would name the collection rather than a row) with methods `getMembers`/`addMember`/
+  `editMember`/`deleteMember` on `HouseholdRepository`, matching 7.2's `Category`/`getCategories`
+  naming pattern one level down. `composeApp/build.gradle.kts` needed the two new module lines
+  (`implementation(projects.feature.household.data/.mapper)`) that 7.2 already added for categories
+  — `AppModule`'s `includes` alone doesn't make the classes resolvable, the module needs the
+  dependency too; `:androidApp:compileGplayDebugKotlin --rerun-tasks` is what caught the miss.
 
 - [ ] **7.4 — feature:paymentmethods: data + domain + dto + mapper on core:crud**
   Same shape again; `enabled` (`1`/`0`) and `icon`. **`icon` is already a full relative path**

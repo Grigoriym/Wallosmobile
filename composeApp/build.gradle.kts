@@ -32,6 +32,8 @@ kotlin {
             implementation(projects.feature.subscriptions.ui)
             implementation(projects.feature.categories.data)
             implementation(projects.feature.categories.mapper)
+            implementation(projects.feature.household.data)
+            implementation(projects.feature.household.mapper)
             implementation(projects.utils.formatter.datetime)
             implementation(projects.utils.formatter.decimal)
 

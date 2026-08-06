@@ -99,6 +99,11 @@ dependencies {
     kover(project(":feature:categories:domain"))
     kover(project(":feature:categories:dto"))
     kover(project(":feature:categories:mapper"))
+
+    kover(project(":feature:household:data"))
+    kover(project(":feature:household:domain"))
+    kover(project(":feature:household:dto"))
+    kover(project(":feature:household:mapper"))
 }
 
 tasks.register<Delete>("clean") {
