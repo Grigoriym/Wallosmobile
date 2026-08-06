@@ -246,9 +246,12 @@ feature/
   setup/          data domain dto ui      Onboarding: login bridge + manual key entry (§1.1)
   subscriptions/  data domain dto mapper ui   List, detail, add/edit/delete
   dashboard/      data domain dto ui      Monthly cost, period budget, upcoming payments
-  categories/     data domain dto ui      \  Reference data. Identical CRUD shape — see §3.4 on
-  paymentmethods/ data domain dto ui       | core:crud. No feature:currencies module: that data
-  household/      data domain dto ui      /  stays inside subscriptions/ — see §3.4's note.
+  categories/     data domain dto mapper  \  Reference data. Identical CRUD shape — see §3.4 on
+  paymentmethods/ data domain dto mapper   | core:crud. No feature:currencies module: that data
+  household/      data domain dto mapper  /  stays inside subscriptions/ — see §3.4's note.
+                                              No `ui` of their own: M7 (`docs/CHECKLIST.md`)
+                                              surfaces all three as pickers inside
+                                              `feature:subscriptions:ui`, confirmed building 7.2.
   settings/       ui (data domain dto later)  Disconnect stub in v1; display settings in Phase 5
   profile/        data domain dto ui      get_user, set_budget
   notifications/  data domain dto ui      Read-only channel config
@@ -482,6 +485,23 @@ endpoint, `core:crud`'s included, since it throws straight out of `WallosApiClie
 is Koin-scanned (`WallosCrudApi` is constructed by each feature's data module, the same
 not-injected reasoning §6.1 gives `LoginThrottle`), matching the plugin set `domain`/`dto` modules
 use rather than `data`'s.
+
+**7.2 fixed the rest of the shape, for the two catalog modules still to come.** A DTO satisfying
+`CrudResource` (`CategoryDTO : CrudResource`) needs `api(projects.core.crud)` in the `dto`
+module's `build.gradle.kts` — the interface is part of the DTO's own public supertype list, so
+`implementation` would hide it from any consumer that works with the DTO as a `CrudResource`.
+The repository itself has **no cache**: unlike `SubscriptionsRepository` (§3.x, 3.4), reference
+data has no offline requirement in this milestone, so `CategoriesRepository` is a plain
+`resultOf`-wrapped round trip per call, not `observe*`/`refresh*`.
+
+Reusing `HtmlUnescaper` (CLAUDE.md's "Wire text needs unescaping" note) makes
+`feature:categories:mapper` the repo's **first cross-feature dependency**:
+`implementation(projects.feature.subscriptions.mapper)`, since a fourth catalog `HtmlUnescaper`
+copy is exactly the duplication CLAUDE.md rules out. Because that line is `implementation`, not
+`api`, a downstream module that constructs a real `CategoryMapper` — `feature:categories:data`'s
+own repository test — cannot see `HtmlUnescaper` through `categories:mapper` alone and needs the
+same `implementation(projects.feature.subscriptions.mapper)` line itself. 7.3 and 7.4 hit this
+identically.
 
 ### 3.5 CI
 

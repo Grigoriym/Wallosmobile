@@ -94,6 +94,11 @@ dependencies {
     kover(project(":feature:subscriptions:dto"))
     kover(project(":feature:subscriptions:mapper"))
     kover(project(":feature:subscriptions:ui"))
+
+    kover(project(":feature:categories:data"))
+    kover(project(":feature:categories:domain"))
+    kover(project(":feature:categories:dto"))
+    kover(project(":feature:categories:mapper"))
 }
 
 tasks.register<Delete>("clean") {

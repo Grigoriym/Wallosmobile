@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `1/9`
-**Current step:** 7.2 — feature:categories: data + domain + dto + mapper on core:crud
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `2/9`
+**Current step:** 7.3 — feature:household: data + domain + dto + mapper on core:crud
 
 ---
 
@@ -152,7 +152,7 @@ rather than by a step of its own, so no step below has to re-litigate them:
   delegation (`CrudApi<CategoryDTO> by WallosCrudApi(...)`) rather than reimplement the four calls —
   unverified until 7.2 actually does it.
 
-- [ ] **7.2 — feature:categories: data + domain + dto + mapper on core:crud**
+- [x] **7.2 — feature:categories: data + domain + dto + mapper on core:crud**
   The simplest of the four resources — `name` only, plus `order` and `in_use`. `CategoryDTO`,
   domain `Category(id, name, inUse)` (`order` stays out of the domain model — nothing in Phase 3
   reads it; Phase 5's list screen adds it if it needs it, per 2.1's "domain model only what the
@@ -164,6 +164,17 @@ rather than by a step of its own, so no step below has to re-litigate them:
   `:feature:categories:mapper:testAndroidHostTest` — get/add/edit/delete against `MockEngine`
   fixtures, and `"Category in use"` mapped to the typed delete-failure from 7.1.
   ·  *Ref:* `WALLOS_API.md` §3.10, plan §3.4
+  **Note:** `CategoriesRepository` has no cache behind it — unlike `SubscriptionsRepository`
+  (3.4), reference data has no offline requirement in this milestone, so `get`/`add`/`edit`/
+  `delete` are plain round trips wrapped in `resultOf`, not `observe*`/`refresh*`. Reusing
+  `HtmlUnescaper` means `feature:categories:mapper` takes `implementation(projects.feature.
+  subscriptions.mapper)` — the first cross-feature dependency in the repo — and any module that
+  constructs a real `CategoryMapper` in tests (`feature:categories:data`'s repository test) needs
+  its own `implementation` line on it too, since `categories:mapper` doesn't re-export it as `api`.
+  `CategoriesDataModule`/`CategoriesMapperModule` were wired into `AppModule`'s `includes` in this
+  step, same as 2.3 did for subscriptions, even though nothing calls `CategoriesRepository` until
+  7.6 — `KoinGraphTest`'s `verify()` costs nothing on an unreached definition and a forgotten
+  `includes` line is a runtime crash waiting for whichever step first injects it.
 
 - [ ] **7.3 — feature:household: data + domain + dto + mapper on core:crud**
   Same shape as 7.2, copied — the second instance of the pattern should take a fraction of 7.2's

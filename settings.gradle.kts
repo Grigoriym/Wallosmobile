@@ -66,3 +66,8 @@ include(":feature:subscriptions:domain")
 include(":feature:subscriptions:dto")
 include(":feature:subscriptions:mapper")
 include(":feature:subscriptions:ui")
+
+include(":feature:categories:data")
+include(":feature:categories:domain")
+include(":feature:categories:dto")
+include(":feature:categories:mapper")
