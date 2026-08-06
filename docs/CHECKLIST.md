@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `1/2`
-**Current step:** 6.2
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done**
+**Current step:** none — M6 closed; Phase 3 still needs decomposing into steps
 
 ---
 
@@ -117,7 +117,7 @@ Both are cheap in code and expensive in **documentation**: `CLAUDE.md`'s emulato
   default wallpaper, ours included — an emulator/wallpaper limitation, not evidence about the
   monochrome layer, which is correctly wired.
 
-- [ ] **6.2 — build-logic: gplay and fdroid flavors, and a debug build that says it is one**
+- [x] **6.2 — build-logic: gplay and fdroid flavors, and a debug build that says it is one**
   There are no product flavors today (0.3 dropped Taiga's deliberately) and no
   `applicationIdSuffix`, so a debug install *replaces* a release one and both are called
   "Wallosmobile" on the launcher. Port Taiga's `AppFlavors.kt` + `configureFlavors()` — one `store`
@@ -146,6 +146,33 @@ Both are cheap in code and expensive in **documentation**: `CLAUDE.md`'s emulato
   Compose resource that the drawer header reads — renaming only the first leaves the drawer saying
   the release name inside the debug app, which is either fine or the point, and the note should say
   which was chosen.
+  Note: ported `AppFlavors.kt`/`AppBuildTypes.kt` from TaigaMobileNova verbatim (package
+  `com.grappim.wallosmobile.buildlogic`) and wired both into `AndroidApplicationConventionPlugin` —
+  `applicationIdSuffix` on the debug/release build types, `configureFlavors(this)` alongside
+  `configureKotlinAndroid(this)`. No signing-config changes; Taiga's release/debug keystore blocks
+  weren't part of this ask and this repo has no keystores to point them at.
+  `androidApp/src/debug/AndroidManifest.xml` overrides only `android:label` with
+  `tools:replace="label"` — Wallos's main manifest sets no `allowBackup`/`dataExtractionRules`
+  overrides for Taiga's debug manifest to replace, so those attributes were left out rather than
+  copied for parity. Per-flavour debug names live in `src/gplayDebug/res/values/strings.xml` and
+  `src/fdroidDebug/res/values/strings.xml` alone (`"Dbg G Wallosmobile"` / `"Dbg F Wallosmobile"`) —
+  no fallback `app_name_debug` in `main/`, since every real debug variant is one of those two
+  flavour-debug source sets and a third definition would never be read.
+  **The Compose `app_name` the drawer reads stays the release string in every variant** — Taiga's
+  own drawer widget reads the same unsuffixed resource in its debug build, so this follows that
+  precedent rather than inventing a second, flavour-aware string the plan never asked for; the
+  Android manifest label is the only thing that changes.
+  Verified on-device (macOS `Pixel_9a` AVD, not the Linux `Medium_Phone_API_36.1` this file
+  otherwise names): `assembleGplayDebug`+`assembleFdroidDebug` both build,
+  `installGplayDebug`+`installFdroidDebug` coexist, `pm list packages | grep wallosmobile` shows
+  `com.grappim.wallosmobile.debug` and `com.grappim.wallosmobile.fdroid.debug` side by side, the app
+  drawer shows "Dbg G Wallo…" and "Dbg F Wallo…" as distinct entries, and
+  `am start -n com.grappim.wallosmobile.debug/com.grappim.wallosmobile.MainActivity` (full class
+  name, no leading dot) launches the gplay variant. Rewrote every emulator recipe in this file that
+  named `com.grappim.wallosmobile`, `installDebug` or `compileDebugKotlin` to the `gplayDebug`
+  variant, and added a line documenting that choice — except "Package root `com.grappim.wallosmobile`."
+  under Non-negotiables, which names the Kotlin namespace, not the applicationId, and is unaffected.
+  `Gate-change:` this step edits `build-logic/`.
 
 ---
 

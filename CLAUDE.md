@@ -62,7 +62,7 @@ or a step counts.
 ## Build commands
 
 ```bash
-./gradlew :androidApp:assembleDebug          # build
+./gradlew :androidApp:assembleGplayDebug :androidApp:assembleFdroidDebug   # build (both store flavors)
 ./gradlew allTests                           # all KMP module tests
 ./gradlew :module:path:testAndroidHostTest   # one module
 ./gradlew detekt ktlintCheck                 # must pass before ticking a step
@@ -84,7 +84,7 @@ or a step counts.
 # Force the Koin compiler plugin to re-run after DI changes ("no definition found" crashes).
 # Koin here is a Kotlin compiler plugin, NOT classic KSP — there is no build/generated/ksp/**
 # to inspect; a clean compile is the only signal that new @Single/@KoinViewModel were picked up.
-./gradlew :androidApp:compileDebugKotlin --rerun-tasks
+./gradlew :androidApp:compileGplayDebugKotlin --rerun-tasks
 
 # To actually see what a module's @ComponentScan found — the graph can't be started before the
 # app is wired — read the generated module out of the bytecode. One `module$lambda` per definition:
@@ -99,10 +99,18 @@ assembling. Headless, no snapshot, no interaction needed beyond `input tap`:
 ~/Android/Sdk/emulator/emulator -avd Medium_Phone_API_36.1 -no-snapshot-save -no-boot-anim \
   -gpu swiftshader_indirect &
 adb wait-for-device shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done'
-./gradlew :androidApp:installDebug && adb shell am start -n com.grappim.wallosmobile/.MainActivity
+./gradlew :androidApp:installGplayDebug && \
+  adb shell am start -n com.grappim.wallosmobile.debug/com.grappim.wallosmobile.MainActivity
 adb exec-out screencap -p > shot.png   # then read shot.png; tap with `adb shell input tap X Y`
 adb emu kill                           # don't leave it running
 ```
+
+**Every recipe below is written against the `gplayDebug` variant** (6.2) — pick either flavor for
+day-to-day verification, they're identical besides the id, and `gplay` carries no suffix of its
+own, so its installed id is the shortest: `com.grappim.wallosmobile.debug`. Substitute
+`com.grappim.wallosmobile.fdroid.debug` and `installFdroidDebug` throughout for the other flavor.
+**`am start -n` needs the fully-qualified activity name** (`com.grappim.wallosmobile.MainActivity`,
+no leading dot) once the id carries a suffix — the class itself is not renamed, only the package.
 
 `screencap` is 1080×2400 while the image comes back scaled — multiply the coordinates read off
 the screenshot by the stated factor before feeding them to `input tap`.
@@ -134,8 +142,8 @@ import base64
 def ld(b): return bytes([len(b)])+b
 v=b'\x2a'+ld(b'dark'); e=b'\x0a'+ld(b'theme_mode')+b'\x12'+ld(v)   # key, then Value.string
 print(base64.b64encode(b'\x0a'+ld(e)).decode())"
-adb shell "run-as com.grappim.wallosmobile sh -c 'echo <b64> | base64 -d >> \
-  /data/data/com.grappim.wallosmobile/files/datastore/wallos_storage.preferences_pb'"
+adb shell "run-as com.grappim.wallosmobile.debug sh -c 'echo <b64> | base64 -d >> \
+  /data/data/com.grappim.wallosmobile.debug/files/datastore/wallos_storage.preferences_pb'"
 ```
 
 **Note the quoting**: `adb` flattens its arguments into one string that the *device's* shell
@@ -190,7 +198,7 @@ divergence says which one won.
 and they render identically whether the refresh succeeded, failed or never ran. **They also survive
 a change of server**, which is what a step verifying against a scratch instance has to get past:
 the app comes up on the *last* instance's cached rows, and a screenshot of them is a screenshot of
-the wrong instance. `adb shell pm clear com.grappim.wallosmobile` and log in again is the shortest
+the wrong instance. `adb shell pm clear com.grappim.wallosmobile.debug` and log in again is the shortest
 way in (Disconnect works too — `ApiKeyStorage.clear()` evicts the cache — but it is several taps
 deeper), and the stale banner ("Showing saved data") over a full list is the tell that the rows on
 screen belong to a server that is no longer the one configured. To prove a request
@@ -216,8 +224,8 @@ process, so anything that only breaks when the *process* is rebuilt passes it. T
 to background the app and kill it:
 
 ```bash
-adb shell input keyevent KEYCODE_HOME && adb shell am kill com.grappim.wallosmobile
-adb shell monkey -p com.grappim.wallosmobile -c android.intent.category.LAUNCHER 1
+adb shell input keyevent KEYCODE_HOME && adb shell am kill com.grappim.wallosmobile.debug
+adb shell monkey -p com.grappim.wallosmobile.debug -c android.intent.category.LAUNCHER 1
 ```
 
 `am kill` keeps the task and its saved state; `force-stop` discards them, so it tests nothing.
@@ -775,7 +783,7 @@ loads go through Coil, which has no `Logging` plugin, so `adb logcat` says nothi
 `docker logs wallos-tls | grep images/uploads/logos` does, and the `"ktor-client"` user-agent on a
 `200` is what says the load used the app's pinned engine rather than a stack that would have failed
 the handshake. **Coil caches on disk**, so a second run proves nothing until
-`adb shell run-as com.grappim.wallosmobile rm -rf /data/data/com.grappim.wallosmobile/cache/coil3_disk_cache`
+`adb shell run-as com.grappim.wallosmobile.debug rm -rf /data/data/com.grappim.wallosmobile.debug/cache/coil3_disk_cache`
 — that path, and `pm clear` for everything at once. A failed load is also **sticky per request**:
 Coil does not retry a state that is already `Error`, so after the server comes back the rows keep
 their placeholders until they recompose (scroll them off and on).

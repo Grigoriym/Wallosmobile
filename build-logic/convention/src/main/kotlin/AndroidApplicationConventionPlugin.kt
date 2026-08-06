@@ -1,4 +1,6 @@
 import com.android.build.api.dsl.ApplicationExtension
+import com.grappim.wallosmobile.buildlogic.AppBuildTypes
+import com.grappim.wallosmobile.buildlogic.configureFlavors
 import com.grappim.wallosmobile.buildlogic.configureKotlinAndroid
 import com.grappim.wallosmobile.buildlogic.configureLinting
 import com.grappim.wallosmobile.buildlogic.configureTests
@@ -23,11 +25,15 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
 
                 buildTypes {
                     debug {
+                        applicationIdSuffix = AppBuildTypes.DEBUG.applicationIdSuffix
+
                         isDebuggable = true
                         isMinifyEnabled = false
                         isShrinkResources = false
                     }
                     release {
+                        applicationIdSuffix = AppBuildTypes.RELEASE.applicationIdSuffix
+
                         isDebuggable = false
                         isMinifyEnabled = true
                         isShrinkResources = true
@@ -58,6 +64,7 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     compose = true
                 }
 
+                configureFlavors(this)
                 configureKotlinAndroid(this)
             }
 
