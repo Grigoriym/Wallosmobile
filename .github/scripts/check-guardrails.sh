@@ -36,12 +36,12 @@ count_non_negotiables() {
     true
 }
 
-# Both halves of the checklist: 3.7 moved the ticked steps to CHECKLIST-DONE.md, and an archive
-# outside the wire would be a place to quietly rewrite history. Summed, so the split itself is
-# the only edit that moves the total.
+# Both halves of the checklist: 3.7 moved the ticked steps to CHECKLIST-DONE.md (relocated under
+# docs/archive/ in the 2026-08-06 docs cleanup), and an archive outside the wire would be a place
+# to quietly rewrite history. Summed, so the split itself is the only edit that moves the total.
 count_checklist_steps() {
   local total=0 file
-  for file in docs/CHECKLIST.md docs/CHECKLIST-DONE.md; do
+  for file in docs/CHECKLIST.md docs/archive/CHECKLIST-DONE.md; do
     total=$((total + $(git show "$1:$file" 2>/dev/null | grep -cE '^- \[[ x]\] \*\*' || true)))
   done
   echo "$total"

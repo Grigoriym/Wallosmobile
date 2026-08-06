@@ -246,10 +246,9 @@ feature/
   setup/          data domain dto ui      Onboarding: login bridge + manual key entry (§1.1)
   subscriptions/  data domain dto mapper ui   List, detail, add/edit/delete
   dashboard/      data domain dto ui      Monthly cost, period budget, upcoming payments
-  categories/     data domain dto ui      \
-  currencies/     data domain dto ui       |  Reference data. Identical CRUD shape —
-  paymentmethods/ data domain dto ui       |  see §3.4 on core:crud
-  household/      data domain dto ui      /
+  categories/     data domain dto ui      \  Reference data. Identical CRUD shape — see §3.4 on
+  paymentmethods/ data domain dto ui       | core:crud. No feature:currencies module: that data
+  household/      data domain dto ui      /  stays inside subscriptions/ — see §3.4's note.
   settings/       ui (data domain dto later)  Disconnect stub in v1; display settings in Phase 5
   profile/        data domain dto ui      get_user, set_budget
   notifications/  data domain dto ui      Read-only channel config
@@ -435,10 +434,17 @@ growing the convention plugin for one screen.
 
 ### 3.4 `core:crud` — the one deliberate deviation
 
-Categories, currencies, household members and payment methods are four separate feature modules
-(matching Taiga's granularity, since each gets its own screen), but their API contract is
-byte-identical: `get_*.php` returning `[{id, name, …, in_use}]`, and `set_*.php` with
-`action=add|edit|delete`, differing only in field names and the ID parameter alias.
+Categories, household members and payment methods are three separate feature modules (matching
+Taiga's granularity, since each gets its own screen), but their API contract is byte-identical:
+`get_*.php` returning `[{id, name, …, in_use}]`, and `set_*.php` with `action=add|edit|delete`,
+differing only in field names and the ID parameter alias.
+
+**Currencies do not get a fourth module here.** The original sketch below counted four, but by the
+time Phase 3 was decomposed (§10) `feature:subscriptions` already had a full read path for
+currencies — 2.3's `currencySymbol` join and 3.11's `observeCurrencies` cache — so a
+`feature:currencies` module would duplicate it for no caller. Phase 3's currency picker reads that
+existing flow; a standalone module with `add`/`edit` (rate maintenance) is Phase 5 management-screen
+work, and it can sit on `core:crud` the same way the other three do when it lands.
 
 `core:crud` holds that shape once:
 
@@ -457,7 +463,7 @@ interface CrudApi<T : CrudResource> {
 }
 ```
 
-Each feature supplies its endpoint path, ID parameter alias and DTO. This keeps four modules'
+Each feature supplies its endpoint path, ID parameter alias and DTO. This keeps three modules'
 data layers at roughly 30 lines each instead of 150, and gives one place to encode the
 "deleting an in-use item fails with `<Resource> in use`" rule.
 
@@ -1690,9 +1696,9 @@ v1 small:
   (Landed: the warning in 3.1, the probe and `LoginThrottle` in 3.10 — see §1.1.)
 - Writes, dashboard, catalog CRUD, settings, profile, notifications.
 
-`core:crud`, `core:serialization` and the `categories`/`currencies`/`paymentmethods`/`household`
-feature modules don't exist yet in v1 — currencies is a single API call inside
-`feature:subscriptions` until it earns its own module in Phase 3.
+`core:crud`, `core:serialization` and the `categories`/`paymentmethods`/`household` feature modules
+don't exist yet in v1 — currencies stays a single API call inside `feature:subscriptions`
+permanently, per §3.4's note; it never earns its own module.
 
 ### 7.3 Full screen set (eventual)
 
@@ -1827,9 +1833,15 @@ front, since both are about what happens *after* a connection was working.
 
 ### Phase 3 — Subscriptions, write + reference data
 Add / edit / delete, including the multipart logo upload and `logo_url` fetch. `feature:categories`,
-`currencies`, `paymentmethods`, `household` data+domain layers on `core:crud`, surfaced first as
-pickers inside the subscription editor. Enforce: `ONE_TIME` unavailable, strict date format,
-`"1"`/`"0"` encoding, re-read after write to confirm the logo landed.
+`paymentmethods`, `household` data+domain layers on `core:crud`, surfaced first as pickers inside
+the subscription editor — currencies reuse `feature:subscriptions`'s existing read path rather than
+a fourth module (§3.4, §10). Enforce: `ONE_TIME` unavailable, strict date format, `"1"`/`"0"`
+encoding, re-read after write to confirm the logo landed.
+*Decomposed as **M7** in `docs/CHECKLIST.md`* (9 steps): `core:crud` plus the three catalog modules
+(7.1–7.4), the repository's write methods (7.5), the add/edit form and its list/detail entry points
+(7.6–7.7), then the two logo paths split into their own steps (7.8–7.9) since the upload path is the
+milestone's one new platform seam — an `expect`/`actual` image picker, the first since 3.7's trust
+manager.
 
 ### Phase 4 — Dashboard
 `get_monthly_cost` and `get_period_budget` with version gating, upcoming payments derived locally
@@ -1870,12 +1882,7 @@ Re-enable the iOS and Desktop targets in `configureKmp()` and restore the entry-
 
 ### Still open
 
-1. **Money representation** — *needed at checklist step 2.2.* `Double` + careful formatting is
-   enough if the client never does arithmetic beyond summation. If it does, KMP needs an external
-   big-decimal library.
-2. **Catalog module granularity** — *not needed until Phase 3.* §3.4 proposes four feature modules
-   over a shared `core:crud`. The alternative is one `feature:catalog` module — less boilerplate,
-   but it diverges from the Taiga structure being mirrored.
+Nothing at present — the two entries this section held are both settled below.
 
 ### Settled
 
@@ -1887,6 +1894,15 @@ Re-enable the iOS and Desktop targets in `configureKmp()` and restore the entry-
 - **nav3 placement** — `NavigationState`/`Navigator`/`toEntries()` live in `core:navigation`
   (§5.2), not in `composeApp` as MealieMobile has them, so `Navigator` stays unit-testable.
 - **Shell** — `ModalNavigationDrawer`, not bottom navigation, matching both reference apps (§5.4).
+- **Money representation** — `Double` + careful formatting, no external big-decimal library.
+  Settled by 2.2: the client never does arithmetic beyond summation, and money formatting is fixed
+  `1,234.56` with hand-rolled half-up rounding rather than device-locale — see the Domain modelling
+  notes under §6.1.
+- **Catalog module granularity** — three feature modules over `core:crud`
+  (`categories`/`household`/`paymentmethods`), not the four §3.4 originally sketched and not a
+  single `feature:catalog`. Settled when Phase 3 was decomposed into `docs/CHECKLIST.md`'s M7:
+  currencies stays inside `feature:subscriptions`, which already built a full read path for it in
+  2.3 and 3.11 — a fourth module would duplicate that for no caller. See §3.4's note.
 
 ### Superseded
 

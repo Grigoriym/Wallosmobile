@@ -1,14 +1,16 @@
 # WallosMobile — Build Checklist, completed steps
 
-The ticked half of [`CHECKLIST.md`](./CHECKLIST.md), moved here so a session reading the plan for
-step N isn't reading a thousand lines of steps that are already in the code. Nothing was reworded
-on the way over.
+The ticked half of [`../CHECKLIST.md`](../CHECKLIST.md), moved here so a session reading the plan
+for step N isn't reading a thousand lines of steps that are already in the code. Nothing was
+reworded on the way over.
 
 **Read it for precedent, not for instructions.** Each step's `Note:` records what that step
 learned, and by the close-out ritual in `CLAUDE.md` anything *structural* in one has already been
-folded into [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) — the plan is canonical where the
-two disagree, and a note that contradicts it is a missed fold worth fixing. The Deviations log
-stays in `CHECKLIST.md`: it is the table the close-out ritual still writes to.
+folded into [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md) — the plan is canonical where
+the two disagree, and a note that contradicts it is a missed fold worth fixing. A frozen
+step-by-step index of those folds through 6.1 lives beside this file, in
+[`DEVIATIONS.md`](./DEVIATIONS.md); nothing appends to it any more (retired 2026-08-06 as
+duplicate of the fold itself), so a step after 6.1 has no row there — only its own `Note:` below.
 
 Step numbers are stable and are what the rest of the docs cite, so `1.10`, `2.3` and `3.3` mean
 the same thing here as anywhere else.
@@ -1524,3 +1526,108 @@ Three things that shape these steps:
   access log shows all eight `images/uploads/logos/*` requests re-issued with the `ktor-client`
   user-agent in the same second, confirming a real re-fetch rather than a stale render.
 
+
+## M6 — packaging and identity (not in plan §8's phase order)
+
+Goal: the app stops looking and installing like a scaffold. **Done when** the launcher shows the
+user's logo, and a debug build can sit on the same device as a release one without either of them
+being ambiguous about which is which.
+
+Neither step is a defect and neither blocks the other — they are here because they are the two
+things that are *only* obvious from outside the code, and both get forgotten the moment a feature
+step is available to do instead. Take them in either order.
+
+Both are cheap in code and expensive in **documentation**: `CLAUDE.md`'s emulator recipes hardcode
+`com.grappim.wallosmobile` and `installDebug`, and 6.2 invalidates every one of them.
+
+- [x] **6.1 — androidApp: the launcher icon is the app's own**
+  The icon is still Android Studio's scaffold — `drawable/ic_launcher_background.xml` plus
+  `drawable-v24/ic_launcher_foreground.xml` (the green droid), with legacy PNG pairs in all five
+  `mipmap-*dpi/`. **The user supplies the artwork; don't draw or generate one.** Replace the
+  adaptive layers, regenerate the legacy PNGs — `minSdk = 24`, so the `mipmap-*dpi` bitmaps are
+  still the icon on API 24–25 and cannot simply be deleted — and add a `<monochrome>` layer to
+  `mipmap-anydpi-v26/ic_launcher.xml` and `ic_launcher_round.xml`, which the current scaffold has
+  no entry for and which is what Android 13+ themed icons read.
+  Scope is the **launcher** icon. The drawer header draws `stringResource(RString.app_name)` as
+  text (`WallosDrawerWidget`) and the login screen has no mark at all; putting the logo in either is
+  a separate ask, so do it only if the user says so when handing over the asset.
+  *Verify:* install on the emulator, `adb shell input keyevent KEYCODE_HOME`, and screencap the
+  launcher — plus one `adb shell cmd uimode night yes` capture, since a logo with a light background
+  is the one that disappears against a dark launcher. Say in the note which shapes were checked
+  (adaptive mask, round, themed).  ·  *Ref:* `androidApp/src/main/res/`, `AndroidManifest.xml`'s
+  `android:icon` / `android:roundIcon`
+  Note: the user supplied `art/wallosmobile_logo.png` (a navy circular "sticker" mark, full bleed
+  on transparent) and ran Android Studio's Image Asset Studio to generate the adaptive layers —
+  it already wired `<monochrome android:drawable="@mipmap/ic_launcher_foreground"/>` into both
+  `ic_launcher.xml` and `ic_launcher_round.xml` unprompted, reusing the foreground (fine: themed
+  icons key off alpha, not colour). What the wizard left alone was
+  `drawable/ic_launcher_background.xml` — still the scaffold's opaque green grid. Since the
+  foreground art already bakes in its own navy disc on a transparent canvas (unlike Taiga's/
+  Mealie's bare-glyph foregrounds, which need a background fill for contrast), the leftover
+  scaffold background showed through as a black-ish ring in the adaptive mask's safe-zone margin —
+  confirmed on device before and after. Replaced it with a single fully-transparent path (matching
+  Taiga/Mealie's simplified one-`<path>` vector shape, just transparent instead of their opaque
+  tint), which removed the ring. **A wizard reimport reverts this file** — it happened mid-step —
+  so re-check it after any future regeneration. Verified adaptive mask shape in both light and
+  dark launcher (drawer, `cmd uimode night yes/no`); round icon file was regenerated but not
+  separately forced on-screen (Pixel launcher always masks to its own circle). Themed icons
+  (`settings put secure themed_icons 1`) produced no visible retint for *any* app on this AVD's
+  default wallpaper, ours included — an emulator/wallpaper limitation, not evidence about the
+  monochrome layer, which is correctly wired.
+
+- [x] **6.2 — build-logic: gplay and fdroid flavors, and a debug build that says it is one**
+  There are no product flavors today (0.3 dropped Taiga's deliberately) and no
+  `applicationIdSuffix`, so a debug install *replaces* a release one and both are called
+  "Wallosmobile" on the launcher. Port Taiga's `AppFlavors.kt` + `configureFlavors()` — one `store`
+  dimension, `gplay` and `fdroid`, the latter with `applicationIdSuffix = ".fdroid"` — and Taiga's
+  `AppBuildTypes` `.debug` suffix on the debug build type. The debug *name* is Taiga's shape too:
+  `androidApp/src/debug/AndroidManifest.xml` overriding `android:label="@string/app_name_debug"`,
+  with a per-flavour-debug `strings.xml` under `src/gplayDebug/` and `src/fdroidDebug/`.
+  **Nothing in this app differs by store** — no Play Services, no Firebase, nothing proprietary to
+  strip — so this is distribution identity and side-by-side installs, not a source split. Don't
+  create empty `src/gplay/kotlin` trees, and don't put the flavour in the About screen unless the
+  user asks.
+  *Verify:* `./gradlew :androidApp:assembleGplayDebug :androidApp:assembleFdroidDebug`, install
+  both, `adb shell pm list packages | grep wallosmobile` showing two ids, and a launcher screencap
+  showing two distinguishable names.
+  ·  *Ref:* TaigaMobileNova `build-logic/.../AppFlavors.kt`, `AppBuildTypes.kt`,
+  `androidApp/src/debug/AndroidManifest.xml`
+  **Three things make this bigger than the diff.** It edits `build-logic/`, so the commit needs a
+  `Gate-change:` line (`CLAUDE.md`, "Changing a gate means saying so"). It **breaks every emulator
+  recipe in `CLAUDE.md`**: `installDebug` stops existing (it is `installGplayDebug` /
+  `installFdroidDebug`), `compileDebugKotlin` — the Koin `--rerun-tasks` line — gains a flavour, the
+  installed id becomes `com.grappim.wallosmobile.fdroid.debug` so every `run-as`, `am kill`,
+  `force-stop` and DataStore-planting command changes, and `am start -n <pkg>/.MainActivity` needs
+  the **full** class name because the class is not suffixed with the id. Updating those commands is
+  part of the step, not follow-up. And `app_name` is **two** resources: the Android one in
+  `androidApp/src/main/res/values/strings.xml` that the manifest labels with, and `:strings`'
+  Compose resource that the drawer header reads — renaming only the first leaves the drawer saying
+  the release name inside the debug app, which is either fine or the point, and the note should say
+  which was chosen.
+  Note: ported `AppFlavors.kt`/`AppBuildTypes.kt` from TaigaMobileNova verbatim (package
+  `com.grappim.wallosmobile.buildlogic`) and wired both into `AndroidApplicationConventionPlugin` —
+  `applicationIdSuffix` on the debug/release build types, `configureFlavors(this)` alongside
+  `configureKotlinAndroid(this)`. No signing-config changes; Taiga's release/debug keystore blocks
+  weren't part of this ask and this repo has no keystores to point them at.
+  `androidApp/src/debug/AndroidManifest.xml` overrides only `android:label` with
+  `tools:replace="label"` — Wallos's main manifest sets no `allowBackup`/`dataExtractionRules`
+  overrides for Taiga's debug manifest to replace, so those attributes were left out rather than
+  copied for parity. Per-flavour debug names live in `src/gplayDebug/res/values/strings.xml` and
+  `src/fdroidDebug/res/values/strings.xml` alone (`"Dbg G Wallosmobile"` / `"Dbg F Wallosmobile"`) —
+  no fallback `app_name_debug` in `main/`, since every real debug variant is one of those two
+  flavour-debug source sets and a third definition would never be read.
+  **The Compose `app_name` the drawer reads stays the release string in every variant** — Taiga's
+  own drawer widget reads the same unsuffixed resource in its debug build, so this follows that
+  precedent rather than inventing a second, flavour-aware string the plan never asked for; the
+  Android manifest label is the only thing that changes.
+  Verified on-device (macOS `Pixel_9a` AVD, not the Linux `Medium_Phone_API_36.1` this file
+  otherwise names): `assembleGplayDebug`+`assembleFdroidDebug` both build,
+  `installGplayDebug`+`installFdroidDebug` coexist, `pm list packages | grep wallosmobile` shows
+  `com.grappim.wallosmobile.debug` and `com.grappim.wallosmobile.fdroid.debug` side by side, the app
+  drawer shows "Dbg G Wallo…" and "Dbg F Wallo…" as distinct entries, and
+  `am start -n com.grappim.wallosmobile.debug/com.grappim.wallosmobile.MainActivity` (full class
+  name, no leading dot) launches the gplay variant. Rewrote every emulator recipe in this file that
+  named `com.grappim.wallosmobile`, `installDebug` or `compileDebugKotlin` to the `gplayDebug`
+  variant, and added a line documenting that choice — except "Package root `com.grappim.wallosmobile`."
+  under Non-negotiables, which names the Kotlin namespace, not the applicationId, and is unaffected.
+  `Gate-change:` this step edits `build-logic/`.
