@@ -884,6 +884,16 @@ What 3.7 kept from that port, and what it dropped:
   touching `logoUrl`, the disk cache key, or the memory cache key it decorates, so an
   already-successful row is a cheap memory-miss-then-disk-hit and only a genuinely failed one pays
   for a network round trip.
+  **"Only a successful refresh" turned out too wide for the detail screen.** A fresh
+  `SubscriptionDetailViewModel` is built on every open (this file's own nav3 section), so its
+  construction-time refresh bumped the token every time even when nothing had failed — the
+  cheap memory-miss-then-disk-hit round trip 5.6 accepted as the cost of a real recovery was
+  instead paying on every open, and read as a flicker. `SubscriptionDetailViewModel` now bumps only
+  when a `lastRefreshFailed` flag (a plain `var`, set in `onFailure` and read in `onRefreshed`,
+  both only ever reached from `viewModelScope` launches on `Main.immediate`) is `true`, so a
+  construction-time or already-fine refresh leaves the token alone. `SubscriptionsViewModel` (the
+  list) is unaffected — it isn't rebuilt per visit, so its unconditional bump only fires at startup
+  and on an explicit refresh or retry, not on every screen open.
 
 The prompt itself is 3.8, and it lives on the **login screen only**:
 

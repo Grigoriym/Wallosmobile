@@ -126,18 +126,19 @@ kept here as the permanent answer rather than something to re-open; the rest is 
   `registration.php` source would settle it. No app change implied either way — the fix for the
   user's own account is generating the key once in the web UI — this is purely a "why" to close out
   of curiosity, not a defect to design around.
-- **The detail screen's logo flickers on every open.** Root cause found and confirmed 2026-08-07,
-  fix deferred at the user's choice. `SubscriptionDetailViewModel.load()` refreshes on every entry
-  to the screen; a successful refresh bumps `refreshGeneration` (5.6), which `SubscriptionLogo`
-  feeds into Coil's `memoryCacheKeyExtra` so a row that previously errored gets a real retry once
-  the server is back (Coil won't retry a request already marked `Error`). The same bump fires on
-  *every* successful refresh, not only a recovery from a prior error, so a logo that already loaded
-  fine drops out of memory cache and does a visible memory-miss-then-disk-hit round trip for no
-  reason — the "flicker". Fix is narrow: only bump the token when the row is recovering from an
-  error, not unconditionally. Touches `SubscriptionDetailViewModel`'s `onCached`/`onRefreshed` and
-  the ViewModel test file that already covers `logoRefreshToken` (5.6, "a successful refresh bumps
-  the logo refresh token" / "a failed refresh leaves the logo refresh token alone") — those two
-  tests would need a third state (recovering vs. already-fine) to actually prove the fix.
+- ~~The detail screen's logo flickers on every open.~~ **Fixed 2026-08-07.**
+  `SubscriptionDetailViewModel` now tracks `lastRefreshFailed` (a plain `var`, only ever touched
+  from `viewModelScope` launches on `Main.immediate`) and `onRefreshed` bumps `refreshGeneration`
+  only when it's `true` — a construction-time or already-fine refresh leaves the token alone, so
+  `SubscriptionLogo`'s `memoryCacheKeyExtra` stays put and Coil serves the already-loaded logo from
+  memory cache instead of a visible memory-miss-then-disk-hit round trip. A refresh that follows a
+  real failure still bumps it, since Coil never retries a request already marked `Error` (5.6).
+  `SubscriptionsViewModel` (the list) keeps the old unconditional-bump shape — this was filed and
+  fixed for the detail screen specifically. The list ViewModel isn't rebuilt on every visit to the
+  list the way a detail route builds a fresh `SubscriptionDetailViewModel` per open (`CLAUDE.md`'s
+  own nav3 note), so its unconditional bump fires once at startup and again only on an explicit
+  refresh or retry, not on every screen open — which is why it wasn't reported as a flicker. Worth
+  the same narrowing if that ever changes.
 - **The FAB → add-subscription screen feels slower to open than list → detail.** Filed 2026-08-07,
   not yet measured — this is the likely cause read off the code, not a timed comparison. The detail
   screen is cache-first (3.4): the cached row renders instantly and a single `refreshSubscription`

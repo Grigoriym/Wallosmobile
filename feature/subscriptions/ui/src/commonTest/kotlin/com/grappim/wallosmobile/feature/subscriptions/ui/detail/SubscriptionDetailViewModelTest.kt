@@ -285,16 +285,19 @@ class SubscriptionDetailViewModelTest {
 
     // --- 5.6: a recovered server reloads its logos ---------------------------------------------
 
-    /** The construction-time load already counts as one success, so the baseline is `1`, not `0`. */
+    /**
+     * The construction-time load is never a recovery — nothing failed before it — so a logo that
+     * already loaded fine must not be evicted from Coil's memory cache on every screen open.
+     */
     @Test
-    fun `a successful refresh bumps the logo refresh token`() = runTest {
+    fun `a successful refresh with nothing to recover from leaves the logo refresh token alone`() = runTest {
         repository.result = Result.success(subscription())
         val sut = viewModel()
-        assertEquals(1, assertNotNull(sut.uiState.value.subscription).logoRefreshToken)
+        assertEquals(0, assertNotNull(sut.uiState.value.subscription).logoRefreshToken)
 
         sut.uiState.value.onRetryClick()
 
-        assertEquals(2, assertNotNull(sut.uiState.value.subscription).logoRefreshToken)
+        assertEquals(0, assertNotNull(sut.uiState.value.subscription).logoRefreshToken)
     }
 
     /** A failed refresh changed nothing about the row or its logo, so the token must not move. */
@@ -308,6 +311,21 @@ class SubscriptionDetailViewModelTest {
         sut.uiState.value.onRetryClick()
 
         assertEquals(tokenBefore, assertNotNull(sut.uiState.value.subscription).logoRefreshToken)
+    }
+
+    /** The one case that does need a real retry: Coil never retries a request already `Error`. */
+    @Test
+    fun `a successful refresh that recovers from a failure bumps the logo refresh token`() = runTest {
+        repository.result = Result.success(subscription())
+        val sut = viewModel()
+        val tokenBefore = assertNotNull(sut.uiState.value.subscription).logoRefreshToken
+
+        repository.result = Result.failure(WallosError.Server("boom"))
+        sut.uiState.value.onRetryClick()
+        repository.result = Result.success(subscription())
+        sut.uiState.value.onRetryClick()
+
+        assertEquals(tokenBefore + 1, assertNotNull(sut.uiState.value.subscription).logoRefreshToken)
     }
 
     // --- 7.7: delete, behind a confirmation dialog -----------------------------------------------

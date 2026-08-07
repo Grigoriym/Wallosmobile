@@ -16,8 +16,9 @@ import com.grappim.wallosmobile.utils.ui.NativeText
  * @param convertedFrom names the currency [price] was converted **from**, blank when it wasn't
  *   converted at all (5.4). The amount itself is unrecoverable — the server overwrites `price` and
  *   keeps the source `currency_id` (3.11) — so this is a label, never a second number.
- * @param logoRefreshToken bumped by every refresh that succeeds (5.6) — same reason as the list's
- *   `SubscriptionUiItem.logoRefreshToken`.
+ * @param logoRefreshToken bumped only by a refresh that recovers from a failure (5.6, narrowed
+ *   later — an unconditional bump made every open re-fetch a logo already sitting in memory
+ *   cache, which read as a flicker).
  */
 data class SubscriptionDetailUiItem(
     val name: String,

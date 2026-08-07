@@ -54,8 +54,15 @@ class SubscriptionDetailViewModel(
     )
     val uiState: StateFlow<SubscriptionDetailUiState> = _uiState.asStateFlow()
 
-    /** Bumped only by a refresh that succeeds (5.6) — see the list ViewModel's field of the same name. */
+    /** Bumped only by a refresh that recovers from a failure (5.6, narrowed later to fix a flicker). */
     private val refreshGeneration = MutableStateFlow(0)
+
+    /**
+     * Read and written only from `viewModelScope` launches, all on `Main.immediate`, so a plain
+     * `var` needs no synchronization — same reasoning as [SubscriptionEditorViewModel]'s
+     * `hadStoredForm`.
+     */
+    private var lastRefreshFailed = false
 
     /** One-off, per plan: a successful delete is a signal the screen acts on, never UI state. */
     private val _deleted = Channel<Unit>()
@@ -113,9 +120,19 @@ class SubscriptionDetailViewModel(
         }
     }
 
+    /**
+     * Only a refresh that follows a failure bumps the token: an unconditional bump made a logo
+     * that already loaded fine drop out of Coil's memory cache and redo a
+     * memory-miss-then-disk-hit round trip on every screen open, which read as a flicker. A
+     * genuine recovery — the server was unreachable and now answers — still needs the bump, since
+     * Coil does not retry a request already marked `Error` (5.6).
+     */
     private fun onRefreshed() {
         _uiState.update { it.copy(isLoading = false) }
-        refreshGeneration.update { it + 1 }
+        if (lastRefreshFailed) {
+            refreshGeneration.update { it + 1 }
+        }
+        lastRefreshFailed = false
     }
 
     /**
@@ -126,6 +143,7 @@ class SubscriptionDetailViewModel(
         logcat(priority = LogPriority.WARN, throwable = throwable) {
             "Refreshing subscription $subscriptionId failed"
         }
+        lastRefreshFailed = true
         _uiState.update {
             it.copy(isLoading = false, error = getErrorMessage(throwable))
         }
