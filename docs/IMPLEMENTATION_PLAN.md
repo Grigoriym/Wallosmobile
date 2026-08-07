@@ -1946,19 +1946,13 @@ offline-first repository, certificate trust prompt for self-signed instances, TO
 `password_login_disabled` probing, login backoff, non-HTTPS warning, client-side filter (member,
 category, payment method, active/inactive) and sort, currency-conversion hint when rates are
 missing.
-*Done when:* ~~the list renders offline after one online fetch~~ (**3.5** — verified on a *cold*
-start with airplane mode on: the whole cached list, marked stale), and ~~a self-signed instance
-connects~~ (3.7/3.8). **Both re-verified end to end in 3.12 and the phase is closed** — the offline
-half from a `force-stop` cold start with every request logged as a `ConnectException`, the
-certificate half from a fresh install against an nginx TLS front with the prompt's fingerprint
-checked against `openssl`. 3.12 also settled the two questions §3.5 and §6.1 had parked (no
-aggregate Kover floor; the first instrumented Compose test belongs on the list screen) and found one
-defect it deliberately did not fix: Coil's logo loads ignored the accepted certificate — filed, then
-fixed in 4.5 (§4.5).
+*Done when:* the list renders offline after one online fetch, and a self-signed instance connects —
+both verified end to end in 3.12 (cold `force-stop` start, fresh install against an nginx TLS
+front). **Phase closed.** (The Kover-floor and instrumented-Compose-test questions 3.12 settled,
+and the Coil/certificate defect it found, are covered in §3.5, §6.1 and §4.5 respectively —
+not repeated here.)
 *Decomposed as **M3** in `docs/CHECKLIST.md`* (12 steps, all ticked), chosen over Phase 3 because
 three of M2's steps deferred cache debt to it and because Phase 3's writes need its `NetworkMonitor`.
-The Room step also brought **instrumented tests into the project**, earlier than §6.1 expected —
-a DAO cannot be exercised from a host test at all (§4.7).
 
 ### Phase 2c — Appearance and the deferred fixes
 Not in the original phase list, and inserted here rather than appended because its steps are defects
@@ -2006,18 +2000,15 @@ Two things follow, and they are the reason this is in the plan rather than only 
   one reader and one composable entry point.
 
 ### Phase 2d — The filed defects
-Also not in the original list, and inserted on Phase 2c's argument: every step in it is a defect a
-*verification* step saw on a device and filed under what `docs/CHECKLIST.md` named "Still open
-after v1" at the time (renamed "To review" once it grew past that) rather than fixing in place.
-Six of those entries became **M5** in `docs/CHECKLIST.md`, which is that list running in
-reverse — an error message that blames the connection for an expired certificate (§4.5), filter and
-sort that don't survive a process death while the back stack does (§5.5), a price sort that compares
-across currencies and a converted price that doesn't say so (§5.5's conversion notes), an invisible
-login backoff (§1.1), and a failed logo that stays a letter after the server comes back (§4.5).
+Not in the original list: six defects a *verification* step saw on a device and filed under
+`docs/CHECKLIST.md`'s "To review" rather than fixing in place — an error message that blames the
+connection for an expired certificate (§4.5), filter and sort that don't survive a process death
+while the back stack does (§5.5), a price sort that compares across currencies and a converted price
+that doesn't say so (§7.1's currency-conversion notes), an invisible login backoff (§1.1), and a
+failed logo that stays a letter after the server comes back (§4.5).
 **Done when** what remains under "To review" is policy and unstarted phases rather than
-known-wrong behaviour. Two of the six cannot be seen on the user's own instance at all — it is
-single-currency with conversion off — so they need the scratch container, and two need the TLS
-front, since both are about what happens *after* a connection was working.
+known-wrong behaviour.
+*Decomposed as **M5** in `docs/CHECKLIST.md`* (6 steps, all ticked).
 
 ### Phase 3 — Subscriptions, write + reference data
 Add / edit / delete, including the multipart logo upload and `logo_url` fetch. `feature:categories`,
@@ -2025,14 +2016,9 @@ Add / edit / delete, including the multipart logo upload and `logo_url` fetch. `
 the subscription editor — currencies reuse `feature:subscriptions`'s existing read path rather than
 a fourth module (§3.4, §10). Enforce: `ONE_TIME` unavailable, strict date format, `"1"`/`"0"`
 encoding, re-read after write to confirm the logo landed.
-*Decomposed as **M7** in `docs/CHECKLIST.md`* (9 steps, all ticked — **Phase 3 is done**):
-`core:crud` plus the three catalog modules (7.1–7.4), the repository's write methods (7.5), the
-add/edit form and its list/detail entry points (7.6–7.7), then the two logo paths split into their
-own steps (7.8–7.9) since the upload path is the milestone's one new platform seam — an
-`expect`/`actual` image picker (§4's `LogoPicker`), the first one *in a feature module* since 3.7's
-trust manager, which is `core:api`'s. 7.9's own precedent check found `1.4`'s Keystore access is
-not actually `expect`/`actual` (`SecretCipher` is a plain interface with a Koin-reached impl) — see
-the `CLAUDE.md` Non-negotiables correction.
+*Decomposed as **M7** in `docs/CHECKLIST.md`* (9 steps, all ticked — **Phase 3 is done**); the
+`core:crud` shape itself, and the two type-level corrections it needed past the original sketch,
+are covered in §3.4 rather than repeated here.
 
 ### Phase 4 — Dashboard
 `get_monthly_cost` and `get_period_budget` with version gating, upcoming payments derived locally
