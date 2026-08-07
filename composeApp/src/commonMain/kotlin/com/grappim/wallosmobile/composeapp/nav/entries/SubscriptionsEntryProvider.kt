@@ -24,10 +24,11 @@ fun EntryProviderScope<NavKey>.subscriptionsEntry(navigator: Navigator) {
     entry<SubscriptionDetailRoute> { route ->
         SubscriptionDetailScreen(
             subscriptionId = route.subscriptionId,
-            onBackClick = { navigator.goBack() }
+            onBackClick = { navigator.goBack() },
+            onEditClick = { id -> navigator.navigate(SubscriptionEditorRoute(subscriptionId = id)) }
         )
     }
-    entry<SubscriptionEditorRoute> {
-        SubscriptionEditorScreen(onBackClick = { navigator.goBack() })
+    entry<SubscriptionEditorRoute> { route ->
+        SubscriptionEditorScreen(subscriptionId = route.subscriptionId, onBackClick = { navigator.goBack() })
     }
 }

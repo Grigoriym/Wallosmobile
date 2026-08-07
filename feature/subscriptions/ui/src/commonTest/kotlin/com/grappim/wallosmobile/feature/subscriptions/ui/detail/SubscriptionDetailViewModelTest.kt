@@ -310,6 +310,59 @@ class SubscriptionDetailViewModelTest {
         assertEquals(tokenBefore, assertNotNull(sut.uiState.value.subscription).logoRefreshToken)
     }
 
+    // --- 7.7: delete, behind a confirmation dialog -----------------------------------------------
+
+    @Test
+    fun `the delete action opens the confirmation dialog rather than deleting straight away`() = runTest {
+        repository.result = Result.success(subscription())
+        val sut = viewModel()
+
+        sut.uiState.value.onDeleteClick()
+
+        assertTrue(sut.uiState.value.isDeleteDialogOpen)
+        assertNull(repository.deletedId)
+    }
+
+    @Test
+    fun `dismissing the dialog deletes nothing`() = runTest {
+        repository.result = Result.success(subscription())
+        val sut = viewModel()
+        sut.uiState.value.onDeleteClick()
+
+        sut.uiState.value.onDeleteDialogDismiss()
+
+        assertFalse(sut.uiState.value.isDeleteDialogOpen)
+        assertNull(repository.deletedId)
+    }
+
+    @Test
+    fun `confirming deletes the route's own id and closes the dialog`() = runTest {
+        repository.result = Result.success(subscription())
+        val sut = viewModel(id = 7)
+        sut.uiState.value.onDeleteClick()
+
+        sut.uiState.value.onDeleteConfirm()
+
+        assertEquals(7, repository.deletedId)
+        assertFalse(sut.uiState.value.isDeleteDialogOpen)
+        assertFalse(sut.uiState.value.isDeleting)
+    }
+
+    /** A rejected delete leaves the dialog open with the reason on it, not a screen of its own. */
+    @Test
+    fun `a delete that fails surfaces the error and leaves the dialog open`() = runTest {
+        repository.result = Result.success(subscription())
+        repository.deleteResult = Result.failure(WallosError.Server("boom"))
+        val sut = viewModel()
+        sut.uiState.value.onDeleteClick()
+
+        sut.uiState.value.onDeleteConfirm()
+
+        assertTrue(sut.uiState.value.isDeleteDialogOpen)
+        assertTrue(sut.uiState.value.deleteError.isNotEmpty())
+        assertFalse(sut.uiState.value.isDeleting)
+    }
+
     private fun subscription(
         id: Int = SUBSCRIPTION_ID,
         logo: String = "",
@@ -331,7 +384,13 @@ class SubscriptionDetailViewModelTest {
         url = "https://disneyplus.com",
         categoryName = "Entertainment",
         paymentMethodName = "Direct Debit",
-        payerName = "gregorz"
+        payerName = "gregorz",
+        categoryId = 3,
+        paymentMethodId = 2,
+        payerUserId = 1,
+        autoRenew = true,
+        notify = false,
+        notifyDaysBefore = null
     )
 
     private companion object {
@@ -361,6 +420,8 @@ class SubscriptionDetailViewModelTest {
         var result: Result<Subscription>? = null
         var requestedId: Int? = null
         var callCount = 0
+        var deleteResult: Result<Unit> = Result.success(Unit)
+        var deletedId: Int? = null
 
         /** What the same refresh left behind about the cached prices, and what names them (3.11). */
         val conversion = MutableStateFlow(PriceConversion())
@@ -395,7 +456,10 @@ class SubscriptionDetailViewModelTest {
         override suspend fun editSubscription(id: Int, params: EditSubscriptionParams): Result<Unit> =
             error("not used by this test")
 
-        override suspend fun deleteSubscription(id: Int): Result<Unit> = error("not used by this test")
+        override suspend fun deleteSubscription(id: Int): Result<Unit> {
+            deletedId = id
+            return deleteResult
+        }
     }
 
     private class FakeBaseUrlProvider : BaseUrlProvider {

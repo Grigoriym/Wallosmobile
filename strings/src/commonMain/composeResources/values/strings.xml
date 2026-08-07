@@ -85,8 +85,15 @@
     <string name="subscription_detail_url">Website</string>
     <string name="subscription_detail_notes">Notes</string>
     <string name="subscription_detail_converted_from">Converted from %1$s</string>
+    <string name="subscription_detail_edit">Edit</string>
+    <string name="subscription_detail_delete">Delete</string>
+    <string name="subscription_detail_delete_confirm_title">Delete this subscription?</string>
+    <string name="subscription_detail_delete_confirm_message">This can't be undone.</string>
+    <string name="subscription_detail_delete_confirm">Delete</string>
+    <string name="subscription_detail_delete_cancel">Cancel</string>
 
     <string name="subscription_editor_title">New subscription</string>
+    <string name="subscription_editor_title_edit">Edit subscription</string>
     <string name="subscription_editor_name">Name</string>
     <string name="subscription_editor_price">Price</string>
     <string name="subscription_editor_currency">Currency</string>

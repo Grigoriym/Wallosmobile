@@ -8,11 +8,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -30,6 +35,12 @@ import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_category
 import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_converted_from
 import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_cycle
+import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_delete
+import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_delete_cancel
+import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_delete_confirm
+import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_delete_confirm_message
+import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_delete_confirm_title
+import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_edit
 import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_next_payment
 import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_notes
 import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_payer
@@ -39,11 +50,15 @@ import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
+import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
 import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
 import com.grappim.wallosmobile.uikit.widgets.topappbar.NavigationIconConfig
+import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarActionVectorButton
 import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarConfig
 import com.grappim.wallosmobile.utils.ui.NativeText
+import com.grappim.wallosmobile.utils.ui.ObserveAsEvents
 import com.grappim.wallosmobile.utils.ui.asString
+import kotlinx.collections.immutable.persistentListOf
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -53,22 +68,45 @@ import org.koin.core.parameter.parametersOf
 fun SubscriptionDetailScreen(
     subscriptionId: Int,
     onBackClick: () -> Unit,
+    onEditClick: (Int) -> Unit,
     viewModel: SubscriptionDetailViewModel = koinViewModel { parametersOf(subscriptionId) }
 ) {
     val topBarController = LocalTopBarConfig.current
     val uiState by viewModel.uiState.collectAsState()
     val title = uiState.subscription?.name.orEmpty()
+    val hasSubscription = uiState.subscription != null
+    val editContentDescription = stringResource(RString.subscription_detail_edit)
+    val deleteContentDescription = stringResource(RString.subscription_detail_delete)
 
     // The title is the subscription's own name, so it can only be set once the row has loaded —
-    // until then the bar shows the back arrow over an empty title.
-    LaunchedEffect(title) {
+    // until then the bar shows the back arrow over an empty title. The edit/delete actions wait
+    // on the same thing: nothing to edit or delete before a row has actually loaded.
+    LaunchedEffect(title, hasSubscription) {
         topBarController.update(
             TopBarConfig(
                 title = NativeText.Simple(title),
-                navigationIcon = NavigationIconConfig.Back(onBackClick)
+                navigationIcon = NavigationIconConfig.Back(onBackClick),
+                actions = if (hasSubscription) {
+                    persistentListOf(
+                        TopBarActionVectorButton(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = editContentDescription,
+                            onClick = { onEditClick(subscriptionId) }
+                        ),
+                        TopBarActionVectorButton(
+                            imageVector = Icons.Filled.Delete,
+                            contentDescription = deleteContentDescription,
+                            onClick = uiState.onDeleteClick
+                        )
+                    )
+                } else {
+                    persistentListOf()
+                }
             )
         )
     }
+
+    ObserveAsEvents(flow = viewModel.deleted) { onBackClick() }
 
     SubscriptionDetailContent(uiState = uiState)
 }
@@ -90,6 +128,46 @@ private fun SubscriptionDetailContent(uiState: SubscriptionDetailUiState, modifi
             }
         }
     }
+
+    if (uiState.isDeleteDialogOpen) {
+        DeleteConfirmDialog(uiState = uiState)
+    }
+}
+
+/**
+ * Opening the dialog is not itself a write and stays enabled offline; the confirm button inside
+ * it is the actual [uiState.onDeleteConfirm][SubscriptionDetailUiState.onDeleteConfirm] call, so
+ * that is what CLAUDE.md's offline rule gates (`enabled = !LocalIsOffline.current`).
+ */
+@Composable
+private fun DeleteConfirmDialog(uiState: SubscriptionDetailUiState, modifier: Modifier = Modifier) {
+    AlertDialog(
+        modifier = modifier,
+        onDismissRequest = uiState.onDeleteDialogDismiss,
+        title = { Text(stringResource(RString.subscription_detail_delete_confirm_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(ROW_SPACING)) {
+                Text(stringResource(RString.subscription_detail_delete_confirm_message))
+                if (uiState.deleteError.isNotEmpty()) {
+                    Text(text = uiState.deleteError.asString(), color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            if (uiState.isDeleting) {
+                CircularProgressIndicator(modifier = Modifier.padding(DIALOG_PROGRESS_PADDING))
+            } else {
+                TextButton(onClick = uiState.onDeleteConfirm, enabled = !LocalIsOffline.current) {
+                    Text(stringResource(RString.subscription_detail_delete_confirm))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = uiState.onDeleteDialogDismiss) {
+                Text(stringResource(RString.subscription_detail_delete_cancel))
+            }
+        }
+    )
 }
 
 @Composable
@@ -216,6 +294,7 @@ private val SECTION_SPACING = 16.dp
 private val HEADER_SPACING = 8.dp
 private val ROW_SPACING = 2.dp
 private val HEADER_LOGO_SIZE = 96.dp
+private val DIALOG_PROGRESS_PADDING = 8.dp
 
 private val previewItem = SubscriptionDetailUiItem(
     name = "1&1 Telekom",
@@ -289,5 +368,25 @@ private fun SubscriptionDetailContentStalePreview() = WallosMobilePreviewTheme {
 private fun SubscriptionDetailContentErrorPreview() = WallosMobilePreviewTheme {
     SubscriptionDetailContent(
         uiState = SubscriptionDetailUiState(error = NativeText.Simple("The server has no such item."))
+    )
+}
+
+@PreviewWallosDarkLight
+@Composable
+private fun SubscriptionDetailContentDeleteConfirmPreview() = WallosMobilePreviewTheme {
+    SubscriptionDetailContent(
+        uiState = SubscriptionDetailUiState(subscription = previewItem, isDeleteDialogOpen = true)
+    )
+}
+
+@PreviewWallosDarkLight
+@Composable
+private fun SubscriptionDetailContentDeleteFailedPreview() = WallosMobilePreviewTheme {
+    SubscriptionDetailContent(
+        uiState = SubscriptionDetailUiState(
+            subscription = previewItem,
+            isDeleteDialogOpen = true,
+            deleteError = NativeText.Simple("Couldn't reach that server. Check the URL and your connection.")
+        )
     )
 }

@@ -47,7 +47,7 @@ object RouteConfigProvider {
             fabConfig = FabConfig.Standard(
                 icon = Icons.Filled.Add,
                 contentDescription = NativeText.Resource(RString.subscription_editor_fab_content_description),
-                navigateTo = SubscriptionEditorRoute
+                navigateTo = SubscriptionEditorRoute()
             )
         )
 

@@ -36,7 +36,13 @@ class SubscriptionEntityMapper(private val dateFormatter: DateFormatter) {
         url = subscription.url,
         categoryName = subscription.categoryName,
         paymentMethodName = subscription.paymentMethodName,
-        payerName = subscription.payerName
+        payerName = subscription.payerName,
+        categoryId = subscription.categoryId,
+        paymentMethodId = subscription.paymentMethodId,
+        payerUserId = subscription.payerUserId,
+        autoRenew = subscription.autoRenew,
+        notify = subscription.notify,
+        notifyDaysBefore = subscription.notifyDaysBefore
     )
 
     fun toDomain(entity: SubscriptionEntity): Subscription = Subscription(
@@ -57,6 +63,12 @@ class SubscriptionEntityMapper(private val dateFormatter: DateFormatter) {
         url = entity.url,
         categoryName = entity.categoryName,
         paymentMethodName = entity.paymentMethodName,
-        payerName = entity.payerName
+        payerName = entity.payerName,
+        categoryId = entity.categoryId,
+        paymentMethodId = entity.paymentMethodId,
+        payerUserId = entity.payerUserId,
+        autoRenew = entity.autoRenew,
+        notify = entity.notify,
+        notifyDaysBefore = entity.notifyDaysBefore
     )
 }

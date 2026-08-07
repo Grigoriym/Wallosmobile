@@ -9,6 +9,7 @@ import com.grappim.wallosmobile.feature.categories.domain.repo.CategoriesReposit
 import com.grappim.wallosmobile.feature.household.domain.repo.HouseholdRepository
 import com.grappim.wallosmobile.feature.paymentmethods.domain.repo.PaymentMethodsRepository
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.EditSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.WritableBillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
 import com.grappim.wallosmobile.strings.RString
@@ -20,6 +21,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -33,9 +35,10 @@ import org.koin.core.annotation.InjectedParam
 import org.koin.core.annotation.KoinViewModel
 
 /**
- * Add-only until 7.7 gives this an id to pre-fill from — see [SubscriptionEditorRoute]. Exactly
- * five constructor dependencies: the four reference-data repositories a pick list needs plus
- * [savedStateHandle], the ceiling this step's own checklist entry calls out. A sixth is a signal
+ * Add- or edit- depending on [subscriptionId] (`null` from the FAB, set from the detail screen's
+ * edit action, 7.7) — see [SubscriptionEditorRoute]. Exactly six constructor dependencies: the
+ * four reference-data repositories a pick list needs plus [subscriptionId] and
+ * [savedStateHandle], the ceiling this step's own checklist entry calls out. A seventh is a signal
  * to split, the way 3.4 split `SubscriptionsCache`, rather than to widen detekt's
  * `allowedConstructorParameters`.
  *
@@ -45,12 +48,16 @@ import org.koin.core.annotation.KoinViewModel
  */
 @KoinViewModel
 class SubscriptionEditorViewModel(
+    @InjectedParam private val subscriptionId: Int?,
     private val subscriptionsRepository: SubscriptionsRepository,
     private val categoriesRepository: CategoriesRepository,
     private val householdRepository: HouseholdRepository,
     private val paymentMethodsRepository: PaymentMethodsRepository,
     @InjectedParam private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    /** Read before [persistForm] can write the first entry under [KEY_FORM] and hide it. */
+    private val hadStoredForm = savedStateHandle.get<String>(KEY_FORM) != null
 
     private val _uiState = MutableStateFlow(restoreForm().toUiState())
     val uiState: StateFlow<SubscriptionEditorUiState> = _uiState.asStateFlow()
@@ -65,6 +72,12 @@ class SubscriptionEditorViewModel(
         loadCategories()
         loadPayers()
         loadPaymentMethods()
+
+        // No extra round trip (7.7): the row is already in the cache, put there by whichever
+        // screen led here. A saved form always wins — it is either mid-edit or a restored add.
+        if (subscriptionId != null && !hadStoredForm) {
+            loadForEdit(subscriptionId)
+        }
     }
 
     private fun onNameChange(value: String) {
@@ -136,6 +149,11 @@ class SubscriptionEditorViewModel(
      * parses earlier). A blank required field never reaches [AddSubscriptionParams] — it becomes
      * [SubscriptionEditorUiState.error] instead, so the server never sees a request that names no
      * currency or no date.
+     *
+     * [subscriptionId] picks `add` or `edit`; the fields sent are otherwise identical, since the
+     * form always carries a real value for every one of them — an edit is a full resubmission, not
+     * a diff, so nothing relies on `EditSubscriptionParams`' "omitted fields keep their current
+     * value" behaviour (`WALLOS_API.md` §3.4).
      */
     private fun onSaveClick() {
         val state = _uiState.value
@@ -153,7 +171,29 @@ class SubscriptionEditorViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, error = NativeText.Empty) }
 
-            subscriptionsRepository.addSubscription(
+            val result = subscriptionId?.let { id ->
+                subscriptionsRepository.editSubscription(
+                    id,
+                    EditSubscriptionParams(
+                        name = name,
+                        price = price,
+                        currencyId = currencyId,
+                        cycle = state.cycle,
+                        frequency = frequency,
+                        nextPayment = nextPayment,
+                        startDate = state.startDate,
+                        autoRenew = state.autoRenew,
+                        paymentMethodId = state.paymentMethod.selectedId,
+                        payerUserId = state.payer.selectedId,
+                        categoryId = state.category.selectedId,
+                        notes = state.notes.trim().ifBlank { null },
+                        url = state.url.trim().ifBlank { null },
+                        notify = state.notify,
+                        notifyDaysBefore = if (state.notify) state.notifyDaysBefore.toIntOrNull() else null,
+                        inactive = state.inactive
+                    )
+                )
+            } ?: subscriptionsRepository.addSubscription(
                 AddSubscriptionParams(
                     name = name,
                     price = price,
@@ -172,12 +212,54 @@ class SubscriptionEditorViewModel(
                     notifyDaysBefore = if (state.notify) state.notifyDaysBefore.toIntOrNull() else null,
                     inactive = state.inactive
                 )
-            ).onSuccess {
+            ).map { }
+
+            result.onSuccess {
                 _uiState.update { it.copy(isSaving = false) }
                 _saved.send(Unit)
             }.onFailure { throwable ->
-                logcat(priority = LogPriority.WARN, throwable = throwable) { "Adding subscription failed" }
+                val action = if (subscriptionId != null) "Editing" else "Adding"
+                logcat(priority = LogPriority.WARN, throwable = throwable) { "$action subscription failed" }
                 _uiState.update { it.copy(isSaving = false, error = getErrorMessage(throwable)) }
+            }
+        }
+    }
+
+    /**
+     * Pre-fills every field from the row the cache already holds — 5.2's `SavedFormState` shape
+     * has no room for [WritableBillingCycle] or ids beside their picker text, so this writes
+     * straight into [SubscriptionEditorUiState] rather than through [restoreForm]'s decode path.
+     * An unmatched [WritableBillingCycle] (a `ONE_TIME` row, or a cycle this build doesn't know)
+     * falls back to [WritableBillingCycle.MONTHS], the same default [restoreForm] uses for a
+     * stored code it can't place — the server rejects `cycle=5` on write regardless, so the editor
+     * cannot represent a one-time subscription's own cycle back to it.
+     */
+    private fun loadForEdit(id: Int) {
+        viewModelScope.launch {
+            val subscription = subscriptionsRepository.observeSubscription(id).first() ?: return@launch
+            val cycle = subscription.cycle?.let { cycle ->
+                WritableBillingCycle.entries.firstOrNull { it.code == cycle.code }
+            } ?: WritableBillingCycle.MONTHS
+
+            _uiState.update {
+                it.copy(
+                    name = subscription.name,
+                    price = subscription.price.toString(),
+                    currency = it.currency.copy(selectedId = subscription.currencyId),
+                    cycle = cycle,
+                    frequency = subscription.frequency.toString(),
+                    nextPayment = subscription.nextPayment,
+                    startDate = subscription.startDate,
+                    category = it.category.copy(selectedId = subscription.categoryId),
+                    payer = it.payer.copy(selectedId = subscription.payerUserId),
+                    paymentMethod = it.paymentMethod.copy(selectedId = subscription.paymentMethodId),
+                    notes = subscription.notes,
+                    url = subscription.url,
+                    notify = subscription.notify,
+                    notifyDaysBefore = subscription.notifyDaysBefore?.toString().orEmpty(),
+                    autoRenew = subscription.autoRenew,
+                    inactive = !subscription.isActive
+                )
             }
         }
     }

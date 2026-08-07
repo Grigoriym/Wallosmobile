@@ -679,7 +679,13 @@ class SubscriptionsViewModelTest {
         url = "",
         categoryName = "Entertainment",
         paymentMethodName = "Direct Debit",
-        payerName = "gregorz"
+        payerName = "gregorz",
+        categoryId = null,
+        paymentMethodId = null,
+        payerUserId = null,
+        autoRenew = true,
+        notify = false,
+        notifyDaysBefore = null
     )
 
     private companion object {

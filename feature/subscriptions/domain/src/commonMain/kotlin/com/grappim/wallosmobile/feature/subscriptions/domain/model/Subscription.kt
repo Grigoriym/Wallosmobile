@@ -21,6 +21,11 @@ import kotlinx.datetime.LocalDate
  *   one and a malformed date must not sink the whole list.
  * @param categoryName resolved server-side, and never blank in practice: unmatched ids come
  *   back as `"No category"` / `"Unknown member"` / `"Unknown payment method"`.
+ * @param categoryId the raw id `categoryName` was resolved from, `null` when unset. Added in 7.7
+ *   purely so the editor can pre-fill its category picker from the row the detail screen already
+ *   has loaded, without a second round trip (2.1's "domain model only what the screen renders",
+ *   now that a screen renders it) — [paymentMethodId], [payerUserId], [autoRenew], [notify] and
+ *   [notifyDaysBefore] exist for the same reason and no other.
  */
 data class Subscription(
     val id: Int,
@@ -38,5 +43,11 @@ data class Subscription(
     val url: String,
     val categoryName: String,
     val paymentMethodName: String,
-    val payerName: String
+    val payerName: String,
+    val categoryId: Int?,
+    val paymentMethodId: Int?,
+    val payerUserId: Int?,
+    val autoRenew: Boolean,
+    val notify: Boolean,
+    val notifyDaysBefore: Int?
 )

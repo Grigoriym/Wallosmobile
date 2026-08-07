@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `6/9`
-**Current step:** 7.7 — feature:subscriptions:ui: edit entry point + delete
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `7/9`
+**Current step:** 7.8 — feature:subscriptions: logo via `logo_url`
 
 ---
 
@@ -86,9 +86,9 @@ step; they have both been settled twice.**
   **The user reaffirmed this on 2026-08-04 and owns the trigger**: ignore backward compatibility
   entirely until they say otherwise, and don't re-open the question per step. Destructive Room
   fallbacks and renamed DataStore keys are free until that word comes.
-  **M3 raised the stakes and 3.11 raised them again**: there is now a Room schema in the picture, and
-  it is already at version 2, so a released app needs real migrations rather than the destructive
-  fallback the pre-v1 rule permits.
+  **M3 raised the stakes and 3.11 raised them again, and 7.7 a third time**: there is now a Room
+  schema in the picture, and it is already at version 3, so a released app needs real migrations
+  rather than the destructive fallback the pre-v1 rule permits.
 - **A Kover floor and a Compose UI test setup**, on the terms in 2.7's second deferred item —
   instrumented, not Robolectric, and grown one screen at a time. **3.12 revisited both and measured
   them**, which changed the question from *when* to *what*: the aggregate is 48.8% line, but 388 of
@@ -286,7 +286,7 @@ rather than by a step of its own, so no step below has to re-litigate them:
   reads `appState.currentRouteConfig.fabConfig` and the FAB is never offline-gated, since
   navigating to the editor is not itself a write — only the form's own Save button is.
 
-- [ ] **7.7 — feature:subscriptions:ui: edit entry point + delete**
+- [x] **7.7 — feature:subscriptions:ui: edit entry point + delete**
   An edit action on the detail screen opens 7.6's form pre-filled from the subscription the screen
   already has loaded — no extra round trip, the same reasoning 2.5 used to justify the detail
   screen's own re-read. A delete action (confirmation dialog) calls
@@ -294,6 +294,29 @@ rather than by a step of its own, so no step below has to re-litigate them:
   *Verify:* on the emulator against `wallos-scratch` — edit a field on a scratch row and confirm it
   lands; delete a different row and confirm it leaves the list. Not against `gregorz`'s real 35
   rows.  ·  *Ref:* plan §7.3
+  **Note:** "no extra round trip" needed the domain `Subscription` model widened first — it carried
+  `categoryName`/`paymentMethodName`/`payerName` (resolved text) but never the *ids* the editor's
+  pickers need to pre-select an option, nor `autoRenew`/`notify`/`notifyDaysBefore`, which 7.6's form
+  also has switches for. Added all six (`categoryId`, `paymentMethodId`, `payerUserId`, `autoRenew`,
+  `notify`, `notifyDaysBefore`) with no defaults, matching the model's existing style — every other
+  call site is a named-argument construction, so the compiler found every one that needed updating.
+  This is 2.1's rule ("domain model only what the screen renders") working as designed: the editor
+  is now a screen that renders these, so they earned their place. Threaded the same six fields
+  through `SubscriptionEntity`/`SubscriptionEntityMapper` (cached, not re-fetched) and bumped
+  `WallosDB` to version 3 — pre-v1 destructive fallback, no migration. `SubscriptionEditorRoute`
+  went from `data object` to `data class(subscriptionId: Int? = null)`; the editor ViewModel takes
+  `subscriptionId` as a sixth `@InjectedParam`/constructor dependency (still within detekt's
+  `allowedConstructorParameters: 6`) and pre-fills asynchronously from
+  `SubscriptionsRepository.observeSubscription(id).first()` in `init`, guarded by a
+  `hadStoredForm` flag read *before* `persistForm()` starts writing — otherwise every construction
+  would see a non-null saved form and skip the pre-fill, add or edit alike. An edit resubmits every
+  field rather than diffing against `EditSubscriptionParams`' "omitted fields keep their current
+  value" semantics, since the form always holds a real value for each one. Delete is a top-bar
+  trash icon on the detail screen, gated behind an `AlertDialog` (`CertTrustDialog`'s shape, 3.8);
+  only the dialog's own confirm button is offline-gated, matching 7.6's FAB precedent that
+  navigating to a write is not itself a write. `Icons.Filled.Edit`/`Delete` are both in
+  `material-icons-core` — no `material-icons-extended` needed, checked the same
+  `unzip`-the-jar way as 7.6's `Add`.
 
 - [ ] **7.8 — feature:subscriptions: logo via `logo_url`**
   A text field in the editor for a source URL; the server fetches it server-side (max 3 redirects,

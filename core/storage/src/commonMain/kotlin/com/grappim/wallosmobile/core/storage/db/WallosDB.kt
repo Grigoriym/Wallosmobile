@@ -9,7 +9,7 @@ import androidx.room.RoomDatabaseConstructor
  * The offline cache. Holds only what the read screens render, and only ever as a snapshot of the
  * server — nothing here is a source of truth, so there is no dirty-write state to reconcile.
  *
- * `version = 2` with no `autoMigrations`: pre-v1 there are no installs to migrate, and the
+ * `version = 3` with no `autoMigrations`: pre-v1 there are no installs to migrate, and the
  * builder drops the tables on a schema change (see `StorageModule`). The exported schema JSON is
  * committed all the same — it is what the first real migration will be written against.
  */
@@ -19,7 +19,7 @@ import androidx.room.RoomDatabaseConstructor
         CurrencyEntity::class,
         PriceConversionEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @ConstructedBy(WallosDBConstructor::class)

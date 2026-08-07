@@ -9,6 +9,7 @@ import com.grappim.wallosmobile.feature.household.domain.repo.HouseholdRepositor
 import com.grappim.wallosmobile.feature.paymentmethods.domain.model.PaymentMethod
 import com.grappim.wallosmobile.feature.paymentmethods.domain.repo.PaymentMethodsRepository
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.EditSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
@@ -18,6 +19,7 @@ import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsR
 import com.grappim.wallosmobile.testing.MainDispatcherRule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
@@ -47,13 +49,15 @@ class SubscriptionEditorViewModelTest {
         mainDispatcherRule.tearDown()
     }
 
-    private fun viewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()) = SubscriptionEditorViewModel(
-        subscriptionsRepository = subscriptionsRepository,
-        categoriesRepository = categoriesRepository,
-        householdRepository = householdRepository,
-        paymentMethodsRepository = paymentMethodsRepository,
-        savedStateHandle = savedStateHandle
-    )
+    private fun viewModel(savedStateHandle: SavedStateHandle = SavedStateHandle(), subscriptionId: Int? = null) =
+        SubscriptionEditorViewModel(
+            subscriptionId = subscriptionId,
+            subscriptionsRepository = subscriptionsRepository,
+            categoriesRepository = categoriesRepository,
+            householdRepository = householdRepository,
+            paymentMethodsRepository = paymentMethodsRepository,
+            savedStateHandle = savedStateHandle
+        )
 
     @Test
     fun `reference data arrives in the pickers`() = runTest {
@@ -163,6 +167,113 @@ class SubscriptionEditorViewModelTest {
         assertEquals("", sut.uiState.value.name)
     }
 
+    // --- 7.7: editing an existing subscription -----------------------------------------------
+
+    @Test
+    fun `an id pre-fills the form from the cached row, with no extra round trip`() = runTest {
+        subscriptionsRepository.seed(subscription())
+
+        val state = viewModel(subscriptionId = 4).uiState.value
+
+        assertEquals("Disney+", state.name)
+        assertEquals("8.99", state.price)
+        assertEquals(1, state.currency.selectedId)
+        assertEquals(WritableBillingCycle.MONTHS, state.cycle)
+        assertEquals("1", state.frequency)
+        assertEquals(LocalDate(2026, 3, 10), state.nextPayment)
+        assertEquals(3, state.category.selectedId)
+        assertEquals(1, state.payer.selectedId)
+        assertEquals(2, state.paymentMethod.selectedId)
+        assertEquals("Family plan", state.notes)
+        assertEquals("https://disneyplus.com", state.url)
+        assertTrue(state.notify)
+        assertEquals("3", state.notifyDaysBefore)
+        assertTrue(state.autoRenew)
+        assertFalse(state.inactive)
+    }
+
+    /** A cycle the editor cannot write back (One-time, or one this build doesn't know) falls to Months. */
+    @Test
+    fun `an unwritable cycle falls back to months rather than leaving the picker unset`() = runTest {
+        subscriptionsRepository.seed(subscription(cycle = BillingCycle.ONE_TIME))
+
+        val state = viewModel(subscriptionId = 4).uiState.value
+
+        assertEquals(WritableBillingCycle.MONTHS, state.cycle)
+    }
+
+    /** Opened before the row is cached (a cold detail screen, say): the form is just blank. */
+    @Test
+    fun `an id the cache does not hold yet leaves the form blank`() = runTest {
+        val state = viewModel(subscriptionId = 4).uiState.value
+
+        assertEquals("", state.name)
+    }
+
+    @Test
+    fun `saving an edit reaches editSubscription with the route's id, not add`() = runTest {
+        subscriptionsRepository.seed(subscription())
+        val sut = viewModel(subscriptionId = 4)
+
+        sut.uiState.value.onSaveClick()
+
+        assertEquals(4, subscriptionsRepository.editedId)
+        assertNotNull(subscriptionsRepository.editedParams)
+        assertNull(subscriptionsRepository.addedParams)
+    }
+
+    @Test
+    fun `an edit that fails surfaces the error and clears the saving flag`() = runTest {
+        subscriptionsRepository.seed(subscription())
+        subscriptionsRepository.editResult = Result.failure(WallosError.Server("boom"))
+        val sut = viewModel(subscriptionId = 4)
+
+        sut.uiState.value.onSaveClick()
+
+        assertTrue(sut.uiState.value.error.isNotEmpty())
+        assertFalse(sut.uiState.value.isSaving)
+    }
+
+    /** A form already mid-edit after process death must not be clobbered by a second cache read. */
+    @Test
+    fun `a restored form is not overwritten by the cached row on a second construction`() = runTest {
+        subscriptionsRepository.seed(subscription())
+        val handle = SavedStateHandle()
+        val first = viewModel(handle, subscriptionId = 4)
+        assertEquals("Disney+", first.uiState.value.name)
+        first.uiState.value.onNameChange("Disney+ (renamed)")
+
+        subscriptionsRepository.seed(subscription().copy(name = "A different name by now"))
+        val second = viewModel(handle, subscriptionId = 4)
+
+        assertEquals("Disney+ (renamed)", second.uiState.value.name)
+    }
+
+    private fun subscription(cycle: BillingCycle? = BillingCycle.MONTHS) = Subscription(
+        id = 4,
+        name = "Disney+",
+        logo = "",
+        price = 8.99,
+        currencyId = 1,
+        currencySymbol = "€",
+        cycle = cycle,
+        frequency = 1,
+        nextPayment = LocalDate(2026, 3, 10),
+        startDate = null,
+        isActive = true,
+        notes = "Family plan",
+        url = "https://disneyplus.com",
+        categoryName = "Entertainment",
+        paymentMethodName = "Direct Debit",
+        payerName = "gregorz",
+        categoryId = 3,
+        paymentMethodId = 2,
+        payerUserId = 1,
+        autoRenew = true,
+        notify = true,
+        notifyDaysBefore = 3
+    )
+
     private fun fillMinimalValidForm(sut: SubscriptionEditorViewModel) {
         val state = sut.uiState.value
         state.onNameChange("Disney+")
@@ -183,9 +294,18 @@ class SubscriptionEditorViewModelTest {
      */
     private class FakeSubscriptionsRepository : SubscriptionsRepository {
 
+        private val cached = MutableStateFlow<List<Subscription>>(emptyList())
+
         val currencies = MutableStateFlow<List<Currency>>(emptyList())
         var addResult: Result<Int> = Result.success(1)
         var addedParams: AddSubscriptionParams? = null
+        var editResult: Result<Unit> = Result.success(Unit)
+        var editedId: Int? = null
+        var editedParams: EditSubscriptionParams? = null
+
+        fun seed(subscription: Subscription) {
+            cached.value = listOf(subscription)
+        }
 
         override fun observeSubscriptions(): Flow<List<Subscription>> = error("not used by this test")
 
@@ -195,7 +315,9 @@ class SubscriptionEditorViewModelTest {
 
         override suspend fun refreshSubscriptions(): Result<Unit> = error("not used by this test")
 
-        override fun observeSubscription(id: Int): Flow<Subscription?> = error("not used by this test")
+        override fun observeSubscription(id: Int): Flow<Subscription?> = cached.map { subscriptions ->
+            subscriptions.firstOrNull { it.id == id }
+        }
 
         override suspend fun refreshSubscription(id: Int): Result<Unit> = error("not used by this test")
 
@@ -204,8 +326,11 @@ class SubscriptionEditorViewModelTest {
             return addResult
         }
 
-        override suspend fun editSubscription(id: Int, params: EditSubscriptionParams): Result<Unit> =
-            error("not used by this test")
+        override suspend fun editSubscription(id: Int, params: EditSubscriptionParams): Result<Unit> {
+            editedId = id
+            editedParams = params
+            return editResult
+        }
 
         override suspend fun deleteSubscription(id: Int): Result<Unit> = error("not used by this test")
     }

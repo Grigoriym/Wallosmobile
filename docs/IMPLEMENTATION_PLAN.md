@@ -953,7 +953,8 @@ the server no longer sends.
 
 `WallosDB` (`db/`) holds `SubscriptionEntity`, `CurrencyEntity` and — since 3.11 — the one-row
 `PriceConversionEntity`, with a DAO each. A snapshot of the server, never a source of truth, so
-there is no dirty-write state to reconcile. `version = 2` (3.11 added the third table),
+there is no dirty-write state to reconcile. `version = 3` (3.11 added the third table; 7.7 added
+six columns to `SubscriptionEntity` for the editor's pre-fill, no new table),
 `exportSchema = true`, schema JSON committed under `core/storage/schemas/`, and the builder
 drops the tables on a schema change: pre-v1 there is nothing to migrate from, and afterwards the
 cache is still one refresh away from being rebuilt. KSP and the Room Gradle plugin are applied to
@@ -1482,7 +1483,13 @@ device-only suite doubles the surface no other session's commit can feel.
 - **Domain models carry what the screens render, not what the row holds.** `SubscriptionDTO` is
   the full §3.1 row; domain `Subscription` is §7.1's list + detail fields and nothing else, and
   domain `Currency` is `id/name/symbol/code` without `rate` or `in_use`. Fields arrive with the
-  screen that needs them (2.1).
+  screen that needs them (2.1). **7.7 is that arrival**: the editor's pickers need
+  `categoryId`/`paymentMethodId`/`payerUserId` (the list/detail screens only ever needed the
+  *resolved* `categoryName`/`paymentMethodName`/`payerName`) and its switches need
+  `autoRenew`/`notify`/`notifyDaysBefore`, so all six joined `Subscription` — cached on
+  `SubscriptionEntity` too, since the point was pre-filling the editor from the cache with no
+  extra round trip. The rule cuts both ways: it justified 2.1 leaving them out, and 7.7 adding
+  them back once a screen actually renders them.
 - **Money.** `price` is a JSON number, `monthly_cost` is a preformatted string with thousands
   separators (`"1,234.56"`), and currency `rate` is a string. Parse each explicitly in
   `utils:formatter:decimal`; never map `monthly_cost` to `Double` directly. `MoneyFormatter`

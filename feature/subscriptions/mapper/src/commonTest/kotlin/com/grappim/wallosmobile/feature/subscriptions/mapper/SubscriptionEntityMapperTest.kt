@@ -82,7 +82,13 @@ class SubscriptionEntityMapperTest {
         url = "https://disneyplus.com",
         categoryName = "Health & Fitness",
         paymentMethodName = "Direct Debit",
-        payerName = "gregorz"
+        payerName = "gregorz",
+        categoryId = 3,
+        paymentMethodId = 2,
+        payerUserId = 1,
+        autoRenew = true,
+        notify = true,
+        notifyDaysBefore = 3
     )
 
     private fun entity(cycleCode: Int? = 3, nextPayment: String? = "2026-03-10") = SubscriptionEntity(
@@ -101,6 +107,12 @@ class SubscriptionEntityMapperTest {
         url = "",
         categoryName = "Entertainment",
         paymentMethodName = "Direct Debit",
-        payerName = "gregorz"
+        payerName = "gregorz",
+        categoryId = 3,
+        paymentMethodId = 2,
+        payerUserId = 1,
+        autoRenew = true,
+        notify = true,
+        notifyDaysBefore = 3
     )
 }

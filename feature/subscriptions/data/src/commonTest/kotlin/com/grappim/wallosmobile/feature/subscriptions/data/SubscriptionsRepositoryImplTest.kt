@@ -595,7 +595,13 @@ class SubscriptionsRepositoryImplTest {
         url = "",
         categoryName = "No category",
         paymentMethodName = "PayPal",
-        payerName = "gregorz"
+        payerName = "gregorz",
+        categoryId = null,
+        paymentMethodId = null,
+        payerUserId = null,
+        autoRenew = true,
+        notify = false,
+        notifyDaysBefore = null
     )
 
     /**

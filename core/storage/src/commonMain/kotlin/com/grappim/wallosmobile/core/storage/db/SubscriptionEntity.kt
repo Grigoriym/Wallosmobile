@@ -25,6 +25,9 @@ const val SUBSCRIPTION_TABLE = "subscriptions"
  *
  * @param cycleCode `null` when the instance sent a code this build doesn't know.
  * @param nextPayment ISO-8601, `null` when the server sent `""` or something unparseable.
+ * @param categoryId the id [categoryName] was resolved from, `null` when unset (7.7) — cached so
+ *   the editor can pre-fill its pickers from the cache alone. [paymentMethodId], [payerUserId],
+ *   [autoRenew], [notify] and [notifyDaysBefore] exist on the row for the same reason.
  */
 @Entity(tableName = SUBSCRIPTION_TABLE)
 data class SubscriptionEntity(
@@ -44,5 +47,11 @@ data class SubscriptionEntity(
     val url: String,
     val categoryName: String,
     val paymentMethodName: String,
-    val payerName: String
+    val payerName: String,
+    val categoryId: Int?,
+    val paymentMethodId: Int?,
+    val payerUserId: Int?,
+    val autoRenew: Boolean,
+    val notify: Boolean,
+    val notifyDaysBefore: Int?
 )

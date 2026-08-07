@@ -41,12 +41,22 @@ data class SubscriptionDetailUiItem(
  * [subscription] is whatever the cache holds for this id (3.4): null until a refresh has put the
  * row there, and null again if a later list refresh dropped it. A *failed* refresh no longer
  * clears it — the cached row is real, which is what 2.5 had nothing of.
+ *
+ * The delete flow (7.7) gets its own [deleteError] rather than reusing [error]: the two can be
+ * true at once (a stale row behind a failed delete attempt), and [isStale]/[isFailed] would
+ * misread a delete failure as a load failure if they shared one field.
  */
 data class SubscriptionDetailUiState(
     val subscription: SubscriptionDetailUiItem? = null,
     val isLoading: Boolean = false,
     val error: NativeText = NativeText.Empty,
-    val onRetryClick: () -> Unit = {}
+    val onRetryClick: () -> Unit = {},
+    val isDeleteDialogOpen: Boolean = false,
+    val isDeleting: Boolean = false,
+    val deleteError: NativeText = NativeText.Empty,
+    val onDeleteClick: () -> Unit = {},
+    val onDeleteDialogDismiss: () -> Unit = {},
+    val onDeleteConfirm: () -> Unit = {}
 ) {
 
     /** A row the last refresh couldn't confirm: a banner over it, never instead of it (3.5). */

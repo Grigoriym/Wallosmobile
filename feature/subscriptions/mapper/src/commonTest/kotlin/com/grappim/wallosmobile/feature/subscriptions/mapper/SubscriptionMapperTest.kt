@@ -31,6 +31,24 @@ class SubscriptionMapperTest {
         assertEquals("Health & Wellbeing", result.categoryName)
         assertEquals("Direct Debit", result.paymentMethodName)
         assertEquals("gregorz", result.payerName)
+        assertEquals(2, result.categoryId)
+        assertEquals(3, result.paymentMethodId)
+        assertEquals(1, result.payerUserId)
+        assertTrue(result.autoRenew)
+        assertTrue(result.notify)
+        assertEquals(5, result.notifyDaysBefore)
+    }
+
+    /** 7.7: the editor pre-fills its pickers from these, so `0`/`1` has to fold to `Boolean` too. */
+    @Test
+    fun `folds auto_renew and notify from their wire ints`() {
+        val autoRenewOff = mapper.toDomain(subscriptionDTO(autoRenew = 0, notify = 0), currencySymbol = "€")
+        assertFalse(autoRenewOff.autoRenew)
+        assertFalse(autoRenewOff.notify)
+
+        val autoRenewOn = mapper.toDomain(subscriptionDTO(autoRenew = 1, notify = 1), currencySymbol = "€")
+        assertTrue(autoRenewOn.autoRenew)
+        assertTrue(autoRenewOn.notify)
     }
 
     @Test
@@ -125,7 +143,9 @@ class SubscriptionMapperTest {
         notes: String = "",
         categoryName: String? = "Health & Wellbeing",
         paymentMethodName: String? = "Direct Debit",
-        payerUserName: String? = "gregorz"
+        payerUserName: String? = "gregorz",
+        autoRenew: Int = 1,
+        notify: Int = 1
     ) = SubscriptionDTO(
         id = 4,
         name = name,
@@ -136,7 +156,13 @@ class SubscriptionMapperTest {
         nextPayment = nextPayment,
         cycle = cycle,
         frequency = 1,
+        autoRenew = autoRenew,
         notes = notes,
+        paymentMethodId = 3,
+        payerUserId = 1,
+        categoryId = 2,
+        notify = notify,
+        notifyDaysBefore = 5,
         url = "https://fitonapp.com",
         inactive = inactive,
         categoryName = categoryName,

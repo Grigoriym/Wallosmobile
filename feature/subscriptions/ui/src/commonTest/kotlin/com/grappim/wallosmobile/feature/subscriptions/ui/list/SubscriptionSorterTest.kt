@@ -122,6 +122,12 @@ class SubscriptionSorterTest {
         url = "",
         categoryName = "",
         paymentMethodName = "",
-        payerName = ""
+        payerName = "",
+        categoryId = null,
+        paymentMethodId = null,
+        payerUserId = null,
+        autoRenew = true,
+        notify = false,
+        notifyDaysBefore = null
     )
 }

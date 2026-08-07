@@ -40,10 +40,17 @@ class SubscriptionMapper(private val dateFormatter: DateFormatter, private val h
         // "No category" / "Unknown member" / "Unknown payment method".
         categoryName = htmlUnescaper.unescape(dto.categoryName.orEmpty()),
         paymentMethodName = htmlUnescaper.unescape(dto.paymentMethodName.orEmpty()),
-        payerName = htmlUnescaper.unescape(dto.payerUserName.orEmpty())
+        payerName = htmlUnescaper.unescape(dto.payerUserName.orEmpty()),
+        categoryId = dto.categoryId,
+        paymentMethodId = dto.paymentMethodId,
+        payerUserId = dto.payerUserId,
+        autoRenew = dto.autoRenew == FLAG_TRUE,
+        notify = dto.notify == FLAG_TRUE,
+        notifyDaysBefore = dto.notifyDaysBefore
     )
 
     private companion object {
         const val INACTIVE_FALSE = 0
+        const val FLAG_TRUE = 1
     }
 }

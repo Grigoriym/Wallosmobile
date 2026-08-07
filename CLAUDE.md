@@ -355,6 +355,15 @@ vertical slices, **all source in `commonMain`**.
   the same DTO-beside-the-model instinct the wire layer uses. Decoding it catches
   `IllegalArgumentException`: pre-v1 stored state is disposable, but *discarding* it has to be a
   default screen rather than a crash in the ViewModel's constructor.
+- **Read a `SavedStateHandle` key before anything starts writing it, not after** (7.7). A form that
+  persists itself via `_uiState.onEach { savedStateHandle[KEY] = … }.launchIn(viewModelScope)` in
+  `init` writes its *first* entry the moment that line runs — `viewModelScope`'s dispatcher is
+  `Main.immediate`, so the launch's first collection is not deferred to a later loop turn. A
+  same-`init` check of "does this key already have a value" (used by `SubscriptionEditorViewModel`
+  to decide whether to pre-fill an edit form from the cache, or leave a restored/mid-edit form
+  alone) has to run *before* the persist line, or it always sees the value that same line just
+  wrote and never pre-fills anything. `hadStoredForm` is captured as a property initializer, ahead
+  of `persistForm()` in `init`, for exactly this reason.
 - **A new module must be added to the root `build.gradle.kts` `kover { }` block** — coverage is
   aggregated by an explicit per-module list, so a module left out of it is silently at 0% and
   nothing fails. `:testing` is deliberately absent (fakes, not production code).
@@ -384,7 +393,9 @@ vertical slices, **all source in `commonMain`**.
   `material-icons-core-1.7.3.jar`) — the FAB needs no `material-icons-extended` addition. The
   1.8-era claim above that it wasn't there was written before anything needed it and turned out
   wrong; treat "obvious icons are usually missing" as a reason to check, not as a verdict on any
-  icon in particular.
+  icon in particular. **`Icons.Filled.Edit` and `Icons.Filled.Delete` are also in the set** (7.7,
+  same `unzip`-and-`ls` check) — the detail screen's edit/delete actions needed no
+  `material-icons-extended` addition either.
 - **Material 3's own source is in the Gradle cache, and it is the authority on which colour role a
   component reads** — `unzip` `material3-desktop-*-sources.jar` from
   `~/.gradle/caches/modules-2/files-2.1/org.jetbrains.compose.material3/` and read
@@ -771,7 +782,13 @@ all — not the working case, not the failing one. That needs a scratch containe
 
 **That container exists, stopped, as `wallos-scratch` on port 8284** (5.3) — a `bellamy/wallos` over
 a copy of the live database with 8 of the 35 rows moved to `currency_id = 2` and the copied key
-rotated to `5c3aa1de…7b8c`. `docker start wallos-scratch`, then `http://10.0.2.2:8284`.
+rotated to `5c3aa1de…7b8c`. `docker start wallos-scratch`, then `http://10.0.2.2:8284`. The full key
+lives on the `user` row, not a separate table — `docker exec wallos-scratch php -r '$d=new
+SQLite3("/var/www/html/db/wallos.db"); $r=$d->query("SELECT api_key FROM user WHERE id=1");
+echo $r->fetchArray()[0];'` is the one-liner, and it is what the app's "I have an API key" path
+wants (Path B, no web-login bridge needed against a scratch instance). Logging into a *different*
+server than whatever is already stored needs `adb shell pm clear com.grappim.wallosmobile.debug`
+first (3.4's rule) or the app opens on the previous server's cached rows.
 **Since 5.4 it converts**: `currencies.rate = 1.17` for USD, `settings.convert_currency = 1`, and a
 `last_exchange_update` row — which is the flag the server actually gates on, and the one the app can
 only infer from a rate that isn't `1`. So the 8 USD rows come back divided by 1.17 with

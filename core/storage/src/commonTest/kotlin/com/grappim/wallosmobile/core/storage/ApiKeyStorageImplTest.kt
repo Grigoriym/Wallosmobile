@@ -144,7 +144,13 @@ private fun subscriptionEntity() = SubscriptionEntity(
     url = "",
     categoryName = "Health & Fitness",
     paymentMethodName = "PayPal",
-    payerName = "gregorz"
+    payerName = "gregorz",
+    categoryId = null,
+    paymentMethodId = null,
+    payerUserId = null,
+    autoRenew = true,
+    notify = false,
+    notifyDaysBefore = null
 )
 
 /** Only what [ApiKeyStorageImpl] touches: the eviction. Reads are the DAO tests' business (3.3). */

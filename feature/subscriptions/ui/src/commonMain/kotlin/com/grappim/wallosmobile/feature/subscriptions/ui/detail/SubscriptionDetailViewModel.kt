@@ -14,11 +14,13 @@ import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
 import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
 import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.InjectedParam
@@ -42,11 +44,22 @@ class SubscriptionDetailViewModel(
     private val dateFormatter: DateFormatter
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(SubscriptionDetailUiState(onRetryClick = ::load))
+    private val _uiState = MutableStateFlow(
+        SubscriptionDetailUiState(
+            onRetryClick = ::load,
+            onDeleteClick = ::onDeleteClick,
+            onDeleteDialogDismiss = ::onDeleteDialogDismiss,
+            onDeleteConfirm = ::onDeleteConfirm
+        )
+    )
     val uiState: StateFlow<SubscriptionDetailUiState> = _uiState.asStateFlow()
 
     /** Bumped only by a refresh that succeeds (5.6) — see the list ViewModel's field of the same name. */
     private val refreshGeneration = MutableStateFlow(0)
+
+    /** One-off, per plan: a successful delete is a signal the screen acts on, never UI state. */
+    private val _deleted = Channel<Unit>()
+    val deleted = _deleted.receiveAsFlow()
 
     init {
         observeCache()
@@ -115,6 +128,32 @@ class SubscriptionDetailViewModel(
         }
         _uiState.update {
             it.copy(isLoading = false, error = getErrorMessage(throwable))
+        }
+    }
+
+    private fun onDeleteClick() {
+        _uiState.update { it.copy(isDeleteDialogOpen = true) }
+    }
+
+    private fun onDeleteDialogDismiss() {
+        _uiState.update { it.copy(isDeleteDialogOpen = false) }
+    }
+
+    private fun onDeleteConfirm() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDeleting = true, deleteError = NativeText.Empty) }
+
+            subscriptionsRepository.deleteSubscription(subscriptionId)
+                .onSuccess {
+                    _uiState.update { it.copy(isDeleting = false, isDeleteDialogOpen = false) }
+                    _deleted.send(Unit)
+                }
+                .onFailure { throwable ->
+                    logcat(priority = LogPriority.WARN, throwable = throwable) {
+                        "Deleting subscription $subscriptionId failed"
+                    }
+                    _uiState.update { it.copy(isDeleting = false, deleteError = getErrorMessage(throwable)) }
+                }
         }
     }
 

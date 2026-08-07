@@ -66,6 +66,7 @@ import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_save
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_start_date
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_title
+import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_title_edit
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_url
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
@@ -87,12 +88,14 @@ import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 import kotlin.time.Instant
 
 @Composable
 fun SubscriptionEditorScreen(
     onBackClick: () -> Unit,
-    viewModel: SubscriptionEditorViewModel = koinViewModel<SubscriptionEditorViewModel>()
+    subscriptionId: Int? = null,
+    viewModel: SubscriptionEditorViewModel = koinViewModel { parametersOf(subscriptionId) }
 ) {
     val topBarController = LocalTopBarConfig.current
     val uiState by viewModel.uiState.collectAsState()
@@ -100,7 +103,13 @@ fun SubscriptionEditorScreen(
     LaunchedEffect(Unit) {
         topBarController.update(
             TopBarConfig(
-                title = NativeText.Resource(RString.subscription_editor_title),
+                title = NativeText.Resource(
+                    if (subscriptionId != null) {
+                        RString.subscription_editor_title_edit
+                    } else {
+                        RString.subscription_editor_title
+                    }
+                ),
                 navigationIcon = NavigationIconConfig.Back(onBackClick)
             )
         )
