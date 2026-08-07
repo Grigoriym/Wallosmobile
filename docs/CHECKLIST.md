@@ -126,20 +126,21 @@ kept here as the permanent answer rather than something to re-open; the rest is 
   `registration.php` source would settle it. No app change implied either way — the fix for the
   user's own account is generating the key once in the web UI — this is purely a "why" to close out
   of curiosity, not a defect to design around.
-- **The FAB → add-subscription screen feels slower to open than list → detail.** Filed 2026-08-07,
-  not yet measured — this is the likely cause read off the code, not a timed comparison. The detail
-  screen is cache-first (3.4): the cached row renders instantly and a single `refreshSubscription`
-  round trip happens invisibly behind it. `SubscriptionEditorViewModel`'s add path has no cache to
-  be first with — `loadCategories`/`loadPayers`/`loadPaymentMethods` are three independent
-  `viewModelScope.launch`es (so they run concurrently, not serially) each hitting
-  `CategoriesRepository`/`HouseholdRepository`/`PaymentMethodsRepository`, and 7.2's own Note
-  already says why: those three have "no cache behind them... every call is a round trip", a
-  deliberate scope cut for M7 rather than an oversight. So opening the add screen always costs at
-  least one full round trip with nothing to show meanwhile (empty pickers, no fallback), where the
-  detail screen never blocks on the network for anything on screen. Worth confirming with the
-  logcat `REQUEST:`/`RESPONSE:` timestamps (per `CLAUDE.md`'s own technique) before touching
-  anything — if this is right, giving these three a cache is Phase 5 management-screen scope, not a
-  small fix.
+- **The FAB → add-subscription screen is confirmed slower to open than list → detail.** Filed
+  2026-08-07, confirmed the same day with logcat `REQUEST:`/`RESPONSE:` timestamps against the
+  local instance. List → detail (tapping a cached row, e.g. Fiton): response landed 10ms after the
+  tap — the cache-first design (3.4) means the refresh is invisible and nothing on screen ever
+  waits for it. FAB → add: `loadCategories`/`loadPayers`/`loadPaymentMethods` fire all three
+  requests in the same millisecond, but only one (`get_household`) comes back fast (10ms) — the
+  other two (`get_categories`, `get_payment_methods`) land together, ~509ms later, with no retries
+  or exceptions logged for either. So the add screen's real cost isn't "three concurrent round
+  trips" in the abstract, it's a ~500ms wait on every open with nothing to show meanwhile (empty
+  pickers, no fallback) — and the stagger itself (one fast, two slow-and-simultaneous) isn't
+  explained by anything client-side: `LoginThrottle` is scoped to `login.php`/`totp.php` only, and
+  `NetworkModule.kt` sets no connection-pool limits. That points at the *server* serializing two of
+  the three requests (PHP-FPM worker count or session-file locking are the likely candidates), not
+  the client — unconfirmed and out of this app's scope to chase further. If a cache is the fix,
+  giving these three one is Phase 5 management-screen scope, not a small fix.
 - **Investigate a tracing setup (Perfetto or similar) for before/after-PR performance comparison.**
   Filed 2026-08-07, not scoped — the ask is capturing a trace against a build, capturing another
   against a change, and diffing whatever metric matters (cold start, a screen's frame time, the
