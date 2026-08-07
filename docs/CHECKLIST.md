@@ -126,28 +126,34 @@ kept here as the permanent answer rather than something to re-open; the rest is 
   `registration.php` source would settle it. No app change implied either way — the fix for the
   user's own account is generating the key once in the web UI — this is purely a "why" to close out
   of curiosity, not a defect to design around.
-- **The FAB → add-subscription screen is confirmed slower to open than list → detail.** Filed
-  2026-08-07, confirmed the same day with logcat `REQUEST:`/`RESPONSE:` timestamps against the
-  local instance. List → detail (tapping a cached row, e.g. Fiton): response landed 10ms after the
-  tap — the cache-first design (3.4) means the refresh is invisible and nothing on screen ever
-  waits for it. FAB → add: `loadCategories`/`loadPayers`/`loadPaymentMethods` fire all three
-  requests in the same millisecond, but only one (`get_household`) comes back fast (10ms) — the
-  other two (`get_categories`, `get_payment_methods`) land together, ~509ms later, with no retries
-  or exceptions logged for either. So the add screen's real cost isn't "three concurrent round
-  trips" in the abstract, it's a ~500ms wait on every open with nothing to show meanwhile (empty
-  pickers, no fallback) — and the stagger itself (one fast, two slow-and-simultaneous) isn't
-  explained by anything client-side: `LoginThrottle` is scoped to `login.php`/`totp.php` only, and
-  `NetworkModule.kt` sets no connection-pool limits. That points at the *server* serializing two of
-  the three requests (PHP-FPM worker count or session-file locking are the likely candidates), not
-  the client — unconfirmed and out of this app's scope to chase further. If a cache is the fix,
-  giving these three one is Phase 5 management-screen scope, not a small fix.
-- **Investigate a tracing setup (Perfetto or similar) for before/after-PR performance comparison.**
-  Filed 2026-08-07, not scoped — the ask is capturing a trace against a build, capturing another
-  against a change, and diffing whatever metric matters (cold start, a screen's frame time, the
-  FAB-feels-slower item above being one concrete candidate to measure rather than eyeball). Needs
-  research before it's a step: what a capture looks like driven from `adb` alone versus needing
-  `androidx.benchmark`/Macrobenchmark, and whether it's a CI-time comparison or stays a manual,
-  on-demand recipe like the rest of this file's device-testing techniques.
+- **The FAB → add-subscription screen is still slower to open than list → detail, after 4.4's fix.**
+  4.4 shipped a real, tested, on-device-confirmed improvement — each no-cache picker
+  (`EditorPickerUiState.isLoading`, category/payer/paymentMethod) now shows a spinner instead of
+  sitting silently empty while `loadCategories`/`loadPayers`/`loadPaymentMethods` are in flight — but
+  the user still sees the screen itself take a while to open, which that fix never addressed. Two
+  separate, real costs, neither with a small fix:
+  1. **The network wait**: 2 of the 3 picker calls land together ~500–700ms after the request (the
+     third, `get_household`, is fast — under 15ms) against the local instance, with no retries or
+     exceptions logged. Confirmed server-side, not client: `LoginThrottle` only gates
+     `login.php`/`totp.php`, `NetworkModule.kt` sets no connection-pool limit, and a bare `curl` to
+     the same three endpoints from the host resolved in ~7ms each — so whatever serializes two of
+     the three only shows up through the app's own request pattern (PHP-FPM worker count or
+     session-file locking are the live guesses, still unconfirmed). Fixing this for real means giving
+     these three repositories a cache the way `SubscriptionsRepository` already has one — Phase 5
+     management-screen scope, not a small change.
+  2. **A one-time JIT warm-up tax on cold navigation**, found by breaking down a captured Perfetto
+     trace frame-by-frame (technique: `emulator-testing` skill's Step 4b, written up 2026-08-07): the
+     very first `Choreographer#doFrame` after the FAB tap took 121.9ms by itself, and slice-level
+     breakdown showed that time dominated by repeated `Lock contention on Jit code cache for mutator`
+     entries — ART's JIT compiling this screen's heavier components (date pickers, dropdown menus;
+     more than list/detail exercise) for the first time in the process, while the main thread waits on
+     the same lock. Confirmed real by measuring the same screen's *second* visit in the same process:
+     90th-percentile frame time roughly halved (450–500ms cold → 200–250ms warm) with nothing else
+     changed. This is what Android Baseline Profiles exist to remove; investigating one is unscoped,
+     separate work — plan §8/Phase 5 territory at best, not investigated further here.
+  Filed 2026-08-07. Not a regression to chase further in a single session — the next session picking
+  this up should treat (1) and (2) as two independent tickets with two independent fixes, and read
+  this entry plus the Step 4b recipe before re-deriving either measurement.
 - **A tentative idea, not a decision: log on tap during emulator regression passes**, so a click's
   effect shows up in `logcat` immediately instead of needing a screenshot read every time. Filed
   2026-08-07, with the user's own caveat attached — not expected to replace screenshots, since the

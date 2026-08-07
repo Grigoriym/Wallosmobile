@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -336,7 +337,13 @@ private fun PickerField(
             onValueChange = {},
             readOnly = true,
             label = { Text(stringResource(label)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) }
+            trailingIcon = {
+                if (state.isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(PICKER_SPINNER_SIZE), strokeWidth = 2.dp)
+                } else {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded)
+                }
+            }
         )
 
         ExposedDropdownMenu(expanded = isExpanded, onDismissRequest = { isExpanded = false }) {
@@ -462,6 +469,7 @@ private val WritableBillingCycle.label: StringResource
 
 private val SCREEN_PADDING = 16.dp
 private val FIELD_SPACING = 16.dp
+private val PICKER_SPINNER_SIZE = 24.dp
 private const val FREQUENCY_WEIGHT = 1f
 private const val CYCLE_WEIGHT = 2f
 
@@ -488,6 +496,18 @@ private fun SubscriptionEditorContentPreview() = WallosMobilePreviewTheme {
 @Composable
 private fun SubscriptionEditorContentSavingPreview() = WallosMobilePreviewTheme {
     SubscriptionEditorContent(uiState = previewUiState.copy(isSaving = true))
+}
+
+@PreviewWallosDarkLight
+@Composable
+private fun SubscriptionEditorContentPickersLoadingPreview() = WallosMobilePreviewTheme {
+    SubscriptionEditorContent(
+        uiState = previewUiState.copy(
+            category = EditorPickerUiState(isLoading = true),
+            payer = EditorPickerUiState(isLoading = true),
+            paymentMethod = EditorPickerUiState(isLoading = true)
+        )
+    )
 }
 
 @PreviewWallosDarkLight

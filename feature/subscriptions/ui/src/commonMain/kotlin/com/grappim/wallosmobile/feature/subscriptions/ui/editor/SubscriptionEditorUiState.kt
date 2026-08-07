@@ -20,6 +20,7 @@ data class PickerOption(val id: Int, val label: String)
 data class EditorPickerUiState(
     val selectedId: Int? = null,
     val options: ImmutableList<PickerOption> = persistentListOf(),
+    val isLoading: Boolean = false,
     val onSelect: (Int?) -> Unit = {}
 )
 

@@ -298,9 +298,14 @@ class SubscriptionEditorViewModel(
             categoriesRepository.getCategories()
                 .onSuccess { categories ->
                     val options = categories.map { PickerOption(id = it.id, label = it.name) }
-                    _uiState.update { it.copy(category = it.category.copy(options = options.toPersistentList())) }
+                    _uiState.update {
+                        it.copy(category = it.category.copy(options = options.toPersistentList(), isLoading = false))
+                    }
                 }
-                .onFailure { logcat(priority = LogPriority.WARN, throwable = it) { "Loading categories failed" } }
+                .onFailure {
+                    logcat(priority = LogPriority.WARN, throwable = it) { "Loading categories failed" }
+                    _uiState.update { it.copy(category = it.category.copy(isLoading = false)) }
+                }
         }
     }
 
@@ -309,10 +314,13 @@ class SubscriptionEditorViewModel(
             householdRepository.getMembers()
                 .onSuccess { members ->
                     val options = members.map { PickerOption(id = it.id, label = it.name) }
-                    _uiState.update { it.copy(payer = it.payer.copy(options = options.toPersistentList())) }
+                    _uiState.update {
+                        it.copy(payer = it.payer.copy(options = options.toPersistentList(), isLoading = false))
+                    }
                 }
                 .onFailure {
                     logcat(priority = LogPriority.WARN, throwable = it) { "Loading household members failed" }
+                    _uiState.update { it.copy(payer = it.payer.copy(isLoading = false)) }
                 }
         }
     }
@@ -323,10 +331,18 @@ class SubscriptionEditorViewModel(
                 .onSuccess { methods ->
                     val options = methods.map { PickerOption(id = it.id, label = it.name) }
                     _uiState.update {
-                        it.copy(paymentMethod = it.paymentMethod.copy(options = options.toPersistentList()))
+                        it.copy(
+                            paymentMethod = it.paymentMethod.copy(
+                                options = options.toPersistentList(),
+                                isLoading = false
+                            )
+                        )
                     }
                 }
-                .onFailure { logcat(priority = LogPriority.WARN, throwable = it) { "Loading payment methods failed" } }
+                .onFailure {
+                    logcat(priority = LogPriority.WARN, throwable = it) { "Loading payment methods failed" }
+                    _uiState.update { it.copy(paymentMethod = it.paymentMethod.copy(isLoading = false)) }
+                }
         }
     }
 
@@ -365,9 +381,13 @@ class SubscriptionEditorViewModel(
         onNextPaymentChange = ::onNextPaymentChange,
         startDate = startDate.toIsoDateOrNull(),
         onStartDateChange = ::onStartDateChange,
-        category = EditorPickerUiState(selectedId = categoryId, onSelect = ::onCategorySelect),
-        payer = EditorPickerUiState(selectedId = payerId, onSelect = ::onPayerSelect),
-        paymentMethod = EditorPickerUiState(selectedId = paymentMethodId, onSelect = ::onPaymentMethodSelect),
+        category = EditorPickerUiState(selectedId = categoryId, isLoading = true, onSelect = ::onCategorySelect),
+        payer = EditorPickerUiState(selectedId = payerId, isLoading = true, onSelect = ::onPayerSelect),
+        paymentMethod = EditorPickerUiState(
+            selectedId = paymentMethodId,
+            isLoading = true,
+            onSelect = ::onPaymentMethodSelect
+        ),
         notes = notes,
         onNotesChange = ::onNotesChange,
         url = url,

@@ -8,6 +8,13 @@ a self-hosted subscription tracker. **Android only for now**, built KMP-first.
 `docs/CHECKLIST.md`'s `Progress` / `Current step` header is the **only** record of how far the
 build has got. Don't duplicate it here — it would go stale every session.
 
+## Docs, not memory
+
+Anything a session learns that the next one should know goes in this file or `docs/` —
+**never** in Claude's own memory system. The user can't see or edit that from here, so it isn't a
+valid destination for a project fact, a convention, or an instruction they gave directly; write it
+down where they can find and correct it instead.
+
 ## How work happens here
 
 **One checklist step per session, with context cleared in between.**
@@ -109,6 +116,10 @@ This project uses the **`emulator-testing`** and **`finalize`** skills; both are
 # app is wired — read the generated module out of the bytecode. One `module$lambda` per definition:
 javap -p -c core/storage/build/classes/kotlin/android/main/com/grappim/wallosmobile/core/storage/\
 ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private static final"
+
+# Any ad-hoc Python tooling (a trace analyzer, a one-off script — not part of the Gradle build)
+# goes through a venv, never a bare/system `pip install`: this machine's `pip` refuses one outright
+# ("externally managed environment", PEP 668). `python3 -m venv` in the scratch directory first.
 ```
 
 A step whose `Verify:` line is about the running app is verified **on the emulator**, not by
@@ -504,6 +515,13 @@ say that instead of asserting the step works.
   one, name what it would show if the change had done nothing.
 - **Before/after comparisons need equally fresh runs** — a baseline from a partially cached build
   (`./gradlew` with warm task outputs) measures a different universe than a clean after-run.
+- **A performance fix is verified against the user's literal complaint, not against whichever data
+  source diagnosed it.** Confirmed 2026-08-07: network-timestamp logs found a real ~500ms stagger
+  behind "the add-subscription screen feels slower to open," and a fix landed and measured clean
+  against that data — but it left the original complaint (the screen itself takes a while to
+  *appear*) unaddressed, because a second, independent cause (a JIT warm-up tax on cold navigation)
+  was invisible to network logs and only showed up once the user re-tested the actual complaint.
+  One data source agreeing with itself is not the same claim as "this is fixed."
 
 ### Friction goes in writing too
 The rule above is for problems in the *code*; this one is for friction in the *tooling* — a

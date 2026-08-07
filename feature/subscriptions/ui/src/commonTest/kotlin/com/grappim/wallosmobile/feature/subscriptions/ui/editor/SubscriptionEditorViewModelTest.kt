@@ -18,6 +18,7 @@ import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.WritableBillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
 import com.grappim.wallosmobile.testing.MainDispatcherRule
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -77,6 +78,9 @@ class SubscriptionEditorViewModelTest {
         assertEquals(PickerOption(1, "Entertainment"), state.category.options.single())
         assertEquals(PickerOption(1, "gregorz"), state.payer.options.single())
         assertEquals(PickerOption(1, "Direct Debit"), state.paymentMethod.options.single())
+        assertFalse(state.category.isLoading)
+        assertFalse(state.payer.isLoading)
+        assertFalse(state.paymentMethod.isLoading)
     }
 
     /** A repository that never answers must not sink the whole form — the other three still load. */
@@ -88,7 +92,30 @@ class SubscriptionEditorViewModelTest {
         val state = viewModel().uiState.value
 
         assertTrue(state.category.options.isEmpty())
+        assertFalse(state.category.isLoading)
         assertEquals(PickerOption(1, "EUR (€)"), state.currency.options.single())
+    }
+
+    /**
+     * 4.4's own finding: the three no-cache pickers can sit empty for real seconds waiting on the
+     * network (measured with `dumpsys gfxinfo`/Perfetto against the local instance). A picker with
+     * no options and no loading state is indistinguishable from a broken one — this is what tells
+     * the two apart while `getCategories()` is still in flight.
+     */
+    @Test
+    fun `a picker starts loading and clears once its data arrives`() = runTest {
+        categoriesRepository.categories =
+            Result.success(listOf(Category(id = 1, name = "Entertainment", inUse = false)))
+        categoriesRepository.holdUntilReleased()
+
+        val sut = viewModel()
+
+        assertTrue(sut.uiState.value.category.isLoading)
+
+        categoriesRepository.release()
+
+        assertFalse(sut.uiState.value.category.isLoading)
+        assertEquals(PickerOption(1, "Entertainment"), sut.uiState.value.category.options.single())
     }
 
     @Test
@@ -400,8 +427,21 @@ class SubscriptionEditorViewModelTest {
     private class FakeCategoriesRepository : CategoriesRepository {
 
         var categories: Result<List<Category>> = Result.success(emptyList())
+        private var gate: CompletableDeferred<Unit>? = null
 
-        override suspend fun getCategories(): Result<List<Category>> = categories
+        /** Leaves [getCategories] suspended until [release] — for asserting the in-flight loading state. */
+        fun holdUntilReleased() {
+            gate = CompletableDeferred()
+        }
+
+        fun release() {
+            gate?.complete(Unit)
+        }
+
+        override suspend fun getCategories(): Result<List<Category>> {
+            gate?.await()
+            return categories
+        }
 
         override suspend fun addCategory(name: String): Result<Int> = error("not used by this test")
 

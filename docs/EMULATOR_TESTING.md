@@ -97,6 +97,12 @@ section and `docs/local-info.txt` — this file only covers the device side.
   `SurfaceLight`. Since dark/light can come from either the stored preference or the
   system default, verify with the two **diverged** (`cmd uimode night no` + pick Dark in
   app, then the reverse) — an agreeing pair proves nothing about which one the app reads.
+- **The local instance's `get_categories`/`get_household`/`get_payment_methods` response
+  time is highly variable run to run** (measured 10ms to ~700ms across otherwise-identical
+  attempts against `docker exec wallos`) — don't trust a single timed screenshot attempt
+  against these three to represent typical latency, and don't try to time a screenshot to
+  land inside their loading window by `sleep`ing a fixed delay after the tap; cut
+  connectivity first instead (skill Step 4b) so the window is deterministic.
 - **Planting a DataStore key before its UI exists** (`wallos_storage.preferences_pb` is
   an unchecksummed protobuf `map<string, Value>` that merges on repeated writes):
 
