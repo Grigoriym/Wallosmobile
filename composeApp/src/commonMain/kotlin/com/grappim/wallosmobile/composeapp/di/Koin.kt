@@ -12,6 +12,8 @@ import com.grappim.wallosmobile.feature.categories.data.CategoriesDataModule
 import com.grappim.wallosmobile.feature.categories.mapper.CategoriesMapperModule
 import com.grappim.wallosmobile.feature.household.data.HouseholdDataModule
 import com.grappim.wallosmobile.feature.household.mapper.HouseholdMapperModule
+import com.grappim.wallosmobile.feature.paymentmethods.data.PaymentMethodsDataModule
+import com.grappim.wallosmobile.feature.paymentmethods.mapper.PaymentMethodsMapperModule
 import com.grappim.wallosmobile.feature.settings.ui.SettingsUiModule
 import com.grappim.wallosmobile.feature.setup.data.SetupDataModule
 import com.grappim.wallosmobile.feature.setup.ui.SetupUiModule
@@ -54,6 +56,8 @@ import org.koin.core.annotation.Single
         CategoriesMapperModule::class,
         HouseholdDataModule::class,
         HouseholdMapperModule::class,
+        PaymentMethodsDataModule::class,
+        PaymentMethodsMapperModule::class,
         DateTimeFormatterModule::class,
         DecimalFormatterModule::class
     ]

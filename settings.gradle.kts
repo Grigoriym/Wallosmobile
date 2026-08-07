@@ -76,3 +76,8 @@ include(":feature:household:data")
 include(":feature:household:domain")
 include(":feature:household:dto")
 include(":feature:household:mapper")
+
+include(":feature:paymentmethods:data")
+include(":feature:paymentmethods:domain")
+include(":feature:paymentmethods:dto")
+include(":feature:paymentmethods:mapper")

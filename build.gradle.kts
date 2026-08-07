@@ -104,6 +104,11 @@ dependencies {
     kover(project(":feature:household:domain"))
     kover(project(":feature:household:dto"))
     kover(project(":feature:household:mapper"))
+
+    kover(project(":feature:paymentmethods:data"))
+    kover(project(":feature:paymentmethods:domain"))
+    kover(project(":feature:paymentmethods:dto"))
+    kover(project(":feature:paymentmethods:mapper"))
 }
 
 tasks.register<Delete>("clean") {

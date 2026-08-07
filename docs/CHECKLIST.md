@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `3/9`
-**Current step:** 7.4 — feature:paymentmethods: data + domain + dto + mapper on core:crud
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `4/9`
+**Current step:** 7.5 — feature:subscriptions: add / edit / delete on the repository
 
 ---
 
@@ -194,7 +194,7 @@ rather than by a step of its own, so no step below has to re-litigate them:
   — `AppModule`'s `includes` alone doesn't make the classes resolvable, the module needs the
   dependency too; `:androidApp:compileGplayDebugKotlin --rerun-tasks` is what caught the miss.
 
-- [ ] **7.4 — feature:paymentmethods: data + domain + dto + mapper on core:crud**
+- [x] **7.4 — feature:paymentmethods: data + domain + dto + mapper on core:crud**
   Same shape again; `enabled` (`1`/`0`) and `icon`. **`icon` is already a full relative path**
   (`images/uploads/icons/paypal.png`), unlike a subscription's bare `logo` filename — its display
   URL is `{base}/{icon}` directly, no prefix to add client-side (`WALLOS_API.md` §4).
@@ -205,6 +205,17 @@ rather than by a step of its own, so no step below has to re-litigate them:
   *Verify:* `./gradlew :feature:paymentmethods:data:testAndroidHostTest`
   `:feature:paymentmethods:mapper:testAndroidHostTest`, same coverage as 7.2.
   ·  *Ref:* `WALLOS_API.md` §3.10, §4
+  **Note:** read the live PHP (`api/payment_methods/{get,set}_payment_methods.php`) rather than
+  trusting the doc's summary alone — confirmed `enabled` is a SQLite `INTEGER` (`1`/`0` in the
+  JSON, not a boolean), so `PaymentMethodDTO.enabled` is an `Int` and `PaymentMethodMapper` folds
+  it to `Boolean` the same way `SubscriptionMapper` folds `inactive` (3.4's `INACTIVE_FALSE`
+  pattern, here `ENABLED = 1`). `icon_url` **is** in scope, unlike the file upload: it costs
+  nothing but an optional `String?` parameter on `addPaymentMethod`/`editPaymentMethod` — no
+  platform code, no picker, so it carries its own host tests same as every other field, whereas
+  the multipart upload would need 7.9's unreached `expect`/`actual` image-picker plumbing to even
+  compile a test against. `PaymentMethodsRepository`'s methods therefore take one more parameter
+  than 7.2/7.3's (`name`, `enabled`, `iconUrl: String? = null`) rather than mirroring either
+  precedent exactly.
 
 - [ ] **7.5 — feature:subscriptions: add / edit / delete on the repository**
   `SubscriptionsRepository` gains `add(params): Result<Int>`, `edit(id, params): Result<Unit>`,
