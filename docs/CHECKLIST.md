@@ -111,6 +111,43 @@ step; they have both been settled twice.**
 - **Version gating (plan §4.6) is still unowned.** It gates `get_period_budget`, `set_budget`'s
   period fields, `logo_variant` and `square_icons` — all Phase 4 and 5 surface, so M3 leaves it
   alone deliberately rather than by oversight.
+- **Why does a real account (`gregorz` on the user's own `sbscrpt.gregstuff.click` instance) have
+  no API key yet, when the web frontend logs in fine?** Not a bug in this app — confirmed against
+  `WALLOS_API.md` §2 that this is Wallos's own design: `api/*.php` ignores the session cookie
+  entirely and resolves the caller by `api_key` alone, so a working frontend session proves nothing
+  about whether one has ever been generated. Filed 2026-08-07 as a "this looks strange" from the
+  user, worth a closer look rather than acted on: is `api_key` seeded at registration and this
+  account predates that, was it cleared by something, or does Wallos genuinely never generate one
+  until the user visits Profile and clicks generate? `docker exec wallos cat api/... ` /
+  `registration.php` source would settle it. No app change implied either way — the fix for the
+  user's own account is generating the key once in the web UI — this is purely a "why" to close out
+  of curiosity, not a defect to design around.
+- **The detail screen's logo flickers on every open.** Root cause found and confirmed 2026-08-07,
+  fix deferred at the user's choice. `SubscriptionDetailViewModel.load()` refreshes on every entry
+  to the screen; a successful refresh bumps `refreshGeneration` (5.6), which `SubscriptionLogo`
+  feeds into Coil's `memoryCacheKeyExtra` so a row that previously errored gets a real retry once
+  the server is back (Coil won't retry a request already marked `Error`). The same bump fires on
+  *every* successful refresh, not only a recovery from a prior error, so a logo that already loaded
+  fine drops out of memory cache and does a visible memory-miss-then-disk-hit round trip for no
+  reason — the "flicker". Fix is narrow: only bump the token when the row is recovering from an
+  error, not unconditionally. Touches `SubscriptionDetailViewModel`'s `onCached`/`onRefreshed` and
+  the ViewModel test file that already covers `logoRefreshToken` (5.6, "a successful refresh bumps
+  the logo refresh token" / "a failed refresh leaves the logo refresh token alone") — those two
+  tests would need a third state (recovering vs. already-fine) to actually prove the fix.
+- **The FAB → add-subscription screen feels slower to open than list → detail.** Filed 2026-08-07,
+  not yet measured — this is the likely cause read off the code, not a timed comparison. The detail
+  screen is cache-first (3.4): the cached row renders instantly and a single `refreshSubscription`
+  round trip happens invisibly behind it. `SubscriptionEditorViewModel`'s add path has no cache to
+  be first with — `loadCategories`/`loadPayers`/`loadPaymentMethods` are three independent
+  `viewModelScope.launch`es (so they run concurrently, not serially) each hitting
+  `CategoriesRepository`/`HouseholdRepository`/`PaymentMethodsRepository`, and 7.2's own Note
+  already says why: those three have "no cache behind them... every call is a round trip", a
+  deliberate scope cut for M7 rather than an oversight. So opening the add screen always costs at
+  least one full round trip with nothing to show meanwhile (empty pickers, no fallback), where the
+  detail screen never blocks on the network for anything on screen. Worth confirming with the
+  logcat `REQUEST:`/`RESPONSE:` timestamps (per `CLAUDE.md`'s own technique) before touching
+  anything — if this is right, giving these three a cache is Phase 5 management-screen scope, not a
+  small fix.
 
 ---
 
