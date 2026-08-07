@@ -152,4 +152,35 @@ kept here as the permanent answer rather than something to re-open; the rest is 
   logcat `REQUEST:`/`RESPONSE:` timestamps (per `CLAUDE.md`'s own technique) before touching
   anything — if this is right, giving these three a cache is Phase 5 management-screen scope, not a
   small fix.
+- **Add the app logo to the login screen, the way TaigaMobileNova and MealieMobile do.** Both
+  render an `Image(painter = painterResource(...))` above the form (`taiga_mobile_logo`, `ic_icon`
+  — a `uikit` drawable in both cases); `feature/setup/ui/.../LoginScreen.kt` has none.
+  `art/wallosmobile_logo.png` (6.1's launcher-icon source) is the asset already in the repo, so
+  this is converting it into a drawable resource and adding one `Image`, not sourcing new art.
+  Filed 2026-08-07.
+- **Write a standalone emulator-testing doc**, pulling the adb/screenshot/`uiautomator dump`
+  recipes this file's own build-commands block has accumulated (coordinate scaling, `am kill` vs
+  `force-stop`, DataStore planting, the Photo Picker's confirmation bar, 7.9's finding that a
+  `DateField`'s placeholder is invisible to a dump text search) into their own doc. Filed
+  2026-08-07 **with a cross-repo angle attached**: the user wants this capability — an agent
+  driving a real emulator to verify a change — available the same way in other repos, not just
+  here, so when this is picked up it's worth deciding whether it stays a project doc or becomes a
+  shared skill in `agentic-grappim` (the `finalize` skill's own routing table already says a
+  cross-project *technique* belongs there). The shared-skill version has to be written generically
+  enough that a repo with a different package name and different screens can still follow it,
+  which is more work than copying this file's block verbatim.
+- **Investigate a tracing setup (Perfetto or similar) for before/after-PR performance comparison.**
+  Filed 2026-08-07, not scoped — the ask is capturing a trace against a build, capturing another
+  against a change, and diffing whatever metric matters (cold start, a screen's frame time, the
+  FAB-feels-slower item above being one concrete candidate to measure rather than eyeball). Needs
+  research before it's a step: what a capture looks like driven from `adb` alone versus needing
+  `androidx.benchmark`/Macrobenchmark, and whether it's a CI-time comparison or stays a manual,
+  on-demand recipe like the rest of this file's device-testing techniques.
+- **A tentative idea, not a decision: log on tap during emulator regression passes**, so a click's
+  effect shows up in `logcat` immediately instead of needing a screenshot read every time. Filed
+  2026-08-07, with the user's own caveat attached — not expected to replace screenshots, since the
+  UI still has to be checked visually, so at most a supplement for "did the tap even register"
+  questions a log line answers faster than a screencap round trip. Touching every clickable in
+  every screen (and its preview) for this is not obviously worth it yet; wants a concrete case this
+  would have shortened before it becomes a step rather than a hunch.
 
