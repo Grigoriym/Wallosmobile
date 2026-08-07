@@ -359,6 +359,13 @@ vertical slices, **all source in `commonMain`**.
   test deps come from the convention plugins — never declare them per module. Same for the Compose
   set, including **material icons** (`Icons.Filled.*`), which material3 does *not* pull in
   transitively and which therefore lives in `configureKmpCompose()`, not in any module.
+  **A `data` module needs `serialization` too the moment it decodes a raw JSON envelope itself**
+  (7.5) — `apiClient.post<T>()` against a typed DTO works with just `network`, since the DTO's own
+  module carries `serialization` and the reified call only needs `kotlinx-serialization-core`
+  (transitively present). Reaching for `kotlinx.serialization.json.JsonObject`/`JsonPrimitive`
+  directly (`WallosCrudApi`'s pattern, for an endpoint with no per-response DTO worth writing) needs
+  the `kotlinx-serialization-json` artifact, which only the `serialization` plugin adds — the error
+  reads as a plain `Unresolved reference 'json'`, not anything naming the missing plugin.
 - **`material-icons-core` is ~50 icons, and the obvious one is usually missing** — no
   `Subscriptions`, no `Payment`, no `Visibility`/`VisibilityOff`, no `FilterList` (3.6, which plan
   §5.4's own top-bar sketch used), not even `Add`; `ArrowBack`,
@@ -497,6 +504,10 @@ vertical slices, **all source in `commonMain`**.
   for a test helper. Build one canonical fixture and `.copy()` off it.
   **`UnusedParameter` applies to `commonTest` too** (5.5), so a test that ignores a callback passes
   `{ }` at the call site — a named `private fun ignore(wait: Duration) = Unit` fails detekt.
+  **`LongParameterList`'s `allowedConstructorParameters: 6` does not, in practice, gate a fake's
+  constructor** — `FakeSubscriptionsApi` sat at 9 named/defaulted params pre-7.5 and reached 13
+  after it, both real `./gradlew detekt` runs, both clean. Unlike the fixture-factory function limit
+  above, this one hasn't cost a build yet; don't pre-split a fake's constructor to dodge it.
   **A fake's settable field must not be named after the method it feeds.** `var baseUrl` beside
   `override fun getBaseUrl()` is a "platform declaration clash" — the property's getter compiles to
   `getBaseUrl()` too. Name the field for what it holds (`var url`), not for the method.

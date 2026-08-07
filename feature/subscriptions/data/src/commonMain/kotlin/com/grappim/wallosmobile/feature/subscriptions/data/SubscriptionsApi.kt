@@ -3,12 +3,16 @@ package com.grappim.wallosmobile.feature.subscriptions.data
 import com.grappim.wallosmobile.core.api.FormParams
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.post
+import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.subscriptions.dto.CurrenciesResponse
 import com.grappim.wallosmobile.feature.subscriptions.dto.CurrencyDTO
 import com.grappim.wallosmobile.feature.subscriptions.dto.SettingsResponse
 import com.grappim.wallosmobile.feature.subscriptions.dto.SubscriptionDTO
 import com.grappim.wallosmobile.feature.subscriptions.dto.SubscriptionResponse
 import com.grappim.wallosmobile.feature.subscriptions.dto.SubscriptionsResponse
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 import org.koin.core.annotation.Single
 
 /**
@@ -25,6 +29,14 @@ interface SubscriptionsApi {
 
     /** The user's own `convert_currency` setting, `false` on an instance that doesn't send one. */
     suspend fun isCurrencyConversionEnabled(): Boolean
+
+    /** `action=add` (API doc §3.4). @return the id the server assigned the new row. */
+    suspend fun addSubscription(fields: FormParams): Int
+
+    /** `action=edit`; [id] goes under the primary alias (`id`/`subscriptionId`/`subscription_id`). */
+    suspend fun editSubscription(id: Int, fields: FormParams)
+
+    suspend fun deleteSubscription(id: Int)
 }
 
 /**
@@ -67,6 +79,28 @@ internal class SubscriptionsApiImpl(private val apiClient: WallosApiClient) : Su
     override suspend fun isCurrencyConversionEnabled(): Boolean =
         apiClient.post<SettingsResponse>(SETTINGS_PATH).settings.convertCurrency == ENABLED
 
+    override suspend fun addSubscription(fields: FormParams): Int {
+        val envelope = apiClient.post<JsonObject>(SET_SUBSCRIPTIONS_PATH, fields.withAction(ACTION_ADD))
+        return (envelope[PARAM_SUBSCRIPTION_ID] as? JsonPrimitive)?.intOrNull
+            ?: throw WallosError.Malformed(envelope.toString())
+    }
+
+    override suspend fun editSubscription(id: Int, fields: FormParams) {
+        apiClient.post<JsonObject>(
+            SET_SUBSCRIPTIONS_PATH,
+            fields.withAction(ACTION_EDIT).put(PARAM_ID, id.toString())
+        )
+    }
+
+    override suspend fun deleteSubscription(id: Int) {
+        apiClient.post<JsonObject>(
+            SET_SUBSCRIPTIONS_PATH,
+            FormParams().withAction(ACTION_DELETE).put(PARAM_ID, id.toString())
+        )
+    }
+
+    private fun FormParams.withAction(action: String): FormParams = put(PARAM_ACTION, action)
+
     /**
      * Omitted rather than sent as `"false"` when off, the same way `withApiKey(null)` drops the key
      * instead of sending a blank one (1.3): the server compares against the literal string `"true"`
@@ -85,9 +119,16 @@ internal class SubscriptionsApiImpl(private val apiClient: WallosApiClient) : Su
         const val SUBSCRIPTION_PATH = "api/subscriptions/get_subscription.php"
         const val CURRENCIES_PATH = "api/currencies/get_currencies.php"
         const val SETTINGS_PATH = "api/settings/get_settings.php"
+        const val SET_SUBSCRIPTIONS_PATH = "api/subscriptions/set_subscriptions.php"
 
         const val PARAM_ID = "id"
         const val PARAM_CONVERT_CURRENCY = "convert_currency"
+        const val PARAM_ACTION = "action"
+        const val PARAM_SUBSCRIPTION_ID = "subscriptionId"
+
+        const val ACTION_ADD = "add"
+        const val ACTION_EDIT = "edit"
+        const val ACTION_DELETE = "delete"
 
         const val ENABLED = 1
     }

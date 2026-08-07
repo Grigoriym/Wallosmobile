@@ -3,8 +3,10 @@ package com.grappim.wallosmobile.feature.subscriptions.ui.list
 import androidx.lifecycle.SavedStateHandle
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.EditSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
@@ -727,6 +729,14 @@ class SubscriptionsViewModelTest {
         }
 
         override suspend fun refreshSubscription(id: Int): Result<Unit> = refreshSubscriptions()
+
+        override suspend fun addSubscription(params: AddSubscriptionParams): Result<Int> =
+            error("not used by this test")
+
+        override suspend fun editSubscription(id: Int, params: EditSubscriptionParams): Result<Unit> =
+            error("not used by this test")
+
+        override suspend fun deleteSubscription(id: Int): Result<Unit> = error("not used by this test")
     }
 
     private class FakeBaseUrlProvider : BaseUrlProvider {

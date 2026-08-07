@@ -1,6 +1,8 @@
 package com.grappim.wallosmobile.feature.subscriptions.domain.repo
 
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.EditSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import kotlinx.coroutines.flow.Flow
@@ -52,4 +54,23 @@ interface SubscriptionsRepository {
      * enough (API doc §3.3) that it must not be read as "deleted".
      */
     suspend fun refreshSubscription(id: Int): Result<Unit>
+
+    /**
+     * `action=add` (`WALLOS_API.md` §3.4). Not `observe*`/`refresh*` like the reads above — a
+     * write is neither, it mutates the server and the cache only catches up afterward, by the
+     * same [refreshSubscriptions] round trip. The id alone answers nothing about that: it is the
+     * refresh, not the id, that makes the new row visible to [observeSubscriptions].
+     *
+     * @return the id the server assigned the new row.
+     */
+    suspend fun addSubscription(params: AddSubscriptionParams): Result<Int>
+
+    /** `action=edit`. Refreshes the cache afterward, the same as [addSubscription]. */
+    suspend fun editSubscription(id: Int, params: EditSubscriptionParams): Result<Unit>
+
+    /**
+     * `action=delete`. Removes the row from the cache directly rather than waiting on a refetch —
+     * a deleted subscription has nothing left on the server to refresh with.
+     */
+    suspend fun deleteSubscription(id: Int): Result<Unit>
 }

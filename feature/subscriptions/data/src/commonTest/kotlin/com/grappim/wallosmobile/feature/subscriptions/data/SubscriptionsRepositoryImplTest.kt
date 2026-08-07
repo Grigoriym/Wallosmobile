@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.feature.subscriptions.data
 
 import app.cash.turbine.test
+import com.grappim.wallosmobile.core.api.FormParams
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.core.storage.db.CurrencyDao
 import com.grappim.wallosmobile.core.storage.db.CurrencyEntity
@@ -8,7 +9,10 @@ import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
 import com.grappim.wallosmobile.core.storage.db.PriceConversionEntity
 import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
 import com.grappim.wallosmobile.core.storage.db.SubscriptionEntity
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.EditSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.WritableBillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.dto.CurrencyDTO
 import com.grappim.wallosmobile.feature.subscriptions.dto.SubscriptionDTO
 import com.grappim.wallosmobile.feature.subscriptions.mapper.CurrencyEntityMapper
@@ -23,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -427,6 +432,119 @@ class SubscriptionsRepositoryImplTest {
         assertEquals("$", subscriptionDao.rows.single().currencySymbol)
     }
 
+    // --- 7.5: add / edit / delete --------------------------------------------------------------
+
+    @Test
+    fun `add reaches the wire, then re-syncs the cache with the new row`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = listOf(subscriptionDTO(id = 55, name = "Netflix")),
+            currencies = listOf(CurrencyDTO(id = 1, symbol = "€")),
+            addResult = 55
+        )
+
+        val id = repository(api).addSubscription(addParams()).getOrThrow()
+
+        assertEquals(55, id)
+        assertEquals(listOf(55), subscriptionDao.rows.map { it.id })
+    }
+
+    @Test
+    fun `add sends the required fields, the cycle's wire code among them`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = emptyList(),
+            currencies = listOf(CurrencyDTO(id = 1, symbol = "€")),
+            addResult = 1
+        )
+
+        repository(api).addSubscription(addParams(cycle = WritableBillingCycle.YEARS)).getOrThrow()
+
+        val sent = api.addFields.single().asMap()
+        assertEquals("Netflix", sent["name"])
+        assertEquals("4", sent["cycle"])
+        assertEquals("2026-01-31", sent["next_payment"])
+        assertEquals("1", sent["auto_renew"])
+        assertEquals("0", sent["inactive"])
+    }
+
+    /** The server-side `cycle`/`Missing parameters` guard, surfacing here rather than in the api test alone. */
+    @Test
+    fun `a server-rejected add leaves the cache untouched`() = runTest {
+        subscriptionDao.rows = listOf(entity(id = 1, name = "Fiton"))
+        val api = FakeSubscriptionsApi(addFailure = WallosError.Validation("Invalid parameter", "bad cycle"))
+
+        val result = repository(api).addSubscription(addParams())
+
+        assertFailsWith<WallosError.Validation> { result.getOrThrow() }
+        assertEquals(listOf("Fiton"), subscriptionDao.rows.map { it.name })
+    }
+
+    @Test
+    fun `edit reaches the wire, then re-syncs the cache`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = listOf(subscriptionDTO(id = 4, name = "Renamed")),
+            currencies = listOf(CurrencyDTO(id = 1, symbol = "€"))
+        )
+
+        repository(api).editSubscription(4, EditSubscriptionParams(name = "Renamed")).getOrThrow()
+
+        assertEquals(listOf("Renamed"), subscriptionDao.rows.map { it.name })
+        assertEquals(listOf(4 to "Renamed"), api.editCalls.map { (id, fields) -> id to fields.asMap()["name"] })
+    }
+
+    /** Only the fields actually set reach the wire — the server keeps its own value for the rest. */
+    @Test
+    fun `edit omits every field the caller didn't set`() = runTest {
+        val api =
+            FakeSubscriptionsApi(subscriptions = emptyList(), currencies = listOf(CurrencyDTO(id = 1, symbol = "€")))
+
+        repository(api).editSubscription(4, EditSubscriptionParams(name = "Renamed")).getOrThrow()
+
+        assertEquals(setOf("name"), api.editCalls.single().second.asMap().keys)
+    }
+
+    @Test
+    fun `a server-rejected edit leaves the cache untouched`() = runTest {
+        subscriptionDao.rows = listOf(entity(id = 4, name = "Fiton"))
+        val api = FakeSubscriptionsApi(editFailure = WallosError.Validation("Invalid cycle", "bad cycle"))
+
+        val result = repository(api).editSubscription(4, EditSubscriptionParams(name = "Fitness"))
+
+        assertFailsWith<WallosError.Validation> { result.getOrThrow() }
+        assertEquals(listOf("Fiton"), subscriptionDao.rows.map { it.name })
+    }
+
+    /** Delete removes the row from the cache directly — there is nothing left server-side to refetch. */
+    @Test
+    fun `delete removes the row from the cache without a refresh round trip`() = runTest {
+        subscriptionDao.rows = listOf(entity(id = 1, name = "Fiton"), entity(id = 2, name = "Netflix"))
+        val api = FakeSubscriptionsApi()
+
+        repository(api).deleteSubscription(1).getOrThrow()
+
+        assertEquals(listOf(2), subscriptionDao.rows.map { it.id })
+        assertEquals(0, api.currenciesCalls)
+    }
+
+    @Test
+    fun `a server-rejected delete leaves the cached row standing`() = runTest {
+        subscriptionDao.rows = listOf(entity(id = 1, name = "Fiton"))
+        val api = FakeSubscriptionsApi(deleteFailure = WallosError.NotFound("Unauthorized or Not Found"))
+
+        val result = repository(api).deleteSubscription(1)
+
+        assertFailsWith<WallosError.NotFound> { result.getOrThrow() }
+        assertEquals(listOf("Fiton"), subscriptionDao.rows.map { it.name })
+    }
+
+    private fun addParams(cycle: WritableBillingCycle = WritableBillingCycle.YEARS) = AddSubscriptionParams(
+        name = "Netflix",
+        price = 31.99,
+        currencyId = 1,
+        cycle = cycle,
+        frequency = 1,
+        nextPayment = LocalDate(2026, 1, 31)
+    )
+
     private fun euro(rate: String = "1") = CurrencyDTO(id = 1, name = "Euro", symbol = "€", code = "EUR", rate = rate)
 
     private fun dollar(rate: String = "1") =
@@ -494,12 +612,20 @@ class SubscriptionsRepositoryImplTest {
         private val subscriptionsFailure: Throwable? = null,
         private val singleFailure: Throwable? = null,
         private val currenciesFailure: Throwable? = null,
-        private val settingsFailure: Throwable? = null
+        private val settingsFailure: Throwable? = null,
+        private val addResult: Int? = null,
+        private val addFailure: Throwable? = null,
+        private val editFailure: Throwable? = null,
+        private val deleteFailure: Throwable? = null
     ) : SubscriptionsApi {
 
         val singleCalls = mutableListOf<Int>()
         var currenciesCalls = 0
             private set
+
+        val addFields = mutableListOf<FormParams>()
+        val editCalls = mutableListOf<Pair<Int, FormParams>>()
+        val deleteCalls = mutableListOf<Int>()
 
         /** What the two reads were actually asked for, which is the whole of 3.11's request half. */
         val conversionAsked = mutableListOf<Boolean>()
@@ -530,6 +656,22 @@ class SubscriptionsRepositoryImplTest {
             settingsFailure?.let { throw it }
             return isConversionEnabled
         }
+
+        override suspend fun addSubscription(fields: FormParams): Int {
+            addFields += fields
+            addFailure?.let { throw it }
+            return addResult ?: error("addResult not set")
+        }
+
+        override suspend fun editSubscription(id: Int, fields: FormParams) {
+            editCalls += id to fields
+            editFailure?.let { throw it }
+        }
+
+        override suspend fun deleteSubscription(id: Int) {
+            deleteCalls += id
+            deleteFailure?.let { throw it }
+        }
     }
 }
 
@@ -557,6 +699,10 @@ private class FakeSubscriptionDao : SubscriptionDao {
 
     override suspend fun deleteAll() {
         rows = emptyList()
+    }
+
+    override suspend fun deleteById(id: Int) {
+        rows = rows.filterNot { it.id == id }
     }
 
     override suspend fun insertAll(subscriptions: List<SubscriptionEntity>) {

@@ -1,10 +1,13 @@
 package com.grappim.wallosmobile.feature.subscriptions.data
 
+import com.grappim.wallosmobile.core.api.FormParams
 import com.grappim.wallosmobile.core.asynckmp.IoDispatcher
 import com.grappim.wallosmobile.core.domain.resultOf
 import com.grappim.wallosmobile.core.logger.LogPriority
 import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.EditSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
@@ -104,6 +107,70 @@ internal class SubscriptionsRepositoryImpl(
         }
     }
 
+    override suspend fun addSubscription(params: AddSubscriptionParams): Result<Int> = resultOf {
+        withContext(dispatcher) {
+            val id = api.addSubscription(params.toFormParams())
+            refreshSubscriptions().getOrThrow()
+            id
+        }
+    }
+
+    override suspend fun editSubscription(id: Int, params: EditSubscriptionParams): Result<Unit> = resultOf {
+        withContext(dispatcher) {
+            api.editSubscription(id, params.toFormParams())
+            refreshSubscriptions().getOrThrow()
+        }
+    }
+
+    override suspend fun deleteSubscription(id: Int): Result<Unit> = resultOf {
+        withContext(dispatcher) {
+            api.deleteSubscription(id)
+            cache.deleteSubscription(id)
+        }
+    }
+
+    private fun AddSubscriptionParams.toFormParams(): FormParams = FormParams().apply {
+        put(PARAM_NAME, name)
+        put(PARAM_PRICE, price.toString())
+        put(PARAM_CURRENCY_ID, currencyId.toString())
+        put(PARAM_CYCLE, cycle.code.toString())
+        put(PARAM_FREQUENCY, frequency.toString())
+        date(PARAM_NEXT_PAYMENT, nextPayment)
+        startDate?.let { date(PARAM_START_DATE, it) }
+        flag(PARAM_AUTO_RENEW, autoRenew)
+        paymentMethodId?.let { put(PARAM_PAYMENT_METHOD_ID, it.toString()) }
+        payerUserId?.let { put(PARAM_PAYER_USER_ID, it.toString()) }
+        categoryId?.let { put(PARAM_CATEGORY_ID, it.toString()) }
+        notes?.let { put(PARAM_NOTES, it) }
+        url?.let { put(PARAM_URL, it) }
+        notify?.let { flag(PARAM_NOTIFY, it) }
+        notifyDaysBefore?.let { put(PARAM_NOTIFY_DAYS_BEFORE, it.toString()) }
+        flag(PARAM_INACTIVE, inactive)
+        cancellationDate?.let { date(PARAM_CANCELLATION_DATE, it) }
+        replacementSubscriptionId?.let { put(PARAM_REPLACEMENT_SUBSCRIPTION_ID, it.toString()) }
+    }
+
+    private fun EditSubscriptionParams.toFormParams(): FormParams = FormParams().apply {
+        name?.let { put(PARAM_NAME, it) }
+        price?.let { put(PARAM_PRICE, it.toString()) }
+        currencyId?.let { put(PARAM_CURRENCY_ID, it.toString()) }
+        cycle?.let { put(PARAM_CYCLE, it.code.toString()) }
+        frequency?.let { put(PARAM_FREQUENCY, it.toString()) }
+        nextPayment?.let { date(PARAM_NEXT_PAYMENT, it) }
+        startDate?.let { date(PARAM_START_DATE, it) }
+        autoRenew?.let { flag(PARAM_AUTO_RENEW, it) }
+        paymentMethodId?.let { put(PARAM_PAYMENT_METHOD_ID, it.toString()) }
+        payerUserId?.let { put(PARAM_PAYER_USER_ID, it.toString()) }
+        categoryId?.let { put(PARAM_CATEGORY_ID, it.toString()) }
+        notes?.let { put(PARAM_NOTES, it) }
+        url?.let { put(PARAM_URL, it) }
+        notify?.let { flag(PARAM_NOTIFY, it) }
+        notifyDaysBefore?.let { put(PARAM_NOTIFY_DAYS_BEFORE, it.toString()) }
+        inactive?.let { flag(PARAM_INACTIVE, it) }
+        cancellationDate?.let { date(PARAM_CANCELLATION_DATE, it) }
+        replacementSubscriptionId?.let { put(PARAM_REPLACEMENT_SUBSCRIPTION_ID, it.toString()) }
+    }
+
     /**
      * A preference, not data: an instance too old to have `api/settings/get_settings.php` answers
      * 404, and that must not cost the user their list. So this degrades to "don't convert" — which
@@ -152,5 +219,24 @@ internal class SubscriptionsRepositoryImpl(
 
     private companion object {
         const val NO_RATE = 1.0
+
+        const val PARAM_NAME = "name"
+        const val PARAM_PRICE = "price"
+        const val PARAM_CURRENCY_ID = "currency_id"
+        const val PARAM_CYCLE = "cycle"
+        const val PARAM_FREQUENCY = "frequency"
+        const val PARAM_NEXT_PAYMENT = "next_payment"
+        const val PARAM_START_DATE = "start_date"
+        const val PARAM_AUTO_RENEW = "auto_renew"
+        const val PARAM_PAYMENT_METHOD_ID = "payment_method_id"
+        const val PARAM_PAYER_USER_ID = "payer_user_id"
+        const val PARAM_CATEGORY_ID = "category_id"
+        const val PARAM_NOTES = "notes"
+        const val PARAM_URL = "url"
+        const val PARAM_NOTIFY = "notify"
+        const val PARAM_NOTIFY_DAYS_BEFORE = "notify_days_before"
+        const val PARAM_INACTIVE = "inactive"
+        const val PARAM_CANCELLATION_DATE = "cancellation_date"
+        const val PARAM_REPLACEMENT_SUBSCRIPTION_ID = "replacement_subscription_id"
     }
 }

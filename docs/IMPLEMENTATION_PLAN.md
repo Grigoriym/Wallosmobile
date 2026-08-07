@@ -495,6 +495,16 @@ The repository itself has **no cache**: unlike `SubscriptionsRepository` (§3.x,
 data has no offline requirement in this milestone, so `CategoriesRepository` is a plain
 `resultOf`-wrapped round trip per call, not `observe*`/`refresh*`.
 
+**7.5 did not put `set_subscriptions.php` on `core:crud`, despite the identical `action=
+add|edit|delete` shape.** `CrudApi`/`CrudEndpoint` model a resource with one name field and one id
+alias that is *also* the response key on add; a subscription write has ~18 possible fields, and
+its add response key (`subscriptionId`) is fixed while the edit/delete id param accepts three
+aliases (`id`/`subscriptionId`/`subscription_id`) — an asymmetry `CrudEndpoint` has no field for.
+`SubscriptionsApi` grew three hand-written methods instead, mirroring `WallosCrudApi`'s envelope
+handling (decode to `JsonObject`, pull the field by name) rather than reusing it. This needed
+`feature:subscriptions:data` to add `kmp.serialization` — the module had never decoded a raw
+`JsonObject` before 7.5, only DTOs, so `kmp.network` alone (which it already had) wasn't enough.
+
 Reusing `HtmlUnescaper` (CLAUDE.md's "Wire text needs unescaping" note) makes
 `feature:categories:mapper` the repo's **first cross-feature dependency**:
 `implementation(projects.feature.subscriptions.mapper)`, since a fourth catalog `HtmlUnescaper`

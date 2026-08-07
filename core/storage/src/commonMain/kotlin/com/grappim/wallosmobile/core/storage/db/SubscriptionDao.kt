@@ -39,6 +39,10 @@ interface SubscriptionDao {
     @Query("DELETE FROM $SUBSCRIPTION_TABLE")
     suspend fun deleteAll()
 
+    /** A single deleted row (7.5) — the write already told the server, this just catches the cache up. */
+    @Query("DELETE FROM $SUBSCRIPTION_TABLE WHERE id = :id")
+    suspend fun deleteById(id: Int)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(subscriptions: List<SubscriptionEntity>)
 }

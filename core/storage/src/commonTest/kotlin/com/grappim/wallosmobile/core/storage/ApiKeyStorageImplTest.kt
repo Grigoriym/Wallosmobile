@@ -160,6 +160,10 @@ private class FakeSubscriptionDao : SubscriptionDao {
         rows = emptyList()
     }
 
+    override suspend fun deleteById(id: Int) {
+        rows = rows.filterNot { it.id == id }
+    }
+
     override suspend fun insertAll(subscriptions: List<SubscriptionEntity>) {
         rows = rows.filterNot { row -> subscriptions.any { it.id == row.id } } + subscriptions
     }

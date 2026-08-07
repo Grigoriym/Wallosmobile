@@ -67,4 +67,21 @@ internal object SubscriptionsJsonFixtures {
     val SETTINGS_WITHOUT_CONVERT = """
         {"success":true,"title":"settings","settings":{"dark_theme":1},"notes":[]}
     """.trimIndent()
+
+    // --- 7.5: set_subscriptions.php ------------------------------------------------------------
+
+    const val SUBSCRIPTION_ADDED =
+        """{"success":true,"title":"Subscription added","subscriptionId":55,
+            "message":"Subscription added successfully."}"""
+
+    const val SUBSCRIPTION_UPDATED =
+        """{"success":true,"title":"Subscription updated","message":"Subscription updated successfully."}"""
+
+    const val SUBSCRIPTION_DELETED =
+        """{"success":true,"title":"Subscription deleted","message":"Subscription deleted successfully."}"""
+
+    /** The server-side `cycle` guard (API doc §3.4) — `Invalid parameter` maps to `WallosError.Validation`. */
+    const val INVALID_CYCLE =
+        """{"success":false,"title":"Invalid parameter",
+            "message":"Parameter \"cycle\" must be 1 (Days), 2 (Weeks), 3 (Months), or 4 (Years)."}"""
 }

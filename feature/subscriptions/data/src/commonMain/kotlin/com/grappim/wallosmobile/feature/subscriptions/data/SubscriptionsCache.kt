@@ -50,6 +50,11 @@ internal class SubscriptionsCache(
         subscriptionDao.insertAll(listOf(subscriptionEntityMapper.toEntity(subscription)))
     }
 
+    /** A deleted row (7.5) — removed directly, since there is nothing left server-side to refetch. */
+    suspend fun deleteSubscription(id: Int) {
+        subscriptionDao.deleteById(id)
+    }
+
     suspend fun replaceCurrencies(currencies: List<Currency>) {
         currencyDao.replaceAll(currencies.map(currencyEntityMapper::toEntity))
     }

@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.subscriptions.data
 
+import com.grappim.wallosmobile.core.api.FormParams
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
 import com.grappim.wallosmobile.core.domain.WallosError
@@ -162,6 +163,57 @@ class SubscriptionsApiImplTest {
             )
 
         assertEquals(2, api.getCurrencies().currencies.size)
+    }
+
+    // --- 7.5: set_subscriptions.php ------------------------------------------------------------
+
+    @Test
+    fun `add sends action=add alongside the caller's own fields`() = runTest {
+        var body: FormDataContent? = null
+
+        api(SubscriptionsJsonFixtures.SUBSCRIPTION_ADDED) { body = it.body as FormDataContent }
+            .addSubscription(FormParams().put("name", "Netflix"))
+
+        assertEquals("add", body?.formData?.get("action"))
+        assertEquals("Netflix", body?.formData?.get("name"))
+    }
+
+    @Test
+    fun `add returns the id from under subscriptionId`() = runTest {
+        val id = api(SubscriptionsJsonFixtures.SUBSCRIPTION_ADDED).addSubscription(FormParams())
+
+        assertEquals(55, id)
+    }
+
+    @Test
+    fun `edit sends action=edit and the id under the primary alias`() = runTest {
+        var body: FormDataContent? = null
+
+        api(SubscriptionsJsonFixtures.SUBSCRIPTION_UPDATED) { body = it.body as FormDataContent }
+            .editSubscription(4, FormParams().put("name", "Renamed"))
+
+        assertEquals("edit", body?.formData?.get("action"))
+        assertEquals("4", body?.formData?.get("id"))
+        assertEquals("Renamed", body?.formData?.get("name"))
+    }
+
+    @Test
+    fun `delete sends action=delete and the id`() = runTest {
+        var body: FormDataContent? = null
+
+        api(SubscriptionsJsonFixtures.SUBSCRIPTION_DELETED) { body = it.body as FormDataContent }
+            .deleteSubscription(4)
+
+        assertEquals("delete", body?.formData?.get("action"))
+        assertEquals("4", body?.formData?.get("id"))
+    }
+
+    /** The server-side `cycle` guard (API doc §3.4), on the one write endpoint that can trip it here. */
+    @Test
+    fun `a server-rejected write surfaces as a typed WallosError`() = runTest {
+        assertFailsWith<WallosError.Validation> {
+            api(SubscriptionsJsonFixtures.INVALID_CYCLE).addSubscription(FormParams())
+        }
     }
 
     private fun api(responseBody: String, onRequest: (HttpRequestData) -> Unit = {}): SubscriptionsApi {

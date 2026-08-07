@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `4/9`
-**Current step:** 7.5 — feature:subscriptions: add / edit / delete on the repository
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `5/9`
+**Current step:** 7.6 — feature:subscriptions:ui: the add/edit form (no logo)
 
 ---
 
@@ -217,7 +217,7 @@ rather than by a step of its own, so no step below has to re-litigate them:
   than 7.2/7.3's (`name`, `enabled`, `iconUrl: String? = null`) rather than mirroring either
   precedent exactly.
 
-- [ ] **7.5 — feature:subscriptions: add / edit / delete on the repository**
+- [x] **7.5 — feature:subscriptions: add / edit / delete on the repository**
   `SubscriptionsRepository` gains `add(params): Result<Int>`, `edit(id, params): Result<Unit>`,
   `delete(id): Result<Unit>` — the one place in this feature where 3.4's "`observe*`/`refresh*`,
   never `get*`" rule doesn't apply as written, since a write is neither: it mutates the server, and
@@ -230,6 +230,24 @@ rather than by a step of its own, so no step below has to re-litigate them:
   *Verify:* `./gradlew :feature:subscriptions:data:testAndroidHostTest` — add/edit/delete against
   `MockEngine`, the cache updated after each, and a server-rejected write mapped to `WallosError`.
   ·  *Ref:* `WALLOS_API.md` §3.4
+  **Note:** read the live `set_subscriptions.php` (`docker exec wallos cat
+  api/subscriptions/set_subscriptions.php`) rather than trusting the doc summary alone — it matched
+  exactly, including that `add`'s response key is `subscriptionId` while `edit`/`delete` accept
+  `id`/`subscriptionId`/`subscription_id` as aliases for the same parameter. "Cycle restricted at
+  the type level" became a new `WritableBillingCycle` enum (`DAYS`/`WEEKS`/`MONTHS`/`YEARS`, no
+  `ONE_TIME` member at all) rather than a runtime check on `BillingCycle` — 7.6's picker reads this
+  enum, not `BillingCycle` filtered by `isWritable`. This feature does **not** route through
+  `core:crud`: `set_subscriptions.php` shares the `action=add|edit|delete` shape but has ~18 fields
+  against a resource-agnostic `name`, plus response/request id-key asymmetry `CrudEndpoint` doesn't
+  model, so `SubscriptionsApi` grew three hand-written methods instead (mirroring `WallosCrudApi`'s
+  envelope handling, not reusing it). This needed `feature:subscriptions:data` to add the
+  `kmp.serialization` plugin (previously absent — the module had never decoded raw `JsonObject`
+  before) to resolve `kotlinx.serialization.json`; not a tripwire path, no `Gate-change:` line.
+  `add`/`edit` re-run `refreshSubscriptions()` and propagate its failure like any other step in the
+  call; `delete` calls the new `SubscriptionDao.deleteById` directly. Three pre-existing hand-written
+  fakes (`core:storage`'s and `feature:subscriptions:ui`'s two `FakeSubscriptionsRepository`s) needed
+  the new abstract members added to keep compiling — the UI ones stub to `error("not used by this
+  test")` per plan §6.1, since no screen calls them until 7.6/7.7.
 
 - [ ] **7.6 — feature:subscriptions:ui: the add/edit form (no logo)**
   New screen + ViewModel: name, price, currency (a picker over the *existing* `observeCurrencies`
