@@ -3,6 +3,8 @@ package com.grappim.wallosmobile.composeapp
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -15,6 +17,7 @@ import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.grappim.wallosmobile.composeapp.nav.DrawerDestination
 import com.grappim.wallosmobile.composeapp.nav.DrawerItemsBuilder
+import com.grappim.wallosmobile.composeapp.nav.FabConfig
 import com.grappim.wallosmobile.composeapp.nav.MainNavHost
 import com.grappim.wallosmobile.composeapp.widget.WallosDrawerWidget
 import com.grappim.wallosmobile.core.navigation.Navigator
@@ -24,6 +27,7 @@ import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
 import com.grappim.wallosmobile.uikit.widgets.topappbar.NavigationIconConfig
 import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarController
 import com.grappim.wallosmobile.uikit.widgets.topappbar.WallosTopAppBar
+import com.grappim.wallosmobile.utils.ui.asString
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -91,6 +95,18 @@ private fun MainScaffold(
                 topBarConfig = topBarController.config,
                 defaultGoBack = { navigator.goBack() }
             )
+        },
+        floatingActionButton = {
+            // Navigating to the editor is not itself a write — the offline gate belongs on that
+            // screen's Save button, not here, the same reasoning `SubscriptionsScreen`'s Filter
+            // action never needed one.
+            when (val fabConfig = appState.currentRouteConfig.fabConfig) {
+                is FabConfig.Standard -> FloatingActionButton(onClick = { navigator.navigate(fabConfig.navigateTo) }) {
+                    Icon(imageVector = fabConfig.icon, contentDescription = fabConfig.contentDescription.asString())
+                }
+
+                FabConfig.None -> Unit
+            }
         }
     ) { innerPadding ->
         MainNavHost(

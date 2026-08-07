@@ -5,6 +5,8 @@ import androidx.navigation3.runtime.NavKey
 import com.grappim.wallosmobile.core.navigation.Navigator
 import com.grappim.wallosmobile.feature.subscriptions.ui.detail.SubscriptionDetailRoute
 import com.grappim.wallosmobile.feature.subscriptions.ui.detail.SubscriptionDetailScreen
+import com.grappim.wallosmobile.feature.subscriptions.ui.editor.SubscriptionEditorRoute
+import com.grappim.wallosmobile.feature.subscriptions.ui.editor.SubscriptionEditorScreen
 import com.grappim.wallosmobile.feature.subscriptions.ui.list.SubscriptionsRoute
 import com.grappim.wallosmobile.feature.subscriptions.ui.list.SubscriptionsScreen
 
@@ -24,5 +26,8 @@ fun EntryProviderScope<NavKey>.subscriptionsEntry(navigator: Navigator) {
             subscriptionId = route.subscriptionId,
             onBackClick = { navigator.goBack() }
         )
+    }
+    entry<SubscriptionEditorRoute> {
+        SubscriptionEditorScreen(onBackClick = { navigator.goBack() })
     }
 }

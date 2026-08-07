@@ -86,6 +86,35 @@
     <string name="subscription_detail_notes">Notes</string>
     <string name="subscription_detail_converted_from">Converted from %1$s</string>
 
+    <string name="subscription_editor_title">New subscription</string>
+    <string name="subscription_editor_name">Name</string>
+    <string name="subscription_editor_price">Price</string>
+    <string name="subscription_editor_currency">Currency</string>
+    <string name="subscription_editor_currency_placeholder">Choose a currency</string>
+    <string name="subscription_editor_cycle">Billing cycle</string>
+    <string name="subscription_editor_cycle_days">Days</string>
+    <string name="subscription_editor_cycle_weeks">Weeks</string>
+    <string name="subscription_editor_cycle_months">Months</string>
+    <string name="subscription_editor_cycle_years">Years</string>
+    <string name="subscription_editor_frequency">Every</string>
+    <string name="subscription_editor_next_payment">Next payment</string>
+    <string name="subscription_editor_start_date">Start date</string>
+    <string name="subscription_editor_category">Category</string>
+    <string name="subscription_editor_payer">Paid by</string>
+    <string name="subscription_editor_payment_method">Payment method</string>
+    <string name="subscription_editor_picker_none">None</string>
+    <string name="subscription_editor_notes">Notes</string>
+    <string name="subscription_editor_url">Website</string>
+    <string name="subscription_editor_notify">Notify before renewal</string>
+    <string name="subscription_editor_notify_days_before">Days before</string>
+    <string name="subscription_editor_auto_renew">Auto-renews</string>
+    <string name="subscription_editor_inactive">Inactive</string>
+    <string name="subscription_editor_save">Save</string>
+    <string name="subscription_editor_error_invalid">Fill in the name, price, currency and next payment date.</string>
+    <string name="subscription_editor_fab_content_description">Add subscription</string>
+    <string name="subscription_editor_date_confirm">OK</string>
+    <string name="subscription_editor_date_cancel">Cancel</string>
+
     <string name="settings_disconnect">Disconnect</string>
     <string name="settings_disconnect_description">Disconnecting clears the API key stored on this device. Nothing changes on the server.</string>
 

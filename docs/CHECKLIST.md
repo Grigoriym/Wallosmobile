@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `5/9`
-**Current step:** 7.6 — feature:subscriptions:ui: the add/edit form (no logo)
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `6/9`
+**Current step:** 7.7 — feature:subscriptions:ui: edit entry point + delete
 
 ---
 
@@ -249,7 +249,7 @@ rather than by a step of its own, so no step below has to re-litigate them:
   the new abstract members added to keep compiling — the UI ones stub to `error("not used by this
   test")` per plan §6.1, since no screen calls them until 7.6/7.7.
 
-- [ ] **7.6 — feature:subscriptions:ui: the add/edit form (no logo)**
+- [x] **7.6 — feature:subscriptions:ui: the add/edit form (no logo)**
   New screen + ViewModel: name, price, currency (a picker over the *existing* `observeCurrencies`
   flow — no new module per this milestone's second settled decision), cycle + frequency (a picker
   over `BillingCycle`, excluding one-time), `next_payment`/`start_date`, category/payer/payment
@@ -265,6 +265,26 @@ rather than by a step of its own, so no step below has to re-litigate them:
   open the FAB, fill every field with `input keyevent KEYCODE_TAB` between them, submit, and see
   the new subscription in the list.  ·  *Ref:* plan §7.3, `CLAUDE.md`'s SavedStateHandle note
   (5.2), `WALLOS_API.md` §3.4
+  **Note:** the ViewModel took exactly the five dependencies the step text itself counted (four
+  repositories plus `SavedStateHandle`) — no `subscriptionId`, so this step is add-only; 7.7 is
+  what turns it into the add/edit form the title promises, and it will have to decide how a sixth
+  dependency lands without tripping the "split rather than widen" rule. Currencies, categories,
+  household members and payment methods are each a picker built from a new, reusable
+  `EditorPickerUiState` (selected id + options + callback) rather than three loose parameters per
+  field — that is also what keeps `PickerField` at four Composable parameters instead of six.
+  Pickers use `ExposedDropdownMenuBox`/`ExposedDropdownMenu`, new to this repo (no prior
+  dropdown/menu component existed) — the precedent for 7.7's edit form and Phase 5's catalog
+  screens. `next_payment`/`start_date` use Material3's `DatePicker`/`DatePickerDialog` rather than
+  free text, converting through `kotlin.time.Instant` at UTC (`atStartOfDayIn`/`toLocalDateTime`)
+  since `initialSelectedDateMillis` is UTC millis — no `DateFormatter` injection needed, so the
+  field just displays the raw `YYYY-MM-DD` it will send. **`Icons.Filled.Add` is in
+  `material-icons-core` after all** — CLAUDE.md's "not even `Add`" line (written for 1.8, before
+  a FAB existed to need it) doesn't hold for the resolved `1.7.3` artifact
+  (`unzip`-and-`grep` on `material-icons-core-1.7.3.jar` shows `AddKt.class`); no
+  `material-icons-extended` needed, corrected in `CLAUDE.md`. `FabConfig` (`None`/`Standard`),
+  parked as a `RouteConfig` field since 1.8, is now real: `AuthenticatedMainScreen`'s `Scaffold`
+  reads `appState.currentRouteConfig.fabConfig` and the FAB is never offline-gated, since
+  navigating to the editor is not itself a write — only the form's own Save button is.
 
 - [ ] **7.7 — feature:subscriptions:ui: edit entry point + delete**
   An edit action on the detail screen opens 7.6's form pre-filled from the subscription the screen

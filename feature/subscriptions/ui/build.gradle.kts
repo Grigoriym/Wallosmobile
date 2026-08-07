@@ -12,6 +12,12 @@ kotlin {
         commonMain.dependencies {
             implementation(projects.feature.subscriptions.domain)
 
+            // The editor's pickers (7.6) read these three repositories directly — reference data
+            // has no cache to hide them behind, unlike `feature.subscriptions.domain` above.
+            implementation(projects.feature.categories.domain)
+            implementation(projects.feature.household.domain)
+            implementation(projects.feature.paymentmethods.domain)
+
             // `uikit` carries `utils:ui` as `api`, so `NativeText` needs no declaration here.
             implementation(projects.uikit)
             implementation(projects.strings)

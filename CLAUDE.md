@@ -165,6 +165,12 @@ a known-good attempt before believing the error. Clearing a field to retry:
 `input keycombination 113 29` (Ctrl+A) then `input keyevent KEYCODE_DEL`.
 On the *last* field, `input keyevent KEYCODE_ENTER` submits — the login screen's `ImeAction.Done`
 calls `onConnectClick`, so there is no need to hunt for the button's coordinates under a keyboard.
+**A fresh boot of `Medium_Phone_API_36.1` can pop a "Try out your stylus" tutorial** over the first
+field typed into, and it eats every tap after — 7.6 lost several rounds to it typing into a URL
+field before noticing the popup, not the app, had focus. It has its own Cancel button, not a system
+back gesture; screenshot before trusting that a field actually received what was typed on a cold
+emulator start.
+
 **Disconnect returns to a login screen that still has the last attempt in its fields** (4.1): login
 is state, not a route, so nothing is destroyed and the ViewModel keeps its values within the same
 process. Typing then *appends* — `gregorzgregorz`, a URL glued to the previous URL — and the error
@@ -368,12 +374,17 @@ vertical slices, **all source in `commonMain`**.
   reads as a plain `Unresolved reference 'json'`, not anything naming the missing plugin.
 - **`material-icons-core` is ~50 icons, and the obvious one is usually missing** — no
   `Subscriptions`, no `Payment`, no `Visibility`/`VisibilityOff`, no `FilterList` (3.6, which plan
-  §5.4's own top-bar sketch used), not even `Add`; `ArrowBack`,
+  §5.4's own top-bar sketch used); `ArrowBack`,
   `List` and `Send` live under `Icons.AutoMirrored.Filled.*`. Reaching for anything else means
   adding `material-icons-extended` to `configureKmpCompose()`, so pick from the set, use a
   `TextButton` with a word in it (the login password toggle is Show/Hide text), or say you're
   growing it. To list the set without a compile: `unzip` the `material-icons-core-*.jar` from
   `~/.gradle/caches` and `ls` its `androidx/compose/material/icons/filled/` directory.
+  **`Icons.Filled.Add` *is* in the set** (7.6, confirmed by that same `unzip` on the resolved
+  `material-icons-core-1.7.3.jar`) — the FAB needs no `material-icons-extended` addition. The
+  1.8-era claim above that it wasn't there was written before anything needed it and turned out
+  wrong; treat "obvious icons are usually missing" as a reason to check, not as a verdict on any
+  icon in particular.
 - **Material 3's own source is in the Gradle cache, and it is the authority on which colour role a
   component reads** — `unzip` `material3-desktop-*-sources.jar` from
   `~/.gradle/caches/modules-2/files-2.1/org.jetbrains.compose.material3/` and read
@@ -628,6 +639,24 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   The filter and sort selections themselves live in **`MutableStateFlow`s beside the UI state**,
   `combine`d with the DAO flow — one render path for "the criteria changed" and "a refresh
   arrived", instead of a second copy in the state that the next refresh could overwrite.
+- **A pick-one-of-many field is `ExposedDropdownMenuBox` + `ExposedDropdownMenu`**, new to the repo
+  in 7.6 (there was no dropdown/menu component before it) and the precedent for the next one over
+  a `ModalBottomSheet`. `menuAnchor()`/`ExposedDropdownMenu(...)` are *members* of
+  `ExposedDropdownMenuBoxScope`, resolved through the implicit receiver inside
+  `ExposedDropdownMenuBox { }`'s content lambda — there is no top-level symbol for either, so
+  writing an `import` for one fails as an unresolved reference instead of just being redundant.
+  `BoxScope.matchParentSize()` is the same shape.
+  **A field that opens something other than the keyboard** (a menu, a `DatePickerDialog`) is a
+  `readOnly = true` `OutlinedTextField` with a transparent `Box(Modifier.matchParentSize()
+  .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { … })`
+  layered over it in a parent `Box` — `readOnly` alone still routes taps into text-cursor placement
+  rather than a click callback, so nothing opens without the overlay. `next_payment`/`start_date`
+  use `DatePicker`/`DatePickerDialog`/`rememberDatePickerState` this way (7.6): both are stable
+  Material3, not experimental beyond the file's own `ExperimentalMaterial3Api` opt-in.
+  `initialSelectedDateMillis`/`selectedDateMillis` are UTC epoch millis, so a `LocalDate` round
+  trips through `kotlin.time.Instant` (`kotlinx.datetime.Instant` is the deprecated one in
+  0.8.0): `date.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()` in, `Instant
+  .fromEpochMilliseconds(millis).toLocalDateTime(TimeZone.UTC).date` out.
 
 ## Error handling
 

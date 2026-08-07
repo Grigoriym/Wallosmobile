@@ -505,6 +505,26 @@ handling (decode to `JsonObject`, pull the field by name) rather than reusing it
 `feature:subscriptions:data` to add `kmp.serialization` — the module had never decoded a raw
 `JsonObject` before 7.5, only DTOs, so `kmp.network` alone (which it already had) wasn't enough.
 
+**7.6 is where `FabConfig` stopped being parked.** 1.8 trimmed it from the shell with "no writes
+before Phase 3"; it is now a `RouteConfig` field the same shape as MealieMobile's
+(`None`/`Standard(icon, contentDescription, navigateTo)`), read by `AuthenticatedMainScreen`'s
+`Scaffold(floatingActionButton = …)` and never offline-gated — navigating to the editor is not a
+write, only its Save button is, so `LocalIsOffline` belongs there and not on the FAB. The
+subscription editor ViewModel took exactly the five dependencies the checklist step counted (the
+four reference-data repositories plus `SavedStateHandle`) by design: it is add-only in 7.6, with no
+`subscriptionId` at all, so 7.7 is what decides how a sixth (an optional id, to make it the add/edit
+form the title already promises) lands without tripping detekt's constructor-parameter ceiling.
+Every picker (currency, category, payer, payment method, and the cycle enum) reuses one
+`EditorPickerUiState` (selected id + options + callback) rather than three loose UI-state fields
+each — the same "fold three parameters into one state object" move `SubscriptionsFilterUiState`
+already made, and what keeps the shared `PickerField` composable at four parameters instead of
+seven. `ExposedDropdownMenuBox`/`ExposedDropdownMenu` are new to the repo here — no
+dropdown/menu component existed before 7.6 — and are the precedent 7.7's edit form and Phase 5's
+catalog screens should reach for rather than a hand-rolled bottom sheet. Both are *members* of
+`ExposedDropdownMenuBoxScope`, resolved by the implicit receiver inside `ExposedDropdownMenuBox {
+}`'s content lambda — like `BoxScope.matchParentSize()`, there is no top-level symbol to import, and
+trying to import one fails.
+
 Reusing `HtmlUnescaper` (CLAUDE.md's "Wire text needs unescaping" note) makes
 `feature:categories:mapper` the repo's **first cross-feature dependency**:
 `implementation(projects.feature.subscriptions.mapper)`, since a fourth catalog `HtmlUnescaper`

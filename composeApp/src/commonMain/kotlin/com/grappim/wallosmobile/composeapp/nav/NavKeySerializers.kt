@@ -6,6 +6,7 @@ import com.grappim.wallosmobile.feature.settings.ui.SettingsRoute
 import com.grappim.wallosmobile.feature.settings.ui.about.AboutRoute
 import com.grappim.wallosmobile.feature.settings.ui.appearance.InterfaceRoute
 import com.grappim.wallosmobile.feature.subscriptions.ui.detail.SubscriptionDetailRoute
+import com.grappim.wallosmobile.feature.subscriptions.ui.editor.SubscriptionEditorRoute
 import com.grappim.wallosmobile.feature.subscriptions.ui.list.SubscriptionsRoute
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
@@ -23,6 +24,7 @@ internal val navKeySerializersModule = SerializersModule {
     polymorphic(NavKey::class) {
         subclass(SubscriptionsRoute::class)
         subclass(SubscriptionDetailRoute::class)
+        subclass(SubscriptionEditorRoute::class)
         subclass(SettingsRoute::class)
         subclass(InterfaceRoute::class)
         subclass(AboutRoute::class)
