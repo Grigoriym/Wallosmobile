@@ -74,14 +74,16 @@ not been decomposed into a milestone yet** — there is no M8 section below unti
 
 ---
 
-## Still open after v1
+## To review
 
 Written when M2 closed, as the place a verification step files a defect it finds rather than
-fixing in place (**3.12** kept to that shape). Six entries left this list to become M5 — see
-`archive/DEVIATIONS.md` and `archive/CHECKLIST-DONE.md` for how each closed; resolved entries
-aren't repeated here. What's left is two standing decisions the user owns, plus two pieces of
-deferred surface that belong to phases nobody has started yet. **Don't re-open the first two per
-step; they have both been settled twice.**
+fixing in place (**3.12** kept to that shape) — renamed from "Still open after v1" once it grew
+past that: a park for anything that isn't today's work, whether an agent found it mid-step or the
+user found it using the app, to come back to once there's room. Six entries left this list to
+become M5 — see `archive/DEVIATIONS.md` and `archive/CHECKLIST-DONE.md` for how each closed;
+resolved entries aren't repeated here. Two of what's left are standing decisions the user owns,
+kept here as the permanent answer rather than something to re-open; the rest is real backlog.
+**Don't re-open the first two per step; they have both been settled twice.**
 
 - **The pre-v1 no-backcompat bullet in `CLAUDE.md` expires at the first outside install** — see
   2.7's first deferred item. Nothing has changed yet: nobody but us has installed the app.

@@ -1913,13 +1913,14 @@ Two things follow, and they are the reason this is in the plan rather than only 
 
 ### Phase 2d — The filed defects
 Also not in the original list, and inserted on Phase 2c's argument: every step in it is a defect a
-*verification* step saw on a device and filed under "Still open after v1" rather than fixing in
-place. Six of those entries became **M5** in `docs/CHECKLIST.md`, which is that list running in
+*verification* step saw on a device and filed under what `docs/CHECKLIST.md` named "Still open
+after v1" at the time (renamed "To review" once it grew past that) rather than fixing in place.
+Six of those entries became **M5** in `docs/CHECKLIST.md`, which is that list running in
 reverse — an error message that blames the connection for an expired certificate (§4.5), filter and
 sort that don't survive a process death while the back stack does (§5.5), a price sort that compares
 across currencies and a converted price that doesn't say so (§5.5's conversion notes), an invisible
 login backoff (§1.1), and a failed logo that stays a letter after the server comes back (§4.5).
-**Done when** what remains under "Still open after v1" is policy and unstarted phases rather than
+**Done when** what remains under "To review" is policy and unstarted phases rather than
 known-wrong behaviour. Two of the six cannot be seen on the user's own instance at all — it is
 single-currency with conversion off — so they need the scratch container, and two need the TLS
 front, since both are about what happens *after* a connection was working.
