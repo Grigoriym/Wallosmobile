@@ -140,17 +140,6 @@ kept here as the permanent answer rather than something to re-open; the rest is 
   logcat `REQUEST:`/`RESPONSE:` timestamps (per `CLAUDE.md`'s own technique) before touching
   anything — if this is right, giving these three a cache is Phase 5 management-screen scope, not a
   small fix.
-- **Write a standalone emulator-testing doc**, pulling the adb/screenshot/`uiautomator dump`
-  recipes this file's own build-commands block has accumulated (coordinate scaling, `am kill` vs
-  `force-stop`, DataStore planting, the Photo Picker's confirmation bar, 7.9's finding that a
-  `DateField`'s placeholder is invisible to a dump text search) into their own doc. Filed
-  2026-08-07 **with a cross-repo angle attached**: the user wants this capability — an agent
-  driving a real emulator to verify a change — available the same way in other repos, not just
-  here, so when this is picked up it's worth deciding whether it stays a project doc or becomes a
-  shared skill in `agentic-grappim` (the `finalize` skill's own routing table already says a
-  cross-project *technique* belongs there). The shared-skill version has to be written generically
-  enough that a repo with a different package name and different screens can still follow it,
-  which is more work than copying this file's block verbatim.
 - **Investigate a tracing setup (Perfetto or similar) for before/after-PR performance comparison.**
   Filed 2026-08-07, not scoped — the ask is capturing a trace against a build, capturing another
   against a change, and diffing whatever metric matters (cold start, a screen's frame time, the
