@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.subscriptions.ui.editor
 
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.LogoFile
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.WritableBillingCycle
 import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.collections.immutable.ImmutableList
@@ -54,6 +55,8 @@ data class SubscriptionEditorUiState(
     val onUrlChange: (String) -> Unit = {},
     val logoUrl: String = "",
     val onLogoUrlChange: (String) -> Unit = {},
+    val logoFile: LogoFile? = null,
+    val onLogoFilePick: (LogoFile) -> Unit = {},
     val notify: Boolean = false,
     val onNotifyChange: (Boolean) -> Unit = {},
     val notifyDaysBefore: String = "",

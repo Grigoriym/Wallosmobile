@@ -665,6 +665,18 @@ a caller's own `api_key` rather than losing to it. `SetupRepository` therefore c
 key before it starts an attempt (§1.1); without that, a re-login validates the stale key and
 stores the new one on the strength of it.
 
+**`postMultipart` shipped in 7.9, as `MultipartFile` rather than the sketch's `FileUpload`** — a
+plain class (`fieldName`/`fileName`/`mimeType`/`bytes`; not a `data class`, since a `ByteArray`
+property gives one a reference-equality `equals`/`hashCode` pair that looks structural and isn't).
+It builds on `httpClient.submitFormWithBinaryData` + a `formData { }` block: the caller's own
+`FormParams` (with the stored key already injected, same as `post`) go in as plain string parts,
+and the file is one more `append(fieldName, bytes, Headers.build { ContentType; ContentDisposition
+= "filename=…" })`. `SubscriptionsApi.addSubscription`/`editSubscription` take an optional
+`logo: MultipartFile? = null` and switch to `postMultipart` only when it's set — every pre-existing,
+non-logo call site (and its tests) needed no change. Reused by nothing else yet;
+`feature:paymentmethods`' `paymenticon` upload (7.4's deliberately out-of-scope half) is the next
+caller whenever Phase 5 builds a picker for it.
+
 The `NetworkModule` itself follows MealieMobile's
 (`MealieMobile/core/api/.../core/api/NetworkModule.kt`) — `@HttpJson` and client qualifiers,
 `@Module @Configuration @ComponentScan`, `expectSuccess = false`, `defaultRequest` off
@@ -1918,11 +1930,14 @@ Add / edit / delete, including the multipart logo upload and `logo_url` fetch. `
 the subscription editor — currencies reuse `feature:subscriptions`'s existing read path rather than
 a fourth module (§3.4, §10). Enforce: `ONE_TIME` unavailable, strict date format, `"1"`/`"0"`
 encoding, re-read after write to confirm the logo landed.
-*Decomposed as **M7** in `docs/CHECKLIST.md`* (9 steps): `core:crud` plus the three catalog modules
-(7.1–7.4), the repository's write methods (7.5), the add/edit form and its list/detail entry points
-(7.6–7.7), then the two logo paths split into their own steps (7.8–7.9) since the upload path is the
-milestone's one new platform seam — an `expect`/`actual` image picker, the first since 3.7's trust
-manager.
+*Decomposed as **M7** in `docs/CHECKLIST.md`* (9 steps, all ticked — **Phase 3 is done**):
+`core:crud` plus the three catalog modules (7.1–7.4), the repository's write methods (7.5), the
+add/edit form and its list/detail entry points (7.6–7.7), then the two logo paths split into their
+own steps (7.8–7.9) since the upload path is the milestone's one new platform seam — an
+`expect`/`actual` image picker (§4's `LogoPicker`), the first one *in a feature module* since 3.7's
+trust manager, which is `core:api`'s. 7.9's own precedent check found `1.4`'s Keystore access is
+not actually `expect`/`actual` (`SecretCipher` is a plain interface with a Koin-reached impl) — see
+the `CLAUDE.md` Non-negotiables correction.
 
 ### Phase 4 — Dashboard
 `get_monthly_cost` and `get_period_budget` with version gating, upcoming payments derived locally

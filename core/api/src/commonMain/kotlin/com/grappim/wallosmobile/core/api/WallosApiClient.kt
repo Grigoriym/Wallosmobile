@@ -2,8 +2,12 @@ package com.grappim.wallosmobile.core.api
 
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
 import io.ktor.client.HttpClient
+import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitForm
+import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.serializer
 import org.koin.core.annotation.Single
@@ -34,6 +38,33 @@ class WallosApiClient(
         )
         return envelopeParser.parse(response.status.value, response.bodyAsText(), deserializer)
     }
+
+    /**
+     * [post], plus one [file] part — `multipart/form-data` (API doc §4.2) rather than the
+     * urlencoded body every other call sends, since a file can't ride inside that.
+     */
+    suspend fun <T> postMultipart(
+        path: String,
+        params: FormParams,
+        file: MultipartFile,
+        deserializer: DeserializationStrategy<T>
+    ): T {
+        val response = httpClient.submitFormWithBinaryData(
+            url = path,
+            formData = formData {
+                params.withApiKey(apiKeyStorage.getKey()).asMap().forEach { (key, value) -> append(key, value) }
+                append(
+                    file.fieldName,
+                    file.bytes,
+                    Headers.build {
+                        append(HttpHeaders.ContentType, file.mimeType)
+                        append(HttpHeaders.ContentDisposition, "filename=\"${file.fileName}\"")
+                    }
+                )
+            }
+        )
+        return envelopeParser.parse(response.status.value, response.bodyAsText(), deserializer)
+    }
 }
 
 /**
@@ -43,3 +74,7 @@ class WallosApiClient(
  */
 suspend inline fun <reified T> WallosApiClient.post(path: String, params: FormParams = FormParams()): T =
     post(path, params, serializer())
+
+/** [WallosApiClient.postMultipart] with the serializer resolved from the call site. */
+suspend inline fun <reified T> WallosApiClient.postMultipart(path: String, params: FormParams, file: MultipartFile): T =
+    postMultipart(path, params, file, serializer())

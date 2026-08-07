@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.feature.subscriptions.data
 
 import app.cash.turbine.test
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.MultipartFile
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.core.storage.db.CurrencyDao
 import com.grappim.wallosmobile.core.storage.db.CurrencyEntity
@@ -11,6 +12,7 @@ import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
 import com.grappim.wallosmobile.core.storage.db.SubscriptionEntity
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.EditSubscriptionParams
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.LogoFile
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.WritableBillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.dto.CurrencyDTO
@@ -29,9 +31,11 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -483,6 +487,50 @@ class SubscriptionsRepositoryImplTest {
         assertEquals("https://example.com/logo.png", api.addFields.single().asMap()["logo_url"])
     }
 
+    // --- 7.9: logo file upload -----------------------------------------------------------------
+
+    @Test
+    fun `add with no picked logo sends no file to the api`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = emptyList(),
+            currencies = listOf(CurrencyDTO(id = 1, symbol = "€")),
+            addResult = 1
+        )
+
+        repository(api).addSubscription(addParams()).getOrThrow()
+
+        assertNull(api.addLogos.single())
+    }
+
+    @Test
+    fun `add with a picked logo forwards it to the api under the logo field name`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = emptyList(),
+            currencies = listOf(CurrencyDTO(id = 1, symbol = "€")),
+            addResult = 1
+        )
+
+        repository(api).addSubscription(addParams(logoFile = logoFile())).getOrThrow()
+
+        val sentLogo = assertNotNull(api.addLogos.single())
+        assertEquals("logo", sentLogo.fieldName)
+        assertEquals("logo.png", sentLogo.fileName)
+        assertEquals("image/png", sentLogo.mimeType)
+        assertContentEquals(byteArrayOf(1, 2, 3), sentLogo.bytes)
+    }
+
+    @Test
+    fun `edit with a picked logo forwards it to the api too`() = runTest {
+        val api =
+            FakeSubscriptionsApi(subscriptions = emptyList(), currencies = listOf(CurrencyDTO(id = 1, symbol = "€")))
+
+        repository(api).editSubscription(4, EditSubscriptionParams(logoFile = logoFile())).getOrThrow()
+
+        assertNotNull(api.editLogos.single())
+    }
+
+    private fun logoFile() = LogoFile(bytes = byteArrayOf(1, 2, 3), fileName = "logo.png", mimeType = "image/png")
+
     /** The server-side `cycle`/`Missing parameters` guard, surfacing here rather than in the api test alone. */
     @Test
     fun `a server-rejected add leaves the cache untouched`() = runTest {
@@ -567,16 +615,20 @@ class SubscriptionsRepositoryImplTest {
         assertEquals(listOf("Fiton"), subscriptionDao.rows.map { it.name })
     }
 
-    private fun addParams(cycle: WritableBillingCycle = WritableBillingCycle.YEARS, logoUrl: String? = null) =
-        AddSubscriptionParams(
-            name = "Netflix",
-            price = 31.99,
-            currencyId = 1,
-            cycle = cycle,
-            frequency = 1,
-            nextPayment = LocalDate(2026, 1, 31),
-            logoUrl = logoUrl
-        )
+    private fun addParams(
+        cycle: WritableBillingCycle = WritableBillingCycle.YEARS,
+        logoUrl: String? = null,
+        logoFile: LogoFile? = null
+    ) = AddSubscriptionParams(
+        name = "Netflix",
+        price = 31.99,
+        currencyId = 1,
+        cycle = cycle,
+        frequency = 1,
+        nextPayment = LocalDate(2026, 1, 31),
+        logoUrl = logoUrl,
+        logoFile = logoFile
+    )
 
     private fun euro(rate: String = "1") = CurrencyDTO(id = 1, name = "Euro", symbol = "€", code = "EUR", rate = rate)
 
@@ -696,14 +748,19 @@ class SubscriptionsRepositoryImplTest {
             return isConversionEnabled
         }
 
-        override suspend fun addSubscription(fields: FormParams): Int {
+        val addLogos = mutableListOf<MultipartFile?>()
+        val editLogos = mutableListOf<MultipartFile?>()
+
+        override suspend fun addSubscription(fields: FormParams, logo: MultipartFile?): Int {
             addFields += fields
+            addLogos += logo
             addFailure?.let { throw it }
             return addResult ?: error("addResult not set")
         }
 
-        override suspend fun editSubscription(id: Int, fields: FormParams) {
+        override suspend fun editSubscription(id: Int, fields: FormParams, logo: MultipartFile?) {
             editCalls += id to fields
+            editLogos += logo
             editFailure?.let { throw it }
         }
 

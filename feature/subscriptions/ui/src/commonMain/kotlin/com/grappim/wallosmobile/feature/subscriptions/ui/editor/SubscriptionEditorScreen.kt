@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.LogoFile
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.WritableBillingCycle
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_auto_renew
@@ -54,6 +55,8 @@ import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_date_confirm
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_frequency
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_inactive
+import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_logo_file_pick
+import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_logo_file_picked
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_logo_url
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_name
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_next_payment
@@ -118,11 +121,17 @@ fun SubscriptionEditorScreen(
 
     ObserveAsEvents(flow = viewModel.saved) { onBackClick() }
 
-    SubscriptionEditorContent(uiState = uiState)
+    val pickLogoFile = rememberLogoPickerLauncher(onPick = uiState.onLogoFilePick)
+
+    SubscriptionEditorContent(uiState = uiState, onPickLogoFileClick = pickLogoFile)
 }
 
 @Composable
-private fun SubscriptionEditorContent(uiState: SubscriptionEditorUiState, modifier: Modifier = Modifier) {
+private fun SubscriptionEditorContent(
+    uiState: SubscriptionEditorUiState,
+    modifier: Modifier = Modifier,
+    onPickLogoFileClick: () -> Unit = {}
+) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -214,6 +223,8 @@ private fun SubscriptionEditorContent(uiState: SubscriptionEditorUiState, modifi
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
         )
 
+        LogoFilePicker(logoFile = uiState.logoFile, onPickLogoFileClick = onPickLogoFileClick)
+
         SwitchRow(
             label = RString.subscription_editor_notify,
             checked = uiState.notify,
@@ -261,6 +272,23 @@ private fun SubscriptionEditorContent(uiState: SubscriptionEditorUiState, modifi
             ) {
                 Text(stringResource(RString.subscription_editor_save))
             }
+        }
+    }
+}
+
+/** The multipart alternative to [SubscriptionEditorUiState.logoUrl] (7.9) — device gallery, not a URL. */
+@Composable
+private fun LogoFilePicker(logoFile: LogoFile?, onPickLogoFileClick: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        TextButton(onClick = onPickLogoFileClick) {
+            Text(stringResource(RString.subscription_editor_logo_file_pick))
+        }
+
+        if (logoFile != null) {
+            Text(
+                text = stringResource(RString.subscription_editor_logo_file_picked, logoFile.fileName),
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }

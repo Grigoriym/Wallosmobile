@@ -9,6 +9,13 @@ plugins {
 
 kotlin {
     sourceSets {
+        // The image picker (7.9) is the one platform seam this feature needs — everything else
+        // reaches the server through `core:api` alone. `rememberLauncherForActivityResult` is
+        // this module's first reason to declare `androidMain` at all.
+        androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
+        }
+
         commonMain.dependencies {
             implementation(projects.feature.subscriptions.domain)
 

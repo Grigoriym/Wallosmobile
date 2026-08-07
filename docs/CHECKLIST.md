@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `8/9`
-**Current step:** 7.9 — feature:subscriptions: logo via multipart upload
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9`
+**Current step:** M7 done — Phase 3 complete. Next: decompose Phase 4 (Dashboard) into M8.
 
 ---
 
@@ -380,7 +380,7 @@ rather than by a step of its own, so no step below has to re-litigate them:
   logo swap — both via `wallos-scratch`, both confirmed against the `Ktor` REQUEST/RESPONSE log
   (`set_subscriptions.php` → 200, followed by the existing `refreshSubscriptions()` triad).
 
-- [ ] **7.9 — feature:subscriptions: logo via multipart upload**
+- [x] **7.9 — feature:subscriptions: logo via multipart upload**
   A device image picker (Android's `ActivityResultContracts` — the one platform seam this
   milestone needs, `expect`/`actual` per the no-`androidMain`-in-features rule, the same shape
   1.4's Keystore access and 3.7's trust manager already use) feeding a multipart `logo` field
@@ -388,4 +388,32 @@ rather than by a step of its own, so no step below has to re-litigate them:
   *Verify:* `adb push` a small jpg onto the AVD's gallery path first if it has none, then on the
   emulator against `wallos-scratch` — pick it from the form, submit, and see it render as the logo.
   ·  *Ref:* `WALLOS_API.md` §3.4, §4
+  **Note:** the "1.4/3.7 shape" turned out to mean *this feature module gets its first
+  `androidMain` directory*, not that those two are themselves `expect`/`actual` — `SecretCipher`
+  and `NetworkMonitor`/`CompositeTrustManager` are plain interfaces with a `core`-module Android
+  impl reached through Koin, which doesn't apply here since `rememberLauncherForActivityResult`
+  needs to run inside a `@Composable`. `feature:subscriptions:ui` did have `androidMain` available
+  the whole time — `configureKmp()`/`com.android.kotlin.multiplatform.library` declare the Android
+  target for every KMP module — it had simply never been used by a feature module until now.
+  `core:api` grew `WallosApiClient.postMultipart` (`submitFormWithBinaryData`, one more file part
+  beside the same urlencoded fields `post` sends) and a `MultipartFile` carrier class (`fieldName`/
+  `fileName`/`mimeType`/`bytes` — a plain `class`, not `data class`: a `ByteArray` property gives
+  a `data class` a reference-equality `equals`/`hashCode` pair that looks structural and isn't).
+  `feature:subscriptions:domain` mirrors it with `LogoFile`, threaded through `AddSubscriptionParams`/
+  `EditSubscriptionParams` as one more optional field; `SubscriptionsApi.addSubscription`/
+  `editSubscription` gained an optional `logo: MultipartFile?` parameter and switch to
+  `postMultipart` only when it is set, so every existing non-logo call site (and its tests) needed
+  no change. Picked bytes live in `SubscriptionEditorUiState.logoFile`, set by
+  `SubscriptionEditorViewModel.onLogoFilePick` — deliberately **not** folded into `SavedFormState`,
+  since a `SavedStateHandle` value has to be Bundle-safe and cheap, and raw image bytes are neither;
+  a process death between picking and saving loses the pick, the same way it loses anything else
+  `restoreForm` cannot represent. `compose:parameter-naming` caught `onPicked` as past tense on
+  first run (`ktlintCheck`/`detekt` both failed) — renamed to `onPick`/`onLogoFilePick` throughout,
+  present tense per the existing `onClick`-not-`onClicked` rule. Verified live against
+  `wallos-scratch`: pushed a small red JPEG onto the AVD (`adb push` + a `MEDIA_SCANNER_SCAN_FILE`
+  broadcast so the system Photo Picker could see it, since it wasn't in any gallery bucket yet),
+  picked it from the add form, saved, and watched it render as the logo on both the list and detail
+  screens — confirmed against the `Ktor` log (`set_subscriptions.php` → 200, the usual
+  `refreshSubscriptions()` triad after it), not just a screenshot. **M7 is done — Phase 3 is
+  complete.**
 

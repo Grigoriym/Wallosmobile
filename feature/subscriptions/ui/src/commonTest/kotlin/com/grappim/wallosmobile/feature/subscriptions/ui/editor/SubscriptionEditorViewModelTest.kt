@@ -12,6 +12,7 @@ import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscripti
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.EditSubscriptionParams
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.LogoFile
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.WritableBillingCycle
@@ -139,6 +140,44 @@ class SubscriptionEditorViewModelTest {
         sut.uiState.value.onSaveClick()
 
         assertEquals("https://example.com/logo.png", assertNotNull(subscriptionsRepository.addedParams).logoUrl)
+    }
+
+    // --- 7.9: logo file upload -----------------------------------------------------------------
+
+    @Test
+    fun `a picked logo file is held in state until save`() = runTest {
+        val sut = viewModel()
+
+        sut.uiState.value.onLogoFilePick(
+            LogoFile(bytes = byteArrayOf(1), fileName = "logo.png", mimeType = "image/png")
+        )
+
+        assertEquals("logo.png", sut.uiState.value.logoFile?.fileName)
+    }
+
+    @Test
+    fun `a picked logo file reaches the add params`() = runTest {
+        subscriptionsRepository.addResult = Result.success(1)
+        val sut = viewModel()
+        fillMinimalValidForm(sut)
+        sut.uiState.value.onLogoFilePick(
+            LogoFile(bytes = byteArrayOf(1), fileName = "logo.png", mimeType = "image/png")
+        )
+
+        sut.uiState.value.onSaveClick()
+
+        assertEquals("logo.png", assertNotNull(subscriptionsRepository.addedParams).logoFile?.fileName)
+    }
+
+    @Test
+    fun `no picked file leaves the add params without one`() = runTest {
+        subscriptionsRepository.addResult = Result.success(1)
+        val sut = viewModel()
+        fillMinimalValidForm(sut)
+
+        sut.uiState.value.onSaveClick()
+
+        assertNull(assertNotNull(subscriptionsRepository.addedParams).logoFile)
     }
 
     /** Notify's day count is only meaningful once notify is on — off, it must not reach the server. */

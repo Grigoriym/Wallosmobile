@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.feature.subscriptions.data
 
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.MultipartFile
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
 import com.grappim.wallosmobile.core.domain.WallosError
@@ -10,7 +11,10 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.forms.FormDataContent
+import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.PartData
+import io.ktor.utils.io.InternalAPI
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -215,6 +219,53 @@ class SubscriptionsApiImplTest {
             api(SubscriptionsJsonFixtures.INVALID_CYCLE).addSubscription(FormParams())
         }
     }
+
+    // --- 7.9: multipart logo upload ---------------------------------------------------------
+
+    @OptIn(InternalAPI::class)
+    @Test
+    fun `add with a logo file switches to a multipart body carrying both`() = runTest {
+        var body: MultiPartFormDataContent? = null
+
+        api(SubscriptionsJsonFixtures.SUBSCRIPTION_ADDED) { body = it.body as MultiPartFormDataContent }
+            .addSubscription(FormParams().put("name", "Netflix"), logoFile())
+
+        val parts = body?.parts.orEmpty()
+        assertEquals("add", parts.formValue("action"))
+        assertEquals("Netflix", parts.formValue("name"))
+        val filePart = parts.filterIsInstance<PartData.BinaryItem>().single()
+        assertEquals("logo", filePart.name)
+    }
+
+    @OptIn(InternalAPI::class)
+    @Test
+    fun `edit with a logo file also switches to multipart, id included`() = runTest {
+        var body: MultiPartFormDataContent? = null
+
+        api(SubscriptionsJsonFixtures.SUBSCRIPTION_UPDATED) { body = it.body as MultiPartFormDataContent }
+            .editSubscription(4, FormParams(), logoFile())
+
+        val parts = body?.parts.orEmpty()
+        assertEquals("edit", parts.formValue("action"))
+        assertEquals("4", parts.formValue("id"))
+    }
+
+    /** No logo, no reason to switch: the urlencoded body stays the default (7.5's own shape). */
+    @Test
+    fun `add without a logo file keeps the plain urlencoded body`() = runTest {
+        var body: FormDataContent? = null
+
+        api(SubscriptionsJsonFixtures.SUBSCRIPTION_ADDED) { body = it.body as FormDataContent }
+            .addSubscription(FormParams().put("name", "Netflix"))
+
+        assertEquals("Netflix", body?.formData?.get("name"))
+    }
+
+    private fun logoFile() =
+        MultipartFile(fieldName = "logo", fileName = "logo.png", mimeType = "image/png", bytes = byteArrayOf(1, 2, 3))
+
+    private fun List<PartData>.formValue(name: String): String? =
+        filterIsInstance<PartData.FormItem>().firstOrNull { it.name == name }?.value
 
     private fun api(responseBody: String, onRequest: (HttpRequestData) -> Unit = {}): SubscriptionsApi {
         val engine = MockEngine { request ->

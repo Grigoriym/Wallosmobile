@@ -1,8 +1,10 @@
 package com.grappim.wallosmobile.feature.subscriptions.data
 
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.MultipartFile
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.post
+import com.grappim.wallosmobile.core.api.postMultipart
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.subscriptions.dto.CurrenciesResponse
 import com.grappim.wallosmobile.feature.subscriptions.dto.CurrencyDTO
@@ -30,11 +32,15 @@ interface SubscriptionsApi {
     /** The user's own `convert_currency` setting, `false` on an instance that doesn't send one. */
     suspend fun isCurrencyConversionEnabled(): Boolean
 
-    /** `action=add` (API doc §3.4). @return the id the server assigned the new row. */
-    suspend fun addSubscription(fields: FormParams): Int
+    /**
+     * `action=add` (API doc §3.4). [logo] rides alongside as a `multipart/form-data` file part
+     * when set (API doc §4) — `null` keeps the plain urlencoded body every other write uses.
+     * @return the id the server assigned the new row.
+     */
+    suspend fun addSubscription(fields: FormParams, logo: MultipartFile? = null): Int
 
     /** `action=edit`; [id] goes under the primary alias (`id`/`subscriptionId`/`subscription_id`). */
-    suspend fun editSubscription(id: Int, fields: FormParams)
+    suspend fun editSubscription(id: Int, fields: FormParams, logo: MultipartFile? = null)
 
     suspend fun deleteSubscription(id: Int)
 }
@@ -79,17 +85,21 @@ internal class SubscriptionsApiImpl(private val apiClient: WallosApiClient) : Su
     override suspend fun isCurrencyConversionEnabled(): Boolean =
         apiClient.post<SettingsResponse>(SETTINGS_PATH).settings.convertCurrency == ENABLED
 
-    override suspend fun addSubscription(fields: FormParams): Int {
-        val envelope = apiClient.post<JsonObject>(SET_SUBSCRIPTIONS_PATH, fields.withAction(ACTION_ADD))
+    override suspend fun addSubscription(fields: FormParams, logo: MultipartFile?): Int {
+        val envelope = fields.withAction(ACTION_ADD).postSetSubscriptions(logo)
         return (envelope[PARAM_SUBSCRIPTION_ID] as? JsonPrimitive)?.intOrNull
             ?: throw WallosError.Malformed(envelope.toString())
     }
 
-    override suspend fun editSubscription(id: Int, fields: FormParams) {
-        apiClient.post<JsonObject>(
-            SET_SUBSCRIPTIONS_PATH,
-            fields.withAction(ACTION_EDIT).put(PARAM_ID, id.toString())
-        )
+    override suspend fun editSubscription(id: Int, fields: FormParams, logo: MultipartFile?) {
+        fields.withAction(ACTION_EDIT).put(PARAM_ID, id.toString()).postSetSubscriptions(logo)
+    }
+
+    /** [logo] present routes through [WallosApiClient.postMultipart]; absent, the plain urlencoded body. */
+    private suspend fun FormParams.postSetSubscriptions(logo: MultipartFile?): JsonObject = if (logo != null) {
+        apiClient.postMultipart(SET_SUBSCRIPTIONS_PATH, this, logo)
+    } else {
+        apiClient.post(SET_SUBSCRIPTIONS_PATH, this)
     }
 
     override suspend fun deleteSubscription(id: Int) {

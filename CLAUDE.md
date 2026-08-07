@@ -124,6 +124,24 @@ a plain grep for the visible digit would match, and a mistap there lands on a di
 visible error until the field is checked. Reach for the dump over eyeballing the screenshot whenever
 a tap is going into a dialog, a dropdown menu, or any screen where several fields sit close together
 — the cost of one dump is lower than the cost of silently typing into the wrong field.
+**A `DateField`'s own placeholder text ("Next payment", "Start date") is invisible to the dump's
+text search while the field is empty** (7.9) — unlike a plain `OutlinedTextField`'s placeholder
+(`Notes` shows up fine), the transparent click-overlay `Box` sitting over it seems to swallow that
+semantics node, so grepping the dump for the label finds nothing even though the text is on screen.
+The field is still there and still tappable; compute its centre from the screenshot (or from the
+surrounding fields' known spacing) rather than trusting an empty grep to mean "not rendered yet".
+An `ExposedDropdownMenuBox` anchor's clickable region is the *entire* field box, label to bottom
+border, not a narrow strip around the value text — the dump's `clickable="true"` bounds for it are
+usually noticeably taller than they look in a screenshot.
+
+**Picking a gallery image needs the file to be media-scanned, and the system picker needs an
+explicit confirmation** (7.9, verifying the multipart logo upload). `adb push`ing a jpg into
+`/sdcard/Pictures/` does not make it appear in `ActivityResultContracts.GetContent()`'s picker on
+its own — `adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d
+file:///sdcard/Pictures/x.jpg` is what puts it in MediaStore. And on this AVD's API level the
+picker shows the same "1 · Preview · Done" bottom bar for a single-select `GetContent()` call as
+for a real multi-select one — tapping the thumbnail only checks it, tapping **Done** is what
+returns the `Uri` to the app.
 
 **The launcher icon lives in the app *drawer*, not the home screen** (6.1) — Pixel Launcher only
 pins favourites to home, so verifying it needs `adb shell input swipe 540 1800 540 600` to pull
@@ -425,7 +443,13 @@ vertical slices, **all source in `commonMain`**.
   expires the day the app ships: the stored API key and the back stack are then the two things
   that need real care.
 - **No `androidMain` in feature modules** — use `expect`/`actual`. Platform targets are declared
-  **only** in `configureKmp()` in `build-logic`.
+  **only** in `configureKmp()` in `build-logic`. The android target itself is available to every
+  KMP module regardless — `configureKmp()`/`com.android.kotlin.multiplatform.library` declare it
+  unconditionally, so an `androidMain` source set compiles the moment one is added. No feature
+  module had needed one until 7.9's image picker (`rememberLauncherForActivityResult` has to run
+  inside a `@Composable`, which rules out the `SecretCipher`/`NetworkMonitor` shape — those are
+  plain interfaces with a Koin-reached `core`-module impl, not `expect`/`actual`, and don't
+  generalize to something a Composable itself has to call).
 - **`commonMain` is not enforced platform-neutral here.** Android being the only target,
   `commonMain` compiles against the JVM variants: `java.io.File` and `kotlinx.coroutines.runBlocking`
   both resolve there and *nothing* fails. Keeping common code common is a discipline, not a
@@ -527,6 +551,14 @@ vertical slices, **all source in `commonMain`**.
   `HttpClient` in a host test, since the real engine is `androidMain`-only (autodiscovered before
   3.7, built by `createPlatformHttpClientEngine` since). It reaches every `commonTest` as `api(libs.ktor.client.mock)` in `:testing`,
   alongside `kotlinx-coroutines-test`; never declare either per module.
+  **Asserting on a captured `MultiPartFormDataContent`'s parts needs `@OptIn(io.ktor.utils.io.
+  InternalAPI::class)`** (7.9) — its `parts: List<PartData>` property carries that annotation, even
+  though building the request via `formData { }` needs no opt-in at all. And `PartData.headers[key]`
+  (the `[]` accessor) only ever returns the *first* value under a header name; `formData { append(key,
+  bytes, Headers.build { append(ContentDisposition, "filename=…") }) }` lands a **second**
+  `Content-Disposition` value beside the `name=` one `formData` itself adds, so reading it back needs
+  `headers.getAll(ContentDisposition)`, not `headers[ContentDisposition]`, or the filename half never
+  shows up in the assertion.
   **`:testing` is excluded from linting** (`lintingExclusions` in `build-logic/.../Quality.kt`,
   plus `.editorconfig`), so there is no `:testing:ktlintFormat`/`:testing:detekt` task at all —
   asking for one fails with "task not found", which is the config working, not a broken build.

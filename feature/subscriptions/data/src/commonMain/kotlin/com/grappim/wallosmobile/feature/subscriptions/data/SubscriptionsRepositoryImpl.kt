@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.feature.subscriptions.data
 
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.MultipartFile
 import com.grappim.wallosmobile.core.asynckmp.IoDispatcher
 import com.grappim.wallosmobile.core.domain.resultOf
 import com.grappim.wallosmobile.core.logger.LogPriority
@@ -8,6 +9,7 @@ import com.grappim.wallosmobile.core.logger.logcat
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.EditSubscriptionParams
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.LogoFile
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
@@ -109,7 +111,7 @@ internal class SubscriptionsRepositoryImpl(
 
     override suspend fun addSubscription(params: AddSubscriptionParams): Result<Int> = resultOf {
         withContext(dispatcher) {
-            val id = api.addSubscription(params.toFormParams())
+            val id = api.addSubscription(params.toFormParams(), params.logoFile?.toMultipartFile())
             refreshSubscriptions().getOrThrow()
             id
         }
@@ -117,7 +119,7 @@ internal class SubscriptionsRepositoryImpl(
 
     override suspend fun editSubscription(id: Int, params: EditSubscriptionParams): Result<Unit> = resultOf {
         withContext(dispatcher) {
-            api.editSubscription(id, params.toFormParams())
+            api.editSubscription(id, params.toFormParams(), params.logoFile?.toMultipartFile())
             refreshSubscriptions().getOrThrow()
         }
     }
@@ -187,6 +189,10 @@ internal class SubscriptionsRepositoryImpl(
             false
         }
 
+    /** `logo` is the multipart field name (API doc §4) — the DTO/domain side never names it. */
+    private fun LogoFile.toMultipartFile(): MultipartFile =
+        MultipartFile(fieldName = PARAM_LOGO, fileName = fileName, mimeType = mimeType, bytes = bytes)
+
     /**
      * Whether the instance has ever fetched exchange rates, which is what Wallos silently gates
      * conversion on (API doc §5.5). The flag it really reads is a `last_exchange_update` row that
@@ -241,5 +247,6 @@ internal class SubscriptionsRepositoryImpl(
         const val PARAM_CANCELLATION_DATE = "cancellation_date"
         const val PARAM_REPLACEMENT_SUBSCRIPTION_ID = "replacement_subscription_id"
         const val PARAM_LOGO_URL = "logo_url"
+        const val PARAM_LOGO = "logo"
     }
 }

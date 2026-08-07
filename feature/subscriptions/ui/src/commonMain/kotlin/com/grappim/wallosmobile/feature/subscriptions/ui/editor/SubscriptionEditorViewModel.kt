@@ -10,6 +10,7 @@ import com.grappim.wallosmobile.feature.household.domain.repo.HouseholdRepositor
 import com.grappim.wallosmobile.feature.paymentmethods.domain.repo.PaymentMethodsRepository
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.EditSubscriptionParams
+import com.grappim.wallosmobile.feature.subscriptions.domain.model.LogoFile
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.WritableBillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
 import com.grappim.wallosmobile.strings.RString
@@ -132,6 +133,16 @@ class SubscriptionEditorViewModel(
         _uiState.update { it.copy(logoUrl = value) }
     }
 
+    /**
+     * Not persisted (see [SavedFormState]) — a process death between picking and saving loses the
+     * bytes, same as it loses everything else [restoreForm] cannot represent. The picked file
+     * replaces whatever was picked before rather than merging with it; the server-side upload is
+     * always a single file per request.
+     */
+    private fun onLogoFilePick(file: LogoFile) {
+        _uiState.update { it.copy(logoFile = file) }
+    }
+
     private fun onNotifyChange(value: Boolean) {
         _uiState.update { it.copy(notify = value) }
     }
@@ -195,7 +206,8 @@ class SubscriptionEditorViewModel(
                         notify = state.notify,
                         notifyDaysBefore = if (state.notify) state.notifyDaysBefore.toIntOrNull() else null,
                         inactive = state.inactive,
-                        logoUrl = state.logoUrl.trim().ifBlank { null }
+                        logoUrl = state.logoUrl.trim().ifBlank { null },
+                        logoFile = state.logoFile
                     )
                 )
             } ?: subscriptionsRepository.addSubscription(
@@ -216,7 +228,8 @@ class SubscriptionEditorViewModel(
                     notify = state.notify,
                     notifyDaysBefore = if (state.notify) state.notifyDaysBefore.toIntOrNull() else null,
                     inactive = state.inactive,
-                    logoUrl = state.logoUrl.trim().ifBlank { null }
+                    logoUrl = state.logoUrl.trim().ifBlank { null },
+                    logoFile = state.logoFile
                 )
             ).map { }
 
@@ -361,6 +374,7 @@ class SubscriptionEditorViewModel(
         onUrlChange = ::onUrlChange,
         logoUrl = logoUrl,
         onLogoUrlChange = ::onLogoUrlChange,
+        onLogoFilePick = ::onLogoFilePick,
         notify = notify,
         onNotifyChange = ::onNotifyChange,
         notifyDaysBefore = notifyDaysBefore,

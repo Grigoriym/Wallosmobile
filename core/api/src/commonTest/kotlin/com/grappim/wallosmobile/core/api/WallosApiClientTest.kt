@@ -7,8 +7,13 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.forms.FormDataContent
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.PartData
+import io.ktor.utils.io.InternalAPI
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -17,6 +22,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class WallosApiClientTest {
 
@@ -73,6 +79,53 @@ class WallosApiClientTest {
         )
 
         assertFailsWith<WallosError.Unauthenticated> { client.post<VersionEnvelope>(PATH) }
+    }
+
+    // --- 7.9: multipart -------------------------------------------------------------------------
+
+    @OptIn(InternalAPI::class)
+    @Test
+    fun `postMultipart sends the file alongside the caller's own fields, plus the stored key`() = runTest {
+        var body: MultiPartFormDataContent? = null
+        val client = apiClient(apiKey = "s3cr3tk3y", onRequest = { body = it.body as MultiPartFormDataContent })
+
+        client.postMultipart<VersionEnvelope>(
+            PATH,
+            FormParams().put("action", "add"),
+            MultipartFile(
+                fieldName = "logo",
+                fileName = "logo.png",
+                mimeType = "image/png",
+                bytes = byteArrayOf(1, 2, 3)
+            )
+        )
+
+        val parts = body?.parts.orEmpty()
+        val fields = parts.filterIsInstance<PartData.FormItem>().associate { it.name to it.value }
+        assertEquals("s3cr3tk3y", fields["api_key"])
+        assertEquals("add", fields["action"])
+
+        val filePart = parts.filterIsInstance<PartData.BinaryItem>().single()
+        assertEquals("logo", filePart.name)
+        assertEquals(ContentType.Image.PNG, filePart.contentType)
+        // Two `Content-Disposition` values land on the same header (`name=` from `formData {}`
+        // itself, `filename=` from the headers this call passed in) — `getAll`, not the `[]`
+        // accessor, which only ever returns the first.
+        val disposition = filePart.headers.getAll(HttpHeaders.ContentDisposition).orEmpty()
+        assertTrue(disposition.any { it.contains("filename=\"logo.png\"") })
+    }
+
+    @Test
+    fun `postMultipart decodes the same envelope shape as post`() = runTest {
+        val client = apiClient(apiKey = "s3cr3tk3y")
+
+        val version = client.postMultipart<VersionEnvelope>(
+            PATH,
+            FormParams(),
+            MultipartFile(fieldName = "logo", fileName = "logo.png", mimeType = "image/png", bytes = byteArrayOf())
+        )
+
+        assertEquals("3.1.0", version.version)
     }
 
     private fun apiClient(
