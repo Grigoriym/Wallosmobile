@@ -148,6 +148,7 @@ internal class SubscriptionsRepositoryImpl(
         flag(PARAM_INACTIVE, inactive)
         cancellationDate?.let { date(PARAM_CANCELLATION_DATE, it) }
         replacementSubscriptionId?.let { put(PARAM_REPLACEMENT_SUBSCRIPTION_ID, it.toString()) }
+        logoUrl?.let { put(PARAM_LOGO_URL, it) }
     }
 
     private fun EditSubscriptionParams.toFormParams(): FormParams = FormParams().apply {
@@ -169,6 +170,7 @@ internal class SubscriptionsRepositoryImpl(
         inactive?.let { flag(PARAM_INACTIVE, it) }
         cancellationDate?.let { date(PARAM_CANCELLATION_DATE, it) }
         replacementSubscriptionId?.let { put(PARAM_REPLACEMENT_SUBSCRIPTION_ID, it.toString()) }
+        logoUrl?.let { put(PARAM_LOGO_URL, it) }
     }
 
     /**
@@ -238,5 +240,6 @@ internal class SubscriptionsRepositoryImpl(
         const val PARAM_INACTIVE = "inactive"
         const val PARAM_CANCELLATION_DATE = "cancellation_date"
         const val PARAM_REPLACEMENT_SUBSCRIPTION_ID = "replacement_subscription_id"
+        const val PARAM_LOGO_URL = "logo_url"
     }
 }

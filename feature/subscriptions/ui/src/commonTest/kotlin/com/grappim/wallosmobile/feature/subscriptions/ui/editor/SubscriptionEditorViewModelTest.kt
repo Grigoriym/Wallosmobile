@@ -118,6 +118,29 @@ class SubscriptionEditorViewModelTest {
         assertTrue(sut.uiState.value.error.isEmpty())
     }
 
+    @Test
+    fun `a blank logo URL is omitted rather than sent as an empty string`() = runTest {
+        subscriptionsRepository.addResult = Result.success(1)
+        val sut = viewModel()
+        fillMinimalValidForm(sut)
+
+        sut.uiState.value.onSaveClick()
+
+        assertNull(assertNotNull(subscriptionsRepository.addedParams).logoUrl)
+    }
+
+    @Test
+    fun `a typed logo URL reaches the add params`() = runTest {
+        subscriptionsRepository.addResult = Result.success(1)
+        val sut = viewModel()
+        fillMinimalValidForm(sut)
+        sut.uiState.value.onLogoUrlChange(" https://example.com/logo.png ")
+
+        sut.uiState.value.onSaveClick()
+
+        assertEquals("https://example.com/logo.png", assertNotNull(subscriptionsRepository.addedParams).logoUrl)
+    }
+
     /** Notify's day count is only meaningful once notify is on — off, it must not reach the server. */
     @Test
     fun `notify days before is only sent while notify is on`() = runTest {

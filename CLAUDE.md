@@ -112,7 +112,18 @@ own, so its installed id is the shortest: `com.grappim.wallosmobile.debug`. Subs
 no leading dot) once the id carries a suffix — the class itself is not renamed, only the package.
 
 `screencap` is 1080×2400 while the image comes back scaled — multiply the coordinates read off
-the screenshot by the stated factor before feeding them to `input tap`.
+the screenshot by the stated factor before feeding them to `input tap`. **That multiplication is
+easy to forget mid-session** (7.8 lost several rounds to it) once a few taps in a row used
+already-scaled coordinates from `uiautomator dump` — the two coordinate spaces look identical in a
+tool call and nothing errors when they're mixed, a tap just lands on whatever was underneath.
+`adb shell uiautomator dump /sdcard/window_dump.xml && adb pull /sdcard/window_dump.xml` sidesteps
+the arithmetic entirely: its `bounds="[x1,y1][x2,y2]"` are already in real device pixels, so a
+center computed from them needs no ×1.2. It is also the only reliable way to hit a calendar day in
+`DatePickerDialog` — the day number is a `content-desc` ("Friday, August 14, 2026"), not the `text`
+a plain grep for the visible digit would match, and a mistap there lands on a different day with no
+visible error until the field is checked. Reach for the dump over eyeballing the screenshot whenever
+a tap is going into a dialog, a dropdown menu, or any screen where several fields sit close together
+— the cost of one dump is lower than the cost of silently typing into the wrong field.
 
 **The launcher icon lives in the app *drawer*, not the home screen** (6.1) — Pixel Launcher only
 pins favourites to home, so verifying it needs `adb shell input swipe 540 1800 540 600` to pull

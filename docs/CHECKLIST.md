@@ -5,8 +5,8 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `7/9`
-**Current step:** 7.8 — feature:subscriptions: logo via `logo_url`
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `8/9`
+**Current step:** 7.9 — feature:subscriptions: logo via multipart upload
 
 ---
 
@@ -355,7 +355,7 @@ rather than by a step of its own, so no step below has to re-litigate them:
   `material-icons-core` — no `material-icons-extended` needed, checked the same
   `unzip`-the-jar way as 7.6's `Add`.
 
-- [ ] **7.8 — feature:subscriptions: logo via `logo_url`**
+- [x] **7.8 — feature:subscriptions: logo via `logo_url`**
   A text field in the editor for a source URL; the server fetches it server-side (max 3 redirects,
   5 s timeout, SSRF guard — `WALLOS_API.md` §3.4). **Re-read after write to confirm the logo
   landed** (plan §8's own Enforce bullet for this phase) — the `add`/`edit` response carries no
@@ -364,6 +364,21 @@ rather than by a step of its own, so no step below has to re-litigate them:
   *Verify:* on the emulator against `wallos-scratch` — set a `logo_url`, submit, and see the
   fetched logo render on the detail screen without restarting the app.
   ·  *Ref:* `WALLOS_API.md` §3.4
+  **Note:** the "re-read after write" concern turned out already satisfied by 7.5's own shape —
+  `add`/`edit` both call `refreshSubscriptions()` (the full list, not a single-row `get_subscription`)
+  before returning, and that response's `logo` field is already the server-resolved filename, so no
+  new re-read logic was needed. `logoUrl: String? = null` added to `AddSubscriptionParams`/
+  `EditSubscriptionParams`, forwarded to `logo_url` in `SubscriptionsRepositoryImpl.toFormParams()`
+  the same `?.let` way as `notes`/`url`. Confirmed against the live `set_subscriptions.php` PHP
+  (`docker exec wallos cat …`) that a blank/omitted `logo_url` on edit leaves the existing logo
+  untouched — matches `EditSubscriptionParams`' existing "omitted fields keep their current value"
+  contract, so no special-casing needed there either. UI: one more `OutlinedTextField` in
+  `SubscriptionEditorScreen`, not pre-filled on edit (the domain model only carries the bare logo
+  *filename*, not a re-fetchable URL). Verified both paths live: added a subscription with a
+  GitHub-hosted PNG as `logo_url` and watched it render on the list and detail screens after
+  `Save` with no restart, then edited it with a second image URL and watched the detail screen's
+  logo swap — both via `wallos-scratch`, both confirmed against the `Ktor` REQUEST/RESPONSE log
+  (`set_subscriptions.php` → 200, followed by the existing `refreshSubscriptions()` triad).
 
 - [ ] **7.9 — feature:subscriptions: logo via multipart upload**
   A device image picker (Android's `ActivityResultContracts` — the one platform seam this

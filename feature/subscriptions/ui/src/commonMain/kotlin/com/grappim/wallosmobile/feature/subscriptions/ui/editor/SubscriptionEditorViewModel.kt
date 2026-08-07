@@ -128,6 +128,10 @@ class SubscriptionEditorViewModel(
         _uiState.update { it.copy(url = value) }
     }
 
+    private fun onLogoUrlChange(value: String) {
+        _uiState.update { it.copy(logoUrl = value) }
+    }
+
     private fun onNotifyChange(value: Boolean) {
         _uiState.update { it.copy(notify = value) }
     }
@@ -190,7 +194,8 @@ class SubscriptionEditorViewModel(
                         url = state.url.trim().ifBlank { null },
                         notify = state.notify,
                         notifyDaysBefore = if (state.notify) state.notifyDaysBefore.toIntOrNull() else null,
-                        inactive = state.inactive
+                        inactive = state.inactive,
+                        logoUrl = state.logoUrl.trim().ifBlank { null }
                     )
                 )
             } ?: subscriptionsRepository.addSubscription(
@@ -210,7 +215,8 @@ class SubscriptionEditorViewModel(
                     url = state.url.trim().ifBlank { null },
                     notify = state.notify,
                     notifyDaysBefore = if (state.notify) state.notifyDaysBefore.toIntOrNull() else null,
-                    inactive = state.inactive
+                    inactive = state.inactive,
+                    logoUrl = state.logoUrl.trim().ifBlank { null }
                 )
             ).map { }
 
@@ -314,7 +320,7 @@ class SubscriptionEditorViewModel(
     /**
      * The one place the form is written down, for the same reason [SubscriptionsViewModel]'s
      * `persistCriteria` is: a save driven off the state itself cannot disagree with what is on
-     * screen, where a write next to each of the sixteen setters above could miss one.
+     * screen, where a write next to each of the seventeen setters above could miss one.
      */
     private fun persistForm() {
         _uiState.onEach { savedStateHandle[KEY_FORM] = Json.encodeToString(it.toSaved()) }
@@ -353,6 +359,8 @@ class SubscriptionEditorViewModel(
         onNotesChange = ::onNotesChange,
         url = url,
         onUrlChange = ::onUrlChange,
+        logoUrl = logoUrl,
+        onLogoUrlChange = ::onLogoUrlChange,
         notify = notify,
         onNotifyChange = ::onNotifyChange,
         notifyDaysBefore = notifyDaysBefore,
@@ -377,6 +385,7 @@ class SubscriptionEditorViewModel(
         paymentMethodId = paymentMethod.selectedId,
         notes = notes,
         url = url,
+        logoUrl = logoUrl,
         notify = notify,
         notifyDaysBefore = notifyDaysBefore,
         autoRenew = autoRenew,
@@ -424,6 +433,7 @@ private data class SavedFormState(
     val paymentMethodId: Int? = null,
     val notes: String = "",
     val url: String = "",
+    val logoUrl: String = "",
     val notify: Boolean = false,
     val notifyDaysBefore: String = "",
     val autoRenew: Boolean = true,

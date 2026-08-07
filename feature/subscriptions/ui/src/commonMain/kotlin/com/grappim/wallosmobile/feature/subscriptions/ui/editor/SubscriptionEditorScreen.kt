@@ -54,6 +54,7 @@ import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_date_confirm
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_frequency
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_inactive
+import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_logo_url
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_name
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_next_payment
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_notes
@@ -200,6 +201,15 @@ private fun SubscriptionEditorContent(uiState: SubscriptionEditorUiState, modifi
             value = uiState.url,
             onValueChange = uiState.onUrlChange,
             label = { Text(stringResource(RString.subscription_editor_url)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
+        )
+
+        OutlinedTextField(
+            modifier = Modifier.fillMaxWidth(),
+            value = uiState.logoUrl,
+            onValueChange = uiState.onLogoUrlChange,
+            label = { Text(stringResource(RString.subscription_editor_logo_url)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
         )

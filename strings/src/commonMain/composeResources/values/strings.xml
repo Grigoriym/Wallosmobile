@@ -112,6 +112,7 @@
     <string name="subscription_editor_picker_none">None</string>
     <string name="subscription_editor_notes">Notes</string>
     <string name="subscription_editor_url">Website</string>
+    <string name="subscription_editor_logo_url">Logo URL</string>
     <string name="subscription_editor_notify">Notify before renewal</string>
     <string name="subscription_editor_notify_days_before">Days before</string>
     <string name="subscription_editor_auto_renew">Auto-renews</string>

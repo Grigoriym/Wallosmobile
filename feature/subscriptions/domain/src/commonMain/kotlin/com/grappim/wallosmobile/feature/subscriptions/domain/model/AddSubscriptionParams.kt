@@ -26,5 +26,6 @@ data class AddSubscriptionParams(
     val notifyDaysBefore: Int? = null,
     val inactive: Boolean = false,
     val cancellationDate: LocalDate? = null,
-    val replacementSubscriptionId: Int? = null
+    val replacementSubscriptionId: Int? = null,
+    val logoUrl: String? = null
 )

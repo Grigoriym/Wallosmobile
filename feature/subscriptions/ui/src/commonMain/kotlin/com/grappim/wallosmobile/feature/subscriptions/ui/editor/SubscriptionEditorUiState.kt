@@ -52,6 +52,8 @@ data class SubscriptionEditorUiState(
     val onNotesChange: (String) -> Unit = {},
     val url: String = "",
     val onUrlChange: (String) -> Unit = {},
+    val logoUrl: String = "",
+    val onLogoUrlChange: (String) -> Unit = {},
     val notify: Boolean = false,
     val onNotifyChange: (Boolean) -> Unit = {},
     val notifyDaysBefore: String = "",

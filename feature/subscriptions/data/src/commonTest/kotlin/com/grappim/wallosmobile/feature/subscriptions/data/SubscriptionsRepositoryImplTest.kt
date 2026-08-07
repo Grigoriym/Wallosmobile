@@ -466,6 +466,23 @@ class SubscriptionsRepositoryImplTest {
         assertEquals("0", sent["inactive"])
     }
 
+    /**
+     * The response carries no resolved filename either way (`WALLOS_API.md` §3.4) — `logo_url`
+     * reaching the wire, not anything in the reply, is what this step can actually verify.
+     */
+    @Test
+    fun `add sends logo_url when set`() = runTest {
+        val api = FakeSubscriptionsApi(
+            subscriptions = emptyList(),
+            currencies = listOf(CurrencyDTO(id = 1, symbol = "€")),
+            addResult = 1
+        )
+
+        repository(api).addSubscription(addParams(logoUrl = "https://example.com/logo.png")).getOrThrow()
+
+        assertEquals("https://example.com/logo.png", api.addFields.single().asMap()["logo_url"])
+    }
+
     /** The server-side `cycle`/`Missing parameters` guard, surfacing here rather than in the api test alone. */
     @Test
     fun `a server-rejected add leaves the cache untouched`() = runTest {
@@ -502,6 +519,20 @@ class SubscriptionsRepositoryImplTest {
         assertEquals(setOf("name"), api.editCalls.single().second.asMap().keys)
     }
 
+    /** A blank `logo_url` on edit must not overwrite the current logo — omit rather than send "". */
+    @Test
+    fun `edit sends logo_url only when set`() = runTest {
+        val api =
+            FakeSubscriptionsApi(subscriptions = emptyList(), currencies = listOf(CurrencyDTO(id = 1, symbol = "€")))
+
+        repository(api).editSubscription(
+            4,
+            EditSubscriptionParams(name = "Renamed", logoUrl = "https://example.com/logo.png")
+        ).getOrThrow()
+
+        assertEquals("https://example.com/logo.png", api.editCalls.single().second.asMap()["logo_url"])
+    }
+
     @Test
     fun `a server-rejected edit leaves the cache untouched`() = runTest {
         subscriptionDao.rows = listOf(entity(id = 4, name = "Fiton"))
@@ -536,14 +567,16 @@ class SubscriptionsRepositoryImplTest {
         assertEquals(listOf("Fiton"), subscriptionDao.rows.map { it.name })
     }
 
-    private fun addParams(cycle: WritableBillingCycle = WritableBillingCycle.YEARS) = AddSubscriptionParams(
-        name = "Netflix",
-        price = 31.99,
-        currencyId = 1,
-        cycle = cycle,
-        frequency = 1,
-        nextPayment = LocalDate(2026, 1, 31)
-    )
+    private fun addParams(cycle: WritableBillingCycle = WritableBillingCycle.YEARS, logoUrl: String? = null) =
+        AddSubscriptionParams(
+            name = "Netflix",
+            price = 31.99,
+            currencyId = 1,
+            cycle = cycle,
+            frequency = 1,
+            nextPayment = LocalDate(2026, 1, 31),
+            logoUrl = logoUrl
+        )
 
     private fun euro(rate: String = "1") = CurrencyDTO(id = 1, name = "Euro", symbol = "€", code = "EUR", rate = rate)
 
