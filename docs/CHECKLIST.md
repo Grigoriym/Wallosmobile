@@ -126,19 +126,6 @@ kept here as the permanent answer rather than something to re-open; the rest is 
   `registration.php` source would settle it. No app change implied either way — the fix for the
   user's own account is generating the key once in the web UI — this is purely a "why" to close out
   of curiosity, not a defect to design around.
-- ~~The detail screen's logo flickers on every open.~~ **Fixed 2026-08-07.**
-  `SubscriptionDetailViewModel` now tracks `lastRefreshFailed` (a plain `var`, only ever touched
-  from `viewModelScope` launches on `Main.immediate`) and `onRefreshed` bumps `refreshGeneration`
-  only when it's `true` — a construction-time or already-fine refresh leaves the token alone, so
-  `SubscriptionLogo`'s `memoryCacheKeyExtra` stays put and Coil serves the already-loaded logo from
-  memory cache instead of a visible memory-miss-then-disk-hit round trip. A refresh that follows a
-  real failure still bumps it, since Coil never retries a request already marked `Error` (5.6).
-  `SubscriptionsViewModel` (the list) keeps the old unconditional-bump shape — this was filed and
-  fixed for the detail screen specifically. The list ViewModel isn't rebuilt on every visit to the
-  list the way a detail route builds a fresh `SubscriptionDetailViewModel` per open (`CLAUDE.md`'s
-  own nav3 note), so its unconditional bump fires once at startup and again only on an explicit
-  refresh or retry, not on every screen open — which is why it wasn't reported as a flicker. Worth
-  the same narrowing if that ever changes.
 - **The FAB → add-subscription screen feels slower to open than list → detail.** Filed 2026-08-07,
   not yet measured — this is the likely cause read off the code, not a timed comparison. The detail
   screen is cache-first (3.4): the cached row renders instantly and a single `refreshSubscription`
