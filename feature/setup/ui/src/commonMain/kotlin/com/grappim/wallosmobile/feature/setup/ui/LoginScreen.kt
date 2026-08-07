@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.setup.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -66,11 +67,14 @@ import com.grappim.wallosmobile.strings.generated.resources.login_totp_message
 import com.grappim.wallosmobile.strings.generated.resources.login_use_api_key
 import com.grappim.wallosmobile.strings.generated.resources.login_use_password
 import com.grappim.wallosmobile.strings.generated.resources.login_username_label
+import com.grappim.wallosmobile.uikit.RDrawable
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
+import com.grappim.wallosmobile.uikit.generated.resources.wallosmobile_logo
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.asString
 import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -109,6 +113,12 @@ private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(FIELD_SPACING, Alignment.CenterVertically)
     ) {
+        Image(
+            painter = painterResource(RDrawable.wallosmobile_logo),
+            contentDescription = null,
+            modifier = Modifier.size(LOGO_SIZE)
+        )
+
         Text(
             text = stringResource(RString.login_title),
             style = MaterialTheme.typography.headlineMedium
@@ -369,6 +379,7 @@ private val PADDING = 16.dp
 private val FIELD_SPACING = 16.dp
 private val PROGRESS_SIZE = 48.dp
 private val CERT_ROW_SPACING = 12.dp
+private val LOGO_SIZE = 96.dp
 
 @PreviewWallosDarkLight
 @Composable

@@ -406,8 +406,11 @@ Four details that are easy to miss and annoying to diagnose:
   Material 3 palette seeded from the logo navy `#233E67` instead — it keeps the brand, and the
   whole module stays in `commonMain`. Dynamic colour means putting the `expect`/`actual` back.
   Note also that the generated `Res` class declares empty `drawable`/`string`/`array`/`plurals`/
-  `font` objects whether or not the module has any such resource, so `RDrawable` compiles in a
-  `uikit` with no drawables at all.
+  `font` objects whether or not the module has any such resource, so `RDrawable` would have
+  compiled even before `uikit` held any drawables. It now holds one: `wallosmobile_logo.png`
+  (`uikit/src/commonMain/composeResources/drawable/`), copied verbatim from
+  `art/wallosmobile_logo.png` — no resizing, matching MealieMobile's `ic_icon.png` precedent of
+  shipping the source PNG as-is rather than pre-scaling it.
 
 - **`uikit` depends on `utils:ui` as `api`.** `TopBarConfig` carries `NativeText` in its public
   signature (§5.4), so every consumer of `uikit` resolves `NativeText` transitively and should not

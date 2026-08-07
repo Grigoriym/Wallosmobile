@@ -140,12 +140,6 @@ kept here as the permanent answer rather than something to re-open; the rest is 
   logcat `REQUEST:`/`RESPONSE:` timestamps (per `CLAUDE.md`'s own technique) before touching
   anything — if this is right, giving these three a cache is Phase 5 management-screen scope, not a
   small fix.
-- **Add the app logo to the login screen, the way TaigaMobileNova and MealieMobile do.** Both
-  render an `Image(painter = painterResource(...))` above the form (`taiga_mobile_logo`, `ic_icon`
-  — a `uikit` drawable in both cases); `feature/setup/ui/.../LoginScreen.kt` has none.
-  `art/wallosmobile_logo.png` (6.1's launcher-icon source) is the asset already in the repo, so
-  this is converting it into a drawable resource and adding one `Image`, not sourcing new art.
-  Filed 2026-08-07.
 - **Write a standalone emulator-testing doc**, pulling the adb/screenshot/`uiautomator dump`
   recipes this file's own build-commands block has accumulated (coordinate scaling, `am kill` vs
   `force-stop`, DataStore planting, the Photo Picker's confirmation bar, 7.9's finding that a
