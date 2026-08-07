@@ -58,6 +58,26 @@ project** is worth deleting and recompiling first: 3.7's ported `X509Certificate
 free, so ticking a box, adding a `Note:` and reflowing a bullet all pass; only *dropping* a rule
 or a step counts.
 
+## Shared skills and agents
+
+Skills and agents live in the **`agentic-grappim`** repo and are symlinked into
+`~/.claude/skills/` and `~/.claude/agents/`. They are wired up **per machine, not per
+clone** — there is nothing in this repo to install, and `.claude/agents/` and
+`.claude/skills/` here hold none of their own.
+
+Consequences worth knowing before touching one:
+
+- **An edit there changes behaviour in every project on this machine.** That is the
+  point of the repo, not a hazard to avoid — but it has to be committed in
+  `agentic-grappim`, not here.
+- **Never edit a shared skill for a fact about this project.** A WallosMobile-specific
+  fact (the AVD name, the package id, a device gotcha) belongs in this file or in
+  `docs/EMULATOR_TESTING.md`, not in the `emulator-testing` skill itself.
+- A stale in-repo copy of a shared skill or agent would silently shadow the real one —
+  don't create one.
+
+This project uses the **`emulator-testing`** and **`finalize`** skills; both are shared.
+
 ## Build commands
 
 ```bash
@@ -111,7 +131,9 @@ does produce *that* run — see "Changing a gate means saying so" above.
 
 `androidApp/` → `composeApp/` (DI root, drawer shell, nav) → `feature/` → `core/` → `utils/`.
 Feature modules split `data` / `domain` / `dto` / `mapper` / `ui`. MVVM + Clean Architecture,
-vertical slices, **all source in `commonMain`**.
+vertical slices, **all source in `commonMain`**. This list is the rules; the rationale, the
+worked examples and which step established each one live in `docs/IMPLEMENTATION_PLAN.md`
+(§2, §3.3, §3.4, §4.7, §6) — read there for the "why," not here.
 
 - **Shell**: `ModalNavigationDrawer` + a `TopBarController` provided through `LocalTopBarConfig`;
   each screen declares its own `TopBarConfig`. Feature `ui` modules depend on `uikit`, never on
@@ -119,292 +141,131 @@ vertical slices, **all source in `commonMain`**.
 - **Use cases only when a screen needs multiple calls.** Single repo calls go straight from the
   ViewModel.
 - **A feature grows the modules its screen actually needs**, not the `data/domain/dto/ui` set
-  plan §2 lists for it. `feature:settings` is `ui` alone: Disconnect is one `ApiKeyStorage.clear()`,
-  so there is no repository to hide behind a `domain` interface and the ViewModel takes the `core`
-  seam directly — as `feature:subscriptions:ui` takes `BaseUrlProvider`. Add a layer when a real
-  repository or a second caller turns up; a third `ui` → `core` reach is the point to ask whether
-  the seam is in the right place instead.
-  **3.1 is that question, answered "no".** The login screen needs the stored server URL, and
-  `feature:setup` has a full `data`/`domain` layer — so the read went on `SetupRepository`
-  (`getStoredServerUrl(): Result<String>`) instead of pulling `core:storage` into the `ui` module.
-  The exception is for a feature with **no** layer to route through, not a licence to skip one that
-  exists.
-  **4.3 is the third reach, and it did not change the answer.** `InterfaceViewModel` takes
-  `ThemeStorage` the same way `SettingsViewModel` takes `ApiKeyStorage`: still one call on one
-  seam, still nothing for a `domain` interface to hide. **4.4's `AboutViewModel` makes three inside
-  `feature:settings`** (`AppInfoProvider`) and the answer is still no — so stop counting reaches.
-  What flips it is a *repository*: something with its own failure modes, callers or caching, which
-  a one-call seam read straight into UI state has none of.
+  plan §2 lists for it. Add a layer when a real repository or a second caller turns up; a third
+  `ui` → `core` reach is the point to ask whether the seam is in the right place instead of
+  counting reaches further.
 - **Mappers are classes, not extension functions** — one per file, for testability. Same for
   formatters: pure logic gets **no interface**. An interface here is a seam over a platform or
   over IO (`SecretCipher`, `ApiKeyStorage`, `WebLoginApi`) — something a host test can't reach.
   Faking a pure class only lets the consumer's test assert output the app never produces.
-  **Such a seam returns facts, not rendered text** (4.4): `AppInfoProvider` exposes `versionName()`
-  and `versionCode()` rather than Mealie's `getAppInfo(): String`, because its impl lives in
-  `androidApp` — the one class no host test can construct and the one place a `:strings` resource
-  can't be resolved. Pre-rendering there puts presentation where neither a test nor a translation
-  can reach it.
 - **Storage** is DataStore-backed (KMP), interface + impl, keys in a `private companion object`.
-  The **Room cache** (`core/storage/.../db/`, 3.3) is the exception to that shape: entities and
-  DAOs, no interface over them, and **every column a SQLite primitive** — no `TypeConverter`, and
-  no dependency on any `feature:*:domain`, so `cycleCode` is an `Int?` and dates are ISO strings.
-  Converting to domain types is a mapper's job in the feature that owns the model
-  (`SubscriptionEntityMapper`, 3.4).
-- **The cache belongs to the stored key, and `ApiKeyStorage.clear()` drops both** (3.4). Not a
-  cleaner someone calls next to it: `clear()` has three callers — disconnect and *both* login
-  paths, which clear the stale key before validating a new one — so anywhere else covers one of
-  three and lets a second account see the first one's rows. A repository that caches per-account
-  data adds its eviction there, in `ApiKeyStorageImpl`.
-- **A repository over the cache is `observe*` + `refresh*`, never `get*`** (`SubscriptionsRepository`,
-  3.4). The DAO `Flow` is the only thing a screen reads and it cannot fail; the network only writes
-  to the database. So a failed refresh changes nothing but the error, and the loading spinner
-  belongs to the *empty* cache alone. Such a repository also runs into detekt's
-  **`allowedConstructorParameters: 6`** — two DAOs and two entity mappers on top of the API and the
-  wire mappers is eight. Split the DAO half into its own class (`SubscriptionsCache`) rather than
-  widening the rule; the line the limit draws is a real seam — and it keeps paying: 3.11's third DAO
-  and mapper went behind it and cost the repository nothing, leaving `SubscriptionsCache` at exactly
-  6. The other way past it, when the
-  seventh thing has **no dependencies of its own**, is to stop injecting it: 3.10's `LoginThrottle`
-  is a `private val` constructed by `SetupRepositoryImpl`, because DI was buying it nothing but a
-  constructor slot — the lifetime it wanted was already its owner's.
+  The **Room cache** (`core/storage/.../db/`) is the exception to that shape: entities and DAOs,
+  no interface over them, and **every column a SQLite primitive** — no `TypeConverter`, and no
+  dependency on any `feature:*:domain`. Converting to domain types is a mapper's job in the
+  feature that owns the model.
+- **The cache belongs to the stored key, and `ApiKeyStorage.clear()` drops both.** It has three
+  callers — disconnect and *both* login paths, which clear the stale key before validating a new
+  one — so the eviction lives at that single point, not in a cleaner called next to it.
+- **A repository over the cache is `observe*` + `refresh*`, never `get*`.** The DAO `Flow` is the
+  only thing a screen reads and it cannot fail; the network only writes to the database. So a
+  failed refresh changes nothing but the error, and the loading spinner belongs to the *empty*
+  cache alone. Such a repository runs into detekt's **`allowedConstructorParameters: 6`** fast —
+  split the DAO half into its own class rather than widening the rule; when the seventh thing has
+  **no dependencies of its own**, the other way past it is to stop injecting it (a `private val`
+  constructed by its owner instead).
 - **What a repository has to say *during* a call is a callback parameter, not a flow beside it**
-  (5.5's `onThrottleWait: (Duration) -> Unit`, defaulted to `{}`). The call is already the scope, so
-  a flow would need a lifetime, an initial value and a clear that a parameter has none of; the
-  default keeps every existing call site and every unthrottled method untouched.
-- **A `SavedStateHandle` holds a JSON string here, not an encoded `SavedState`** (5.2). On Android
-  `androidx.savedstate`'s `SavedState` **is** `Bundle`, so `encodeToSavedState`, the `saved { }`
-  property delegate and `savedState { }` all need an Android runtime — unreachable from a host test,
-  and Robolectric is out. `SavedStateHandle()` itself, `get`, `set` and `getMutableStateFlow` are
-  pure Kotlin, so a `String` value is testable in both directions while anything Bundle-shaped is
-  testable in neither. `SubscriptionFilter`'s `ImmutableSet`s have no kotlinx serializer either, so
-  what gets written is a small `@Serializable` companion type (`SavedCriteria`) with plain `Set`s —
-  the same DTO-beside-the-model instinct the wire layer uses. Decoding it catches
-  `IllegalArgumentException`: pre-v1 stored state is disposable, but *discarding* it has to be a
-  default screen rather than a crash in the ViewModel's constructor.
-- **Read a `SavedStateHandle` key before anything starts writing it, not after** (7.7). A form that
-  persists itself via `_uiState.onEach { savedStateHandle[KEY] = … }.launchIn(viewModelScope)` in
-  `init` writes its *first* entry the moment that line runs — `viewModelScope`'s dispatcher is
-  `Main.immediate`, so the launch's first collection is not deferred to a later loop turn. A
-  same-`init` check of "does this key already have a value" (used by `SubscriptionEditorViewModel`
-  to decide whether to pre-fill an edit form from the cache, or leave a restored/mid-edit form
-  alone) has to run *before* the persist line, or it always sees the value that same line just
-  wrote and never pre-fills anything. `hadStoredForm` is captured as a property initializer, ahead
-  of `persistForm()` in `init`, for exactly this reason.
+  (`onThrottleWait: (Duration) -> Unit`, defaulted to `{}`). The call is already the scope, so a
+  flow would need a lifetime and an initial value that a parameter has none of.
+- **A `SavedStateHandle` holds a JSON string here, not an encoded `SavedState`.** On Android
+  `androidx.savedstate`'s `SavedState` **is** `Bundle`, unreachable from a host test — Robolectric
+  is out. `SavedStateHandle()` itself, `get`, `set` and `getMutableStateFlow` are pure Kotlin, so
+  a `String` value is testable in both directions while anything Bundle-shaped is testable in
+  neither.
+- **Read a `SavedStateHandle` key before anything starts writing it, not after.** A form that
+  persists itself in `init` via `.onEach { savedStateHandle[KEY] = … }.launchIn(viewModelScope)`
+  writes its *first* entry the moment that line runs — `viewModelScope`'s dispatcher is
+  `Main.immediate`, so nothing defers it to a later loop turn. A same-`init` check of "does this
+  key already have a value" has to run *before* the persist line, or it always sees what that
+  line just wrote.
 - **A new module must be added to the root `build.gradle.kts` `kover { }` block** — coverage is
   aggregated by an explicit per-module list, so a module left out of it is silently at 0% and
   nothing fails. `:testing` is deliberately absent (fakes, not production code).
 - **Every module of a layer gets the same plugin set** — see plan §3.3 for the table and the
-  standard dependency blocks. `ui` = `kmp.library` + `library.compose` + `di` + `serialization`;
-  `data` = `library` + `di` + `network`; `dto` = `library` + `serialization`;
-  `mapper` = `library` + `di`. Coroutines, datetime, immutable collections, `core:logger` and the
-  test deps come from the convention plugins — never declare them per module. Same for the Compose
-  set, including **material icons** (`Icons.Filled.*`), which material3 does *not* pull in
-  transitively and which therefore lives in `configureKmpCompose()`, not in any module.
-  **A `data` module needs `serialization` too the moment it decodes a raw JSON envelope itself**
-  (7.5) — `apiClient.post<T>()` against a typed DTO works with just `network`, since the DTO's own
-  module carries `serialization` and the reified call only needs `kotlinx-serialization-core`
-  (transitively present). Reaching for `kotlinx.serialization.json.JsonObject`/`JsonPrimitive`
-  directly (`WallosCrudApi`'s pattern, for an endpoint with no per-response DTO worth writing) needs
-  the `kotlinx-serialization-json` artifact, which only the `serialization` plugin adds — the error
-  reads as a plain `Unresolved reference 'json'`, not anything naming the missing plugin.
+  standard dependency blocks. Coroutines, datetime, immutable collections, `core:logger` and the
+  test deps come from the convention plugins — never declare them per module. Same for the
+  Compose set, including **material icons** (`Icons.Filled.*`), which material3 does *not* pull
+  in transitively and which therefore lives in `configureKmpCompose()`, not in any module.
 - **`material-icons-core` is ~50 icons, and the obvious one is usually missing** — no
-  `Subscriptions`, no `Payment`, no `Visibility`/`VisibilityOff`, no `FilterList` (3.6, which plan
-  §5.4's own top-bar sketch used); `ArrowBack`,
-  `List` and `Send` live under `Icons.AutoMirrored.Filled.*`. Reaching for anything else means
-  adding `material-icons-extended` to `configureKmpCompose()`, so pick from the set, use a
-  `TextButton` with a word in it (the login password toggle is Show/Hide text), or say you're
-  growing it. To list the set without a compile: `unzip` the `material-icons-core-*.jar` from
+  `Subscriptions`, `Payment`, `Visibility`/`VisibilityOff`, `FilterList`; `ArrowBack`, `List` and
+  `Send` live under `Icons.AutoMirrored.Filled.*`. `Icons.Filled.Add`/`.Edit`/`.Delete` **are** in
+  the set, confirmed and not to be re-doubted. Reaching for anything else means adding
+  `material-icons-extended` to `configureKmpCompose()`, so pick from the set, use a `TextButton`
+  with a word in it (the login password toggle is Show/Hide text), or say you're growing it. To
+  list the set without a compile: `unzip` the `material-icons-core-*.jar` from
   `~/.gradle/caches` and `ls` its `androidx/compose/material/icons/filled/` directory.
-  **`Icons.Filled.Add` *is* in the set** (7.6, confirmed by that same `unzip` on the resolved
-  `material-icons-core-1.7.3.jar`) — the FAB needs no `material-icons-extended` addition. The
-  1.8-era claim above that it wasn't there was written before anything needed it and turned out
-  wrong; treat "obvious icons are usually missing" as a reason to check, not as a verdict on any
-  icon in particular. **`Icons.Filled.Edit` and `Icons.Filled.Delete` are also in the set** (7.7,
-  same `unzip`-and-`ls` check) — the detail screen's edit/delete actions needed no
-  `material-icons-extended` addition either.
 - **Material 3's own source is in the Gradle cache, and it is the authority on which colour role a
   component reads** — `unzip` `material3-desktop-*-sources.jar` from
   `~/.gradle/caches/modules-2/files-2.1/org.jetbrains.compose.material3/` and read
-  `commonMain/androidx/compose/material3/tokens/*Tokens.kt` (`FilledCardTokens.ContainerColor` and
-  friends) or `ColorScheme.kt` for the full parameter list of `lightColorScheme`. 4.1's step text
-  said `Card` takes `surfaceContainerLow`; it takes `surfaceContainerHighest`, and this is a
-  ten-second read rather than a guess.
+  `commonMain/androidx/compose/material3/tokens/*Tokens.kt` or `ColorScheme.kt`, rather than
+  guessing which token a component reads.
 
 ## Non-negotiables
+
+Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
+`docs/IMPLEMENTATION_PLAN.md` §1.1, §5 and §6.1 — this list is the rule, not the "why."
 
 - Package root `com.grappim.wallosmobile`. Module namespace follows the Gradle path.
 - **Pre-v1, there is nothing to be backward compatible with.** No installs exist, so don't write
   a DataStore migration, a deprecated overload, or a compatibility shim — change the thing and
-  say in the commit that stored state is discarded. The serialized nav back stack and the
-  DataStore contents are both disposable; a moved route class or a renamed key is free. This
-  expires the day the app ships: the stored API key and the back stack are then the two things
-  that need real care.
+  say in the commit that stored state is discarded. This expires the day the app ships: the
+  stored API key and the back stack are then the two things that need real care.
 - **No `androidMain` in feature modules** — use `expect`/`actual`. Platform targets are declared
-  **only** in `configureKmp()` in `build-logic`. The android target itself is available to every
-  KMP module regardless — `configureKmp()`/`com.android.kotlin.multiplatform.library` declare it
-  unconditionally, so an `androidMain` source set compiles the moment one is added. No feature
-  module had needed one until 7.9's image picker (`rememberLauncherForActivityResult` has to run
-  inside a `@Composable`, which rules out the `SecretCipher`/`NetworkMonitor` shape — those are
-  plain interfaces with a Koin-reached `core`-module impl, not `expect`/`actual`, and don't
-  generalize to something a Composable itself has to call).
+  **only** in `configureKmp()` in `build-logic`.
 - **`commonMain` is not enforced platform-neutral here.** Android being the only target,
   `commonMain` compiles against the JVM variants: `java.io.File` and `kotlinx.coroutines.runBlocking`
   both resolve there and *nothing* fails. Keeping common code common is a discipline, not a
   compiler guarantee — the day a second target is declared, whatever leaked in stops compiling.
 - **DI: Koin with `io.insert-koin.compiler.plugin`. Never KSP for DI.** One
   `@Module @Configuration @ComponentScan` class per module. (KSP is still used for Room.)
-  **A `@Factory` reached through a `@Single` is a `@Single`** — the singleton resolves it once and
-  holds that instance forever. When a `@Factory` exists for a *lifetime* reason (the
-  `@WebSessionHttpClient` cookie jar, plan §1.1), every class between it and the call site has to
-  be a `@Factory` too, or the reason is silently undone. Nothing fails; the object just lives too
-  long.
-  **`startKoin<KoinApp>` expands at the *call site***, into
-  `startKoinWith(listOf(AndroidModule().module(), AppModule().module()))` — check it with `javap -c`
-  on `WallosApp.class`. It gathers `@Configuration` modules only from the compilation that calls it,
-  so `androidApp`'s own `AndroidModule` needs no wiring while **every module from another Gradle
-  module must be in `AppModule`'s `includes`**. A forgotten line there compiles and crashes at
-  first injection; `KoinGraphTest` is what catches it.
-  **That call site also re-checks the definitions of every `@Configuration` class it can read** —
-  `AndroidModule` and `AppModule`, not the `includes`, which reach `:androidApp` only through
-  `composeApp`'s `implementation` dependencies. So a definition **declared in `AppModule` itself**
-  needs its parameter types *and the definitions binding them* on `:androidApp`'s classpath, or the
-  build fails with `[KOIN-D001] Missing dependency` — which is why `composeApp` declares
-  `api(projects.core.storage)` for `provideImageLoader`'s `TrustedCertStorage` (4.5), and why
-  `NetworkModule` takes the same type with no such ceremony. Moving the definition from a scanned
-  `@Factory` class to a module function does **not** dodge it; only visibility does. Prefer putting
-  a new definition in the module that already owns its dependencies.
-  **The graph test uses `koin-test`'s `verify()`, never `checkModules()`** — `checkModules`
-  instantiates definitions, which here means a DataStore file and an HTTP engine. `verify()` reads
-  a definition through its **bound type's** constructor, so for a `@Single fun provideX(): T` it
-  inspects `T`'s constructor rather than the function's parameters; that is why
-  `HttpClientEngine` sits in `extraTypes` as a known false positive, next to the types
-  `:androidApp` really does supply.
-  **A route parameter reaching a ViewModel through `parametersOf` needs `@InjectedParam` on the
-  constructor property**, or the compiler plugin looks for a definition of that type in the graph
-  and the screen crashes at first injection. `KoinGraphTest` will **not** catch a missing one:
-  `verify()` whitelists `String`, `Int`, `Long` and `Double` unconditionally
-  (`org.koin.test.verify.Verify.primitiveTypes`), so a primitive constructor parameter passes
-  whether or not it is annotated. MealieMobile takes route params without the annotation and has no
-  graph test to disagree — don't read that as precedent.
-  **A `SavedStateHandle` needs the same annotation, and there the graph test *is* the gate** (5.2).
-  Koin builds one from the `CreationExtras` in `AndroidParametersHolder`, never from the graph, so
-  an unannotated one asks for a definition that doesn't exist — and because `SavedStateHandle` is
-  not one of `verify()`'s whitelisted primitives, `KoinGraphTest` fails on it instead of waving it
-  through. Nothing else is needed: no factory, no `parametersOf` at the call site.
+  **A `@Factory` reached through a `@Single` is a `@Single`** — the singleton resolves it once
+  and holds that instance forever, so every class between a lifetime-scoped `@Factory` and the
+  call site has to be a `@Factory` too. **Every module from another Gradle module must be in
+  `AppModule`'s `includes`**, and a definition declared in `AppModule` itself needs its
+  dependencies resolvable from `:androidApp`'s classpath too — `KoinGraphTest` is what catches
+  either mistake. **A route parameter reaching a ViewModel through `parametersOf` needs
+  `@InjectedParam` on the constructor property**, or the graph looks for a definition of that
+  type and the screen crashes at first injection — `KoinGraphTest` will **not** catch a missing
+  one for a primitive type (`verify()` whitelists `String`/`Int`/`Long`/`Double`), but **will**
+  catch a missing one on `SavedStateHandle`, which is not whitelisted.
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
-  `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`.
-  Every new route must also be registered in the polymorphic `SerializersModule` in
-  `NavKeySerializers.kt`, or back-stack restore breaks silently on process death. The
-  `SavedStateConfiguration` carrying it is *not* optional: `rememberNavBackStack` `require`s a
-  non-default `serializersModule` and throws on the **first composition** if given
-  `SavedStateConfiguration.DEFAULT` — only a *missing route* is the silent, process-death-only
-  failure. **`NavKeySerializersTest` only covers the drawer destinations**: it walks
-  `DrawerDestination.entries`, so a detail or editor route registered nowhere passes every gate.
-  The `am kill` cycle below is the only check on those.
-  **`rememberNavBackStack` consumes its restored state only in the *first* composition.** Anything
-  that gates the shell on an async value — a DataStore flow, a suspend read — composes
-  `NavDisplay` a pass later and the restored back stack is dropped with no error: the app comes
-  back alive, on the start destination. `WallosAppContent`'s startup branch is seeded from
-  `rememberSaveable` for exactly this reason. Don't put a loading state above the shell.
-  **There are now two DataStore flows up there** — the startup branch and `ThemeStorage` (4.2) —
-  and the second one shows the cheaper way to obey this rule: a value with a sensible default
-  (`collectAsState(initial = ThemeMode.default())`) never gates anything, so it needs no
-  `rememberSaveable` at all and the stored value simply arrives a frame later. Reach for the
-  seeded-`rememberSaveable` shape only when there is no default that can render.
-  **`MainNavHost` passes no `entryDecorators`, and that tells you nothing about ViewModel lifetime**
-  (5.2). `NavDisplay`'s default is `rememberSaveableStateHolderNavEntryDecorator()` alone — no
-  ViewModel-store decorator — which reads as "every ViewModel is the activity's, so opening a second
-  subscription reuses the first one's ViewModel". It doesn't: on device the list ViewModel survives
-  a detail round trip untouched while each detail route builds its own, and the proof is one grep —
-  `adb logcat | grep "Refreshing subscription"` names the id (`4`, then `26`). Measure a lifetime
-  question here; the wiring does not answer it.
-- **Not everything on screen is a route.** Login isn't — the startup branch renders it *instead of*
-  the shell, so it has no `NavDisplay`, no back-stack entry, and nothing to register. The test is
-  whether anything can navigate *back* to it; a screen the app is either on or not is state.
+  `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`. Every
+  new route must be registered in the polymorphic `SerializersModule` in `NavKeySerializers.kt`,
+  or back-stack restore breaks silently on process death — `NavKeySerializersTest` only covers
+  the drawer destinations, so a detail or editor route registered nowhere passes every gate; the
+  `am kill` cycle in the `emulator-testing` skill is the only check on those. Don't put a loading
+  state above the shell: `rememberNavBackStack` consumes its restored state only in the *first*
+  composition, so gating it on an async value drops the back stack with no error.
+- **Not everything on screen is a route.** Login isn't — the startup branch renders it *instead
+  of* the shell, so it has no `NavDisplay`, no back-stack entry, and nothing to register. The
+  test is whether anything can navigate *back* to it; a screen the app is either on or not is
+  state.
 - **Tests use hand-written fakes in `:testing`. No mocking library — no MockK, no Mockito,
-  anywhere.** `kotlin.test` + Turbine. **This extends to the platform: no Robolectric.** Its
-  shadows are mocks of Android, and the same objection applies — anything that needs a real
-  Android runtime is **instrumented**. Don't propose Robolectric as the cheaper
-  option; it was weighed and declined, on dependency count as much as on principle.
-  **Instrumentation is no longer hypothetical**: `core/storage/src/androidDeviceTest/` holds the
-  Room DAO tests (3.3), because on the Android target `Room`'s builders all take a `Context` and
-  `BundledSQLiteDriver`'s native library lives in the aar's `jni/` — a host test can reach
-  neither. Copy that module's `withDeviceTestBuilder { sourceSetTreeName = null }` if a second
-  one is needed, and keep the `null`: the default drags `commonTest` onto the device too. There
-  is **no `androidDeviceTest` accessor** in `kotlin { sourceSets { } }` the way there is for
-  `commonMain`/`androidMain` — it's `getByName("androidDeviceTest").dependencies { }`, and the
-  suite declares its own `kotlin("test")` because `configureTests()` only wires `commonTest`. It is
-  the *last* resort, not a second option — it needs a booted emulator, `allTests` skips it and CI
-  has no emulator, so an instrumented test is not a gate anyone else's commit will feel.
-  **Before reaching for it, check whether `src/androidHostTest/` is enough** (3.7): `commonTest`
-  can't see an `androidMain` class, but that source set can, the same `testAndroidHostTest` task
-  runs it, it inherits `kotlin.test`/Turbine/`:testing` through the test tree, and `javax.*` is
-  the JDK's. Its one cost is that detekt's per-rule `excludes` name `commonTest` and *not*
-  `androidHostTest`, so `FunctionNaming` applies — **camelCase test names**, as in the device
-  suite. Widening the exclude list would be a `config/detekt/` tripwire; a name is cheaper.
-  Fake/fixture shape: plan §6.1. `:testing` is for doubles
-  **other** modules need; a double used by exactly one test file stays private in that file.
-  Ktor's **`MockEngine` is not a mocking library** and is fine — it's the only way to get an
-  `HttpClient` in a host test, since the real engine is `androidMain`-only (autodiscovered before
-  3.7, built by `createPlatformHttpClientEngine` since). It reaches every `commonTest` as `api(libs.ktor.client.mock)` in `:testing`,
-  alongside `kotlinx-coroutines-test`; never declare either per module.
-  **Asserting on a captured `MultiPartFormDataContent`'s parts needs `@OptIn(io.ktor.utils.io.
-  InternalAPI::class)`** (7.9) — its `parts: List<PartData>` property carries that annotation, even
-  though building the request via `formData { }` needs no opt-in at all. And `PartData.headers[key]`
-  (the `[]` accessor) only ever returns the *first* value under a header name; `formData { append(key,
-  bytes, Headers.build { append(ContentDisposition, "filename=…") }) }` lands a **second**
-  `Content-Disposition` value beside the `name=` one `formData` itself adds, so reading it back needs
-  `headers.getAll(ContentDisposition)`, not `headers[ContentDisposition]`, or the filename half never
-  shows up in the assertion.
-  **`:testing` is excluded from linting** (`lintingExclusions` in `build-logic/.../Quality.kt`,
-  plus `.editorconfig`), so there is no `:testing:ktlintFormat`/`:testing:detekt` task at all —
-  asking for one fails with "task not found", which is the config working, not a broken build.
-  **A test fixture factory grows by `.copy()`, never by parameters.** detekt's
-  `allowedFunctionParameters: 5` applies to `commonTest` too, and `ignoreDataClasses` exempts the
-  data class, not the `private fun subscription(...)` that builds one — so a sixth parameter fails
-  the build and the reflex fix, `@Suppress`, is a guardrail tripwire costing a `Gate-change:` line
-  for a test helper. Build one canonical fixture and `.copy()` off it.
-  **`UnusedParameter` applies to `commonTest` too** (5.5), so a test that ignores a callback passes
-  `{ }` at the call site — a named `private fun ignore(wait: Duration) = Unit` fails detekt.
-  **`LongParameterList`'s `allowedConstructorParameters: 6` does not, in practice, gate a fake's
-  constructor** — `FakeSubscriptionsApi` sat at 9 named/defaulted params pre-7.5 and reached 13
-  after it, both real `./gradlew detekt` runs, both clean. Unlike the fixture-factory function limit
-  above, this one hasn't cost a build yet; don't pre-split a fake's constructor to dodge it.
-  **A fake's settable field must not be named after the method it feeds.** `var baseUrl` beside
-  `override fun getBaseUrl()` is a "platform declaration clash" — the property's getter compiles to
-  `getBaseUrl()` too. Name the field for what it holds (`var url`), not for the method.
+  anywhere.** `kotlin.test` + Turbine. **This extends to the platform: no Robolectric** — its
+  shadows are mocks of Android, and the same objection applies. Don't propose it as the cheaper
+  option; it was weighed and declined. Instrumentation (`androidDeviceTest`) is the *last*
+  resort, reached only when a host test genuinely cannot construct the thing under test (Room's
+  builders, `BundledSQLiteDriver`'s native library) — check `androidHostTest` first, which can
+  see `androidMain` classes a `commonTest` fake can't. Fake/fixture shape, `MockEngine`, dispatcher
+  rules and detekt interactions with test code: plan §6.1.
 - **A ViewModel test must set the main dispatcher.** `viewModelScope` dispatches on
-  `Dispatchers.Main`, which a host test doesn't have, so the first `launch` throws. Use
-  `MainDispatcherRule` from `:testing` — not a JUnit `@Rule` (this is `kotlin.test`), so call
-  its `setup()`/`tearDown()` from `@BeforeTest`/`@AfterTest`. The exception is a ViewModel that
-  never touches `viewModelScope` at all: `AboutViewModel` reads three build facts in its
-  constructor, so `AboutViewModelTest` sets no dispatcher and needs no `runTest`.
-  **A repository test injects `UnconfinedTestDispatcher()`, not `StandardTestDispatcher()`.**
-  Every repository here takes an `@IoDispatcher` and does its work in `withContext(dispatcher)`;
-  a `StandardTestDispatcher()` built outside `runTest` carries its *own* scheduler, so that
-  `withContext` dies with "Detected use of different schedulers" — which surfaces as an
-  `IllegalStateException` where the test expected a `WallosError`, not as anything mentioning
-  dispatchers.
-  **The moment the code under test `delay`s, that dispatcher must share `runTest`'s scheduler**
-  (3.10): `UnconfinedTestDispatcher()` gets away with its own only because nothing was suspending
-  on virtual time. Make the factory a `TestScope` extension — `private fun TestScope.repository()`
-  — and pass `UnconfinedTestDispatcher(testScheduler)`; every existing `repository()` call inside
-  a `runTest { }` keeps compiling, since that lambda's receiver *is* the `TestScope`. `currentTime`
-  is then the assertion (`import kotlinx.coroutines.test.currentTime` — it is an extension, so it
-  does not come with `runTest`).
-  **`MainDispatcherRule` is unconfined, so a state that only exists *while* a call is in flight is
-  invisible** — the ViewModel's `launch` runs to completion before the constructor returns, and
-  `uiState.value` is already the final one. To assert a loading state, give the fake a
-  `CompletableDeferred` the suspend function awaits, read the state, then `complete()` it (3.4's
-  `an empty cache keeps the spinner up until the refresh answers`).
+  `Dispatchers.Main`, which a host test doesn't have. Use `MainDispatcherRule` from `:testing` —
+  not a JUnit `@Rule` (this is `kotlin.test`), so call its `setup()`/`tearDown()` from
+  `@BeforeTest`/`@AfterTest`.
 - **A `@Dao` is faked by hand like anything else** — it is an interface, so a `commonTest` fake
-  needs no Room runtime, and `replaceAll` is a `@Transaction` method *with a body*, so only the
-  abstract members have to be implemented. Back the fake with a `MutableStateFlow` if the code
-  under test observes it: the real `@Query` `Flow` re-emits on every write, and a fake returning
-  `flowOf(rows)` will pass a test that the app then fails.
+  needs no Room runtime. Fake shape and the `MutableStateFlow`-backing gotcha: plan §6.1.
 - **A `commonTest` fixture is a Kotlin constant, not a file.** There is no portable way to read a
   resource or a path from `commonTest`, so recorded HTML/JSON lives in a `*Fixtures.kt` and
-  anything filesystem-backed needs an in-memory fake (`FakePreferencesDataStore`, 1.4).
+  anything filesystem-backed needs an in-memory fake.
+
+## Settled decisions
+
+Weighed and declined — don't re-propose these.
+
+| Not used | Instead | Why |
+|---|---|---|
+| Mocking libraries (MockK, Mockito) | Hand-written fakes in `:testing` | See "Tests use hand-written fakes" above. |
+| Robolectric | Real host tests where possible, `androidDeviceTest` where not | Its shadows are mocks of Android; same objection as mocking libraries, plus another dependency. |
+| A Kover coverage floor/gate | Tests written per checklist step, coverage read manually | Weighed and declined; don't re-propose a threshold. |
 
 ## UI state and events
 
@@ -450,14 +311,11 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
 - **`ImmutableList` / `persistentListOf()`** over `List` in state classes and Composable params,
   for stable recomposition.
 - **Always write previews** for screens and reusable widgets, using `@PreviewWallosDarkLight` +
-  `WallosMobilePreviewTheme` (both from `uikit`). Since 4.1 the `Surface` belongs to
-  `WallosMobileTheme` and the preview theme adds only composition locals, so a preview draws the
-  same background and the same `LocalContentColor` as the app — a preview is now evidence about
-  colour, which before 4.1 it was not. Don't add a `Surface` back into a preview.
+  `WallosMobilePreviewTheme` (both from `uikit`). The `Surface` belongs to `WallosMobileTheme`, so
+  a preview draws the same background and `LocalContentColor` as the app — don't add a `Surface`
+  back into a preview.
 - **A colour role left out of `lightColorScheme`/`darkColorScheme` is not derived from `surface`** —
-  it falls back to Material's baseline lavender, on screen, silently. 4.1 filled in the
-  surface-container ladder, `outlineVariant` and the inverse roles in `Color.kt`/`Theme.kt`; the
-  `*Fixed` family is still on the baseline because nothing draws it. Adding a component means
+  it falls back to Material's baseline lavender, on screen, silently. Adding a component means
   checking which token it reads (see the sources-jar note under Architecture) and, if that role is
   still unset, setting it rather than passing a colour at the call site.
 - Fixed-item screens (settings) use `Column`, not `LazyColumn`.
@@ -468,46 +326,29 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
 - Offline → **disable** write actions (`enabled = !LocalIsOffline.current`), no error dialog.
   Wallos has no permission model, so there is no "hide the action" case. The local says only that
   the *device* has a network — a LAN-only Wallos instance is "online" here and still unreachable,
-  so a failed request is still the thing that reports a dead server.
-  Its **second** job (3.5) is picking copy where the error would misattribute the failure: an
-  offline refresh comes back as `error_unreachable` — "check the URL and your connection" — and
-  `StaleBanner` overrides that reason line rather than blaming a server the request never reached.
-  A preview of such a branch provides the local itself: `WallosMobilePreviewTheme` supplies
-  `false`, so an offline preview wraps its content in `CompositionLocalProvider(LocalIsOffline
-  provides true)` inside the theme.
-- **An error over cached data is a banner, not a screen** (3.5). Two derived properties on the UI
-  state, never a field the ViewModel sets: `isStale` = error *with* data (banner above rows that
-  stay put), `isFailed` = error with *no* data (owns the screen, keeps the Try again button). A
-  stored boolean would be a second copy of what `error` and the data field already say, free to
-  drift from them — 3.5 changed no ViewModel at all.
-- **The moment a screen narrows what it draws, those states must ask the *cache*, not the list**
-  (3.6). `items` became the filtered view, so `items.isEmpty()` stopped meaning "nothing is
-  cached" — hence `hasCachedRows`, which is a stored field and *not* a violation of the rule above,
-  because the filtered list genuinely cannot express it. Skip it and a filter matching nothing
-  reads as an empty instance; offline it flips the stale banner into a full-screen error over rows
-  that are on the device. `isNoMatch` (rows exist, none survive the filter) is the fourth derived
-  state and owes the user a Clear button, since unlike the other three it is undoable.
-  The filter and sort selections themselves live in **`MutableStateFlow`s beside the UI state**,
-  `combine`d with the DAO flow — one render path for "the criteria changed" and "a refresh
-  arrived", instead of a second copy in the state that the next refresh could overwrite.
-- **A pick-one-of-many field is `ExposedDropdownMenuBox` + `ExposedDropdownMenu`**, new to the repo
-  in 7.6 (there was no dropdown/menu component before it) and the precedent for the next one over
-  a `ModalBottomSheet`. `menuAnchor()`/`ExposedDropdownMenu(...)` are *members* of
-  `ExposedDropdownMenuBoxScope`, resolved through the implicit receiver inside
-  `ExposedDropdownMenuBox { }`'s content lambda — there is no top-level symbol for either, so
-  writing an `import` for one fails as an unresolved reference instead of just being redundant.
-  `BoxScope.matchParentSize()` is the same shape.
-  **A field that opens something other than the keyboard** (a menu, a `DatePickerDialog`) is a
-  `readOnly = true` `OutlinedTextField` with a transparent `Box(Modifier.matchParentSize()
-  .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { … })`
-  layered over it in a parent `Box` — `readOnly` alone still routes taps into text-cursor placement
-  rather than a click callback, so nothing opens without the overlay. `next_payment`/`start_date`
-  use `DatePicker`/`DatePickerDialog`/`rememberDatePickerState` this way (7.6): both are stable
-  Material3, not experimental beyond the file's own `ExperimentalMaterial3Api` opt-in.
-  `initialSelectedDateMillis`/`selectedDateMillis` are UTC epoch millis, so a `LocalDate` round
-  trips through `kotlin.time.Instant` (`kotlinx.datetime.Instant` is the deprecated one in
-  0.8.0): `date.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()` in, `Instant
-  .fromEpochMilliseconds(millis).toLocalDateTime(TimeZone.UTC).date` out.
+  so a failed request is still the thing that reports a dead server. `StaleBanner` overrides the
+  error's own reason line for exactly this reason (plan §7.1) rather than blaming a server the
+  request never reached.
+- **An error over cached data is a banner, not a screen.** Two derived properties on the UI state,
+  never a field the ViewModel sets: `isStale` = error *with* data (banner above rows that stay
+  put), `isFailed` = error with *no* data (owns the screen, keeps the Try again button). A stored
+  boolean would be a second copy of what `error` and the data field already say, free to drift
+  from them.
+- **The moment a screen narrows what it draws, those states must ask the *cache*, not the list.**
+  `items` is the filtered view, so `items.isEmpty()` doesn't mean "nothing is cached" — a separate
+  `hasCachedRows` field does, and `isNoMatch` (rows exist, none survive the filter) is a fourth
+  derived state owing the user a Clear button. Details and the derivation table: plan §7.1.
+  Filter and sort selections live in **`MutableStateFlow`s beside the UI state**, `combine`d with
+  the DAO flow — one render path for "the criteria changed" and "a refresh arrived."
+- **A pick-one-of-many field is `ExposedDropdownMenuBox` + `ExposedDropdownMenu`** — the precedent
+  over a hand-rolled `ModalBottomSheet`. Both are *members* of `ExposedDropdownMenuBoxScope`,
+  resolved through the implicit receiver inside `ExposedDropdownMenuBox { }`'s content lambda —
+  there is no top-level symbol for either, so writing an `import` for one fails as an unresolved
+  reference. `BoxScope.matchParentSize()` is the same shape. A field that opens something other
+  than the keyboard (this dropdown, a `DatePickerDialog`) needs a `readOnly = true`
+  `OutlinedTextField` plus a transparent clickable overlay `Box` — `readOnly` alone still routes
+  taps into text-cursor placement, not a click callback. Full pattern, plus the `LocalDate` ↔ UTC
+  epoch millis conversion `DatePicker` wants: plan §7.1 "Editor UI patterns."
 
 ## Error handling
 
@@ -526,18 +367,12 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   **`SerializationException` extends `IllegalArgumentException`**, as does the failure of the
   `.jsonObject` accessor — one `catch (e: IllegalArgumentException)` covers both and cannot
   swallow a `CancellationException`.
-- **An untrusted certificate is not a type anyone catches** (3.7). A platform callback that
-  constrains the exception *type* — JSSE's trust manager may throw only `CertificateException` —
-  does not constrain its **cause**, so the portable payload rides down there and
-  `Throwable.findPendingCertTrust()` (`core:domain`) walks the chain for it. That is what replaced
-  TaigaMobileNova's `expect`/`actual` platform-exception mapper; reach for the same shape before
-  building a second one.
-  **So any "everything else" arm has to *ask*** (5.1). `getErrorMessage`'s non-`WallosError` branch
-  consults `findPendingCertTrust()` ahead of `error_unreachable`, because a rotated certificate is
-  the one transport failure the user can fix and "check the URL and your connection" argues against
-  fixing it. `LoginViewModel.onFailure` asks the same question first and raises the trust dialog
-  instead — the copy is for screens with no trust surface, so the branch is correctly invisible
-  there and a test on the login path would prove nothing about it.
+- **An untrusted certificate is not a type anyone catches.** A platform callback that constrains
+  the exception *type* — JSSE's trust manager may throw only `CertificateException` — does not
+  constrain its **cause**, so the portable payload rides down there and
+  `Throwable.findPendingCertTrust()` (`core:domain`) walks the chain for it. Any "everything else"
+  arm has to *ask* it ahead of falling back to a generic unreachable-server message, because a
+  rotated certificate is the one transport failure the user can fix. Full mechanism: plan §4.5.
 
 ## Strings and resources
 
@@ -560,25 +395,14 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
 ## The Wallos API will surprise you
 
 Read `docs/WALLOS_API.md` before touching anything network-related — and treat it as **derived,
-not complete**. It was written from the PHP, so where a step's `Ref:` points at it, that is a
-starting point rather than a contract: 3.9's `totp.php` section listed the request and the success
-case and simply had no row for the branch that mattered (a lost session), which would have shipped
-as an infinite retry loop had it been implemented from the doc alone. `docker exec wallos cat
-/var/www/html/<file>.php` is a read against the real thing and takes seconds; do it for any
-endpoint whose *failure* modes the code has to branch on. 3.10 is the second time it paid, and it
-widens the rule: read it before adding a **request** to a flow that already holds a session, not
-only before branching on a response. A GET of `login.php` looks inert and silently clears
-`$_SESSION['totp_user_id']`, so an unguarded probe would have killed live 2FA logins — nothing in
-the doc, nothing in the response, and no test would have caught it.
-
-**3.11 is the third time, and it widens the rule furthest: the doc can be actively wrong, and a
-`success: true` is the dangerous case.** §5.5 said to detect an unconverted price by comparing
-`currency_id` against `main_currency`. The PHP shows conversion overwrites `price` **alone** and
-leaves `currency_id` naming the source currency, so the two responses are identical and the
-documented check reports "converted" for a row that wasn't — a wrong answer implemented confidently.
-So: **read the PHP for any response whose *meaning* the code has to infer, not only its failure
-modes**, and treat a `Ref:` line into `WALLOS_API.md` as the previous session's reading rather than
-as the server. Where a step's premise turns out inverted, correcting the doc is part of the step.
+not complete**, since it was written from the PHP. `docker exec wallos cat /var/www/html/<file>.php`
+is a read against the real thing and takes seconds: do it for any endpoint whose *failure* modes
+the code has to branch on, before adding a **request** to a flow that already holds a session
+(a GET can have a side effect a doc entry never would), and for any response whose *meaning* the
+code has to infer, not only its explicit failure modes — `success: true` is the dangerous case,
+because it reads as confirmation. `WALLOS_API.md`'s own §5.5 and §7 carry two live corrections of
+exactly this kind (a doc row that was silently missing, a check that was actively wrong); read
+those before trusting a `Ref:` line into it as more than the previous session's reading.
 
 - **Everything returns HTTP 200**, including auth failures. Only the JSON `success` field is
   reliable. Never branch on HTTP status except 404 (endpoint missing on this version) and 5xx.
@@ -588,176 +412,41 @@ as the server. Where a step's premise turns out inverted, correcting the doc is 
 - **PHP `display_errors` prepends HTML to valid JSON.** Never call `.body<T>()` — always go
   through `WallosEnvelopeParser`.
 - **No pagination anywhere.** Filtering and sorting are client-side.
-
-- **Text fields come back HTML-escaped** — a subscription named `1&1 Telekom` is
-  `1&amp;1 Telekom` on the wire, and it renders that way unless the mapper unescapes it. Same for
-  `notes`, the resolved `category_name` / `payer_user_name` / `payment_method_name`, and currency
-  `name` / `symbol`. `HtmlUnescaper` (`feature:subscriptions:mapper`) is the one place that
-  reverses it; use it from any new mapper rather than writing a second one. It decodes `&amp;`
-  **last** on purpose — decode it first and `&amp;lt;`, which is the literal text `&lt;`, becomes
-  a `<` the user never typed.
+- **Text fields come back HTML-escaped** (`1&1 Telekom` is `1&amp;1 Telekom` on the wire) —
+  `HtmlUnescaper` (`feature:subscriptions:mapper`) reverses it; use it from any new mapper rather
+  than writing a second one.
 - **Unset dates are `""`, not `null`** (`cancellation_date`, `start_date`), so a nullable field is
   not enough — blank has to read as absent.
-
-Two that bite later: `cycle=5` (One-time) is readable but **rejected on write**, and
-`Unauthorized or Not Found` is a per-row ownership error that must **not** clear the stored key.
+- `cycle=5` (One-time) is readable but **rejected on write**, and `Unauthorized or Not Found` is a
+  per-row ownership error that must **not** clear the stored key.
 
 ### There is a live instance, and it is the only one to test against
 
 `docs/local-info.txt` holds the URL and credentials for the user's own Wallos container
-(`http://localhost:8282`, i.e. `http://10.0.2.2:8282` from the emulator). It is committed on
-purpose — the instance is LAN-only, the user has said so explicitly, so don't re-raise it as a
-leak. **Every on-device `Verify:` line means this instance.**
+(`http://localhost:8282`, i.e. `http://10.0.2.2:8282` from the emulator), plus every throwaway
+test instance built on top of it (currency conversion, TLS front, 2FA, OIDC) and the recipe to
+rebuild each — read that file rather than re-deriving any of it here. It's committed on purpose:
+the instance is LAN-only, and the user has said so explicitly. **Every on-device `Verify:` line
+means this instance**, unless a step needs one of the throwaway ones instead.
 
 Its data has holes worth knowing before planning a verify: **`notes` and `url` are `""` on every
 subscription**, and `start_date` is `""` on a good few, so anything rendering those fields can only
 be proven by unit test and preview. Pick the row deliberately — `Fiton` (id 4) has a start date and
-a `&` in its category name.
+a `&` in its category name. It is also single-currency (conversion off, rates never fetched) — see
+`docs/local-info.txt` for the scratch instance that isn't.
 
-**It is also single-currency, with conversion off and rates never fetched** (3.11): all 35 rows are
-`currency_id = 1` (EUR, the main currency), `settings.convert_currency = 0`, `last_exchange_update`
-is empty and all 32 rates are exactly `1`. So nothing about currency conversion can be seen here at
-all — not the working case, not the failing one. That needs a scratch container, which is one
-`cp -a` of the database plus two `UPDATE`s.
-
-**That container exists, stopped, as `wallos-scratch` on port 8284** (5.3) — a `bellamy/wallos` over
-a copy of the live database with 8 of the 35 rows moved to `currency_id = 2` and the copied key
-rotated to `5c3aa1de…7b8c`. `docker start wallos-scratch`, then `http://10.0.2.2:8284`. The full key
-lives on the `user` row, not a separate table — `docker exec wallos-scratch php -r '$d=new
-SQLite3("/var/www/html/db/wallos.db"); $r=$d->query("SELECT api_key FROM user WHERE id=1");
-echo $r->fetchArray()[0];'` is the one-liner, and it is what the app's "I have an API key" path
-wants (Path B, no web-login bridge needed against a scratch instance). Logging into a *different*
-server than whatever is already stored needs `adb shell pm clear com.grappim.wallosmobile.debug`
-first (3.4's rule) or the app opens on the previous server's cached rows.
-**Since 5.4 it converts**: `currencies.rate = 1.17` for USD, `settings.convert_currency = 1`, and a
-`last_exchange_update` row — which is the flag the server actually gates on, and the one the app can
-only infer from a rate that isn't `1`. So the 8 USD rows come back divided by 1.17 with
-`currency_id` still `2`. Three `UPDATE`s undo it if a step needs the *unconverted* state 5.3 had:
-
-```bash
-docker exec wallos-scratch php -r '$d=new SQLite3("/var/www/html/db/wallos.db");
-$d->exec("UPDATE currencies SET rate = 1.17 WHERE id = 2");
-$d->exec("UPDATE settings SET convert_currency = 1 WHERE user_id = 1");
-$d->exec("INSERT INTO last_exchange_update (date, user_id) VALUES (\"2026-08-05\", 1)");'
-```
-
-Copying the database in is three commands, since
-the files are uid 82 and the container's are not a volume:
-
-```bash
-docker run --rm -v /home/gregory/data/wallos/db:/src:ro alpine cat /src/wallos.db > wallos.db
-docker cp wallos.db wallos-scratch:/var/www/html/db/wallos.db
-docker exec wallos-scratch chown www-data:www-data /var/www/html/db/wallos.db
-```
-
-**It speaks plain HTTP, so certificate work needs a TLS front for it** (3.8, and 3.12 again).
-Don't touch the Wallos container — put a throwaway nginx beside it. The whole recipe:
-
-```bash
-openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
-  -keyout ca-key.pem -out ca-cert.pem -subj "/CN=Home Lab Test CA/O=Wallos QA"
-openssl req -newkey rsa:2048 -nodes -keyout server-key.pem -out server.csr \
-  -subj "/CN=10.0.2.2/O=Wallos QA"          # CN *and* SAN are the address the app is given
-echo "subjectAltName=IP:10.0.2.2" > san.cnf # no SAN → the cert doesn't cover the host → no prompt
-openssl x509 -req -in server.csr -CA ca-cert.pem -CAkey ca-key.pem -CAcreateserial \
-  -out server-cert.pem -days 825 -sha256 -extfile san.cnf
-# nginx.conf: listen 8443 ssl; ssl_certificate /certs/server-cert.pem; … proxy_pass http://wallos:80;
-docker run -d --name wallos-tls --network wallos_default -p 8443:8443 \
-  -v $(pwd)/certs:/certs:ro -v $(pwd)/nginx.conf:/etc/nginx/conf.d/default.conf:ro nginx:alpine
-```
-
-Then the app's server URL is `https://10.0.2.2:8443`, and **never install the CA on the emulator**
-— an untrusted chain is the whole point. `docker rm -f wallos-tls` when done. Regenerating the
-leaf and restarting the container is what proves a pin is per-*certificate* and not per-host; it
-is marked optional in Taiga's recipe and it is the check that found 3.8's real gap.
-Conscrypt preserves the cause chain, confirmed on device — the failure arrives as
-`SSLHandshakeException: …UntrustedCertificateException`, which is what makes
-`findPendingCertTrust()` work at all.
-
-**The front's own access log is the proof for anything the Ktor logger can't see** (4.5). Image
-loads go through Coil, which has no `Logging` plugin, so `adb logcat` says nothing about them —
-`docker logs wallos-tls | grep images/uploads/logos` does, and the `"ktor-client"` user-agent on a
-`200` is what says the load used the app's pinned engine rather than a stack that would have failed
-the handshake. **Coil caches on disk**, so a second run proves nothing until
-`adb shell run-as com.grappim.wallosmobile.debug rm -rf /data/data/com.grappim.wallosmobile.debug/cache/coil3_disk_cache`
-— that path, and `pm clear` for everything at once. A failed load is also **sticky per request**:
-Coil does not retry a state that is already `Error`, so after the server comes back the rows keep
-their placeholders until they recompose (scroll them off and on).
-
-**A step that wants a server-side *setting* changed gets a throwaway instance, not the user's**
-(3.9). Enabling 2FA, disabling password login, seeding a second account — all of them mutate live
-data and some have a lockout tail.
-
-**For 2FA that instance already exists and is set up**: `wallos-totp` on port 8283, a copy of the
-real database with `gregorz` 2FA-enabled, the same password, the same 35 subscriptions and its own
-API key. It is **stopped by default** — `docker compose -f /home/gregory/data/wallos-totp/compose.yaml
-up -d`, then `http://10.0.2.2:8283` from the emulator and `python3 scripts/totp-code.py` for a
-code. Full details, backup codes and the re-seed command: `docs/local-info.txt`. Stop it when done;
-don't `docker rm` it, the point is that the setup survives.
-
-**For any other server-side setting**, build a scratch one the same way:
-
-```bash
-docker run -d --name wallos-scratch -p 8284:80 bellamy/wallos:latest   # ~10s to boot
-curl -s -o /dev/null -d "username=u&firstname=T&lastname=U&email=u@e.com&password=p&\
-confirm_password=p&main_currency=USD&language=en" http://localhost:8284/registration.php
-```
-
-**OIDC needs no identity provider to test against** (3.10): `login.php` only reads
-`password_login_disabled` when OIDC is enabled *and* `is_configured`, and `is_configured` is a
-non-empty check on seven strings that are never dereferenced unless somebody clicks the button. So
-env vars alone produce a real SSO-only instance — `-e OIDC_ENABLED=1 -e
-OIDC_DISABLE_PASSWORD_LOGIN=1` plus `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_AUTH_URL`,
-`OIDC_TOKEN_URL`, `OIDC_USERINFO_URL`, `OIDC_REDIRECT_URL` set to anything at all.
-
-`registration.php` needs **all** of those fields — a short POST silently re-renders the form and
-`login.php` keeps redirecting to `registration.php`, which reads as a broken container. Copying the
-real data instead of registering is one `cp -a` of `/home/gregory/data/wallos/db` through a root
-container (the files are uid 82), and it is worth it for anything that renders a list. From there
-`docker exec <name> php -r '…new SQLite3("/var/www/html/db/wallos.db")…'` writes whatever the step
-needs directly, skipping the enrolment endpoints' own CSRF + code dances. PHP sessions are plain
-files — `rm -f /tmp/sess_*` inside the container is how you make a live session expire mid-flow.
-**Rotate any copied API key**, or a disposable container is holding a working credential for the
-real instance.
-
-**Reading the PHP out of the container is the fastest authority on any endpoint** —
-`docker exec wallos cat /var/www/html/totp.php` settled a response table `WALLOS_API.md` had left
-half-written, and it is a read, so the live container is fine for that.
-
-**Do not reach for `demo.wallosapp.com`.** Its `profile.php` dies with a PHP fatal
-(`no such table: uploaded_avatars`), so there is no `id="apikey"` to scrape and the Path A login
-bridge can never succeed there. References to it were removed from the docs in 1.11.
+**Do not reach for `demo.wallosapp.com`.** Its `profile.php` dies with a PHP fatal, so there is no
+`id="apikey"` to scrape and the login bridge can never succeed there.
 
 ### The same instance is behind the `wallos` MCP
 
-`mcp__wallos__*` reaches a **real Wallos v5.4.2**, and it is the **user's own personal instance** —
-`gregorz`, user id 1, real subscriptions. Read tools (`wallos_get_version`, `wallos_get_user`,
-`wallos_list_*`, `wallos_get_subscription`, `wallos_get_monthly_cost`, `wallos_get_period_budget`)
-are free to call and are the fastest way to settle a question `docs/WALLOS_API.md` leaves open —
-it was derived from PHP source, so the MCP is the check on it. **`wallos_add_subscription`,
+`mcp__wallos__*` reaches the same real instance. Read tools are free to call and are the fastest
+way to settle a question `WALLOS_API.md` leaves open. **`wallos_add_subscription`,
 `wallos_update_subscription`, `wallos_delete_subscription` and `wallos_set_budget` mutate the
-user's live data — ask first, every time.**
-
-Three limits worth knowing before leaning on it:
-
-- **It returns the payload unwrapped** — `wallos_get_user` gives `{"user": {…}}` with no `success`
-  or `title`. So it confirms **real values**, and says nothing about the envelope behaviour
-  `core:api` is built around (HTTP 200 on failure, PHP prefixes, the `title` catalogue). Those
-  still need `curl` against `api/*.php` directly, per §8's smoke test.
-- **It adds fields the API does not have.** `wallos_list_subscriptions` returns a `logo_url` that
-  exists nowhere in the PHP — the server sends the bare `logo` filename. So it is *not* an
-  authority on field shapes either: **model DTOs against `curl`, and use the MCP for values.**
-- **It is one instance at one version.** A field present here may be absent on the older installs
-  the app has to tolerate — `ignoreUnknownKeys` and nullable DTO fields are still the rule.
-
-Getting a key for that `curl`, since the app is the only other thing that has one:
-
-```bash
-curl -s -c /tmp/w.txt -o /dev/null \
-  -d "username=gregorz&password=$(grep -A1 '^gregorz$' docs/local-info.txt | tail -1)" \
-  http://localhost:8282/login.php
-curl -s -b /tmp/w.txt http://localhost:8282/profile.php | grep -o 'id="apikey"[^>]*'
-```
+user's live data — ask first, every time.** It returns the payload unwrapped (no `success`/
+`title`, so it confirms values but not envelope behaviour) and adds fields the API doesn't have
+(`logo_url` exists nowhere in the PHP) — model DTOs against `curl`, use the MCP for values.
+Getting a key for that `curl`: `docs/local-info.txt`.
 
 ## Reference projects
 
@@ -796,3 +485,32 @@ code rather than deleting it. **Every changed line should trace directly to the 
 ### Goal-driven execution
 Turn tasks into verifiable goals — "fix the bug" → "write a failing test, then make it pass". For
 multi-step work, state the plan as steps with a verify check each, then loop until they pass.
+
+### Determinism over process
+If a task has one correct, computable answer, use a tool for it rather than following a fixed
+procedure by hand — a script or a hook can't skip a step or get one wrong the way a prose
+checklist can. `.github/scripts/check-guardrails.sh` is this project's own example: the gate rules
+are a script, not a mental checklist to re-derive each session. Reserve judgment for what actually
+needs it — ambiguous input, a plan, a choice between options.
+
+### Verification
+**"Done" means the `Verify:` line (or the relevant Gradle task) ran and passed.** If it didn't run,
+say that instead of asserting the step works.
+
+- **A narrow pass proves your change works, not that you broke nothing.** When a failure shows up
+  alongside your change, check it against a clean tree (`git stash -u`) before assuming you caused
+  it — or that you didn't.
+- **A check that looks the same whether the thing worked or not is not a check.** Before trusting
+  one, name what it would show if the change had done nothing.
+- **Before/after comparisons need equally fresh runs** — a baseline from a partially cached build
+  (`./gradlew` with warm task outputs) measures a different universe than a clean after-run.
+
+### Friction goes in writing too
+The rule above is for problems in the *code*; this one is for friction in the *tooling* — a
+guessed command that failed, a flag that needed different quoting, a check that confidently
+returned the wrong answer. The reflex is to route around it and say nothing.
+
+Add a one-line, past-tense entry to `docs/frictions.md` before moving on — create the file if it
+isn't there. At the end of a session, read the file back and report what was added, with a count,
+even when the count is zero. The same friction three times is a fix, not a fourth line — raise it
+in `/finalize`.

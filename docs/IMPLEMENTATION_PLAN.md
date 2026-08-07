@@ -430,13 +430,18 @@ those by hand. The same goes for the Compose set in `configureKmpCompose()`, whi
 **material-icons-core**: material3 does not bring it transitively, so without it `Icons.Filled.*`
 is unresolved — while `ui-graphics` and `animation` *do* arrive via `compose.ui` and
 `compose.foundation` and need no entry of their own. That core artifact is only ~50 icons, and
-several obvious ones are absent (`Subscriptions`, `Payment`, `Add`, `Visibility`/`VisibilityOff`);
-`ArrowBack`, `List` and `Send` are `Icons.AutoMirrored.Filled.*`. Three of three screens so far
+several obvious ones are absent (`Subscriptions`, `Payment`, `Visibility`/`VisibilityOff`,
+`FilterList`); `ArrowBack`, `List` and `Send` are `Icons.AutoMirrored.Filled.*`. Several screens
 wanted an icon that isn't there, so **assume it's missing and check** — a `TextButton` with a word
 in it is often the cheaper answer (the login password toggle is Show/Hide text for exactly this
 reason). A module that genuinely needs more declares
 `jetbrains.compose.icons.extended` itself (the `feature/NAME/ui` block above), rather than
 growing the convention plugin for one screen.
+**`Icons.Filled.Add`, `.Edit` and `.Delete` are all in the set**, confirmed by `unzip`-and-`ls` on
+the resolved `material-icons-core` jar's `androidx/compose/material/icons/filled/` directory
+(7.6, 7.7) — the FAB and the detail screen's edit/delete actions needed no
+`material-icons-extended` addition. Treat "obvious icons are usually missing" as a reason to
+check, not as a verdict on any icon in particular.
 
 ### 3.4 `core:crud` — the one deliberate deviation
 
@@ -1493,6 +1498,47 @@ plus 3.11's conversion banner and 3.8's trust dialog are verified only by manual
 What still has to be decided when it lands is whether it earns an emulator job in CI, since a second
 device-only suite doubles the surface no other session's commit can feel.
 
+**A `@Dao` is faked by hand like anything else** — it is an interface, so a `commonTest` fake needs
+no Room runtime, and `replaceAll` is a `@Transaction` method *with a body*, so only the abstract
+members have to be implemented. Back the fake with a `MutableStateFlow` if the code under test
+observes it: the real `@Query` `Flow` re-emits on every write, and a fake returning `flowOf(rows)`
+will pass a test that the app then fails.
+
+**`MainDispatcherRule` is unconfined, so a state that only exists *while* a call is in flight is
+invisible** — the ViewModel's `launch` runs to completion before the constructor returns, and
+`uiState.value` is already the final one. To assert a loading state, give the fake a
+`CompletableDeferred` the suspend function awaits, read the state, then `complete()` it (3.4's "an
+empty cache keeps the spinner up until the refresh answers").
+
+**Asserting on a captured `MultiPartFormDataContent`'s parts needs `@OptIn(io.ktor.utils.io.
+InternalAPI::class)`** (7.9) — its `parts: List<PartData>` property carries that annotation, even
+though building the request via `formData { }` needs no opt-in at all. And `PartData.headers[key]`
+(the `[]` accessor) only ever returns the *first* value under a header name; `formData { append(key,
+bytes, Headers.build { append(ContentDisposition, "filename=…") }) }` lands a **second**
+`Content-Disposition` value beside the `name=` one `formData` itself adds, so reading it back needs
+`headers.getAll(ContentDisposition)`, not `headers[ContentDisposition]`.
+
+**`:testing` is excluded from linting** (`lintingExclusions` in `build-logic/.../Quality.kt`, plus
+`.editorconfig`), so there is no `:testing:ktlintFormat`/`:testing:detekt` task at all — asking for
+one fails with "task not found", which is the config working, not a broken build.
+
+**A test fixture factory grows by `.copy()`, never by parameters.** detekt's
+`allowedFunctionParameters: 5` applies to `commonTest` too, and `ignoreDataClasses` exempts the data
+class, not the `private fun subscription(...)` that builds one — so a sixth parameter fails the
+build and the reflex fix, `@Suppress`, is a guardrail tripwire costing a `Gate-change:` line for a
+test helper. Build one canonical fixture and `.copy()` off it.
+
+**`UnusedParameter` applies to `commonTest` too**, so a test that ignores a callback passes `{ }` at
+the call site — a named `private fun ignore(wait: Duration) = Unit` fails detekt.
+
+**`LongParameterList`'s `allowedConstructorParameters: 6` does not, in practice, gate a fake's
+constructor** — `FakeSubscriptionsApi` sat at 9 named/defaulted params pre-7.5 and reached 13 after
+it, both real `./gradlew detekt` runs, both clean. Don't pre-split a fake's constructor to dodge it.
+
+**A fake's settable field must not be named after the method it feeds.** `var baseUrl` beside
+`override fun getBaseUrl()` is a "platform declaration clash" — the property's getter compiles to
+`getBaseUrl()` too. Name the field for what it holds (`var url`), not for the method.
+
 ### Domain modelling notes
 
 - **`BillingCycle`** enum (`DAYS, WEEKS, MONTHS, YEARS, ONE_TIME`) + `frequency` multiplier. The
@@ -1703,9 +1749,18 @@ the server-resolved `category_name` / `payer_user_name` / `payment_method_name`.
   **Since 5.2 they also outlive the process**, through a `SavedStateHandle` — the shape above is
   untouched, and the handle is written from a `combine(filter, sort)` rather than from each of the
   three setters, so the saved copy is driven off the flows and cannot disagree with them. The stored
-  form is one JSON string under one key (`CLAUDE.md` has the reason: `SavedState` is `Bundle`, and a
-  Bundle is unreachable from a host test). The UI state's `filters` is *seeded* from the restored
-  values as well as set by `onCached`, because the first frame after a restore is drawn before the
+  form is one JSON string under one key, not an encoded `SavedState`: on Android
+  `androidx.savedstate`'s `SavedState` **is** `Bundle`, so `encodeToSavedState`, the `saved { }`
+  property delegate and `savedState { }` all need an Android runtime — unreachable from a host
+  test, and Robolectric is out. `SavedStateHandle()` itself, `get`, `set` and
+  `getMutableStateFlow` are pure Kotlin, so a `String` value is testable in both directions while
+  anything Bundle-shaped is testable in neither. `SubscriptionFilter`'s `ImmutableSet`s have no
+  kotlinx serializer either, so what gets written is a small `@Serializable` companion type
+  (`SavedCriteria`) with plain `Set`s — the same DTO-beside-the-model instinct the wire layer uses.
+  Decoding it catches `IllegalArgumentException`: pre-v1 stored state is disposable, but
+  *discarding* it has to be a default screen rather than a crash in the ViewModel's constructor.
+  The UI state's `filters` is *seeded* from the restored values as well as set by `onCached`,
+  because the first frame after a restore is drawn before the
   DAO flow has emitted anything.
 - **Sorting is a pure class** (`SubscriptionSorter`), because §3.2 fixes the direction *per field*
   — `price` and `id` descend, everything else ascends — and a table like that is worth a test
@@ -1780,6 +1835,32 @@ is that.
   the blank symbol it would have had.
 - **What this leaves undone**: nothing about currency — 5.3 closed the price sort and 5.4 the
   missing source currency.
+
+#### Editor UI patterns, from 7.6/7.7
+
+- **A field that opens something other than the keyboard** (a dropdown, a `DatePickerDialog`) is a
+  `readOnly = true` `OutlinedTextField` with a transparent `Box(Modifier.matchParentSize()
+  .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { … })`
+  layered over it in a parent `Box`. `readOnly` alone still routes taps into text-cursor placement
+  rather than a click callback, so nothing opens without the overlay. `next_payment`/`start_date`
+  use `DatePicker`/`DatePickerDialog`/`rememberDatePickerState` this way — both stable Material3,
+  needing only the file's own `ExperimentalMaterial3Api` opt-in.
+  `initialSelectedDateMillis`/`selectedDateMillis` are UTC epoch millis, so a `LocalDate` round
+  trips through `kotlin.time.Instant` (`kotlinx.datetime.Instant` is the deprecated one in 0.8.0):
+  `date.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()` in,
+  `Instant.fromEpochMilliseconds(millis).toLocalDateTime(TimeZone.UTC).date` out.
+- **Read a `SavedStateHandle` key before anything starts writing it, not after.** A form that
+  persists itself via `_uiState.onEach { savedStateHandle[KEY] = … }.launchIn(viewModelScope)` in
+  `init` writes its *first* entry the moment that line runs — `viewModelScope`'s dispatcher is
+  `Main.immediate`, so the launch's first collection is not deferred to a later loop turn.
+  `SubscriptionEditorViewModel`'s `hadStoredForm` (does this key already have a value, to decide
+  whether to pre-fill from the cache or leave a restored/mid-edit form alone) is captured as a
+  property initializer *ahead* of `persistForm()` in `init`, or it always sees the value that same
+  line just wrote and never pre-fills anything.
+- **An offline preview provides the local itself**: `WallosMobilePreviewTheme` supplies
+  `LocalIsOffline = false`, so a preview of an offline branch wraps its content in
+  `CompositionLocalProvider(LocalIsOffline provides true) { … }` inside the theme rather than
+  faking the effect any other way.
 
 ### 7.2 Explicitly out of v1
 
