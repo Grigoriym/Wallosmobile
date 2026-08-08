@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `2/4`
-**Current step:** 8.3
+M8 `3/4`
+**Current step:** 8.4
 
 ---
 
@@ -173,7 +173,7 @@ catalog granularity, so no step below has to re-derive them:
   unchanged. Also excludes a non-positive `frequency` defensively, since the roll-forward loop
   would never terminate otherwise (the DTO has no validation ruling this out).
 
-- [ ] **8.3 — feature:dashboard:domain: DashboardHomeUseCase**
+- [x] **8.3 — feature:dashboard:domain: DashboardHomeUseCase**
   Composes 8.1's two repository calls and 8.2's calculator over
   `SubscriptionsRepository.observeSubscriptions()` into one result the ViewModel collects — the
   app's first real use case (plan §6: "Wallos has real use-case candidates — see §8 Phase 4").
@@ -184,6 +184,30 @@ catalog granularity, so no step below has to re-derive them:
   a period-budget failure still leaves monthly cost and upcoming payments populated; an
   upcoming-payments feed with no active subscriptions renders empty, not failed.
   ·  *Ref:* plan §6 "Use cases only when a screen needs multiple repository calls"
+  **Note:** `DashboardHomeUseCase.getDashboardHomeData(today: LocalDate): DashboardHomeData` —
+  `today` is a parameter, not read from `Clock.System` internally, mirroring 8.2's calculator
+  signature and keeping the use case deterministic to test. `getMonthlyCost` derives month/year
+  from it and `getPeriodBudget` gets it as `referenceDate`; `UpcomingPaymentsCalculator` gets it
+  unchanged. `DashboardHomeData` (three independent fields: `Result<MonthlyCost>`,
+  `Result<PeriodBudget>`, `List<Subscription>`) lives directly as data, not wrapped in an outer
+  `Result` — wrapping it would put the three sources back behind one failure, which is the thing
+  this step exists to avoid. Upcoming payments comes from a single `observeSubscriptions().first()`
+  snapshot rather than staying subscribed to the flow — nothing on this screen refreshes the cache
+  itself (8.4's own "nothing on this screen writes"), so there is no second emission to react to
+  yet; a future screen that adds pull-to-refresh would be the point to revisit this. This is the
+  first domain module with any Koin content in the app (every prior one scanned to zero), so it
+  needed `alias(libs.plugins.wallosmobile.kmp.di)` added to its `build.gradle.kts`, a new
+  `DashboardDomainModule` (`@Module @Configuration @ComponentScan`), and that module wired into
+  `AppModule`'s `includes` in `Koin.kt` — `KoinGraphTest` confirmed the wiring. `composeApp` also
+  needed a direct `implementation(projects.feature.dashboard.domain)` line: it already had
+  `feature.dashboard.data`, but that dependency is `implementation`, not `api`, so the domain
+  module class wasn't visible transitively. `UpcomingPaymentsCalculator` stays unannotated and is
+  constructed directly inside `DashboardHomeUseCaseImpl` rather than injected — it has zero
+  dependencies of its own, the same "stop injecting it" case CLAUDE.md's cache-repository bullet
+  describes, and it keeps the constructor at 2 params instead of 3 for no test benefit (8.2 already
+  covers it in isolation). `LocalDate.monthNumber` is deprecated in kotlinx-datetime 0.8.0 but its
+  replacement (`.month.number`) doesn't exist in this version's `Month` enum yet, so the deprecated
+  member stays rather than reaching for an API that isn't there.
 
 - [ ] **8.4 — feature:dashboard:ui: the home screen, and it becomes the landing screen**
   `DashboardRoute`/`DashboardScreen`/`DashboardViewModel`/`DashboardUiState`: a monthly-cost card,

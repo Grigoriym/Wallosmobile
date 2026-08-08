@@ -17,3 +17,7 @@ deleted — see `/finalize`.
 - `docker exec wallos grep -rn ... --include=*.php` failed with "unrecognized option" — the
   container's `grep` is BusyBox's, which has no `--include`; `grep -rln <pattern> <path>` (no flag,
   just a bare recursive search) is what works there.
+- `LocalDate.monthNumber` (kotlinx-datetime 0.8.0) warns deprecated in favour of `.month.number`,
+  but `Month` in this pinned version has no `.number` member — `javap` on the cached
+  `kotlinx-datetime-jvm-0.8.0.jar` confirmed it isn't there; `monthNumber` is what actually compiles
+  at this version and the warning is unactionable until the dependency bumps.

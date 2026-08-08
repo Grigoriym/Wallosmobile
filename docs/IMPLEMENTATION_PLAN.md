@@ -1340,6 +1340,20 @@ These carry over unchanged; they are listed so the port is deliberate rather tha
   UI state. Snackbars through `SnackbarDelegate`.
 - **Use cases only when a screen needs multiple repository calls.** Single-call screens talk to
   the repository directly. (Wallos has real use-case candidates — see §8 Phase 4.)
+  **Shape, settled by 8.3's `DashboardHomeUseCase`** (the app's first): interface + `Impl`,
+  `@Factory(binds = [...])` — unlike TaigaMobileNova's use cases (`EpicDetailsDataUseCase` et al.,
+  which wrap every composed call in one outer `resultOf`), a use case whose sources fail
+  *independently* returns a plain data class of per-source `Result`s instead, so one endpoint
+  being down (`WallosError.UnsupportedEndpoint`) can't blank out the sources that succeeded. A
+  helper the use case composes over but that has **no dependencies of its own** (here,
+  `UpcomingPaymentsCalculator`) is constructed directly inside the `Impl` rather than injected —
+  the same "stop injecting it" case as the cache-repository bullet below, just reached from a use
+  case instead of a repository. A domain module gaining its first real use case is also gaining
+  its first Koin content: every domain module up to 8.3 scanned to zero `@Single`/`@Factory`
+  definitions (8.1's own note said so), so the module needs `alias(libs.plugins.wallosmobile.kmp.di)`
+  added to its `build.gradle.kts` and a new `<Feature>DomainModule` (`@Module @Configuration
+  @ComponentScan`) — that module didn't need one before and won't need it again if it stays at
+  zero.
 - **Koin with `io.insert-koin.compiler.plugin`**, one `@Module @Configuration @ComponentScan` per
   module. Never KSP for DI.
 - **Offline = disable, missing permission = hide.** Wallos has no permission model beyond

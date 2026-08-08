@@ -237,7 +237,13 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   `@InjectedParam` on the constructor property**, or the graph looks for a definition of that
   type and the screen crashes at first injection — `KoinGraphTest` will **not** catch a missing
   one for a primitive type (`verify()` whitelists `String`/`Int`/`Long`/`Double`), but **will**
-  catch a missing one on `SavedStateHandle`, which is not whitelisted.
+  catch a missing one on `SavedStateHandle`, which is not whitelisted. **A module class needs its
+  own line in `composeApp`'s dependencies, separate from `AppModule`'s `includes`** — `includes`
+  only tells the Koin compiler where to find the class, it doesn't add a Gradle dependency edge.
+  8.3 hit this adding `DashboardDomainModule`: `composeApp` already depended on
+  `feature.dashboard.data`, but that module's own dependency on `feature.dashboard.domain` is
+  `implementation`, not `api`, so the domain module's class stayed invisible to `composeApp` until
+  it got its own `implementation(projects.feature.dashboard.domain)` line.
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`. Every
   new route must be registered in the polymorphic `SerializersModule` in `NavKeySerializers.kt`,
