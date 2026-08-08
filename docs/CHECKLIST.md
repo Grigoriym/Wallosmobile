@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `3/7`
-**Current step:** 10.4 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
+M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `4/7`
+**Current step:** 10.5 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
 
 ---
 
@@ -397,7 +397,7 @@ Settled while scoping this milestone, each checked against the live PHP source r
   `periodStart`/`periodEnd` addition already rippled into that file. `feature:dashboard:ui` itself
   is untouched; wiring `overdueRenewals` into `DashboardUiState`/the screen is 10.6.
 
-- [ ] **10.4 — feature:dashboard:domain: Your Subscriptions + Your Savings**
+- [x] **10.4 — feature:dashboard:domain: Your Subscriptions + Your Savings**
   A pure class over the cached subscription list (no new endpoint, this milestone's preamble):
   active count, monthly cost (already fetched — reuse it, don't resum), yearly cost
   (`monthlyCost × 12`, matching `stats_calculations.php`'s own `$totalCostPerYear`); inactive count,
@@ -408,6 +408,17 @@ Settled while scoping this milestone, each checked against the live PHP source r
   against a small fixed subscription list; savings excludes inactive one-time rows the same way
   the other two calculators do, if that's where the step lands.
   ·  *Ref:* this milestone's preamble
+  **Note:** New `SubscriptionStatsCalculator` (`calculator/`) plus `YourSubscriptions`/`YourSavings`
+  domain models (`model/`), following `UpcomingPaymentsCalculator`'s own shape — a plain class,
+  constructed directly rather than Koin-injected, since `DashboardHomeUseCaseImpl` will build it the
+  same way it already builds `UpcomingPaymentsCalculator` (that wiring is 10.5, untouched here).
+  Went with the **simpler sum, no `replacement_subscription_id` offset**: `Subscription` (domain)
+  doesn't carry that field (2.1's trim) and restoring it just for this one card's edge case (a
+  cancelled row replaced by another) outweighs the parity gain — the number is real, just not
+  identical to the web's when a replacement exists. `activeCount` mirrors
+  `stats_calculations.php`'s own count exactly (excludes `cycle = 5` even though the row is active);
+  `inactiveCount` has no such filter, matching the PHP, since a one-time row's `getPricePerMonth`
+  already contributes 0 to savings regardless of whether it's counted.
 
 - [ ] **10.5 — feature:dashboard:domain: `DashboardHomeUseCase` recomposition**
   Composes 10.1's `ProfileRepository.getUser()` alongside 8.1's two calls and 10.3/10.4's
