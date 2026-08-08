@@ -357,4 +357,49 @@ kept here as the permanent answer rather than something to re-open; the rest is 
   talking to — `BaseUrlProvider.getBaseUrl()` (`core:api`, already a dependency of
   `feature:subscriptions:ui` for logo URLs) is the existing read path, so this looks like a small
   addition: one more row or a line above Disconnect, no new storage. Not investigated further here.
+- **The dashboard (8.4) doesn't match the web UI's own dashboard**, filed 2026-08-08 by the user
+  after comparing side by side, then confirmed by reading the actual PHP source at
+  `/home/gregory/proj/other/Wallos` (a git checkout of `ellite/Wallos`, confirmed on the same
+  `v5.4.2` as the docker instance — `includes/version.php` matches byte for byte) rather than
+  guessing from `WALLOS_API.md` alone. `index.php` + `includes/stats_calculations.php` are the
+  source of truth for what the web actually shows; four confirmed structural differences, not yet
+  acted on:
+  1. **Upcoming payments has no limit on mobile; the web caps it at 3**
+     (`index.php:76`, `... ORDER BY next_payment ASC LIMIT 3`). `UpcomingPaymentsCalculator` (8.2)
+     returns every future row.
+  2. **There is no "Overdue Renewals" section on mobile at all.** The web runs a *second*, separate
+     query (`index.php:85`): `next_payment < date('now') AND auto_renew = 0 AND inactive = 0 AND
+     cycle != 5`, unlimited, its own section above Upcoming Payments. `UpcomingPaymentsCalculator`
+     currently **excludes** exactly these rows (8.2's own note: "a past-due row with `autoRenew ==
+     false` is never touched by [the] cron... exclude such a row rather than roll it forward") —
+     a deliberate call at the time, but it means the rows Wallos itself flags as needing the user's
+     attention are the ones our dashboard silently drops rather than surfaces.
+  3. **"Budget" is two different, separately-gated widgets on the web, and mobile only has one of
+     them, unlabeled as to which.** `index.php:259-370` /
+     `includes/stats_calculations.php:295-334`:
+     - **Monthly Budget** — shown whenever `$totalCostPerMonth` is set (i.e. almost always), and
+       *contains* Monthly Cost as one of its rows (`monthly_cost`), not a separate card. Only shows
+       `budget`/`budget_used`/`budget_remaining`/`over_budget` sub-rows when `user.budget > 0` —
+       our current live test account has `budget: 0` (confirmed via `get_user.php`), so this
+       account would show *only* the Monthly Cost line here, which may be why the user didn't
+       recognize our "Monthly cost" card as corresponding to anything on the web page.
+     - **Period Budget** — shown only when `$periodDiffersFromCalendarMonth && user.period_budget >
+       0` (`stats_calculations.php:326`) — i.e. **hidden entirely when the configured period is a
+       plain calendar month**, because it would just repeat Monthly Budget's numbers. Our app's
+       `PeriodBudget` card has no such gate: it renders unconditionally whenever
+       `get_period_budget.php` succeeds, even when the period is the calendar month and the card
+       is redundant with a monthly cost the user already saw.
+     Net effect: our "Budget" card is really *only* the web's Period Budget concept, permanently
+     visible with no redundancy check, and Monthly Budget's own `budget`/`used`/`remaining`/
+     `over_budget` fields (driven by `user.budget`, distinct from `period_budget`) aren't shown
+     anywhere on mobile at all — which is a plausible reading of "what is budget?".
+  4. **Sections mobile has no equivalent of at all**: "Your Subscriptions" (active count, monthly
+     cost again, yearly cost — `index.php:373-409`) and "Your Savings" (inactive count, monthly/
+     yearly savings, shown only when `inactiveSubscriptions > 0` — `index.php:411-445`). AI
+     Recommendations (`index.php:183-257`) reads as a paid/hosted-only feature from its own name
+     and isn't a candidate for parity.
+  Not a fix plan — a comparison. The right next step is deciding, screen by screen, which of these
+  four the mobile dashboard should adopt (all four are now concretely specified, not guesses) before
+  writing any code, since this is a redesign of an already-shipped screen, not a bug in the sense
+  M5's entries were.
 

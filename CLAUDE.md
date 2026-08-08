@@ -461,6 +461,23 @@ a `&` in its category name. It is also single-currency (conversion off, rates ne
 **Do not reach for `demo.wallosapp.com`.** Its `profile.php` dies with a PHP fatal, so there is no
 `id="apikey"` to scrape and the login bridge can never succeed there.
 
+### Before decomposing anything sizeable, check the actual web UI too — not just the API
+
+`/home/gregory/proj/other/Wallos` is a git checkout of `ellite/Wallos`, kept on the same version as
+the docker instance (`includes/version.php` — confirmed `v5.4.2` in both, 2026-08-08). `api/*.php`
+is what a client calls, but `index.php`, `subscriptions.php`, `settings.php`, `profile.php` and
+`includes/*_calculations.php` are what the *product* actually is — what a screen shows, hides,
+gates behind a condition, or computes a value from is frequently a decision the API surface alone
+doesn't carry. Filed 2026-08-08 after the dashboard (8.4) turned out to diverge from the web
+dashboard in four confirmed ways (see `docs/CHECKLIST.md`'s "To review" — no limit on upcoming
+payments where the web caps at 3, no "Overdue Renewals" section, two distinct budget widgets
+collapsed into one unlabeled card, several sections with no mobile equivalent at all) despite every
+individual API call being used correctly. **Before decomposing a milestone** (a new `M<N>` in
+`docs/CHECKLIST.md`, not every small step) that touches a screen with a web equivalent, read that
+screen's PHP alongside `WALLOS_API.md` — the API doc says what a field *is*; the web PHP says what
+the product *shows*, and the two are not the same question. Keep this checkout up to date with
+`git pull` if it starts drifting from the docker instance's own version.
+
 ### The same instance is behind the `wallos` MCP
 
 `mcp__wallos__*` reaches the same real instance. Read tools are free to call and are the fastest
