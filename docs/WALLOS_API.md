@@ -71,8 +71,13 @@ There is **no rate limiting** and no CSRF/nonce mechanism on the API endpoints.
 
 * `success` — boolean, the only reliable indicator of outcome.
 * `title` — short machine-ish string; doubles as an error code (see §5).
-* `notes` — array of human-readable warnings. **Not always present**, and `get_user.php`
-  returns it as an empty *string* rather than an array.
+* `notes` — array of human-readable warnings. **Not always present.**
+  ~~`get_user.php` returns it as an empty *string* rather than an array~~ — **not true against
+  this instance** (v5.4.2): a live `curl` against `get_user.php` returns `"notes": []`, a real
+  JSON array, same as `get_subscriptions.php` and every other endpoint checked. Corrected
+  2026-08-08 while scoping Phase 5's `feature:profile` — the source of the original claim isn't
+  known (an older Wallos version, or simply a documentation error), but nothing here should model
+  `notes` as `String` on any endpoint.
 * `message` — present on most write-endpoint errors, absent on many read-endpoint errors.
 
 > ### ⚠️ Everything returns HTTP 200
@@ -89,7 +94,8 @@ data class WallosResponse<T>(
     val success: Boolean,
     val title: String? = null,
     val message: String? = null,
-    // `notes` is String on get_user, array elsewhere — use a custom serializer or ignore it
+    // `notes` is a JSON array everywhere, including get_user (corrected 2026-08-08) — ignore it
+    // unless a future endpoint's warnings turn out to matter to a screen.
 )
 ```
 
@@ -348,8 +354,9 @@ anchor together with `period_budget` if you don't want them reset.
 
 Returns the whole `user` row with `password` and `api_key` replaced by `"********"`.
 Includes `id`, `username`, `email`, `main_currency`, `avatar`, `language`, `budget`,
-`period_budget`, `budget_period_type`, `budget_period_anchor_date`, `totp_enabled`.
-`notes` is `""` here, not `[]`.
+`period_budget`, `budget_period_type`, `budget_period_anchor_date`, `totp_enabled`,
+`firstname`, `lastname`, `oidc_sub` (`null` off OIDC). `notes` is `[]`, same as every other
+endpoint — see §1's correction; do not special-case this one.
 
 ### 3.10 Categories / Currencies / Household / Payment methods
 

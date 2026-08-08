@@ -817,11 +817,13 @@ false). Alongside those three: a plain `put(key, value)`, and `asMap()`. `withAp
 `build()` from §4.1 are **not** part of this class in `core:api`'s pure layer — they return Ktor
 `Parameters`, so they arrive with the HTTP clients.
 
-Similarly on the decoding side (no `core:serialization` module exists — 1.2 needed none): `notes` is
-an array everywhere except `get_user.php`, where it is `""` — either a lenient serializer or
-`ignoreUnknownKeys` plus not modelling it. `Json { ignoreUnknownKeys = true; isLenient = true }`
-is **mandatory**, not a nicety: responses are raw DB rows and self-hosted instances sit at
-different migration levels.
+Similarly on the decoding side (no `core:serialization` module exists — 1.2 needed none): `notes`
+is an array on every endpoint, `get_user.php` included — a claim this doc carried wrong until
+checked live while scoping Phase 5 (§7.2 corrected the same error; `docs/WALLOS_API.md` §1 has the
+`curl` evidence). Not modelling `notes` at all is enough; no lenient-serializer workaround was ever
+needed for it. `Json { ignoreUnknownKeys = true; isLenient = true }` is still **mandatory**, not a
+nicety, for the actual reason: responses are raw DB rows and self-hosted instances sit at different
+migration levels.
 
 ### 4.5 Self-signed certificates
 
@@ -1915,9 +1917,14 @@ v1 small:
   (Landed: the warning in 3.1, the probe and `LoginThrottle` in 3.10 — see §1.1.)
 - Writes, dashboard, catalog CRUD, settings, profile, notifications.
 
-`core:crud`, `core:serialization` and the `categories`/`paymentmethods`/`household` feature modules
-don't exist yet in v1 — currencies stays a single API call inside `feature:subscriptions`
-permanently, per §3.4's note; it never earns its own module.
+None of this existed in v1: `core:crud` and the `categories`/`paymentmethods`/`household` feature
+modules landed in M7 (§3.4) — full CRUD, not just reads, ready for Phase 5's UI. (`core:serialization`
+never became a real module at all — see §4.4.) Currencies stayed a single read inside
+`feature:subscriptions` through M7, but that was never meant to be permanent: §3.4's own note says
+a standalone `feature:currencies` module "can sit on `core:crud` the same way the other three do
+when it lands," and Phase 5 is where it lands — `feature:subscriptions` keeps its trimmed
+read-only `Currency` for the picker/list join, and the new module gets its own DTO/domain with
+`rate`/`inUse` restored, a deliberate small duplication over a cross-feature reach.
 
 ### 7.3 Full screen set (eventual)
 
@@ -2073,6 +2080,14 @@ Full CRUD UI for the four catalog resources (with the in-use delete guard surfac
 `feature:settings` (server display settings + local theme), `feature:profile`
 (`get_user`, `set_budget` — and note that sending `period_budget` alone silently resets the period
 type and anchor, so always send all three together).
+*Decomposed as **M9** in `docs/CHECKLIST.md`* (9 steps) — scoped down from the paragraph above in
+one real way: server-side display settings (`get_settings.php`/`set_settings.php`) turned out to
+be an open ~12-field map governing mostly the Wallos *web* UI's own rendering, with nothing this
+app has a concrete reason to edit yet, so M9 skips it and ships the four catalog resources plus
+the budget editor only — see the milestone's own preamble for the rest of what got settled
+(currencies as a new `feature:currencies` module, the payment-icon multipart upload, the budget
+editor as a Settings sub-screen) and a `get_user.php` doc bug (`notes`) found and fixed while
+scoping it.
 
 ### Phase 6 — Extended
 Read-only `feature:notifications`. iCal feed export/share (`text/calendar`, not JSON — check the

@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done**
-**Current step:** M8 done — Phase 4 complete. Next: decompose Phase 5 (Management screens).
+M8 `4/4` — **M8 done** · M9 `0/9`
+**Current step:** 9.1
 
 ---
 
@@ -72,8 +72,178 @@ launcher icon and the store flavours, the two things only visible from outside t
 done** too — plan §8's Phase 3 (subscription writes, reference-data pickers), decomposed the way
 Phase 2b became M3; see `archive/CHECKLIST-DONE.md` for its nine steps. **M8 is done** too — plan
 §8's Phase 4 (Dashboard: monthly cost, period budget, upcoming payments), the app's first use case
-and its new landing screen; see `archive/CHECKLIST-DONE.md` for its four steps. Phase 5
-(Management screens) is not yet decomposed.
+and its new landing screen; see `archive/CHECKLIST-DONE.md` for its four steps. **Phase 5
+(Management screens) is decomposed below as M9.**
+
+---
+
+## M9 — Management screens (plan §8, Phase 5)
+
+Goal: full add/edit/delete UI for the four catalog resources (categories, household, payment
+methods, currencies), plus a budget editor — everything plan §7.3's "Manage" row and "Profile +
+budget" row sketch. **Done when** each of the four has a list screen (reachable from a new
+*Manage* drawer group) with add/edit/delete against the live instance, and Settings has a Profile
+sub-screen showing the budget and letting it be edited.
+
+Server-side display settings (`get_settings.php`/`set_settings.php`) are **explicitly out of this
+milestone** — decided 2026-08-08 with the user: it's an open ~12-field map (color theme, custom
+CSS, `week_starts_sunday`, …) that mostly governs the Wallos *web* UI's own rendering, and nothing
+in this app has a concrete reason to edit any of it yet. Revisit if one turns up.
+
+Several things are settled here, checked against the live instance (port 8282) and live PHP source
+(`docker exec wallos cat api/...`) while scoping this milestone, so no step below has to re-derive
+them:
+
+- **Categories, household and payment methods already have full add/edit/delete** — built in M7
+  (`CategoriesRepository`/`HouseholdRepository`/`PaymentMethodsRepository`, all on `core:crud`),
+  tested, and unused by any screen. This milestone's work on those three is **UI only**: a list
+  screen and an add/edit form per resource, the same `SubscriptionEditorRoute(id: Int?)` shape
+  7.6/7.7 already established for "one form, nullable id decides add vs. edit."
+- **Currencies gets its own module, `feature:currencies`** (dto/domain/data/ui, on `core:crud`),
+  rather than extending `feature:subscriptions`. §3.4's original note left this open ("a standalone
+  module... can sit on `core:crud`... when it lands") but a stale aside in §7.2 said the opposite
+  ("never earns its own module") — both now corrected in `IMPLEMENTATION_PLAN.md`. Decided with the
+  user: `feature:subscriptions` keeps its existing trimmed, read-only `Currency` (no `rate`/`inUse`)
+  for the price picker and list join, unchanged; the new module gets its own `CurrencyDTO` (with
+  `rate`/`inUse` restored) and full CRUD. A small duplication of one DTO, accepted over a
+  cross-feature reach into a module that has no business owning currency management.
+  `WallosCrudApi.getAll()`'s generic shape drops `get_currencies.php`'s top-level `main_currency`
+  field (it only reads `envelope[listKey]`), so **9.1 has a real choice to make**: skip surfacing
+  "which currency is main" in the list (delete on it still fails cleanly — see below) or hand-write
+  `getAll()` the way `SubscriptionsApi.getCurrencies()` already does or to get `main_currency`
+  alongside the list, same as it does for `feature:subscriptions`.
+- **Payment methods gets its icon multipart upload now too**, decided with the user: reuse 7.9's
+  shape (`MultipartFile`, `postMultipart`, Android's `ActivityResultContracts`) rather than
+  deferring again — `PaymentMethodsRepository.addPaymentMethod`/`editPaymentMethod` already carry an
+  `iconUrl` param and a doc comment naming this exact gap ("no picker calls it before Phase 5"),
+  and 7.9 already paid the one-time cost (the module's first `androidMain` directory, the
+  `MultipartFile` carrier type in `core:api`). Confirmed live (`docker exec wallos cat
+  api/payment_methods/set_payment_methods.php`): the upload resizes server-side to **70×48**, not
+  135×42 like a subscription logo — a different constant, now in `WALLOS_API.md` §3.10.
+- **A budget editor is a Settings sub-screen, not a new drawer destination** — decided with the
+  user: `SettingsRow` → a new `ProfileRoute`, the same shape `InterfaceRoute`/`AboutRoute` already
+  use, not a fifth top-level `DrawerDestination`.
+- **The "Manage" drawer group is `DrawerItem.Group`'s first real use.** `WallosDrawerWidget`
+  already renders it (a header plus its nested `Destination`s) — built, never exercised, since
+  `DrawerItemsBuilder` has only ever emitted flat `Destination`s. Each of the four catalog screens
+  is still its own `DrawerDestination` enum case with its own sub-stack, registered in
+  `DRAWER_NAV_ITEMS`/`NavKeySerializers` exactly like Dashboard/Subscriptions/Settings — "Manage" is
+  purely a `WallosDrawerWidget` grouping, not a different navigation shape.
+- **Two delete guards are pre-existing defaults, not in-use rows**, confirmed in the live PHP:
+  category id `1` and household member id `1` can never be deleted (`"Cannot delete category"` /
+  `"Cannot delete member"`, `docker exec wallos cat api/categories/set_categories.php` /
+  `api/household/set_household.php`), the same shape currency's "can't delete the main currency"
+  guard already has (`"Cannot delete currency"`). All three already map to `WallosError.InUse` —
+  `WallosErrorMapperTest` already covers all three titles — so no new error-handling code is
+  needed; an editor screen *may* choose to disable Delete on these proactively for a better message
+  than "that item is still in use elsewhere," but it isn't required for correctness. Payment
+  methods has no such guard.
+- **A real `WALLOS_API.md`/`IMPLEMENTATION_PLAN.md` bug, found and fixed while scoping this
+  milestone**: three places (`WALLOS_API.md` §1 and §3.9, `IMPLEMENTATION_PLAN.md` §4.4, and a
+  comment plus a test in `WallosEnvelopeParser.kt`) claimed `get_user.php` returns `notes` as an
+  empty *string* rather than an array. A live `curl` against `get_user.php` on this instance
+  returns `"notes": []` — a real array, same as every other endpoint checked. All four corrected;
+  `WallosEnvelopeParser`'s defensive safe-cast is left in place (costs nothing) but its comment no
+  longer claims the string case is observed. The source of the original wrong claim isn't known.
+
+- [ ] **9.1 — feature:currencies: dto + domain + data — full CRUD on `core:crud`**
+  Mirrors 7.2's shape for `feature:categories` exactly: `CurrencyDTO : CrudResource` (`id`, `name`,
+  `symbol`, `code`, `rate`, `inUse`) — `api(projects.core.crud)` in the `dto` module's
+  `build.gradle.kts`, per 7.2's own reminder. `CurrenciesApi : CrudApi<CurrencyDTO>` delegating to
+  `WallosCrudApi` (`get_currencies.php`/`set_currencies.php`, id param `currencyId`/`id`,
+  `docs/WALLOS_API.md` §3.10). Domain `Currency` carries `rate`/`inUse` this time — unlike
+  `feature:subscriptions`'s trimmed one, this screen is exactly where both matter.
+  `CurrenciesRepository`: `getCurrencies()`, `addCurrency(name, symbol, code, rate)`,
+  `editCurrency(id, name, symbol, code, rate)`, `deleteCurrency(id)` — decide here whether `getAll()`
+  stays `WallosCrudApi`'s generic form (drops `main_currency`) or a hand-written `getCurrencies()`
+  keeps it alongside the list, per this milestone's preamble.
+  *Verify:* `./gradlew :feature:currencies:data:testAndroidHostTest` — happy path against
+  `MockEngine` fixtures for all four calls, `rate` round-trips as a string on the wire and a
+  `Double` in the domain model, and a delete on an in-use or main currency surfaces as
+  `WallosError.InUse` unchanged.
+  ·  *Ref:* `WALLOS_API.md` §3.10, plan §3.4, this milestone's preamble
+
+- [ ] **9.2 — feature:categories:ui: list + add/edit/delete**
+  `CategoriesRoute`/`CategoriesScreen` (list, FAB per 7.6's `FabConfig` precedent) and
+  `CategoryEditorRoute(categoryId: Int?)`/`CategoryEditorScreen` (one text field: name). Delete
+  behind a confirmation dialog, same shape as 7.7's subscription detail
+  (`isDeleteDialogOpen`/`onDeleteClick`/`onDeleteConfirm`/`onDeleteDialogDismiss`). No cache (this
+  milestone's whole surface is reference data, per 7.2's precedent) — a plain load-on-open list, a
+  refresh after any successful write.
+  *Verify:* `./gradlew :feature:categories:ui:testAndroidHostTest`, and on the emulator against the
+  live instance — add a category, edit its name, delete it, and confirm deleting the default
+  category (id 1) or one still referenced by a subscription surfaces the in-use error rather than
+  crashing or silently failing.
+  ·  *Ref:* `WALLOS_API.md` §3.10, `CLAUDE.md`'s Screen/Content split, this milestone's preamble
+
+- [ ] **9.3 — feature:household:ui: list + add/edit/delete**
+  Same shape as 9.2, two fields (name, optional email) per `HouseholdRepository.addMember`/
+  `editMember`. Reuses whatever generic list/editor/delete-dialog composables 9.2 produces if they
+  turn out reusable across resources — worth checking before writing a second copy.
+  *Verify:* `./gradlew :feature:household:ui:testAndroidHostTest`, and on the emulator — add,
+  edit, delete a household member; confirm member id 1 (or one still referenced by a subscription)
+  fails with the in-use error.
+  ·  *Ref:* `WALLOS_API.md` §3.10, this milestone's preamble
+
+- [ ] **9.4 — feature:paymentmethods:ui: list + add/edit (name, enabled, icon_url) + delete**
+  Same shape again: name, an enabled toggle, and `icon_url` as a text field (server-fetched,
+  7.8's precedent) — the multipart picker is 9.5, not this step. Delete behind the same
+  confirmation dialog.
+  *Verify:* `./gradlew :feature:paymentmethods:ui:testAndroidHostTest`, and on the emulator — add a
+  payment method with an `icon_url`, see the fetched icon render, edit its enabled state, delete a
+  method not referenced by any subscription; confirm one that is referenced fails with the in-use
+  error.
+  ·  *Ref:* `WALLOS_API.md` §3.10, this milestone's preamble
+
+- [ ] **9.5 — feature:paymentmethods: icon via multipart upload**
+  Mirrors 7.9 exactly: an Android image picker (`ActivityResultContracts`, this module's first
+  `androidMain`) feeding a multipart `paymenticon` field. Server resizes to 70×48 (confirmed live,
+  this milestone's preamble) — different from a subscription logo's 135×42, so don't assume the
+  picker's crop/preview aspect ratio without checking.
+  *Verify:* on the emulator against the live instance — pick an image for a payment method's icon,
+  save, and see it render on the list without restarting the app (7.9's own verify shape).
+  ·  *Ref:* `WALLOS_API.md` §3.10, §4; archive `CHECKLIST-DONE.md` 7.9
+
+- [ ] **9.6 — feature:currencies:ui: list + add/edit/delete**
+  Fields: name, symbol, code, rate (default `1.0`). Same list/editor/delete-dialog shape as
+  9.2–9.4. Decide here whether the list marks the main currency (per 9.1's `getAll()` choice) and
+  whether the editor disables Delete on it proactively, or leaves it to the server's
+  `"Cannot delete currency"` error (this milestone's preamble covers both are already correct,
+  just a UX choice).
+  *Verify:* `./gradlew :feature:currencies:ui:testAndroidHostTest`, and on the emulator — add,
+  edit, delete a currency; confirm the main currency and any currency still referenced by a
+  subscription fail to delete with the in-use error.
+  ·  *Ref:* `WALLOS_API.md` §3.10, this milestone's preamble
+
+- [ ] **9.7 — composeApp: the "Manage" drawer group**
+  Wires all four new routes into `DrawerDestination`/`DRAWER_NAV_ITEMS`/`NavKeySerializers`
+  (miss one and `NavKeySerializersTest` catches it, per `CLAUDE.md`'s nav3 rule) and adds a
+  `DrawerItem.Group("Manage", [...])` entry to `DrawerItemsBuilder`, below Settings — the first
+  real use of `DrawerItem.Group`, which `WallosDrawerWidget` already renders correctly (this
+  milestone's preamble). New entry providers per screen (`nav/entries/`), added to `MainNavHost`.
+  *Verify:* on the emulator — open the drawer, confirm a "Manage" header with all four screens
+  listed under it, open each one.
+  ·  *Ref:* plan §5.4, this milestone's preamble
+
+- [ ] **9.8 — feature:profile: dto + domain + data — `get_user` + `set_budget`**
+  New module. `UserDTO` (`WALLOS_API.md` §3.9 — `id`, `username`, `email`, `main_currency`,
+  `budget`, `period_budget`, `budget_period_type`, `budget_period_anchor_date`, `totp_enabled`;
+  skip `password`/`api_key`, always masked). `ProfileRepository.getUser()` /
+  `setBudget(monthlyBudget, periodBudget, periodType, anchorDate)` — **always send all three period
+  fields together** when touching any of them (this milestone's preamble / `WALLOS_API.md` §3.8):
+  sending `period_budget` alone silently resets type and anchor to `monthly`/today.
+  *Verify:* `./gradlew :feature:profile:data:testAndroidHostTest` — `get_user`'s happy path against
+  `MockEngine` fixtures, and `set_budget` sending all three period fields whenever any one of them
+  changes, never a partial set.
+  ·  *Ref:* `WALLOS_API.md` §3.8–3.9, this milestone's preamble
+
+- [ ] **9.9 — feature:profile:ui: a Settings sub-screen for the budget**
+  `ProfileRoute`/`ProfileScreen`, reached from a new `SettingsRow` on `SettingsScreen` (this
+  milestone's preamble — not a drawer destination). Shows the current budget and period budget,
+  editable, saved through 9.8's `setBudget`.
+  *Verify:* on the emulator against the live instance — open Settings, tap into Profile, change the
+  budget, save, and confirm `get_user`/the Dashboard's period-budget card reflect the new value.
+  ·  *Ref:* plan §7.3, this milestone's preamble
 
 ---
 

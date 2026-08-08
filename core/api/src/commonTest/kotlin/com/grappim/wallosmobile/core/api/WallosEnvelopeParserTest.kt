@@ -151,7 +151,8 @@ class WallosEnvelopeParserTest {
 
     @Test
     fun `notes as a string does not break detail resolution`() {
-        // get_user.php returns `notes` as an empty string rather than an array.
+        // Defensive, not observed: every endpoint checked sends `notes` as a real array
+        // (corrected 2026-08-08, docs/WALLOS_API.md §1), but the safe cast costs nothing.
         val error = assertFailsWith<WallosError.Unauthenticated> {
             parse("""{"success":false,"title":"Invalid API key","notes":""}""")
         }

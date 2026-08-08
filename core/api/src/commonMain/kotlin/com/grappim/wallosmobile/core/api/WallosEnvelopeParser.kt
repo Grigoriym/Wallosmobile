@@ -85,7 +85,13 @@ class WallosEnvelopeParser {
 
     private fun JsonObject.boolean(key: String): Boolean? = (this[key] as? JsonPrimitive)?.booleanOrNull
 
-    /** `notes` is an array everywhere except `get_user.php`, where it is an empty string. */
+    /**
+     * `notes` is a JSON array on every endpoint checked, `get_user.php` included (corrected
+     * 2026-08-08 — a live `curl` disproved the doc's older claim that it comes back as an empty
+     * string there; `docs/WALLOS_API.md` §1 has the evidence). The safe cast stays regardless: it
+     * costs nothing and keeps this parser from breaking if a future endpoint ever does send
+     * something else.
+     */
     private fun JsonObject.firstNote(): String? =
         ((this[KEY_NOTES] as? JsonArray)?.firstOrNull() as? JsonPrimitive)?.contentOrNull
 
