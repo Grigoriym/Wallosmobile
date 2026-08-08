@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import com.grappim.wallosmobile.composeapp.nav.entries.dashboardEntry
 import com.grappim.wallosmobile.composeapp.nav.entries.settingsEntry
 import com.grappim.wallosmobile.composeapp.nav.entries.subscriptionsEntry
 import com.grappim.wallosmobile.core.navigation.NavigationState
@@ -21,6 +22,7 @@ import com.grappim.wallosmobile.core.navigation.toEntries
 @Composable
 fun MainNavHost(navigationState: NavigationState, navigator: Navigator, modifier: Modifier = Modifier) {
     val entryProvider = entryProvider {
+        dashboardEntry(navigator)
         subscriptionsEntry(navigator)
         settingsEntry(navigator)
     }

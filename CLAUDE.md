@@ -243,7 +243,13 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   8.3 hit this adding `DashboardDomainModule`: `composeApp` already depended on
   `feature.dashboard.data`, but that module's own dependency on `feature.dashboard.domain` is
   `implementation`, not `api`, so the domain module's class stayed invisible to `composeApp` until
-  it got its own `implementation(projects.feature.dashboard.domain)` line.
+  it got its own `implementation(projects.feature.dashboard.domain)` line. **The same rule applies
+  past DI, to any type** — Gradle's `implementation` visibility is never transitive, so a module
+  that needs a plain type (not just a Koin module class) reached only through another module's
+  `implementation` dependency needs its own direct line too. 8.1 and 8.3 both hit the Koin-class
+  form for `composeApp`; 8.4 hit the plain-type form for `feature:dashboard:ui`, which needed its
+  own `implementation(projects.feature.subscriptions.domain)` line to see `Subscription` — the type
+  `feature:dashboard:domain` already depends on the same `implementation` way.
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`. Every
   new route must be registered in the polymorphic `SerializersModule` in `NavKeySerializers.kt`,

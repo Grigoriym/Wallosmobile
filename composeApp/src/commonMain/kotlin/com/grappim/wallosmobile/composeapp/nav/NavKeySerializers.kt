@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.composeapp.nav
 
 import androidx.navigation3.runtime.NavKey
 import androidx.savedstate.serialization.SavedStateConfiguration
+import com.grappim.wallosmobile.feature.dashboard.ui.DashboardRoute
 import com.grappim.wallosmobile.feature.settings.ui.SettingsRoute
 import com.grappim.wallosmobile.feature.settings.ui.about.AboutRoute
 import com.grappim.wallosmobile.feature.settings.ui.appearance.InterfaceRoute
@@ -22,6 +23,7 @@ import kotlinx.serialization.modules.subclass
  */
 internal val navKeySerializersModule = SerializersModule {
     polymorphic(NavKey::class) {
+        subclass(DashboardRoute::class)
         subclass(SubscriptionsRoute::class)
         subclass(SubscriptionDetailRoute::class)
         subclass(SubscriptionEditorRoute::class)

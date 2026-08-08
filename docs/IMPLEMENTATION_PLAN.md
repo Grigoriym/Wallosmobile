@@ -924,10 +924,26 @@ The prompt itself is 3.8, and it lives on the **login screen only**:
 
 ### 4.6 Version gating
 
-Store the `api/status/version.php` result at setup and after each successful reconnect. Gate
-`get_period_budget`, `set_budget`'s period fields, `logo_variant` and `square_icons` behind it —
-older servers 404 or silently omit fields. `WallosError.UnsupportedEndpoint` is the runtime
-backstop when the stored version is stale.
+Originally planned as: store the `api/status/version.php` result at setup and after each
+successful reconnect, and gate `get_period_budget`, `set_budget`'s period fields, `logo_variant`
+and `square_icons` behind it, with `WallosError.UnsupportedEndpoint` only as the runtime backstop
+for a stale stored version.
+
+**`get_period_budget` (M8, plan §8 Phase 4) settled on the backstop alone, with no
+`VersionStorage` built at all.** Neither `WALLOS_API.md` nor the live PHP
+(`api/subscriptions/get_period_budget.php`) names a minimum version to compare against, so there
+is nothing for a stored value to be compared *to* — `WallosEnvelopeParser` already turns any 404
+into `WallosError.UnsupportedEndpoint` for every endpoint, and `DashboardRepository` lets that
+surface untouched. The one place this shows up outside the network layer: `DashboardViewModel`
+(`feature:dashboard:ui`) matches on that specific `WallosError` case directly — to decide "hide
+the budget card" rather than "show an error" — which is why `core:domain` is a **main-source**
+dependency of that module and not the test-only one every other `feature:*:ui` module has. This is
+the sanctioned shape for a version-gated *card*, as opposed to `getErrorMessage`'s job of turning
+any other failure into a message.
+
+`set_budget`'s period fields, `logo_variant` and `square_icons` (Phase 5) are still unbuilt, and
+still the candidates for a real `VersionStorage` — only if one of them turns out to need a
+proactive check ahead of the call, which `get_period_budget` didn't.
 
 ### 4.7 `core:storage`
 
@@ -1893,6 +1909,8 @@ v1 small:
   §4.5. Still true of a certificate that changes *after* onboarding, which no screen can accept.)
 - **Extra drawer destinations** — the shell is fully wired (§5.4), but the drawer holds
   *Subscriptions* and *Settings* only. Dashboard and the *Manage* group arrive with their features.
+  (Landed: Dashboard in 8.4 — it took the top drawer slot and `START_DESTINATION`, per §5.4's
+  sketch. The *Manage* group is still Phase 5.)
 - **`password_login_disabled` probing, login backoff, non-HTTPS warning** — Phase 2b hardening.
   (Landed: the warning in 3.1, the probe and `LoginThrottle` in 3.10 — see §1.1.)
 - Writes, dashboard, catalog CRUD, settings, profile, notifications.
@@ -2038,14 +2056,17 @@ are covered in §3.4 rather than repeated here.
 `get_monthly_cost` and `get_period_budget` with version gating, upcoming payments derived locally
 from `next_payment` + cycle. This is where use cases earn their place — the home screen composes
 three endpoints plus cached subscriptions into one state.
-*Decomposed as **M8** in `docs/CHECKLIST.md`* (4 steps) — version gating turned out to be reactive
-(`WallosError.UnsupportedEndpoint` on a 404), not a stored `version.php` value, since no minimum
-version is documented anywhere for `get_period_budget`; see the milestone's own preamble.
-`UpcomingPaymentsCalculator` (8.2) rolls a stale `next_payment` forward by mirroring the server's
-own `endpoints/cronjobs/updatenextpayment.php` cron rather than just cycle + frequency in
-isolation: that cron only ever advances a row where `auto_renew = 1 AND inactive = 0`, so a
-past-due row with auto-renew off (or `ONE_TIME`, which has no periodicity to roll by) is excluded
-from the list rather than given a fabricated future date the server itself never computes.
+*Decomposed as **M8** in `docs/CHECKLIST.md`* (4 steps, all ticked — **Phase 4 is done**) —
+version gating turned out to be reactive (`WallosError.UnsupportedEndpoint` on a 404), not a
+stored `version.php` value, since no minimum version is documented anywhere for
+`get_period_budget`; see the milestone's own preamble, and §4.6 for where that leaves the plan's
+original proactive-storage sketch. `UpcomingPaymentsCalculator` (8.2) rolls a stale `next_payment`
+forward by mirroring the server's own `endpoints/cronjobs/updatenextpayment.php` cron rather than
+just cycle + frequency in isolation: that cron only ever advances a row where `auto_renew = 1 AND
+inactive = 0`, so a past-due row with auto-renew off (or `ONE_TIME`, which has no periodicity to
+roll by) is excluded from the list rather than given a fabricated future date the server itself
+never computes. 8.4 built the screen itself and made it the app's landing screen, ahead of
+Subscriptions in the drawer (§5.4).
 
 ### Phase 5 — Management screens
 Full CRUD UI for the four catalog resources (with the in-use delete guard surfaced properly),

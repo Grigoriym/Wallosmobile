@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `3/4`
-**Current step:** 8.4
+M8 `4/4` — **M8 done**
+**Current step:** M8 done — Phase 4 complete. Next: decompose Phase 5 (Management screens).
 
 ---
 
@@ -59,7 +59,7 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 ---
 
 Completed steps live in [`archive/CHECKLIST-DONE.md`](./archive/CHECKLIST-DONE.md) — **all of M0
-through M7**, verbatim. On 2026-08-06 the per-step Deviations log that used to sit at the bottom of
+through M8**, verbatim. On 2026-08-06 the per-step Deviations log that used to sit at the bottom of
 this file moved to [`archive/DEVIATIONS.md`](./archive/DEVIATIONS.md), **frozen** rather than
 carried forward: almost every row already had a permanent home in `IMPLEMENTATION_PLAN.md`
 (`now in plan §X`), so the practice of appending one was retired as pure duplication — the fold
@@ -70,164 +70,10 @@ deviation gets written down, same as always.
 policy and deferred *features* rather than known-wrong behaviour. **M6 is done** too — the
 launcher icon and the store flavours, the two things only visible from outside the code. **M7 is
 done** too — plan §8's Phase 3 (subscription writes, reference-data pickers), decomposed the way
-Phase 2b became M3; see `archive/CHECKLIST-DONE.md` for its nine steps. **Phase 4 (Dashboard) is
-decomposed below as M8.**
-
----
-
-## M8 — Dashboard (plan §8, Phase 4)
-
-Goal: a home screen showing this month's cost, the period budget, and the subscriptions coming due
-soonest — the three things plan §8 names for Phase 4, composed from `get_monthly_cost`,
-`get_period_budget` and the cache `SubscriptionsRepository` already keeps. **Done when** the screen
-renders all three against the live instance (port 8282) and is the app's landing screen — Dashboard
-moves to the top of the drawer per plan §5.4's sketch, ahead of Subscriptions.
-
-Two things plan §10/§4.6 leave open are settled by this decomposition, the same way M7 settled
-catalog granularity, so no step below has to re-derive them:
-
-- **No `VersionStorage`, no version-string comparison.** Plan §4.6 reads as "store `version.php`'s
-  result and gate `get_period_budget` on it ahead of calling it," but neither `WALLOS_API.md` nor
-  the live PHP (`docker exec wallos cat api/subscriptions/get_period_budget.php`, checked while
-  decomposing this) names a minimum version — there is no server-side version check to mirror, and
-  no changelog in the container to read one off. Guessing a cutoff would be exactly the kind of
-  unconfirmed claim `CLAUDE.md` rules out. The gate that already exists for free is reactive:
-  `WallosEnvelopeParser` turns any 404 into `WallosError.UnsupportedEndpoint`
-  (`core/api/.../WallosEnvelopeParser.kt:35`) for every endpoint, `get_period_budget` included —
-  8.1's repository just has to let that surface untouched, and 8.4's UI turns that one specific
-  error into "hide the budget card" instead of a banner. This closes the Phase-4 slice of "To
-  review"'s unowned version-gating item without building storage nothing would read yet (7.4's
-  precedent for not building unreached code). `set_budget`'s period fields, `logo_variant` and
-  `square_icons` stay Phase 5's job, and whichever of those steps first needs a real stored version
-  is where `VersionStorage` gets built.
-- **Network-only, no Room cache.** Unlike `SubscriptionsRepository`, `get_monthly_cost` and
-  `get_period_budget` are period-relative snapshots, not a list to page through offline — matching
-  `feature:categories`/`household`/`paymentmethods`'s existing precedent (7.2's note) of a plain
-  round trip wrapped in `resultOf`, no `observe*`/`refresh*`. Upcoming payments is the one card that
-  stays available offline, because it reads `SubscriptionsRepository.observeSubscriptions()`, which
-  already is a cache.
-- **`feature:dashboard:domain` depends on `feature:subscriptions:domain`**, the second cross-feature
-  dependency in the repo after 7.2's mapper one — upcoming payments is `Subscription` rows filtered
-  and re-sorted, and duplicating that type here would fork it in two places for no caller.
-
-- [x] **8.1 — feature:dashboard: dto + data + domain — monthly cost & period budget**
-  `MonthlyCostDTO`/`PeriodBudgetDTO` (`WALLOS_API.md` §3.5–3.6); domain `MonthlyCost`/
-  `PeriodBudget` trimmed to what the screen renders (2.1's rule) — `period_label` is already a
-  human-readable string from the server, so check whether a `budget_period_type` enum earns its
-  place before adding one. `DashboardRepository` (or a narrower name if one call turns out to want
-  no companion) with `getMonthlyCost(month, year)` / `getPeriodBudget(referenceDate)`, hand-written
-  against `WallosApiClient` like `SubscriptionsApi` — neither endpoint fits `CrudApi<T>`'s
-  add/edit/delete shape, so no `core:crud` dependency (mirrors 7.5's note for the same reason).
-  `monthly_cost` is a comma-grouped string, not a JSON number — reuse `MoneyFormatter.parse`
-  (`utils:formatter:decimal`), don't write a second parser.
-  *Verify:* `./gradlew :feature:dashboard:data:testAndroidHostTest` — both calls' happy path
-  against `MockEngine` fixtures, the comma-grouped `monthly_cost` string parsed correctly, and a
-  404 on `get_period_budget` surfacing as `WallosError.UnsupportedEndpoint` unchanged.
-  ·  *Ref:* `WALLOS_API.md` §3.5–3.6, plan §4.6
-  Remember the two easy misses 7.2/7.3 already paid for once: the new modules need a line in root
-  `build.gradle.kts`'s `kover { }` block, and `DashboardDataModule`/`DashboardDomainModule` need
-  `AppModule`'s `includes` even before anything calls them.
-  **Note:** confirmed both endpoints against the live PHP (`docker exec wallos cat
-  api/subscriptions/get_{monthly_cost,period_budget}.php`) rather than the doc summary alone —
-  both matched exactly. No `feature:dashboard:mapper` module: unlike categories/household/
-  paymentmethods, the DTO→domain step here is plain field selection plus one `MoneyFormatter.parse`
-  call, with no HTML-unescaping and no second caller, so `MonthlyCostMapper`/`PeriodBudgetMapper`
-  are `@Single` classes living in `feature:dashboard:data` itself (still one per file, still
-  unit-tested) rather than a separate Gradle module — CLAUDE.md's "add a layer when a real
-  repository or a second caller turns up" argues against a module neither condition asks for. No
-  `DashboardDomainModule` either: every existing `domain` module (categories/household/
-  paymentmethods/subscriptions) has zero `@Single`-annotated definitions to scan, and this one is
-  the same — nothing in `domain` needs Koin. `DashboardRepository` came out as one interface with
-  both calls, not the narrower split the step floated; nothing pushed the two apart.
-  `MonthlyCost` kept `title` (the server's own "March 2025" label) despite the trim, since 8.4's
-  card plausibly wants a month heading and it costs nothing to carry. `PeriodBudget` kept both
-  `amountRemainingThisPeriod` and `amountOverBudget` rather than deriving one from the other — the
-  server clamps the former to 0 once over budget, so an "over by X" display needs the latter
-  separately. `composeApp/build.gradle.kts` needed its own new `implementation(projects.feature.
-  dashboard.data)` line too (7.2/7.3's reminder didn't name it, but every prior feature's data
-  module is wired there the same way).
-
-- [x] **8.2 — feature:dashboard:domain: upcoming payments**
-  A pure class (`UpcomingPaymentsCalculator` or similar) taking the cached `List<Subscription>`
-  from `SubscriptionsRepository.observeSubscriptions()` and returning the active ones sorted by
-  next occurrence. "Derived locally from `next_payment` + `cycle`" (plan §8) means more than a
-  sort: the server's own cron keeps `next_payment` current, but this app's cache can lag behind a
-  missed refresh, so a `nextPayment` already in the past has to be rolled forward by `cycle` +
-  `frequency` until it's today or later before sorting — otherwise a stale row would show at the
-  top as "due" when it's already renewed server-side. Excludes inactive rows and ones with a null
-  `nextPayment` or an unrecognised `cycle` (`BillingCycle.fromCode` returning `null`), the same way
-  the list screen already treats an unparseable row.
-  *Verify:* `./gradlew :feature:dashboard:domain:testAndroidHostTest` — a future `nextPayment`
-  passes through unchanged; a past one rolls forward the right number of cycles for each
-  `BillingCycle` value; inactive/null-cycle rows are excluded; output is sorted ascending.
-  ·  *Ref:* plan §8 Phase 4
-  **Note:** the exclusion list above turned out to be incomplete — checked the live cron
-  (`docker exec wallos cat endpoints/cronjobs/updatenextpayment.php`) that actually rolls
-  `next_payment` forward server-side, and its query is `WHERE next_payment < :currentDate AND
-  auto_renew = 1 AND inactive = 0`. A past-due row with `autoRenew == false` is never touched by
-  that cron, so it stays stuck in the past on the server forever — there is no real "next"
-  occurrence to invent client-side, and the user confirmed (asked, since this wasn't in the step
-  text) to exclude such a row rather than roll it forward anyway. `BillingCycle.ONE_TIME` gets the
-  same treatment when past-due, for the same reason (no periodicity to roll by, and a one-time row
-  is never auto-renewing in practice) — a future one-time `nextPayment` still passes through
-  unchanged. Also excludes a non-positive `frequency` defensively, since the roll-forward loop
-  would never terminate otherwise (the DTO has no validation ruling this out).
-
-- [x] **8.3 — feature:dashboard:domain: DashboardHomeUseCase**
-  Composes 8.1's two repository calls and 8.2's calculator over
-  `SubscriptionsRepository.observeSubscriptions()` into one result the ViewModel collects — the
-  app's first real use case (plan §6: "Wallos has real use-case candidates — see §8 Phase 4").
-  The three sources fail independently (`UnsupportedEndpoint` on the budget call must not blank out
-  the other two), so the shape this step has to decide is per-source `Result`s rather than one
-  failure sinking the whole screen.
-  *Verify:* `./gradlew :feature:dashboard:domain:testAndroidHostTest` — all three sources present;
-  a period-budget failure still leaves monthly cost and upcoming payments populated; an
-  upcoming-payments feed with no active subscriptions renders empty, not failed.
-  ·  *Ref:* plan §6 "Use cases only when a screen needs multiple repository calls"
-  **Note:** `DashboardHomeUseCase.getDashboardHomeData(today: LocalDate): DashboardHomeData` —
-  `today` is a parameter, not read from `Clock.System` internally, mirroring 8.2's calculator
-  signature and keeping the use case deterministic to test. `getMonthlyCost` derives month/year
-  from it and `getPeriodBudget` gets it as `referenceDate`; `UpcomingPaymentsCalculator` gets it
-  unchanged. `DashboardHomeData` (three independent fields: `Result<MonthlyCost>`,
-  `Result<PeriodBudget>`, `List<Subscription>`) lives directly as data, not wrapped in an outer
-  `Result` — wrapping it would put the three sources back behind one failure, which is the thing
-  this step exists to avoid. Upcoming payments comes from a single `observeSubscriptions().first()`
-  snapshot rather than staying subscribed to the flow — nothing on this screen refreshes the cache
-  itself (8.4's own "nothing on this screen writes"), so there is no second emission to react to
-  yet; a future screen that adds pull-to-refresh would be the point to revisit this. This is the
-  first domain module with any Koin content in the app (every prior one scanned to zero), so it
-  needed `alias(libs.plugins.wallosmobile.kmp.di)` added to its `build.gradle.kts`, a new
-  `DashboardDomainModule` (`@Module @Configuration @ComponentScan`), and that module wired into
-  `AppModule`'s `includes` in `Koin.kt` — `KoinGraphTest` confirmed the wiring. `composeApp` also
-  needed a direct `implementation(projects.feature.dashboard.domain)` line: it already had
-  `feature.dashboard.data`, but that dependency is `implementation`, not `api`, so the domain
-  module class wasn't visible transitively. `UpcomingPaymentsCalculator` stays unannotated and is
-  constructed directly inside `DashboardHomeUseCaseImpl` rather than injected — it has zero
-  dependencies of its own, the same "stop injecting it" case CLAUDE.md's cache-repository bullet
-  describes, and it keeps the constructor at 2 params instead of 3 for no test benefit (8.2 already
-  covers it in isolation). `LocalDate.monthNumber` is deprecated in kotlinx-datetime 0.8.0 but its
-  replacement (`.month.number`) doesn't exist in this version's `Month` enum yet, so the deprecated
-  member stays rather than reaching for an API that isn't there.
-
-- [ ] **8.4 — feature:dashboard:ui: the home screen, and it becomes the landing screen**
-  `DashboardRoute`/`DashboardScreen`/`DashboardViewModel`/`DashboardUiState`: a monthly-cost card,
-  a period-budget card that 8.1's `UnsupportedEndpoint` hides rather than errors (this milestone's
-  version-gating decision, applied), and an upcoming-payments list whose rows navigate to the
-  existing `SubscriptionDetailRoute(id)` — no new detail surface needed. New route registered in
-  `DrawerDestination`/`DRAWER_NAV_ITEMS`/`NavKeySerializers` (miss any of the three and either the
-  drawer entry does nothing or `NavKeySerializersTest`/process-death restore breaks silently, per
-  `CLAUDE.md`'s nav3 rule). Drawer entry added **above** Subscriptions, matching plan §5.4's
-  sketch, and **`START_DESTINATION` flips from `SubscriptionsRoute` to `DashboardRoute`** — settled
-  here since a drawer ordering that puts Dashboard first only makes sense if it's also where the
-  app opens. No FAB, no offline-write gating — nothing on this screen writes.
-  *Verify:* on the emulator against the live instance (port 8282, `docs/local-info.txt`) — launch
-  the app, land on Dashboard (not Subscriptions), see this month's cost and the upcoming-payments
-  list with a real row, tap one and land on its detail screen, back, open the drawer and confirm
-  Dashboard sits above Subscriptions. Confirm the period-budget card renders against this instance
-  (v5.4.2) rather than only exercising its absence — the hide-on-404 path needs an older instance
-  to actually prove, which `docs/local-info.txt`'s throwaway instances may not cover; note in this
-  step whether one was available.
-  ·  *Ref:* plan §5.4, §7.1 UI-state patterns, `CLAUDE.md`'s Screen/Content split
+Phase 2b became M3; see `archive/CHECKLIST-DONE.md` for its nine steps. **M8 is done** too — plan
+§8's Phase 4 (Dashboard: monthly cost, period budget, upcoming payments), the app's first use case
+and its new landing screen; see `archive/CHECKLIST-DONE.md` for its four steps. Phase 5
+(Management screens) is not yet decomposed.
 
 ---
 

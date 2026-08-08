@@ -21,3 +21,7 @@ deleted — see `/finalize`.
   but `Month` in this pinned version has no `.number` member — `javap` on the cached
   `kotlinx-datetime-jvm-0.8.0.jar` confirmed it isn't there; `monthNumber` is what actually compiles
   at this version and the warning is unactionable until the dependency bumps.
+- `import kotlinx.datetime.Clock` for `Clock.System.todayIn(...)` failed with "Unresolved reference
+  'System'" — kotlinx-datetime 0.8.0 deprecated `Clock` to a typealias for `kotlin.time.Clock`, and
+  the deprecated typealias doesn't carry the `System` companion property; `import kotlin.time.Clock`
+  is what actually compiles at this version.

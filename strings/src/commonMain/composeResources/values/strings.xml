@@ -1,7 +1,15 @@
 <resources>
     <string name="app_name">Wallos Mobile</string>
+    <string name="dashboard_title">Dashboard</string>
     <string name="subscriptions_title">Subscriptions</string>
     <string name="settings_title">Settings</string>
+
+    <string name="dashboard_monthly_cost_title">Monthly cost</string>
+    <string name="dashboard_budget_title">Budget</string>
+    <string name="dashboard_budget_remaining">%1$s remaining</string>
+    <string name="dashboard_budget_over">%1$s over budget</string>
+    <string name="dashboard_upcoming_title">Upcoming payments</string>
+    <string name="dashboard_upcoming_empty">No upcoming payments.</string>
 
     <string name="login_title">Connect to Wallos</string>
     <string name="login_server_url_label">Server URL</string>

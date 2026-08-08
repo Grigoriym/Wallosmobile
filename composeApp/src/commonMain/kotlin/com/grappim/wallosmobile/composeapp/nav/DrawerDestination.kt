@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.composeapp.nav
 
 import androidx.navigation3.runtime.NavKey
+import com.grappim.wallosmobile.feature.dashboard.ui.DashboardRoute
 import com.grappim.wallosmobile.feature.settings.ui.SettingsRoute
 import com.grappim.wallosmobile.feature.subscriptions.ui.list.SubscriptionsRoute
 import kotlinx.collections.immutable.persistentSetOf
@@ -11,15 +12,17 @@ import kotlinx.collections.immutable.persistentSetOf
  * `error()`s on a section it has no stack for.
  */
 enum class DrawerDestination(val route: NavKey) {
+    Dashboard(DashboardRoute),
     Subscriptions(SubscriptionsRoute),
     Settings(SettingsRoute)
 }
 
 /** The set `rememberNavigationState` builds a sub-stack for. */
 val DRAWER_NAV_ITEMS = persistentSetOf<NavKey>(
+    DashboardRoute,
     SubscriptionsRoute,
     SettingsRoute
 )
 
 /** Where the drawer shell opens. Navigating here from another section clears the section stack. */
-val START_DESTINATION: NavKey = SubscriptionsRoute
+val START_DESTINATION: NavKey = DashboardRoute
