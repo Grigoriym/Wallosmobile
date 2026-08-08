@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `1/4`
-**Current step:** 8.2
+M8 `2/4`
+**Current step:** 8.3
 
 ---
 
@@ -147,7 +147,7 @@ catalog granularity, so no step below has to re-derive them:
   dashboard.data)` line too (7.2/7.3's reminder didn't name it, but every prior feature's data
   module is wired there the same way).
 
-- [ ] **8.2 — feature:dashboard:domain: upcoming payments**
+- [x] **8.2 — feature:dashboard:domain: upcoming payments**
   A pure class (`UpcomingPaymentsCalculator` or similar) taking the cached `List<Subscription>`
   from `SubscriptionsRepository.observeSubscriptions()` and returning the active ones sorted by
   next occurrence. "Derived locally from `next_payment` + `cycle`" (plan §8) means more than a
@@ -161,6 +161,17 @@ catalog granularity, so no step below has to re-derive them:
   passes through unchanged; a past one rolls forward the right number of cycles for each
   `BillingCycle` value; inactive/null-cycle rows are excluded; output is sorted ascending.
   ·  *Ref:* plan §8 Phase 4
+  **Note:** the exclusion list above turned out to be incomplete — checked the live cron
+  (`docker exec wallos cat endpoints/cronjobs/updatenextpayment.php`) that actually rolls
+  `next_payment` forward server-side, and its query is `WHERE next_payment < :currentDate AND
+  auto_renew = 1 AND inactive = 0`. A past-due row with `autoRenew == false` is never touched by
+  that cron, so it stays stuck in the past on the server forever — there is no real "next"
+  occurrence to invent client-side, and the user confirmed (asked, since this wasn't in the step
+  text) to exclude such a row rather than roll it forward anyway. `BillingCycle.ONE_TIME` gets the
+  same treatment when past-due, for the same reason (no periodicity to roll by, and a one-time row
+  is never auto-renewing in practice) — a future one-time `nextPayment` still passes through
+  unchanged. Also excludes a non-positive `frequency` defensively, since the roll-forward loop
+  would never terminate otherwise (the DTO has no validation ruling this out).
 
 - [ ] **8.3 — feature:dashboard:domain: DashboardHomeUseCase**
   Composes 8.1's two repository calls and 8.2's calculator over

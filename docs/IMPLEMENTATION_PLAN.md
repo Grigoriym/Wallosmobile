@@ -2027,6 +2027,11 @@ three endpoints plus cached subscriptions into one state.
 *Decomposed as **M8** in `docs/CHECKLIST.md`* (4 steps) — version gating turned out to be reactive
 (`WallosError.UnsupportedEndpoint` on a 404), not a stored `version.php` value, since no minimum
 version is documented anywhere for `get_period_budget`; see the milestone's own preamble.
+`UpcomingPaymentsCalculator` (8.2) rolls a stale `next_payment` forward by mirroring the server's
+own `endpoints/cronjobs/updatenextpayment.php` cron rather than just cycle + frequency in
+isolation: that cron only ever advances a row where `auto_renew = 1 AND inactive = 0`, so a
+past-due row with auto-renew off (or `ONE_TIME`, which has no periodicity to roll by) is excluded
+from the list rather than given a fabricated future date the server itself never computes.
 
 ### Phase 5 — Management screens
 Full CRUD UI for the four catalog resources (with the in-use delete guard surfaced properly),

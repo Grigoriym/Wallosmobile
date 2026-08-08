@@ -14,3 +14,6 @@ deleted — see `/finalize`.
   run to run, and `adb`'s own shell-dispatch overhead added further unaccounted jitter on top; cutting
   connectivity before the tap (`airplane-mode enable` + `svc wifi disable`) forced a deterministic,
   wide window instead of racing a moving target.
+- `docker exec wallos grep -rn ... --include=*.php` failed with "unrecognized option" — the
+  container's `grep` is BusyBox's, which has no `--include`; `grep -rln <pattern> <path>` (no flag,
+  just a bare recursive search) is what works there.
