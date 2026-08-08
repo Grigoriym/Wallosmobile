@@ -5,8 +5,9 @@ the *why*; this file holds the *what next*. Every step is written to be doable i
 context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
-M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9`
-**Current step:** M7 done — Phase 3 complete. Next: decompose Phase 4 (Dashboard) into M8.
+M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
+M8 `0/4`
+**Current step:** 8.1
 
 ---
 
@@ -69,8 +70,110 @@ deviation gets written down, same as always.
 policy and deferred *features* rather than known-wrong behaviour. **M6 is done** too — the
 launcher icon and the store flavours, the two things only visible from outside the code. **M7 is
 done** too — plan §8's Phase 3 (subscription writes, reference-data pickers), decomposed the way
-Phase 2b became M3; see `archive/CHECKLIST-DONE.md` for its nine steps. **Phase 4 (Dashboard) has
-not been decomposed into a milestone yet** — there is no M8 section below until that happens.
+Phase 2b became M3; see `archive/CHECKLIST-DONE.md` for its nine steps. **Phase 4 (Dashboard) is
+decomposed below as M8.**
+
+---
+
+## M8 — Dashboard (plan §8, Phase 4)
+
+Goal: a home screen showing this month's cost, the period budget, and the subscriptions coming due
+soonest — the three things plan §8 names for Phase 4, composed from `get_monthly_cost`,
+`get_period_budget` and the cache `SubscriptionsRepository` already keeps. **Done when** the screen
+renders all three against the live instance (port 8282) and is the app's landing screen — Dashboard
+moves to the top of the drawer per plan §5.4's sketch, ahead of Subscriptions.
+
+Two things plan §10/§4.6 leave open are settled by this decomposition, the same way M7 settled
+catalog granularity, so no step below has to re-derive them:
+
+- **No `VersionStorage`, no version-string comparison.** Plan §4.6 reads as "store `version.php`'s
+  result and gate `get_period_budget` on it ahead of calling it," but neither `WALLOS_API.md` nor
+  the live PHP (`docker exec wallos cat api/subscriptions/get_period_budget.php`, checked while
+  decomposing this) names a minimum version — there is no server-side version check to mirror, and
+  no changelog in the container to read one off. Guessing a cutoff would be exactly the kind of
+  unconfirmed claim `CLAUDE.md` rules out. The gate that already exists for free is reactive:
+  `WallosEnvelopeParser` turns any 404 into `WallosError.UnsupportedEndpoint`
+  (`core/api/.../WallosEnvelopeParser.kt:35`) for every endpoint, `get_period_budget` included —
+  8.1's repository just has to let that surface untouched, and 8.4's UI turns that one specific
+  error into "hide the budget card" instead of a banner. This closes the Phase-4 slice of "To
+  review"'s unowned version-gating item without building storage nothing would read yet (7.4's
+  precedent for not building unreached code). `set_budget`'s period fields, `logo_variant` and
+  `square_icons` stay Phase 5's job, and whichever of those steps first needs a real stored version
+  is where `VersionStorage` gets built.
+- **Network-only, no Room cache.** Unlike `SubscriptionsRepository`, `get_monthly_cost` and
+  `get_period_budget` are period-relative snapshots, not a list to page through offline — matching
+  `feature:categories`/`household`/`paymentmethods`'s existing precedent (7.2's note) of a plain
+  round trip wrapped in `resultOf`, no `observe*`/`refresh*`. Upcoming payments is the one card that
+  stays available offline, because it reads `SubscriptionsRepository.observeSubscriptions()`, which
+  already is a cache.
+- **`feature:dashboard:domain` depends on `feature:subscriptions:domain`**, the second cross-feature
+  dependency in the repo after 7.2's mapper one — upcoming payments is `Subscription` rows filtered
+  and re-sorted, and duplicating that type here would fork it in two places for no caller.
+
+- [ ] **8.1 — feature:dashboard: dto + data + domain — monthly cost & period budget**
+  `MonthlyCostDTO`/`PeriodBudgetDTO` (`WALLOS_API.md` §3.5–3.6); domain `MonthlyCost`/
+  `PeriodBudget` trimmed to what the screen renders (2.1's rule) — `period_label` is already a
+  human-readable string from the server, so check whether a `budget_period_type` enum earns its
+  place before adding one. `DashboardRepository` (or a narrower name if one call turns out to want
+  no companion) with `getMonthlyCost(month, year)` / `getPeriodBudget(referenceDate)`, hand-written
+  against `WallosApiClient` like `SubscriptionsApi` — neither endpoint fits `CrudApi<T>`'s
+  add/edit/delete shape, so no `core:crud` dependency (mirrors 7.5's note for the same reason).
+  `monthly_cost` is a comma-grouped string, not a JSON number — reuse `MoneyFormatter.parse`
+  (`utils:formatter:decimal`), don't write a second parser.
+  *Verify:* `./gradlew :feature:dashboard:data:testAndroidHostTest` — both calls' happy path
+  against `MockEngine` fixtures, the comma-grouped `monthly_cost` string parsed correctly, and a
+  404 on `get_period_budget` surfacing as `WallosError.UnsupportedEndpoint` unchanged.
+  ·  *Ref:* `WALLOS_API.md` §3.5–3.6, plan §4.6
+  Remember the two easy misses 7.2/7.3 already paid for once: the new modules need a line in root
+  `build.gradle.kts`'s `kover { }` block, and `DashboardDataModule`/`DashboardDomainModule` need
+  `AppModule`'s `includes` even before anything calls them.
+
+- [ ] **8.2 — feature:dashboard:domain: upcoming payments**
+  A pure class (`UpcomingPaymentsCalculator` or similar) taking the cached `List<Subscription>`
+  from `SubscriptionsRepository.observeSubscriptions()` and returning the active ones sorted by
+  next occurrence. "Derived locally from `next_payment` + `cycle`" (plan §8) means more than a
+  sort: the server's own cron keeps `next_payment` current, but this app's cache can lag behind a
+  missed refresh, so a `nextPayment` already in the past has to be rolled forward by `cycle` +
+  `frequency` until it's today or later before sorting — otherwise a stale row would show at the
+  top as "due" when it's already renewed server-side. Excludes inactive rows and ones with a null
+  `nextPayment` or an unrecognised `cycle` (`BillingCycle.fromCode` returning `null`), the same way
+  the list screen already treats an unparseable row.
+  *Verify:* `./gradlew :feature:dashboard:domain:testAndroidHostTest` — a future `nextPayment`
+  passes through unchanged; a past one rolls forward the right number of cycles for each
+  `BillingCycle` value; inactive/null-cycle rows are excluded; output is sorted ascending.
+  ·  *Ref:* plan §8 Phase 4
+
+- [ ] **8.3 — feature:dashboard:domain: DashboardHomeUseCase**
+  Composes 8.1's two repository calls and 8.2's calculator over
+  `SubscriptionsRepository.observeSubscriptions()` into one result the ViewModel collects — the
+  app's first real use case (plan §6: "Wallos has real use-case candidates — see §8 Phase 4").
+  The three sources fail independently (`UnsupportedEndpoint` on the budget call must not blank out
+  the other two), so the shape this step has to decide is per-source `Result`s rather than one
+  failure sinking the whole screen.
+  *Verify:* `./gradlew :feature:dashboard:domain:testAndroidHostTest` — all three sources present;
+  a period-budget failure still leaves monthly cost and upcoming payments populated; an
+  upcoming-payments feed with no active subscriptions renders empty, not failed.
+  ·  *Ref:* plan §6 "Use cases only when a screen needs multiple repository calls"
+
+- [ ] **8.4 — feature:dashboard:ui: the home screen, and it becomes the landing screen**
+  `DashboardRoute`/`DashboardScreen`/`DashboardViewModel`/`DashboardUiState`: a monthly-cost card,
+  a period-budget card that 8.1's `UnsupportedEndpoint` hides rather than errors (this milestone's
+  version-gating decision, applied), and an upcoming-payments list whose rows navigate to the
+  existing `SubscriptionDetailRoute(id)` — no new detail surface needed. New route registered in
+  `DrawerDestination`/`DRAWER_NAV_ITEMS`/`NavKeySerializers` (miss any of the three and either the
+  drawer entry does nothing or `NavKeySerializersTest`/process-death restore breaks silently, per
+  `CLAUDE.md`'s nav3 rule). Drawer entry added **above** Subscriptions, matching plan §5.4's
+  sketch, and **`START_DESTINATION` flips from `SubscriptionsRoute` to `DashboardRoute`** — settled
+  here since a drawer ordering that puts Dashboard first only makes sense if it's also where the
+  app opens. No FAB, no offline-write gating — nothing on this screen writes.
+  *Verify:* on the emulator against the live instance (port 8282, `docs/local-info.txt`) — launch
+  the app, land on Dashboard (not Subscriptions), see this month's cost and the upcoming-payments
+  list with a real row, tap one and land on its detail screen, back, open the drawer and confirm
+  Dashboard sits above Subscriptions. Confirm the period-budget card renders against this instance
+  (v5.4.2) rather than only exercising its absence — the hide-on-404 path needs an older instance
+  to actually prove, which `docs/local-info.txt`'s throwaway instances may not cover; note in this
+  step whether one was available.
+  ·  *Ref:* plan §5.4, §7.1 UI-state patterns, `CLAUDE.md`'s Screen/Content split
 
 ---
 
@@ -112,9 +215,12 @@ kept here as the permanent answer rather than something to re-open; the rest is 
   5.1 closed the copy half (a rotated certificate names itself in the stale banner and points at
   Disconnect) but not this one, which is a bigger change: it would put a pin write outside
   `SetupRepository`.
-- **Version gating (plan §4.6) is still unowned.** It gates `get_period_budget`, `set_budget`'s
-  period fields, `logo_variant` and `square_icons` — all Phase 4 and 5 surface, so M3 leaves it
-  alone deliberately rather than by oversight.
+- **Version gating (plan §4.6) is partly owned now.** M8 (8.1/8.4) gates `get_period_budget`
+  reactively — off `WallosError.UnsupportedEndpoint`, not a stored version, since no minimum
+  version is documented anywhere to compare against (M8's own preamble has the detail). That
+  leaves `set_budget`'s period fields, `logo_variant` and `square_icons` still unowned, all Phase 5
+  surface — a real `VersionStorage` gets built there if one of those three turns out to need an
+  upfront check rather than the same reactive pattern.
 - **Why does a real account (`gregorz` on the user's own `sbscrpt.gregstuff.click` instance) have
   no API key yet, when the web frontend logs in fine?** Not a bug in this app — confirmed against
   `WALLOS_API.md` §2 that this is Wallos's own design: `api/*.php` ignores the session cookie

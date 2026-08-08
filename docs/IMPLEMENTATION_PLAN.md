@@ -2024,6 +2024,9 @@ are covered in §3.4 rather than repeated here.
 `get_monthly_cost` and `get_period_budget` with version gating, upcoming payments derived locally
 from `next_payment` + cycle. This is where use cases earn their place — the home screen composes
 three endpoints plus cached subscriptions into one state.
+*Decomposed as **M8** in `docs/CHECKLIST.md`* (4 steps) — version gating turned out to be reactive
+(`WallosError.UnsupportedEndpoint` on a 404), not a stored `version.php` value, since no minimum
+version is documented anywhere for `get_period_budget`; see the milestone's own preamble.
 
 ### Phase 5 — Management screens
 Full CRUD UI for the four catalog resources (with the in-use delete guard surfaced properly),
