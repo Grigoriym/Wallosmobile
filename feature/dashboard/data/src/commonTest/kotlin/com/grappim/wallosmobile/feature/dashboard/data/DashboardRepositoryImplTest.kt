@@ -5,6 +5,7 @@ import com.grappim.wallosmobile.feature.dashboard.data.mapper.MonthlyCostMapper
 import com.grappim.wallosmobile.feature.dashboard.data.mapper.PeriodBudgetMapper
 import com.grappim.wallosmobile.feature.dashboard.dto.MonthlyCostDTO
 import com.grappim.wallosmobile.feature.dashboard.dto.PeriodBudgetDTO
+import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
 import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -44,6 +45,8 @@ class DashboardRepositoryImplTest {
                 amountRemainingThisPeriod = 40.0,
                 amountOverBudget = 0.0,
                 isOverBudget = false,
+                periodStart = "2025-08-01",
+                periodEnd = "2025-08-31",
                 periodLabel = "Aug 1 - Aug 31",
                 currencySymbol = "€"
             )
@@ -68,7 +71,7 @@ class DashboardRepositoryImplTest {
     private fun repository(api: DashboardApi): DashboardRepositoryImpl = DashboardRepositoryImpl(
         api = api,
         monthlyCostMapper = MonthlyCostMapper(MoneyFormatter()),
-        periodBudgetMapper = PeriodBudgetMapper(),
+        periodBudgetMapper = PeriodBudgetMapper(DateFormatter()),
         dispatcher = UnconfinedTestDispatcher()
     )
 

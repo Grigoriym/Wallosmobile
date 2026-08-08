@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `1/7`
-**Current step:** 10.2 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
+M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `2/7`
+**Current step:** 10.3 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
 
 ---
 
@@ -337,7 +337,7 @@ Settled while scoping this milestone, each checked against the live PHP source r
   `ProfileDataModule::class` in `AppModule`'s `includes` even though nothing calls it yet — 8.1's
   same reminder, repeated here since nothing enforces it structurally.
 
-- [ ] **10.2 — feature:dashboard: budget domain rework**
+- [x] **10.2 — feature:dashboard: budget domain rework**
   Restore `period_start`/`period_end` to `PeriodBudgetDTO`/`PeriodBudget` (dropped in 8.1). Add a
   derived `PeriodBudget.isRedundantWithCalendarMonth: Boolean` (or equivalent), computed by
   comparing `periodStart`/`periodEnd` against `today`'s calendar-month bounds — mirror
@@ -353,6 +353,19 @@ Settled while scoping this milestone, each checked against the live PHP source r
   entirely absent (not zero) when `user.budget` is 0 — mirrors `isset($monthlyBudget) &&
   $monthlyBudget > 0`'s gate, not just its arithmetic.
   ·  *Ref:* `WALLOS_API.md` §3.6, §3.9, this milestone's preamble
+  **Note:** `MonthlyBudget` is a plain `data class` with a `from(budget, monthlyCost): MonthlyBudget?`
+  factory in its own file (`model/MonthlyBudget.kt`) — no `@Single`/`@Factory`, per the step's own
+  "no new Koin-scanned class needed." `isRedundantWithCalendarMonth(today: LocalDate)` on
+  `PeriodBudget` takes `today` as a parameter rather than reading a clock, matching
+  `UpcomingPaymentsCalculator.calculate`'s existing shape. `PeriodBudgetDTO.periodStart`/
+  `periodEnd` are `String` (mapper parses via `DateFormatter`, injected — `feature:dashboard:data`
+  needed a new `implementation(projects.utils.formatter.datetime)` line) and required rather than
+  nullable: unlike `next_payment`/`start_date`, the API doc gives no "unset" case for a period's own
+  bounds, so the mapper throws (via `requireNotNull`, caught by `resultOf` same as `MonthlyCostMapper`'s
+  `Malformed` case) rather than silently dropping the period. `used`/`overBudget` on `MonthlyBudget`
+  mirror `stats_calculations.php`'s own variable names precisely (`$monthlyBudgetUsed` is a 0–100
+  percentage, not an absolute amount) — worth flagging since "used" reads as an amount at first
+  glance.
 
 - [ ] **10.3 — feature:dashboard:domain: Overdue Renewals + Upcoming Payments capped at 3**
   Extends `UpcomingPaymentsCalculator` (or splits it into a class that returns both lists in one

@@ -50,6 +50,8 @@ class DashboardApiImplTest {
         assertEquals(0.0, result.amountOverBudget)
         assertEquals(false, result.isOverBudget)
         assertEquals("€", result.currencySymbol)
+        assertEquals("2025-08-01", result.periodStart)
+        assertEquals("2025-08-31", result.periodEnd)
     }
 
     @Test

@@ -54,7 +54,9 @@ class DashboardViewModelTest {
                     amountRemainingThisPeriod = 58.0,
                     amountOverBudget = 0.0,
                     isOverBudget = false,
-                    currencySymbol = "€"
+                    currencySymbol = "€",
+                    periodStart = LocalDate(2026, 8, 1),
+                    periodEnd = LocalDate(2026, 8, 31)
                 )
             ),
             upcomingPayments = listOf(subscription(id = 1, nextPayment = LocalDate(2026, 8, 20)))
@@ -114,7 +116,9 @@ class DashboardViewModelTest {
                     amountRemainingThisPeriod = 58.0,
                     amountOverBudget = 0.0,
                     isOverBudget = false,
-                    currencySymbol = "€"
+                    currencySymbol = "€",
+                    periodStart = LocalDate(2026, 8, 1),
+                    periodEnd = LocalDate(2026, 8, 31)
                 )
             ),
             upcomingPayments = listOf(subscription(id = 1, nextPayment = LocalDate(2026, 8, 20)))
@@ -139,7 +143,9 @@ class DashboardViewModelTest {
                     amountRemainingThisPeriod = 0.0,
                     amountOverBudget = 12.5,
                     isOverBudget = true,
-                    currencySymbol = "€"
+                    currencySymbol = "€",
+                    periodStart = LocalDate(2026, 8, 1),
+                    periodEnd = LocalDate(2026, 8, 31)
                 )
             ),
             upcomingPayments = emptyList()

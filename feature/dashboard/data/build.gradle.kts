@@ -12,6 +12,7 @@ kotlin {
             implementation(projects.core.domain)
             implementation(projects.core.asyncKmp)
             implementation(projects.utils.formatter.decimal)
+            implementation(projects.utils.formatter.datetime)
 
             implementation(projects.feature.dashboard.domain)
             implementation(projects.feature.dashboard.dto)

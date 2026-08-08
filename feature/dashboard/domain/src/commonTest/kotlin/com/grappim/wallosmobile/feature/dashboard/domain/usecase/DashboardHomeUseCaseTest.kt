@@ -34,7 +34,9 @@ class DashboardHomeUseCaseTest {
             amountRemainingThisPeriod = 58.0,
             amountOverBudget = 0.0,
             isOverBudget = false,
-            currencySymbol = "€"
+            currencySymbol = "€",
+            periodStart = LocalDate(2026, 8, 1),
+            periodEnd = LocalDate(2026, 8, 31)
         )
         val sub = subscription(id = 1).copy(nextPayment = LocalDate(2026, 8, 20))
         val dashboardRepository = FakeDashboardRepository(
