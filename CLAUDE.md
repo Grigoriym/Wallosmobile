@@ -482,11 +482,13 @@ the product *shows*, and the two are not the same question. Keep this checkout u
 
 `mcp__wallos__*` reaches the same real instance. Read tools are free to call and are the fastest
 way to settle a question `WALLOS_API.md` leaves open. **`wallos_add_subscription`,
-`wallos_update_subscription`, `wallos_delete_subscription` and `wallos_set_budget` mutate the
-user's live data — ask first, every time.** It returns the payload unwrapped (no `success`/
-`title`, so it confirms values but not envelope behaviour) and adds fields the API doesn't have
-(`logo_url` exists nowhere in the PHP) — model DTOs against `curl`, use the MCP for values.
-Getting a key for that `curl`: `docs/local-info.txt`.
+`wallos_update_subscription`, `wallos_delete_subscription` and `wallos_set_budget` write to this
+instance too — free to call without asking first**, the same as the read tools: confirmed with the
+user 2026-08-08, it's their own local, disposable instance (port 8282), not shared or
+production data. It returns the payload unwrapped (no `success`/`title`, so it confirms values but
+not envelope behaviour) and adds fields the API doesn't have (`logo_url` exists nowhere in the
+PHP) — model DTOs against `curl`, use the MCP for values. Getting a key for that `curl`:
+`docs/local-info.txt`.
 
 ## Reference projects
 
