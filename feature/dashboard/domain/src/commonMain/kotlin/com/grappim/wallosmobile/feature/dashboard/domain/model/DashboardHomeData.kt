@@ -8,14 +8,19 @@ import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
  * The sources [com.grappim.wallosmobile.feature.dashboard.domain.usecase.DashboardHomeUseCase]
  * composes, kept as independent [Result]s rather than one failure sinking the whole screen — an
  * old instance without `get_period_budget` (`WallosError.UnsupportedEndpoint`) must not blank out
- * [monthlyCost], [user] or [upcomingPayments], which came from elsewhere. [monthlyBudget] and
- * [subscriptionStats] are derived, not fetched, and are `null` rather than a zeroed-out instance
- * whenever [monthlyCost] itself failed — [monthlyBudget] additionally needs [user] to have
- * succeeded, since it reads `User.budget`.
+ * [monthlyCost], [user] or [upcomingPayments], which came from elsewhere. [monthlyBudget],
+ * [subscriptionStats] and [isPeriodBudgetRedundant] are derived, not fetched. [monthlyBudget] and
+ * [subscriptionStats] are `null` rather than a zeroed-out instance whenever [monthlyCost] itself
+ * failed — [monthlyBudget] additionally needs [user] to have succeeded, since it reads
+ * `User.budget`. [isPeriodBudgetRedundant] is computed here, against the same `today` this use
+ * case already receives, rather than by the UI re-deriving it from a live clock — that would make
+ * the card's hidden state depend on the wall-clock date a ViewModel test happens to run on
+ * instead of a fixed value a test controls (`PeriodBudget.isRedundantWithCalendarMonth`, 10.2).
  */
 data class DashboardHomeData(
     val monthlyCost: Result<MonthlyCost>,
     val periodBudget: Result<PeriodBudget>,
+    val isPeriodBudgetRedundant: Boolean,
     val user: Result<User>,
     val upcomingPayments: List<Subscription>,
     val overdueRenewals: List<Subscription>,

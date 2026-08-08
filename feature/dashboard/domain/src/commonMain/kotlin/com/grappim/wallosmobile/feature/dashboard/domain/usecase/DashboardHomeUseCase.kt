@@ -45,10 +45,12 @@ class DashboardHomeUseCaseImpl(
         val monthlyCost = monthlyCostDeferred.await()
         val user = userDeferred.await()
         val monthlyCostAmount = monthlyCost.getOrNull()?.amount
+        val periodBudget = periodBudgetDeferred.await()
 
         DashboardHomeData(
             monthlyCost = monthlyCost,
-            periodBudget = periodBudgetDeferred.await(),
+            periodBudget = periodBudget,
+            isPeriodBudgetRedundant = periodBudget.getOrNull()?.isRedundantWithCalendarMonth(today) == true,
             user = user,
             upcomingPayments = upcomingAndOverdue.upcoming,
             overdueRenewals = upcomingAndOverdue.overdue,

@@ -5,9 +5,13 @@
     <string name="settings_title">Settings</string>
 
     <string name="dashboard_monthly_cost_title">Monthly cost</string>
-    <string name="dashboard_budget_title">Budget</string>
+    <string name="dashboard_monthly_budget_title">Monthly Budget</string>
+    <string name="dashboard_budget_amount">Budget: %1$s</string>
+    <string name="dashboard_budget_used">%1$s used</string>
+    <string name="dashboard_period_budget_title">Period Budget</string>
     <string name="dashboard_budget_remaining">%1$s remaining</string>
     <string name="dashboard_budget_over">%1$s over budget</string>
+    <string name="dashboard_overdue_title">Overdue Renewals</string>
     <string name="dashboard_upcoming_title">Upcoming payments</string>
     <string name="dashboard_upcoming_empty">No upcoming payments.</string>
 

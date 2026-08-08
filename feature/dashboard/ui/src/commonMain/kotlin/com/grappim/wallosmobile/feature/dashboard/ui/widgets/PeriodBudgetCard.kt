@@ -15,7 +15,7 @@ import com.grappim.wallosmobile.feature.dashboard.ui.PeriodBudgetCardUiState
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.dashboard_budget_over
 import com.grappim.wallosmobile.strings.generated.resources.dashboard_budget_remaining
-import com.grappim.wallosmobile.strings.generated.resources.dashboard_budget_title
+import com.grappim.wallosmobile.strings.generated.resources.dashboard_period_budget_title
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
@@ -33,7 +33,10 @@ fun PeriodBudgetCard(uiState: PeriodBudgetCardUiState, onRetryClick: () -> Unit,
                 .padding(CARD_PADDING),
             verticalArrangement = Arrangement.spacedBy(LINE_SPACING)
         ) {
-            Text(text = stringResource(RString.dashboard_budget_title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = stringResource(RString.dashboard_period_budget_title),
+                style = MaterialTheme.typography.titleMedium
+            )
 
             if (uiState.error.isNotEmpty()) {
                 Text(

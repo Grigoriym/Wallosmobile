@@ -16,10 +16,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.grappim.wallosmobile.feature.dashboard.ui.widgets.MonthlyCostCard
+import com.grappim.wallosmobile.feature.dashboard.ui.widgets.MonthlyBudgetCard
 import com.grappim.wallosmobile.feature.dashboard.ui.widgets.PeriodBudgetCard
 import com.grappim.wallosmobile.feature.dashboard.ui.widgets.UpcomingPaymentRow
 import com.grappim.wallosmobile.strings.RString
+import com.grappim.wallosmobile.strings.generated.resources.dashboard_overdue_title
 import com.grappim.wallosmobile.strings.generated.resources.dashboard_title
 import com.grappim.wallosmobile.strings.generated.resources.dashboard_upcoming_empty
 import com.grappim.wallosmobile.strings.generated.resources.dashboard_upcoming_title
@@ -69,10 +70,22 @@ private fun DashboardContent(
             contentPadding = PaddingValues(SCREEN_PADDING),
             verticalArrangement = Arrangement.spacedBy(ITEM_SPACING)
         ) {
-            item { MonthlyCostCard(uiState = uiState.monthlyCost, onRetryClick = uiState.onRetryClick) }
+            item { MonthlyBudgetCard(uiState = uiState.monthlyBudget, onRetryClick = uiState.onRetryClick) }
 
             if (!uiState.periodBudget.isHidden) {
                 item { PeriodBudgetCard(uiState = uiState.periodBudget, onRetryClick = uiState.onRetryClick) }
+            }
+
+            if (uiState.overdueRenewals.isNotEmpty()) {
+                item {
+                    Text(
+                        text = stringResource(RString.dashboard_overdue_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                items(items = uiState.overdueRenewals, key = { it.id }) { item ->
+                    UpcomingPaymentRow(item = item, onClick = { onSubscriptionClick(item.id) })
+                }
             }
 
             item {
@@ -107,17 +120,28 @@ private val previewItems = persistentListOf(
     UpcomingPaymentUiItem(id = 2, name = "1&1 Telekom", price = "€18.00", nextPayment = "12 Feb 2026")
 )
 
+private val previewOverdueItems = persistentListOf(
+    UpcomingPaymentUiItem(id = 3, name = "Netflix", price = "€12.99", nextPayment = "1 Jan 2026")
+)
+
 @PreviewWallosDarkLight
 @Composable
 private fun DashboardContentPreview() = WallosMobilePreviewTheme {
     DashboardContent(
         uiState = DashboardUiState(
-            monthlyCost = MonthlyCostCardUiState(title = "August 2026", amount = "€42.00"),
+            monthlyBudget = MonthlyBudgetCardUiState(
+                title = "August 2026",
+                costAmount = "€42.00",
+                budgetAmount = "€100.00",
+                usedPercent = "42.00%",
+                remainingAmount = "€58.00"
+            ),
             periodBudget = PeriodBudgetCardUiState(
                 periodLabel = "Aug 1 - Aug 31",
                 budgetAmount = "€100.00",
                 remainingAmount = "€58.00"
             ),
+            overdueRenewals = previewOverdueItems,
             upcomingPayments = previewItems
         ),
         onSubscriptionClick = {}
@@ -135,7 +159,7 @@ private fun DashboardContentLoadingPreview() = WallosMobilePreviewTheme {
 private fun DashboardContentBudgetHiddenPreview() = WallosMobilePreviewTheme {
     DashboardContent(
         uiState = DashboardUiState(
-            monthlyCost = MonthlyCostCardUiState(title = "August 2026", amount = "€42.00"),
+            monthlyBudget = MonthlyBudgetCardUiState(title = "August 2026", costAmount = "€42.00"),
             periodBudget = PeriodBudgetCardUiState(isHidden = true),
             upcomingPayments = previewItems
         ),
@@ -148,7 +172,7 @@ private fun DashboardContentBudgetHiddenPreview() = WallosMobilePreviewTheme {
 private fun DashboardContentEmptyPreview() = WallosMobilePreviewTheme {
     DashboardContent(
         uiState = DashboardUiState(
-            monthlyCost = MonthlyCostCardUiState(title = "August 2026", amount = "€0.00"),
+            monthlyBudget = MonthlyBudgetCardUiState(title = "August 2026", costAmount = "€0.00"),
             periodBudget = PeriodBudgetCardUiState(isHidden = true)
         ),
         onSubscriptionClick = {}

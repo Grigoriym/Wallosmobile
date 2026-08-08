@@ -1371,7 +1371,16 @@ These carry over unchanged; they are listed so the port is deliberate rather tha
   `subscriptionStats`, each needing `monthlyCost`'s unwrapped amount) is nullable and left `null`
   when either source failed rather than a zeroed-out instance — a fabricated 0 there would read as
   "no cost" rather than "unknown," so the `Impl` gates the derivation on `Result.getOrNull()`
-  rather than defaulting the missing operand. A domain module gaining its first real use case is also gaining
+  rather than defaulting the missing operand. **Any `today`-dependent derived boolean belongs in
+  this same `Impl`, not in the ViewModel that calls it** (10.6's `isPeriodBudgetRedundant`,
+  `PeriodBudget.isRedundantWithCalendarMonth(today)`): the use case already receives `today` as a
+  parameter and its own tests already fix it (`DashboardHomeUseCaseTest`'s `today = LocalDate(2026,
+  8, 8)`), while a ViewModel has no such parameter and would read `Clock.System.todayIn(...)`
+  directly — a real wall-clock value a `ViewModelTest`'s fake use case has no way to control. 10.6
+  hit this for real, not hypothetically: the environment's actual current date already fell inside
+  the pre-existing test fixtures' `Aug 1–Aug 31` period, so computing the redundancy check in the
+  ViewModel would have made three already-passing tests fail the moment this ran, days that landed
+  outside August would have passed by coincidence. A domain module gaining its first real use case is also gaining
   its first Koin content: every domain module up to 8.3 scanned to zero `@Single`/`@Factory`
   definitions (8.1's own note said so), so the module needs `alias(libs.plugins.wallosmobile.kmp.di)`
   added to its `build.gradle.kts` and a new `<Feature>DomainModule` (`@Module @Configuration

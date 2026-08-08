@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `5/7`
-**Current step:** 10.6 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
+M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `6/7`
+**Current step:** 10.7 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
 
 ---
 
@@ -454,7 +454,7 @@ Settled while scoping this milestone, each checked against the live PHP source r
   type wasn't visible there transitively (the same rule `CLAUDE.md`'s DI section already documents
   for plain types, paid a new time here in test scope rather than main-source).
 
-- [ ] **10.6 — feature:dashboard:ui: Overdue, Upcoming (capped), Monthly Budget, Period Budget**
+- [x] **10.6 — feature:dashboard:ui: Overdue, Upcoming (capped), Monthly Budget, Period Budget**
   Rebuilds the screen's card set: an Overdue Renewals section above Upcoming Payments (only when
   non-empty), Upcoming Payments now genuinely capped, `MonthlyCostCardUiState` folded into a wider
   Monthly Budget card (cost always shown; budget/used/remaining/over-budget rows only when present,
@@ -467,6 +467,32 @@ Settled while scoping this milestone, each checked against the live PHP source r
   eligible — check whether an Overdue row exists on this account to actually exercise that section,
   and note in this step if none did.
   ·  *Ref:* this milestone's preamble, `CLAUDE.md`'s Screen/Content split
+  **Note:** `MonthlyCostCard.kt` was renamed to `MonthlyBudgetCard.kt` (state renamed
+  `MonthlyCostCardUiState` → `MonthlyBudgetCardUiState`, `amount` → `costAmount`); its "Monthly
+  cost" row label is now a sub-row of the wider card rather than the card's own title, and the card
+  title itself, plus `PeriodBudgetCardUiState`'s, come from two new strings
+  (`dashboard_monthly_budget_title`/`dashboard_period_budget_title`) matching the web's own labels
+  (`en.php`'s `monthly_budget`/`period_budget`) rather than the placeholder "Budget" both cards
+  shared before. `dashboard_budget_remaining`/`dashboard_budget_over` are now reused by both cards
+  rather than being period-budget-only. `UpcomingPaymentUiItem`/`UpcomingPaymentRow` are reused
+  as-is for Overdue rows (identical shape — id/name/price/next payment — confirmed against
+  `index.php:137–180`'s overdue markup), not duplicated into a second type. The redundancy check
+  itself moved to the **domain** layer rather than being recomputed in the ViewModel: `today` is
+  only available in `DashboardViewModel.load()` via `Clock.System.todayIn(...)`, a real wall-clock
+  read, and computing `isRedundantWithCalendarMonth` there would have made `DashboardViewModelTest`
+  depend on the actual current date (this environment's real "today" being 2026-08-08, itself
+  inside the existing Aug-1–Aug-31 test fixtures' calendar month — the collision was not
+  hypothetical, three tests would have started failing the moment this ran). `DashboardHomeData`
+  gained a `isPeriodBudgetRedundant: Boolean`, computed once in `DashboardHomeUseCaseImpl` against
+  the same deterministic `today` its own tests already fix, mirroring how `monthlyBudget`/
+  `subscriptionStats` were already "derived, not fetched" there (10.5). Verified on the emulator
+  against the live instance: Monthly Budget showed `€711.39` (matches `get_monthly_cost` exactly)
+  with no budget sub-rows, since this account's `budget` is `0`; Period Budget showed and was not
+  hidden, period label `Jul 18 - Aug 17` confirming a genuinely non-calendar period; Upcoming
+  Payments showed exactly 3 of this account's 28 active subscriptions. **No Overdue row exists on
+  this account** — confirmed via `wallos_list_subscriptions`, every one of the 28 active rows has
+  `auto_renew: 1`, so none can ever land on the overdue side of 10.3's calculator; the section's
+  absence is therefore correct, not unverified.
 
 - [ ] **10.7 — feature:dashboard:ui: Your Subscriptions + Your Savings**
   Two more cards from 10.4's stats, shown only when their counts are `> 0` — matching

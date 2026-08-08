@@ -25,6 +25,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -59,6 +60,7 @@ class DashboardHomeUseCaseTest {
 
         assertEquals(monthlyCost, result.monthlyCost.getOrThrow())
         assertEquals(periodBudget, result.periodBudget.getOrThrow())
+        assertTrue(result.isPeriodBudgetRedundant)
         assertEquals(user, result.user.getOrThrow())
         assertEquals(listOf(1), result.upcomingPayments.map { it.id })
         assertEquals(emptyList(), result.overdueRenewals)
@@ -90,7 +92,31 @@ class DashboardHomeUseCaseTest {
         assertEquals(monthlyCost, result.monthlyCost.getOrThrow())
         assertTrue(result.periodBudget.isFailure)
         assertEquals(WallosError.UnsupportedEndpoint, result.periodBudget.exceptionOrNull())
+        assertFalse(result.isPeriodBudgetRedundant)
         assertEquals(listOf(1), result.upcomingPayments.map { it.id })
+    }
+
+    @Test
+    fun `a period anchored off the calendar month is not redundant`() = runTest {
+        val periodBudget = PeriodBudget(
+            periodLabel = "Jul 18 - Aug 17",
+            periodBudget = 100.0,
+            amountRemainingThisPeriod = 58.0,
+            amountOverBudget = 0.0,
+            isOverBudget = false,
+            currencySymbol = "€",
+            periodStart = LocalDate(2026, 7, 18),
+            periodEnd = LocalDate(2026, 8, 17)
+        )
+        val dashboardRepository = FakeDashboardRepository(
+            monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
+            periodBudget = Result.success(periodBudget)
+        )
+        val subscriptionsRepository = FakeSubscriptionsRepository(emptyList())
+
+        val result = useCase(dashboardRepository, subscriptionsRepository).getDashboardHomeData(today)
+
+        assertFalse(result.isPeriodBudgetRedundant)
     }
 
     @Test

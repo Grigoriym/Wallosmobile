@@ -3,6 +3,7 @@ package com.grappim.wallosmobile.feature.dashboard.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyCost
 import com.grappim.wallosmobile.feature.dashboard.domain.model.PeriodBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.usecase.DashboardHomeUseCase
@@ -50,39 +51,62 @@ class DashboardViewModel(
             _uiState.update {
                 it.copy(
                     isLoading = false,
-                    monthlyCost = data.monthlyCost.toCardState(),
-                    periodBudget = data.periodBudget.toCardState(),
+                    monthlyBudget = toMonthlyBudgetCardState(data.monthlyCost, data.monthlyBudget),
+                    periodBudget = toPeriodBudgetCardState(data.periodBudget, data.isPeriodBudgetRedundant),
+                    overdueRenewals = data.overdueRenewals.map(::toUiItem).toPersistentList(),
                     upcomingPayments = data.upcomingPayments.map(::toUiItem).toPersistentList()
                 )
             }
         }
     }
 
-    private fun Result<MonthlyCost>.toCardState(): MonthlyCostCardUiState = fold(
+    private fun toMonthlyBudgetCardState(
+        monthlyCost: Result<MonthlyCost>,
+        monthlyBudget: MonthlyBudget?
+    ): MonthlyBudgetCardUiState = monthlyCost.fold(
         onSuccess = { cost ->
-            MonthlyCostCardUiState(title = cost.title, amount = moneyFormatter.format(cost.amount, cost.currencySymbol))
-        },
-        onFailure = { throwable -> MonthlyCostCardUiState(error = getErrorMessage(throwable)) }
-    )
-
-    private fun Result<PeriodBudget>.toCardState(): PeriodBudgetCardUiState = fold(
-        onSuccess = { budget ->
-            PeriodBudgetCardUiState(
-                periodLabel = budget.periodLabel,
-                budgetAmount = moneyFormatter.format(budget.periodBudget, budget.currencySymbol),
-                remainingAmount = moneyFormatter.format(budget.amountRemainingThisPeriod, budget.currencySymbol),
-                isOverBudget = budget.isOverBudget,
-                amountOverBudget = moneyFormatter.format(budget.amountOverBudget, budget.currencySymbol)
+            MonthlyBudgetCardUiState(
+                title = cost.title,
+                costAmount = moneyFormatter.format(cost.amount, cost.currencySymbol),
+                budgetAmount = monthlyBudget?.let { moneyFormatter.format(it.amount, cost.currencySymbol) }.orEmpty(),
+                usedPercent = monthlyBudget?.let { "${moneyFormatter.format(it.used, "")}%" }.orEmpty(),
+                remainingAmount = monthlyBudget?.let {
+                    moneyFormatter.format(it.remaining, cost.currencySymbol)
+                }.orEmpty(),
+                isOverBudget = monthlyBudget?.isOverBudget == true,
+                overBudgetAmount = monthlyBudget?.let {
+                    moneyFormatter.format(it.overBudget, cost.currencySymbol)
+                }.orEmpty()
             )
         },
-        onFailure = { throwable ->
-            if (throwable == WallosError.UnsupportedEndpoint) {
-                PeriodBudgetCardUiState(isHidden = true)
-            } else {
-                PeriodBudgetCardUiState(error = getErrorMessage(throwable))
-            }
-        }
+        onFailure = { throwable -> MonthlyBudgetCardUiState(error = getErrorMessage(throwable)) }
     )
+
+    private fun toPeriodBudgetCardState(
+        periodBudget: Result<PeriodBudget>,
+        isRedundant: Boolean
+    ): PeriodBudgetCardUiState {
+        if (isRedundant) return PeriodBudgetCardUiState(isHidden = true)
+
+        return periodBudget.fold(
+            onSuccess = { budget ->
+                PeriodBudgetCardUiState(
+                    periodLabel = budget.periodLabel,
+                    budgetAmount = moneyFormatter.format(budget.periodBudget, budget.currencySymbol),
+                    remainingAmount = moneyFormatter.format(budget.amountRemainingThisPeriod, budget.currencySymbol),
+                    isOverBudget = budget.isOverBudget,
+                    amountOverBudget = moneyFormatter.format(budget.amountOverBudget, budget.currencySymbol)
+                )
+            },
+            onFailure = { throwable ->
+                if (throwable == WallosError.UnsupportedEndpoint) {
+                    PeriodBudgetCardUiState(isHidden = true)
+                } else {
+                    PeriodBudgetCardUiState(error = getErrorMessage(throwable))
+                }
+            }
+        )
+    }
 
     private fun toUiItem(subscription: Subscription) = UpcomingPaymentUiItem(
         id = subscription.id,

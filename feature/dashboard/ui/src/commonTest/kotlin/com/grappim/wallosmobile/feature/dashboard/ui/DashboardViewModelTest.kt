@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.feature.dashboard.ui
 
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.dashboard.domain.model.DashboardHomeData
+import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyCost
 import com.grappim.wallosmobile.feature.dashboard.domain.model.PeriodBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.usecase.DashboardHomeUseCase
@@ -28,8 +29,19 @@ class DashboardViewModelTest {
     private val useCase = FakeDashboardHomeUseCase()
     private val mainDispatcherRule = MainDispatcherRule()
 
-    /** Neither the ViewModel nor these tests read `user`/`monthlyBudget`/`subscriptionStats` yet — that's 10.6/10.7. */
+    /** Neither the ViewModel nor these tests read `subscriptionStats` yet — that's 10.7. */
     private val user = Result.success(User(id = 1, budget = 0.0, periodBudget = 0.0, mainCurrencyId = 1))
+
+    private val periodBudget = PeriodBudget(
+        periodLabel = "Aug 1 - Aug 31",
+        periodBudget = 100.0,
+        amountRemainingThisPeriod = 58.0,
+        amountOverBudget = 0.0,
+        isOverBudget = false,
+        currencySymbol = "€",
+        periodStart = LocalDate(2026, 8, 1),
+        periodEnd = LocalDate(2026, 8, 31)
+    )
 
     @BeforeTest
     fun setup() {
@@ -51,18 +63,8 @@ class DashboardViewModelTest {
     fun `all three sources render once the use case answers`() = runTest {
         useCase.result = DashboardHomeData(
             monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
-            periodBudget = Result.success(
-                PeriodBudget(
-                    periodLabel = "Aug 1 - Aug 31",
-                    periodBudget = 100.0,
-                    amountRemainingThisPeriod = 58.0,
-                    amountOverBudget = 0.0,
-                    isOverBudget = false,
-                    currencySymbol = "€",
-                    periodStart = LocalDate(2026, 8, 1),
-                    periodEnd = LocalDate(2026, 8, 31)
-                )
-            ),
+            periodBudget = Result.success(periodBudget),
+            isPeriodBudgetRedundant = false,
             upcomingPayments = listOf(subscription(id = 1, nextPayment = LocalDate(2026, 8, 20))),
             overdueRenewals = emptyList(),
             user = user,
@@ -73,8 +75,8 @@ class DashboardViewModelTest {
         val state = viewModel().uiState.value
 
         assertFalse(state.isLoading)
-        assertEquals("August 2026", state.monthlyCost.title)
-        assertEquals("€42.00", state.monthlyCost.amount)
+        assertEquals("August 2026", state.monthlyBudget.title)
+        assertEquals("€42.00", state.monthlyBudget.costAmount)
         assertFalse(state.periodBudget.isHidden)
         assertEquals("€58.00", state.periodBudget.remainingAmount)
         assertFalse(state.periodBudget.isOverBudget)
@@ -89,6 +91,27 @@ class DashboardViewModelTest {
         useCase.result = DashboardHomeData(
             monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
             periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
+            isPeriodBudgetRedundant = false,
+            upcomingPayments = emptyList(),
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
+        )
+
+        val state = viewModel().uiState.value
+
+        assertTrue(state.periodBudget.isHidden)
+        assertTrue(state.periodBudget.error.isEmpty())
+    }
+
+    /** 10.2/10.6: a period anchored on the calendar month repeats Monthly Budget, so it's hidden too. */
+    @Test
+    fun `a period budget redundant with the calendar month hides the card even though it succeeded`() = runTest {
+        useCase.result = DashboardHomeData(
+            monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
+            periodBudget = Result.success(periodBudget),
+            isPeriodBudgetRedundant = true,
             upcomingPayments = emptyList(),
             overdueRenewals = emptyList(),
             user = user,
@@ -108,6 +131,7 @@ class DashboardViewModelTest {
         useCase.result = DashboardHomeData(
             monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
             periodBudget = Result.failure(WallosError.NotFound("Unauthorized or Not Found")),
+            isPeriodBudgetRedundant = false,
             upcomingPayments = emptyList(),
             overdueRenewals = emptyList(),
             user = user,
@@ -125,18 +149,8 @@ class DashboardViewModelTest {
     fun `a monthly-cost failure still leaves the other two sources populated`() = runTest {
         useCase.result = DashboardHomeData(
             monthlyCost = Result.failure(WallosError.Server("boom")),
-            periodBudget = Result.success(
-                PeriodBudget(
-                    periodLabel = "Aug 1 - Aug 31",
-                    periodBudget = 100.0,
-                    amountRemainingThisPeriod = 58.0,
-                    amountOverBudget = 0.0,
-                    isOverBudget = false,
-                    currencySymbol = "€",
-                    periodStart = LocalDate(2026, 8, 1),
-                    periodEnd = LocalDate(2026, 8, 31)
-                )
-            ),
+            periodBudget = Result.success(periodBudget),
+            isPeriodBudgetRedundant = false,
             upcomingPayments = listOf(subscription(id = 1, nextPayment = LocalDate(2026, 8, 20))),
             overdueRenewals = emptyList(),
             user = user,
@@ -146,7 +160,7 @@ class DashboardViewModelTest {
 
         val state = viewModel().uiState.value
 
-        assertTrue(state.monthlyCost.error.isNotEmpty())
+        assertTrue(state.monthlyBudget.error.isNotEmpty())
         assertFalse(state.periodBudget.isHidden)
         assertEquals("€58.00", state.periodBudget.remainingAmount)
         assertEquals(1, state.upcomingPayments.size)
@@ -157,17 +171,9 @@ class DashboardViewModelTest {
         useCase.result = DashboardHomeData(
             monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
             periodBudget = Result.success(
-                PeriodBudget(
-                    periodLabel = "Aug 1 - Aug 31",
-                    periodBudget = 100.0,
-                    amountRemainingThisPeriod = 0.0,
-                    amountOverBudget = 12.5,
-                    isOverBudget = true,
-                    currencySymbol = "€",
-                    periodStart = LocalDate(2026, 8, 1),
-                    periodEnd = LocalDate(2026, 8, 31)
-                )
+                periodBudget.copy(amountRemainingThisPeriod = 0.0, amountOverBudget = 12.5, isOverBudget = true)
             ),
+            isPeriodBudgetRedundant = false,
             upcomingPayments = emptyList(),
             overdueRenewals = emptyList(),
             user = user,
@@ -181,11 +187,82 @@ class DashboardViewModelTest {
         assertEquals("€12.50", state.periodBudget.amountOverBudget)
     }
 
+    /** 10.2's gate: cost always shows; the budget/used/remaining rows only appear once a monthly budget is set. */
+    @Test
+    fun `monthly budget rows render alongside the cost when a monthly budget is set`() = runTest {
+        useCase.result = DashboardHomeData(
+            monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
+            periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
+            isPeriodBudgetRedundant = false,
+            upcomingPayments = emptyList(),
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = MonthlyBudget(
+                amount = 100.0,
+                used = 42.0,
+                remaining = 58.0,
+                overBudget = 0.0,
+                isOverBudget = false
+            ),
+            subscriptionStats = null
+        )
+
+        val state = viewModel().uiState.value
+
+        assertEquals("€42.00", state.monthlyBudget.costAmount)
+        assertEquals("€100.00", state.monthlyBudget.budgetAmount)
+        assertEquals("42.00%", state.monthlyBudget.usedPercent)
+        assertEquals("€58.00", state.monthlyBudget.remainingAmount)
+        assertFalse(state.monthlyBudget.isOverBudget)
+    }
+
+    /** No `MonthlyBudget` (the account has no budget set, 10.2's `null` gate) leaves the extra rows blank. */
+    @Test
+    fun `no monthly budget leaves the budget rows blank`() = runTest {
+        useCase.result = DashboardHomeData(
+            monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
+            periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
+            isPeriodBudgetRedundant = false,
+            upcomingPayments = emptyList(),
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
+        )
+
+        val state = viewModel().uiState.value
+
+        assertEquals("€42.00", state.monthlyBudget.costAmount)
+        assertTrue(state.monthlyBudget.budgetAmount.isEmpty())
+        assertTrue(state.monthlyBudget.remainingAmount.isEmpty())
+    }
+
+    /** Overdue Renewals is a separate section from Upcoming Payments, not merged into it. */
+    @Test
+    fun `overdue renewals render separately from upcoming payments`() = runTest {
+        useCase.result = DashboardHomeData(
+            monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
+            periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
+            isPeriodBudgetRedundant = false,
+            upcomingPayments = listOf(subscription(id = 1, nextPayment = LocalDate(2026, 8, 20))),
+            overdueRenewals = listOf(subscription(id = 2, nextPayment = LocalDate(2026, 8, 1))),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
+        )
+
+        val state = viewModel().uiState.value
+
+        assertEquals(listOf(1), state.upcomingPayments.map { it.id })
+        assertEquals(listOf(2), state.overdueRenewals.map { it.id })
+    }
+
     @Test
     fun `retry reloads from the use case`() = runTest {
         useCase.result = DashboardHomeData(
             monthlyCost = Result.failure(WallosError.Server("boom")),
             periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
+            isPeriodBudgetRedundant = false,
             upcomingPayments = emptyList(),
             overdueRenewals = emptyList(),
             user = user,
@@ -194,11 +271,12 @@ class DashboardViewModelTest {
         )
         val sut = viewModel()
         assertEquals(1, useCase.callCount)
-        assertTrue(sut.uiState.value.monthlyCost.error.isNotEmpty())
+        assertTrue(sut.uiState.value.monthlyBudget.error.isNotEmpty())
 
         useCase.result = DashboardHomeData(
             monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
             periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
+            isPeriodBudgetRedundant = false,
             upcomingPayments = emptyList(),
             overdueRenewals = emptyList(),
             user = user,
@@ -208,8 +286,8 @@ class DashboardViewModelTest {
         sut.uiState.value.onRetryClick()
 
         assertEquals(2, useCase.callCount)
-        assertTrue(sut.uiState.value.monthlyCost.error.isEmpty())
-        assertEquals("€42.00", sut.uiState.value.monthlyCost.amount)
+        assertTrue(sut.uiState.value.monthlyBudget.error.isEmpty())
+        assertEquals("€42.00", sut.uiState.value.monthlyBudget.costAmount)
     }
 
     private fun subscription(id: Int, nextPayment: LocalDate?) = Subscription(
