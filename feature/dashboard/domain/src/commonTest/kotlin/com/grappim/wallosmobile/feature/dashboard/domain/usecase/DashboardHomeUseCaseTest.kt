@@ -1,9 +1,15 @@
 package com.grappim.wallosmobile.feature.dashboard.domain.usecase
 
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.feature.dashboard.domain.calculator.SubscriptionStats
+import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyCost
 import com.grappim.wallosmobile.feature.dashboard.domain.model.PeriodBudget
+import com.grappim.wallosmobile.feature.dashboard.domain.model.YourSavings
+import com.grappim.wallosmobile.feature.dashboard.domain.model.YourSubscriptions
 import com.grappim.wallosmobile.feature.dashboard.domain.repo.DashboardRepository
+import com.grappim.wallosmobile.feature.profile.domain.model.User
+import com.grappim.wallosmobile.feature.profile.domain.repo.ProfileRepository
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
@@ -19,6 +25,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DashboardHomeUseCaseTest {
@@ -26,7 +33,7 @@ class DashboardHomeUseCaseTest {
     private val today = LocalDate(2026, 8, 8)
 
     @Test
-    fun `all three sources are present`() = runTest {
+    fun `all sources are present`() = runTest {
         val monthlyCost = MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")
         val periodBudget = PeriodBudget(
             periodLabel = "Aug 1 - Aug 31",
@@ -38,19 +45,31 @@ class DashboardHomeUseCaseTest {
             periodStart = LocalDate(2026, 8, 1),
             periodEnd = LocalDate(2026, 8, 31)
         )
+        val user = user(budget = 50.0)
         val sub = subscription(id = 1).copy(nextPayment = LocalDate(2026, 8, 20))
         val dashboardRepository = FakeDashboardRepository(
             monthlyCost = Result.success(monthlyCost),
             periodBudget = Result.success(periodBudget)
         )
         val subscriptionsRepository = FakeSubscriptionsRepository(listOf(sub))
+        val profileRepository = FakeProfileRepository(Result.success(user))
 
-        val result = useCase(dashboardRepository, subscriptionsRepository).getDashboardHomeData(today)
+        val result = useCase(dashboardRepository, subscriptionsRepository, profileRepository)
+            .getDashboardHomeData(today)
 
         assertEquals(monthlyCost, result.monthlyCost.getOrThrow())
         assertEquals(periodBudget, result.periodBudget.getOrThrow())
+        assertEquals(user, result.user.getOrThrow())
         assertEquals(listOf(1), result.upcomingPayments.map { it.id })
         assertEquals(emptyList(), result.overdueRenewals)
+        assertEquals(MonthlyBudget.from(budget = 50.0, monthlyCost = 42.0), result.monthlyBudget)
+        assertEquals(
+            SubscriptionStats(
+                yourSubscriptions = YourSubscriptions(activeCount = 1, monthlyCost = 42.0, yearlyCost = 504.0),
+                yourSavings = YourSavings(inactiveCount = 0, savingsPerMonth = 0.0)
+            ),
+            result.subscriptionStats
+        )
         assertEquals(8, dashboardRepository.lastMonth)
         assertEquals(2026, dashboardRepository.lastYear)
         assertEquals(today, dashboardRepository.lastReferenceDate)
@@ -72,6 +91,62 @@ class DashboardHomeUseCaseTest {
         assertTrue(result.periodBudget.isFailure)
         assertEquals(WallosError.UnsupportedEndpoint, result.periodBudget.exceptionOrNull())
         assertEquals(listOf(1), result.upcomingPayments.map { it.id })
+    }
+
+    @Test
+    fun `a getUser failure leaves the rest of DashboardHomeData populated`() = runTest {
+        val monthlyCost = MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")
+        val periodBudget = PeriodBudget(
+            periodLabel = "Aug 1 - Aug 31",
+            periodBudget = 100.0,
+            amountRemainingThisPeriod = 58.0,
+            amountOverBudget = 0.0,
+            isOverBudget = false,
+            currencySymbol = "€",
+            periodStart = LocalDate(2026, 8, 1),
+            periodEnd = LocalDate(2026, 8, 31)
+        )
+        val sub = subscription(id = 1).copy(nextPayment = LocalDate(2026, 8, 20))
+        val dashboardRepository = FakeDashboardRepository(
+            monthlyCost = Result.success(monthlyCost),
+            periodBudget = Result.success(periodBudget)
+        )
+        val subscriptionsRepository = FakeSubscriptionsRepository(listOf(sub))
+        val profileRepository = FakeProfileRepository(Result.failure(WallosError.Server("boom")))
+
+        val result = useCase(dashboardRepository, subscriptionsRepository, profileRepository)
+            .getDashboardHomeData(today)
+
+        assertTrue(result.user.isFailure)
+        assertEquals(WallosError.Server("boom"), result.user.exceptionOrNull())
+        assertEquals(monthlyCost, result.monthlyCost.getOrThrow())
+        assertEquals(periodBudget, result.periodBudget.getOrThrow())
+        assertEquals(listOf(1), result.upcomingPayments.map { it.id })
+        assertNull(result.monthlyBudget)
+        assertEquals(
+            SubscriptionStats(
+                yourSubscriptions = YourSubscriptions(activeCount = 1, monthlyCost = 42.0, yearlyCost = 504.0),
+                yourSavings = YourSavings(inactiveCount = 0, savingsPerMonth = 0.0)
+            ),
+            result.subscriptionStats
+        )
+    }
+
+    @Test
+    fun `a monthly-cost failure leaves monthly budget and subscription stats absent, not zeroed`() = runTest {
+        val dashboardRepository = FakeDashboardRepository(
+            monthlyCost = Result.failure(WallosError.Server("boom")),
+            periodBudget = Result.failure(WallosError.UnsupportedEndpoint)
+        )
+        val subscriptionsRepository = FakeSubscriptionsRepository(emptyList())
+        val profileRepository = FakeProfileRepository(Result.success(user(budget = 50.0)))
+
+        val result = useCase(dashboardRepository, subscriptionsRepository, profileRepository)
+            .getDashboardHomeData(today)
+
+        assertTrue(result.monthlyCost.isFailure)
+        assertNull(result.monthlyBudget)
+        assertNull(result.subscriptionStats)
     }
 
     @Test
@@ -105,8 +180,11 @@ class DashboardHomeUseCaseTest {
 
     private fun useCase(
         dashboardRepository: DashboardRepository,
-        subscriptionsRepository: SubscriptionsRepository
-    ): DashboardHomeUseCase = DashboardHomeUseCaseImpl(dashboardRepository, subscriptionsRepository)
+        subscriptionsRepository: SubscriptionsRepository,
+        profileRepository: ProfileRepository = FakeProfileRepository(Result.success(user()))
+    ): DashboardHomeUseCase = DashboardHomeUseCaseImpl(dashboardRepository, subscriptionsRepository, profileRepository)
+
+    private fun user(budget: Double = 0.0) = User(id = 1, budget = budget, periodBudget = 0.0, mainCurrencyId = 1)
 
     private fun subscription(id: Int) = Subscription(
         id = id,
@@ -155,6 +233,10 @@ class DashboardHomeUseCaseTest {
             lastReferenceDate = referenceDate
             return periodBudget
         }
+    }
+
+    private class FakeProfileRepository(private val user: Result<User>) : ProfileRepository {
+        override suspend fun getUser(): Result<User> = user
     }
 
     private class FakeSubscriptionsRepository(private val subscriptions: List<Subscription>) : SubscriptionsRepository {

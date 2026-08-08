@@ -5,6 +5,7 @@ import com.grappim.wallosmobile.feature.dashboard.domain.model.DashboardHomeData
 import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyCost
 import com.grappim.wallosmobile.feature.dashboard.domain.model.PeriodBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.usecase.DashboardHomeUseCase
+import com.grappim.wallosmobile.feature.profile.domain.model.User
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.strings.RString
@@ -26,6 +27,9 @@ class DashboardViewModelTest {
 
     private val useCase = FakeDashboardHomeUseCase()
     private val mainDispatcherRule = MainDispatcherRule()
+
+    /** Neither the ViewModel nor these tests read `user`/`monthlyBudget`/`subscriptionStats` yet — that's 10.6/10.7. */
+    private val user = Result.success(User(id = 1, budget = 0.0, periodBudget = 0.0, mainCurrencyId = 1))
 
     @BeforeTest
     fun setup() {
@@ -60,7 +64,10 @@ class DashboardViewModelTest {
                 )
             ),
             upcomingPayments = listOf(subscription(id = 1, nextPayment = LocalDate(2026, 8, 20))),
-            overdueRenewals = emptyList()
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
         )
 
         val state = viewModel().uiState.value
@@ -83,7 +90,10 @@ class DashboardViewModelTest {
             monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
             periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
             upcomingPayments = emptyList(),
-            overdueRenewals = emptyList()
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
         )
 
         val state = viewModel().uiState.value
@@ -99,7 +109,10 @@ class DashboardViewModelTest {
             monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
             periodBudget = Result.failure(WallosError.NotFound("Unauthorized or Not Found")),
             upcomingPayments = emptyList(),
-            overdueRenewals = emptyList()
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
         )
 
         val state = viewModel().uiState.value
@@ -125,7 +138,10 @@ class DashboardViewModelTest {
                 )
             ),
             upcomingPayments = listOf(subscription(id = 1, nextPayment = LocalDate(2026, 8, 20))),
-            overdueRenewals = emptyList()
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
         )
 
         val state = viewModel().uiState.value
@@ -153,7 +169,10 @@ class DashboardViewModelTest {
                 )
             ),
             upcomingPayments = emptyList(),
-            overdueRenewals = emptyList()
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
         )
 
         val state = viewModel().uiState.value
@@ -168,7 +187,10 @@ class DashboardViewModelTest {
             monthlyCost = Result.failure(WallosError.Server("boom")),
             periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
             upcomingPayments = emptyList(),
-            overdueRenewals = emptyList()
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
         )
         val sut = viewModel()
         assertEquals(1, useCase.callCount)
@@ -178,7 +200,10 @@ class DashboardViewModelTest {
             monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
             periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
             upcomingPayments = emptyList(),
-            overdueRenewals = emptyList()
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
         )
         sut.uiState.value.onRetryClick()
 

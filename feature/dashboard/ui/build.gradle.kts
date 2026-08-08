@@ -28,5 +28,12 @@ kotlin {
             implementation(projects.utils.formatter.decimal)
             implementation(projects.utils.formatter.datetime)
         }
+
+        commonTest.dependencies {
+            // `User` for a fake `DashboardHomeData.user` result — `dashboard:domain`'s own
+            // dependency on `feature:profile:domain` is `implementation`, not `api`, so it isn't
+            // visible here transitively (10.5).
+            implementation(projects.feature.profile.domain)
+        }
     }
 }

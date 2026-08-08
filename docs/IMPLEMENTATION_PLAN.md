@@ -1364,9 +1364,14 @@ These carry over unchanged; they are listed so the port is deliberate rather tha
   *independently* returns a plain data class of per-source `Result`s instead, so one endpoint
   being down (`WallosError.UnsupportedEndpoint`) can't blank out the sources that succeeded. A
   helper the use case composes over but that has **no dependencies of its own** (here,
-  `UpcomingPaymentsCalculator`) is constructed directly inside the `Impl` rather than injected —
-  the same "stop injecting it" case as the cache-repository bullet below, just reached from a use
-  case instead of a repository. A domain module gaining its first real use case is also gaining
+  `UpcomingPaymentsCalculator`, and 10.4/10.5's `SubscriptionStatsCalculator` the same way) is
+  constructed directly inside the `Impl` rather than injected — the same "stop injecting it" case
+  as the cache-repository bullet below, just reached from a use case instead of a repository. A
+  *derived* field built from two independently-failing sources (10.5's `monthlyBudget`/
+  `subscriptionStats`, each needing `monthlyCost`'s unwrapped amount) is nullable and left `null`
+  when either source failed rather than a zeroed-out instance — a fabricated 0 there would read as
+  "no cost" rather than "unknown," so the `Impl` gates the derivation on `Result.getOrNull()`
+  rather than defaulting the missing operand. A domain module gaining its first real use case is also gaining
   its first Koin content: every domain module up to 8.3 scanned to zero `@Single`/`@Factory`
   definitions (8.1's own note said so), so the module needs `alias(libs.plugins.wallosmobile.kmp.di)`
   added to its `build.gradle.kts` and a new `<Feature>DomainModule` (`@Module @Configuration

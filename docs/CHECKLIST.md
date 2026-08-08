@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `4/7`
-**Current step:** 10.5 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
+M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `5/7`
+**Current step:** 10.6 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
 
 ---
 
@@ -420,7 +420,7 @@ Settled while scoping this milestone, each checked against the live PHP source r
   `inactiveCount` has no such filter, matching the PHP, since a one-time row's `getPricePerMonth`
   already contributes 0 to savings regardless of whether it's counted.
 
-- [ ] **10.5 — feature:dashboard:domain: `DashboardHomeUseCase` recomposition**
+- [x] **10.5 — feature:dashboard:domain: `DashboardHomeUseCase` recomposition**
   Composes 10.1's `ProfileRepository.getUser()` alongside 8.1's two calls and 10.3/10.4's
   calculators into a wider `DashboardHomeData` (independent `Result`s per source, same reasoning
   8.3 already established: a failed `getUser()` must not blank out monthly cost or the subscription
@@ -429,6 +429,30 @@ Settled while scoping this milestone, each checked against the live PHP source r
   *Verify:* `./gradlew :feature:dashboard:domain:testAndroidHostTest` — every source still present;
   a `getUser()` failure leaves the rest of `DashboardHomeData` populated.
   ·  *Ref:* plan §6, this milestone's preamble
+  **Note:** `DashboardHomeData` gained `user: Result<User>` plus two *derived* fields —
+  `monthlyBudget: MonthlyBudget?` and `subscriptionStats: SubscriptionStats?` (10.4's
+  `SubscriptionStatsCalculator`, wired in here as this step's own text anticipated). Both derived
+  fields are `null`, not zeroed, whenever `monthlyCost` itself failed — `MonthlyBudget.from` and
+  `SubscriptionStatsCalculator.calculate` both need the unwrapped `Double` amount, and a fabricated
+  0 would read as "no cost" rather than "unknown," so `monthlyCostAmount?.let { … }` gates both
+  computations on that one `Result` rather than each guessing independently; `monthlyBudget`
+  additionally needs `user` to have succeeded, since it reads `User.budget`. `DashboardHomeUseCaseImpl`
+  gained a third constructor parameter (`profileRepository: ProfileRepository`) and a second
+  calculator field (`subscriptionStatsCalculator`), fetched via a third `async` alongside the
+  existing two. `KoinGraphTest` confirmed the wider constructor still resolves — `ProfileRepository`
+  was already bound by 10.1's `ProfileRepositoryImpl`/`ProfileDataModule`, already in `AppModule`'s
+  includes, so no DI wiring changed outside this module.
+  Widening `DashboardHomeData`'s required-field list rippled into two test files exactly the way
+  10.2/10.3's own field additions already did: `DashboardHomeUseCaseTest` (this module, three new
+  cases — full population, a `getUser()` failure, and a `monthlyCost` failure proving both derived
+  fields go absent) and `feature:dashboard:ui`'s `DashboardViewModelTest`, whose seven
+  `DashboardHomeData(...)` construction sites all needed `user`/`monthlyBudget`/`subscriptionStats`
+  added (`null`/a fixed success `User`, since the ViewModel doesn't read any of the three yet —
+  that's 10.6/10.7). The `User` ripple needed a new `commonTest`-only
+  `implementation(projects.feature.profile.domain)` line in `feature/dashboard/ui/build.gradle.kts`
+  — `dashboard:domain`'s own dependency on `profile:domain` is `implementation`, not `api`, so the
+  type wasn't visible there transitively (the same rule `CLAUDE.md`'s DI section already documents
+  for plain types, paid a new time here in test scope rather than main-source).
 
 - [ ] **10.6 — feature:dashboard:ui: Overdue, Upcoming (capped), Monthly Budget, Period Budget**
   Rebuilds the screen's card set: an Overdue Renewals section above Upcoming Payments (only when
