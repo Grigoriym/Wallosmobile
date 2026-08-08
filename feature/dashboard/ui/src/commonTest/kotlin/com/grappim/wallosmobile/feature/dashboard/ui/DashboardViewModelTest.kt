@@ -1,10 +1,13 @@
 package com.grappim.wallosmobile.feature.dashboard.ui
 
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.feature.dashboard.domain.calculator.SubscriptionStats
 import com.grappim.wallosmobile.feature.dashboard.domain.model.DashboardHomeData
 import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyCost
 import com.grappim.wallosmobile.feature.dashboard.domain.model.PeriodBudget
+import com.grappim.wallosmobile.feature.dashboard.domain.model.YourSavings
+import com.grappim.wallosmobile.feature.dashboard.domain.model.YourSubscriptions
 import com.grappim.wallosmobile.feature.dashboard.domain.usecase.DashboardHomeUseCase
 import com.grappim.wallosmobile.feature.profile.domain.model.User
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
@@ -29,7 +32,6 @@ class DashboardViewModelTest {
     private val useCase = FakeDashboardHomeUseCase()
     private val mainDispatcherRule = MainDispatcherRule()
 
-    /** Neither the ViewModel nor these tests read `subscriptionStats` yet — that's 10.7. */
     private val user = Result.success(User(id = 1, budget = 0.0, periodBudget = 0.0, mainCurrencyId = 1))
 
     private val periodBudget = PeriodBudget(
@@ -255,6 +257,51 @@ class DashboardViewModelTest {
 
         assertEquals(listOf(1), state.upcomingPayments.map { it.id })
         assertEquals(listOf(2), state.overdueRenewals.map { it.id })
+    }
+
+    /** 10.7: gated by `activeCount > 0` (`index.php:373`), reads the monthly cost's own currency symbol. */
+    @Test
+    fun `your subscriptions renders from the stats, formatted in the monthly cost's currency`() = runTest {
+        useCase.result = DashboardHomeData(
+            monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 711.39, currencySymbol = "€")),
+            periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
+            isPeriodBudgetRedundant = false,
+            upcomingPayments = emptyList(),
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = SubscriptionStats(
+                yourSubscriptions = YourSubscriptions(activeCount = 28, monthlyCost = 711.39, yearlyCost = 8536.68),
+                yourSavings = YourSavings(inactiveCount = 0, savingsPerMonth = 0.0)
+            )
+        )
+
+        val state = viewModel().uiState.value
+
+        assertEquals(28, state.yourSubscriptions.activeCount)
+        assertEquals("€711.39", state.yourSubscriptions.monthlyCost)
+        assertEquals("€8,536.68", state.yourSubscriptions.yearlyCost)
+        assertEquals(0, state.yourSavings.inactiveCount)
+    }
+
+    /** 10.7: gated by `inactiveCount > 0` (`index.php:411`) — a `null` `subscriptionStats` leaves both cards blank. */
+    @Test
+    fun `no subscription stats leaves your subscriptions and your savings blank`() = runTest {
+        useCase.result = DashboardHomeData(
+            monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
+            periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
+            isPeriodBudgetRedundant = false,
+            upcomingPayments = emptyList(),
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
+        )
+
+        val state = viewModel().uiState.value
+
+        assertEquals(0, state.yourSubscriptions.activeCount)
+        assertEquals(0, state.yourSavings.inactiveCount)
     }
 
     @Test

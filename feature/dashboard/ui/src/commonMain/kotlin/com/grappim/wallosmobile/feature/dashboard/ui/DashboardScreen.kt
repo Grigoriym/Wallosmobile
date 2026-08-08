@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import com.grappim.wallosmobile.feature.dashboard.ui.widgets.MonthlyBudgetCard
 import com.grappim.wallosmobile.feature.dashboard.ui.widgets.PeriodBudgetCard
 import com.grappim.wallosmobile.feature.dashboard.ui.widgets.UpcomingPaymentRow
+import com.grappim.wallosmobile.feature.dashboard.ui.widgets.YourSavingsCard
+import com.grappim.wallosmobile.feature.dashboard.ui.widgets.YourSubscriptionsCard
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.dashboard_overdue_title
 import com.grappim.wallosmobile.strings.generated.resources.dashboard_title
@@ -108,6 +110,14 @@ private fun DashboardContent(
                     UpcomingPaymentRow(item = item, onClick = { onSubscriptionClick(item.id) })
                 }
             }
+
+            if (uiState.yourSubscriptions.activeCount > 0) {
+                item { YourSubscriptionsCard(uiState = uiState.yourSubscriptions) }
+            }
+
+            if (uiState.yourSavings.inactiveCount > 0) {
+                item { YourSavingsCard(uiState = uiState.yourSavings) }
+            }
         }
     }
 }
@@ -142,7 +152,13 @@ private fun DashboardContentPreview() = WallosMobilePreviewTheme {
                 remainingAmount = "€58.00"
             ),
             overdueRenewals = previewOverdueItems,
-            upcomingPayments = previewItems
+            upcomingPayments = previewItems,
+            yourSubscriptions = YourSubscriptionsCardUiState(
+                activeCount = 28,
+                monthlyCost = "€711.39",
+                yearlyCost = "€8,536.68"
+            ),
+            yourSavings = YourSavingsCardUiState(inactiveCount = 2, savingsPerMonth = "€19.98")
         ),
         onSubscriptionClick = {}
     )

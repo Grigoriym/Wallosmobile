@@ -2081,3 +2081,281 @@ catalog granularity, so no step below has to re-derive them:
   step's `testAndroidHostTest` — `DashboardViewModelTest` was written anyway, matching the
   established per-feature convention, and passes alongside it.
   **M8 is done — Phase 4 is complete.**
+
+## M10 — Dashboard: web parity (not in plan §8's phase order)
+
+Goal: close the four gaps `docs/CHECKLIST.md`'s own "To review" filed against the dashboard (8.4)
+after comparing it directly to the real Wallos web UI (`/home/gregory/proj/other/Wallos`, confirmed
+`v5.4.2`, same as the docker instance) — `index.php` and `includes/stats_calculations.php`, not
+`WALLOS_API.md` alone, are the source of truth for what's built here. **Takes priority over M9**:
+decided with the user 2026-08-08 — the dashboard doesn't ship as "done" while it disagrees with the
+one UI its own numbers are supposed to describe. **Done when** the mobile dashboard's sections
+match the web dashboard's, verified card-by-card against the live instance.
+
+Settled while scoping this milestone, each checked against the live PHP source rather than assumed:
+
+- **`feature:profile` is pulled forward from M9, built minimal.** Decided with the user: dto +
+  domain + data only, `getUser()` alone — enough for `user.budget`, which nothing on the dashboard
+  can reach today (`get_period_budget.php`'s own SQL only ever selects `period_budget`,
+  `budget_period_type`, `budget_period_anchor_date` — never `budget`; confirmed reading
+  `api/subscriptions/get_period_budget.php` live). M9's 9.8 later *adds* `setBudget()` to this same
+  repository rather than building a second `get_user.php` caller — the module isn't otherwise
+  different from what 9.8 already specified, just built ahead of its number.
+- **Everything else needs no new endpoint** — Overdue Renewals, the Upcoming cap, Your
+  Subscriptions and Your Savings are all computable from `SubscriptionsRepository`'s existing cache
+  plus `MonthlyCost` (already fetched). Confirmed reading `stats_calculations.php`'s own loop
+  (lines ~195–262): active count, monthly/yearly cost and inactive count/savings are a single pass
+  over the same subscription list this app already caches.
+- **Both dashboard queries the web actually runs exclude `cycle = 5` (one-time) entirely** —
+  `index.php:76` (Upcoming) and `:85` (Overdue) both carry `AND cycle != 5`. Our
+  `UpcomingPaymentsCalculator.resolve()` does not: a *future* one-time subscription
+  (`nextPayment >= today`) passes through unchanged regardless of cycle, so today's dashboard can
+  show a one-time purchase the web's own dashboard never would. Found while scoping this milestone,
+  not previously known.
+- **Overdue Renewals is exactly the set `UpcomingPaymentsCalculator` (8.2) already excludes** —
+  `index.php:85`'s query (`next_payment < today AND auto_renew = 0 AND inactive = 0 AND cycle !=
+  5`, unlimited, no rolling) selects precisely the rows 8.2's own cron precedent
+  (`endpoints/cronjobs/updatenextpayment.php`, `WHERE next_payment < :currentDate AND auto_renew =
+  1 AND inactive = 0`) already established the server itself never advances. 8.2's calculator
+  already computes and discards this exact set; it becomes a second output instead of a dropped
+  one. The **roll-forward behavior stays** for auto-renewing past-due rows — that's this app's own
+  compensation for a cache the web doesn't have (8.2's own reasoning), not something to remove for
+  parity.
+- **Upcoming Payments caps at 3** (`index.php:76`, `LIMIT 3`) — a `.take(3)` after sorting, since
+  the cache is already local; no query-level limit needed.
+- **"Budget" was one card; the web has two, gated differently.** `index.php:259–370` /
+  `stats_calculations.php:295–334`:
+  - **Monthly Budget** — shown whenever a monthly cost exists (i.e. almost always), and *contains*
+    Monthly Cost as one of its rows rather than being a separate card. Its
+    `budget`/`budget_used`/`budget_remaining`/`over_budget` sub-rows only appear when
+    `user.budget > 0` (this app's own `monthlyBudget - totalCostPerMonth`, min/max-clamped exactly
+    as `stats_calculations.php:301–304` does it — mirror that formula, don't re-derive one).
+  - **Period Budget** — shown only when the active period is *not* the plain calendar month
+    (`stats_calculations.php:290–293`: compares `period_start`/`period_end` against the calendar
+    month's own start/end). `PeriodBudgetDTO`/`PeriodBudget` dropped `period_start`/`period_end` in
+    8.1 ("8.4's card doesn't need them") — they need restoring for this gate to be computable at
+    all.
+- **A known simplification, not yet decided**: the web's `totalSavingsPerMonth` subtracts the
+  monthly cost of any inactive row's `replacement_subscription_id` (`stats_calculations.php:242–
+  262`) — cancelling A for B nets the saving against what B now costs. `Subscription` (domain)
+  dropped `replacementSubscriptionId` on purpose (2.1's trim), though `SubscriptionDTO` already
+  carries it. The step that builds Your Savings decides whether to restore the field and mirror the
+  offset, or ship the simpler "sum of inactive rows' prices" and say so in its `Note:`.
+- **AI Recommendations is out of scope** — reads as a paid/hosted-only feature from its own name
+  (`index.php:183–257`, a per-user `ai_recommendations` table with "savings" copy no endpoint in
+  `WALLOS_API.md` describes), not a candidate for parity.
+
+- [x] **10.1 — feature:profile: dto + domain + data — `getUser()` only**
+  New module, minimal by design (this milestone's preamble). `UserDTO` (`WALLOS_API.md` §3.9 —
+  `id`, `budget`, `period_budget`, `main_currency`; skip `password`/`api_key`, always masked, and
+  anything M9's 9.9 needs that this card doesn't). `ProfileRepository.getUser(): Result<User>`,
+  hand-written against `WallosApiClient` like `DashboardRepository` (neither `core:crud` nor a
+  cache fit a single-row endpoint with no `add`/`edit`/`delete`).
+  *Verify:* `./gradlew :feature:profile:data:testAndroidHostTest` — happy path against `MockEngine`
+  fixtures, `budget`/`period_budget` parsed as numbers.
+  ·  *Ref:* `WALLOS_API.md` §3.9, this milestone's preamble
+  **Note:** `get_user.php` nests the row under a `"user"` key (`{"success":true,"user":{...}}`),
+  unlike `get_monthly_cost.php`/`get_period_budget.php`'s flat envelope — confirmed against the
+  live PHP shown in this milestone's preamble. Needed a `UserResponse(val user: UserDTO)` wrapper
+  in `feature:profile:dto`, the same shape `get_subscription.php`'s own `SubscriptionResponse`
+  already uses for its own nested `"subscription"` key; `ProfileApiImpl.getUser()` reads
+  `apiClient.post<UserResponse>(...).user`. Domain `User` mirrors `UserDTO`'s four fields
+  one-for-one (`id`, `budget`, `periodBudget`, `mainCurrencyId`) since none is dead weight at this
+  trim. No `ProfileDomainModule`: `feature:profile:domain` has zero `@Single`-annotated
+  definitions, the same as every other feature's `domain` module before 8.1's own
+  `DashboardDomainModule` fixed on that fact (`docs/archive/CHECKLIST-DONE.md` 8.1's note) — its
+  `build.gradle.kts` carries only `kmp.library`, no `kmp.di`. `feature:profile:data` needed its own
+  `implementation(projects.feature.profile.data)` line in `composeApp/build.gradle.kts` and
+  `ProfileDataModule::class` in `AppModule`'s `includes` even though nothing calls it yet — 8.1's
+  same reminder, repeated here since nothing enforces it structurally.
+
+- [x] **10.2 — feature:dashboard: budget domain rework**
+  Restore `period_start`/`period_end` to `PeriodBudgetDTO`/`PeriodBudget` (dropped in 8.1). Add a
+  derived `PeriodBudget.isRedundantWithCalendarMonth: Boolean` (or equivalent), computed by
+  comparing `periodStart`/`periodEnd` against `today`'s calendar-month bounds — mirror
+  `stats_calculations.php:290–293` exactly, don't re-derive the comparison from scratch. New
+  `MonthlyBudget` domain model (`amount` from `feature:profile`'s `User.budget`, `used`/
+  `remaining`/`overBudget` derived against `MonthlyCost.amount` the same clamped formula
+  `stats_calculations.php:301–304` uses), built where `MonthlyCost`/`PeriodBudget` already live —
+  a pure calculation, no new endpoint, so no new Koin-scanned class needed for it specifically.
+  *Verify:* `./gradlew :feature:dashboard:domain:testAndroidHostTest` — `isRedundantWithCalendarMonth`
+  true for a plain monthly period, false for a period anchored elsewhere (matching the live
+  instance's own `Jul 18–Aug 17` period, `budget_period_anchor_date: "2026-07-18"`); `MonthlyBudget`
+  derivation clamps `remaining` to 0 and only sets `overBudget` when cost exceeds budget, and is
+  entirely absent (not zero) when `user.budget` is 0 — mirrors `isset($monthlyBudget) &&
+  $monthlyBudget > 0`'s gate, not just its arithmetic.
+  ·  *Ref:* `WALLOS_API.md` §3.6, §3.9, this milestone's preamble
+  **Note:** `MonthlyBudget` is a plain `data class` with a `from(budget, monthlyCost): MonthlyBudget?`
+  factory in its own file (`model/MonthlyBudget.kt`) — no `@Single`/`@Factory`, per the step's own
+  "no new Koin-scanned class needed." `isRedundantWithCalendarMonth(today: LocalDate)` on
+  `PeriodBudget` takes `today` as a parameter rather than reading a clock, matching
+  `UpcomingPaymentsCalculator.calculate`'s existing shape. `PeriodBudgetDTO.periodStart`/
+  `periodEnd` are `String` (mapper parses via `DateFormatter`, injected — `feature:dashboard:data`
+  needed a new `implementation(projects.utils.formatter.datetime)` line) and required rather than
+  nullable: unlike `next_payment`/`start_date`, the API doc gives no "unset" case for a period's own
+  bounds, so the mapper throws (via `requireNotNull`, caught by `resultOf` same as `MonthlyCostMapper`'s
+  `Malformed` case) rather than silently dropping the period. `used`/`overBudget` on `MonthlyBudget`
+  mirror `stats_calculations.php`'s own variable names precisely (`$monthlyBudgetUsed` is a 0–100
+  percentage, not an absolute amount) — worth flagging since "used" reads as an amount at first
+  glance.
+
+- [x] **10.3 — feature:dashboard:domain: Overdue Renewals + Upcoming Payments capped at 3**
+  Extends `UpcomingPaymentsCalculator` (or splits it into a class that returns both lists in one
+  pass over the same filtered/sorted sequence — decide here) to also return the past-due,
+  non-auto-renewing rows it currently drops, and to exclude `BillingCycle.ONE_TIME` from the
+  *upcoming* side unconditionally (this milestone's preamble — today it only excludes a *past-due*
+  one-time row, not a future one). Both lists exclude inactive rows and mirror the web's `cycle !=
+  5` filter; Overdue Renewals also excludes `nextPayment == null`/unrecognised-`cycle` rows the same
+  way Upcoming already does, but is otherwise unlimited (`index.php:85`, no `LIMIT`). Upcoming caps
+  at 3 after sorting.
+  *Verify:* `./gradlew :feature:dashboard:domain:testAndroidHostTest` — a past-due, non-auto-renewing
+  row lands in Overdue, not dropped; a past-due auto-renewing row still rolls forward into Upcoming
+  exactly as 8.2 left it; a future one-time subscription is excluded from Upcoming (regression for
+  the gap this milestone found); more than 3 eligible upcoming rows yields exactly 3, the 3 soonest.
+  ·  *Ref:* `WALLOS_API.md` §3.1, this milestone's preamble
+  **Note:** Kept a single `UpcomingPaymentsCalculator` class (the "decide here" this step left open)
+  rather than splitting it — `calculate()` now returns a new `UpcomingAndOverdue(upcoming, overdue)`
+  in one pass: a private `Eligible(subscription, nextPayment, cycle)` step filters inactive rows,
+  null `nextPayment`/`cycle`, and `BillingCycle.ONE_TIME` up front (mirrors `cycle != 5` on *both*
+  web queries, not just Upcoming's — the step text only called out excluding one-time from Upcoming,
+  but the preamble's own "both dashboard queries... exclude cycle = 5 entirely" covers Overdue too,
+  confirmed reading `index.php:76`/`:85` together), then a single `forEach` buckets each row into
+  `upcoming` (future as-is, or past-due+auto-renew rolled forward, per 8.2's existing logic) or
+  `overdue` (past-due+non-auto-renew, kept at its original date) before each list is sorted
+  ascending and only `upcoming` is `.take(3)`. `DashboardHomeData` gained a required
+  `overdueRenewals: List<Subscription>` field (no default, since `feature:dashboard:ui`'s
+  `DashboardViewModel` already ignores fields it doesn't read yet) — this rippled into all seven
+  `DashboardHomeData(...)` construction sites in `DashboardViewModelTest`, same shape 10.2's own
+  `periodStart`/`periodEnd` addition already rippled into that file. `feature:dashboard:ui` itself
+  is untouched; wiring `overdueRenewals` into `DashboardUiState`/the screen is 10.6.
+
+- [x] **10.4 — feature:dashboard:domain: Your Subscriptions + Your Savings**
+  A pure class over the cached subscription list (no new endpoint, this milestone's preamble):
+  active count, monthly cost (already fetched — reuse it, don't resum), yearly cost
+  (`monthlyCost × 12`, matching `stats_calculations.php`'s own `$totalCostPerYear`); inactive count,
+  and a savings figure — decide and document here whether it includes the
+  `replacement_subscription_id` offset (this milestone's preamble's open item) or the simpler sum,
+  either way with a `Note:` saying which.
+  *Verify:* `./gradlew :feature:dashboard:domain:testAndroidHostTest` — counts and both cost figures
+  against a small fixed subscription list; savings excludes inactive one-time rows the same way
+  the other two calculators do, if that's where the step lands.
+  ·  *Ref:* this milestone's preamble
+  **Note:** New `SubscriptionStatsCalculator` (`calculator/`) plus `YourSubscriptions`/`YourSavings`
+  domain models (`model/`), following `UpcomingPaymentsCalculator`'s own shape — a plain class,
+  constructed directly rather than Koin-injected, since `DashboardHomeUseCaseImpl` will build it the
+  same way it already builds `UpcomingPaymentsCalculator` (that wiring is 10.5, untouched here).
+  Went with the **simpler sum, no `replacement_subscription_id` offset**: `Subscription` (domain)
+  doesn't carry that field (2.1's trim) and restoring it just for this one card's edge case (a
+  cancelled row replaced by another) outweighs the parity gain — the number is real, just not
+  identical to the web's when a replacement exists. `activeCount` mirrors
+  `stats_calculations.php`'s own count exactly (excludes `cycle = 5` even though the row is active);
+  `inactiveCount` has no such filter, matching the PHP, since a one-time row's `getPricePerMonth`
+  already contributes 0 to savings regardless of whether it's counted.
+
+- [x] **10.5 — feature:dashboard:domain: `DashboardHomeUseCase` recomposition**
+  Composes 10.1's `ProfileRepository.getUser()` alongside 8.1's two calls and 10.3/10.4's
+  calculators into a wider `DashboardHomeData` (independent `Result`s per source, same reasoning
+  8.3 already established: a failed `getUser()` must not blank out monthly cost or the subscription
+  lists). `feature:dashboard:domain` gains a dependency on `feature:profile:domain` the same shape
+  it already has on `feature:subscriptions:domain`.
+  *Verify:* `./gradlew :feature:dashboard:domain:testAndroidHostTest` — every source still present;
+  a `getUser()` failure leaves the rest of `DashboardHomeData` populated.
+  ·  *Ref:* plan §6, this milestone's preamble
+  **Note:** `DashboardHomeData` gained `user: Result<User>` plus two *derived* fields —
+  `monthlyBudget: MonthlyBudget?` and `subscriptionStats: SubscriptionStats?` (10.4's
+  `SubscriptionStatsCalculator`, wired in here as this step's own text anticipated). Both derived
+  fields are `null`, not zeroed, whenever `monthlyCost` itself failed — `MonthlyBudget.from` and
+  `SubscriptionStatsCalculator.calculate` both need the unwrapped `Double` amount, and a fabricated
+  0 would read as "no cost" rather than "unknown," so `monthlyCostAmount?.let { … }` gates both
+  computations on that one `Result` rather than each guessing independently; `monthlyBudget`
+  additionally needs `user` to have succeeded, since it reads `User.budget`. `DashboardHomeUseCaseImpl`
+  gained a third constructor parameter (`profileRepository: ProfileRepository`) and a second
+  calculator field (`subscriptionStatsCalculator`), fetched via a third `async` alongside the
+  existing two. `KoinGraphTest` confirmed the wider constructor still resolves — `ProfileRepository`
+  was already bound by 10.1's `ProfileRepositoryImpl`/`ProfileDataModule`, already in `AppModule`'s
+  includes, so no DI wiring changed outside this module.
+  Widening `DashboardHomeData`'s required-field list rippled into two test files exactly the way
+  10.2/10.3's own field additions already did: `DashboardHomeUseCaseTest` (this module, three new
+  cases — full population, a `getUser()` failure, and a `monthlyCost` failure proving both derived
+  fields go absent) and `feature:dashboard:ui`'s `DashboardViewModelTest`, whose seven
+  `DashboardHomeData(...)` construction sites all needed `user`/`monthlyBudget`/`subscriptionStats`
+  added (`null`/a fixed success `User`, since the ViewModel doesn't read any of the three yet —
+  that's 10.6/10.7). The `User` ripple needed a new `commonTest`-only
+  `implementation(projects.feature.profile.domain)` line in `feature/dashboard/ui/build.gradle.kts`
+  — `dashboard:domain`'s own dependency on `profile:domain` is `implementation`, not `api`, so the
+  type wasn't visible there transitively (the same rule `CLAUDE.md`'s DI section already documents
+  for plain types, paid a new time here in test scope rather than main-source).
+
+- [x] **10.6 — feature:dashboard:ui: Overdue, Upcoming (capped), Monthly Budget, Period Budget**
+  Rebuilds the screen's card set: an Overdue Renewals section above Upcoming Payments (only when
+  non-empty), Upcoming Payments now genuinely capped, `MonthlyCostCardUiState` folded into a wider
+  Monthly Budget card (cost always shown; budget/used/remaining/over-budget rows only when present,
+  per 10.2's gate) and `PeriodBudgetCardUiState` hidden (not just its own `isHidden` from
+  `UnsupportedEndpoint`, per 8.4) whenever 10.2's `isRedundantWithCalendarMonth` is true.
+  *Verify:* `./gradlew :feature:dashboard:ui:testAndroidHostTest`, and on the emulator against the
+  live instance — confirm Monthly Budget's Monthly Cost line matches the web's `Hello John` page
+  reading side by side, Period Budget shows (this instance's period is `Jul 18–Aug 17`, genuinely
+  not a calendar month), and Upcoming Payments shows at most 3 rows even with more than 3
+  eligible — check whether an Overdue row exists on this account to actually exercise that section,
+  and note in this step if none did.
+  ·  *Ref:* this milestone's preamble, `CLAUDE.md`'s Screen/Content split
+  **Note:** `MonthlyCostCard.kt` was renamed to `MonthlyBudgetCard.kt` (state renamed
+  `MonthlyCostCardUiState` → `MonthlyBudgetCardUiState`, `amount` → `costAmount`); its "Monthly
+  cost" row label is now a sub-row of the wider card rather than the card's own title, and the card
+  title itself, plus `PeriodBudgetCardUiState`'s, come from two new strings
+  (`dashboard_monthly_budget_title`/`dashboard_period_budget_title`) matching the web's own labels
+  (`en.php`'s `monthly_budget`/`period_budget`) rather than the placeholder "Budget" both cards
+  shared before. `dashboard_budget_remaining`/`dashboard_budget_over` are now reused by both cards
+  rather than being period-budget-only. `UpcomingPaymentUiItem`/`UpcomingPaymentRow` are reused
+  as-is for Overdue rows (identical shape — id/name/price/next payment — confirmed against
+  `index.php:137–180`'s overdue markup), not duplicated into a second type. The redundancy check
+  itself moved to the **domain** layer rather than being recomputed in the ViewModel: `today` is
+  only available in `DashboardViewModel.load()` via `Clock.System.todayIn(...)`, a real wall-clock
+  read, and computing `isRedundantWithCalendarMonth` there would have made `DashboardViewModelTest`
+  depend on the actual current date (this environment's real "today" being 2026-08-08, itself
+  inside the existing Aug-1–Aug-31 test fixtures' calendar month — the collision was not
+  hypothetical, three tests would have started failing the moment this ran). `DashboardHomeData`
+  gained a `isPeriodBudgetRedundant: Boolean`, computed once in `DashboardHomeUseCaseImpl` against
+  the same deterministic `today` its own tests already fix, mirroring how `monthlyBudget`/
+  `subscriptionStats` were already "derived, not fetched" there (10.5). Verified on the emulator
+  against the live instance: Monthly Budget showed `€711.39` (matches `get_monthly_cost` exactly)
+  with no budget sub-rows, since this account's `budget` is `0`; Period Budget showed and was not
+  hidden, period label `Jul 18 - Aug 17` confirming a genuinely non-calendar period; Upcoming
+  Payments showed exactly 3 of this account's 28 active subscriptions. **No Overdue row exists on
+  this account** — confirmed via `wallos_list_subscriptions`, every one of the 28 active rows has
+  `auto_renew: 1`, so none can ever land on the overdue side of 10.3's calculator; the section's
+  absence is therefore correct, not unverified.
+
+- [x] **10.7 — feature:dashboard:ui: Your Subscriptions + Your Savings**
+  Two more cards from 10.4's stats, shown only when their counts are `> 0` — matching
+  `index.php:373`/`:411`'s own gates, not shown unconditionally.
+  *Verify:* `./gradlew :feature:dashboard:ui:testAndroidHostTest`, and on the emulator — confirm
+  the active count and monthly/yearly cost match the web's "Your Subscriptions" card, and that
+  Your Savings is absent if this account has no inactive subscriptions (check and note which it
+  was).
+  ·  *Ref:* this milestone's preamble
+  **Note:** `YourSubscriptionsCardUiState`/`YourSavingsCardUiState` and their two widgets
+  (`YourSubscriptionsCard.kt`/`YourSavingsCard.kt`) follow `MonthlyBudgetCard`'s own
+  Card/Column shape exactly — title, then one `bodyMedium` row per field, each row a single
+  combined "label: value" string (new `dashboard_active_subscriptions`/
+  `dashboard_monthly_cost_amount`/`dashboard_yearly_cost`/`dashboard_inactive_subscriptions`/
+  `dashboard_monthly_savings` strings, `%1$d`/`%1$s` printf style per `CLAUDE.md`). Both cards
+  read `currencySymbol` off `data.monthlyCost`'s own `Result` (`getOrNull()?.currencySymbol`,
+  falling back to `""`) rather than adding a new source — `SubscriptionStats` carries no currency
+  of its own, and the web's own figures are in the same main-currency total `MonthlyCost.amount`
+  already is. `DashboardScreen`'s `LazyColumn` appends both cards after Upcoming Payments,
+  gated on `activeCount > 0`/`inactiveCount > 0`; this doesn't match the web's own card order
+  (Monthly Budget/Period Budget sit *after* Overdue/Upcoming there, `index.php:184-411`) since
+  10.6 already fixed this app's order the other way around and reordering existing cards was out
+  of this step's scope.
+  Verified on the emulator against the live instance: **Your Subscriptions** showed
+  "Active subscriptions: 28", "Monthly cost: €711.39" (matching Monthly Budget's own figure),
+  "Yearly cost: €8,536.68" (`711.39 × 12`, exact). **Your Savings** was present — this account
+  has 7 inactive subscriptions (`wallos_list_subscriptions(state: "inactive")` confirmed the
+  count) — "Inactive subscriptions: 7", "Monthly savings: €102.82"; hand-summing each row's
+  `getPricePerMonth` (Fiton €2.6658 + Congstar €18 + Disney+ €8.99 + Flo €0.8325 + Praktika AI
+  €8.3325 + Vattenfall €59 + Komoot €4.9992) lands on exactly €102.82, confirming
+  `SubscriptionStatsCalculator`'s math on real data. One of the seven (Vattenfall, id 12) does
+  carry a `replacement_subscription_id` (37) — 10.4's own known simplification (no offset) is
+  therefore live on this account's real numbers, not just a hypothetical.
+  **M10 is done — the dashboard now matches the web's own card set.**

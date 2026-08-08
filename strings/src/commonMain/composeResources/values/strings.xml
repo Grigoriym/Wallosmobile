@@ -14,6 +14,13 @@
     <string name="dashboard_overdue_title">Overdue Renewals</string>
     <string name="dashboard_upcoming_title">Upcoming payments</string>
     <string name="dashboard_upcoming_empty">No upcoming payments.</string>
+    <string name="dashboard_your_subscriptions_title">Your Subscriptions</string>
+    <string name="dashboard_active_subscriptions">Active subscriptions: %1$d</string>
+    <string name="dashboard_monthly_cost_amount">Monthly cost: %1$s</string>
+    <string name="dashboard_yearly_cost">Yearly cost: %1$s</string>
+    <string name="dashboard_your_savings_title">Your Savings</string>
+    <string name="dashboard_inactive_subscriptions">Inactive subscriptions: %1$d</string>
+    <string name="dashboard_monthly_savings">Monthly savings: %1$s</string>
 
     <string name="login_title">Connect to Wallos</string>
     <string name="login_server_url_label">Server URL</string>

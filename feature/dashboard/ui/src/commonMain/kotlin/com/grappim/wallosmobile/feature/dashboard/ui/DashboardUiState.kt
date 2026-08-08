@@ -43,6 +43,16 @@ data class PeriodBudgetCardUiState(
     val error: NativeText = NativeText.Empty
 )
 
+/** Shown only when [activeCount] is greater than 0 (`index.php:373`'s own gate). */
+data class YourSubscriptionsCardUiState(
+    val activeCount: Int = 0,
+    val monthlyCost: String = "",
+    val yearlyCost: String = ""
+)
+
+/** Shown only when [inactiveCount] is greater than 0 (`index.php:411`'s own gate). */
+data class YourSavingsCardUiState(val inactiveCount: Int = 0, val savingsPerMonth: String = "")
+
 /**
  * No cache behind any of the sources (M8 preamble), so [isLoading] is the only load state this
  * screen has — there is no cached row to leave standing under a failed refresh the way the
@@ -54,5 +64,7 @@ data class DashboardUiState(
     val periodBudget: PeriodBudgetCardUiState = PeriodBudgetCardUiState(),
     val overdueRenewals: ImmutableList<UpcomingPaymentUiItem> = persistentListOf(),
     val upcomingPayments: ImmutableList<UpcomingPaymentUiItem> = persistentListOf(),
+    val yourSubscriptions: YourSubscriptionsCardUiState = YourSubscriptionsCardUiState(),
+    val yourSavings: YourSavingsCardUiState = YourSavingsCardUiState(),
     val onRetryClick: () -> Unit = {}
 )

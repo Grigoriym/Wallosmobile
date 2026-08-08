@@ -3,6 +3,7 @@ package com.grappim.wallosmobile.feature.dashboard.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.feature.dashboard.domain.calculator.SubscriptionStats
 import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyCost
 import com.grappim.wallosmobile.feature.dashboard.domain.model.PeriodBudget
@@ -47,6 +48,7 @@ class DashboardViewModel(
 
             val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
             val data = dashboardHomeUseCase.getDashboardHomeData(today)
+            val currencySymbol = data.monthlyCost.getOrNull()?.currencySymbol.orEmpty()
 
             _uiState.update {
                 it.copy(
@@ -54,10 +56,32 @@ class DashboardViewModel(
                     monthlyBudget = toMonthlyBudgetCardState(data.monthlyCost, data.monthlyBudget),
                     periodBudget = toPeriodBudgetCardState(data.periodBudget, data.isPeriodBudgetRedundant),
                     overdueRenewals = data.overdueRenewals.map(::toUiItem).toPersistentList(),
-                    upcomingPayments = data.upcomingPayments.map(::toUiItem).toPersistentList()
+                    upcomingPayments = data.upcomingPayments.map(::toUiItem).toPersistentList(),
+                    yourSubscriptions = toYourSubscriptionsCardState(data.subscriptionStats, currencySymbol),
+                    yourSavings = toYourSavingsCardState(data.subscriptionStats, currencySymbol)
                 )
             }
         }
+    }
+
+    private fun toYourSubscriptionsCardState(
+        stats: SubscriptionStats?,
+        currencySymbol: String
+    ): YourSubscriptionsCardUiState {
+        val yourSubscriptions = stats?.yourSubscriptions ?: return YourSubscriptionsCardUiState()
+        return YourSubscriptionsCardUiState(
+            activeCount = yourSubscriptions.activeCount,
+            monthlyCost = moneyFormatter.format(yourSubscriptions.monthlyCost, currencySymbol),
+            yearlyCost = moneyFormatter.format(yourSubscriptions.yearlyCost, currencySymbol)
+        )
+    }
+
+    private fun toYourSavingsCardState(stats: SubscriptionStats?, currencySymbol: String): YourSavingsCardUiState {
+        val yourSavings = stats?.yourSavings ?: return YourSavingsCardUiState()
+        return YourSavingsCardUiState(
+            inactiveCount = yourSavings.inactiveCount,
+            savingsPerMonth = moneyFormatter.format(yourSavings.savingsPerMonth, currencySymbol)
+        )
     }
 
     private fun toMonthlyBudgetCardState(
