@@ -2075,6 +2075,23 @@ roll by) is excluded from the list rather than given a fabricated future date th
 never computes. 8.4 built the screen itself and made it the app's landing screen, ahead of
 Subscriptions in the drawer (§5.4).
 
+### Phase 4b — Dashboard: web parity
+
+Not in the original list: comparing the shipped dashboard (8.4) against the actual Wallos web UI
+(`/home/gregory/proj/other/Wallos`) rather than `WALLOS_API.md` alone found it doesn't show what
+the web shows — no limit on upcoming payments where the web caps at 3, no "Overdue Renewals"
+section, "Budget" collapsing two web widgets (Monthly Budget, which contains Monthly Cost, and a
+Period Budget the web hides whenever the period equals the calendar month) into one always-visible
+card, and no equivalent of the web's "Your Subscriptions"/"Your Savings" sections. The user does
+not consider 8.4 done as shipped and put this ahead of Phase 5. **Done when** the dashboard's
+sections match the web dashboard's, verified card-by-card against the live instance.
+*Decomposed as **M10** in `docs/CHECKLIST.md`* (7 steps) — pulls a minimal `feature:profile`
+(`getUser()` only) forward from Phase 5's M9, since nothing on the dashboard could reach
+`user.budget` before this; M9's own `feature:profile` step later adds `setBudget()` to the same
+module rather than building a second reader. See the milestone's own preamble for the full list of
+what was checked against the live PHP source, including a real gap found in `UpcomingPaymentsCalculator`
+(a future one-time subscription isn't excluded, unlike the web's own query).
+
 ### Phase 5 — Management screens
 Full CRUD UI for the four catalog resources (with the in-use delete guard surfaced properly),
 `feature:settings` (server display settings + local theme), `feature:profile`
