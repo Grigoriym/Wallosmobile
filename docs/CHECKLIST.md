@@ -167,4 +167,13 @@ kept here as the permanent answer rather than something to re-open; the rest is 
   questions a log line answers faster than a screencap round trip. Touching every clickable in
   every screen (and its preview) for this is not obviously worth it yet; wants a concrete case this
   would have shortened before it becomes a step rather than a hunch.
+- **A user-configurable start destination.** 8.4 made `START_DESTINATION` a hard-coded constant
+  (`DashboardRoute`), on the reasoning that a drawer ordering with Dashboard first only makes sense
+  if it's also where the app opens — but the user wants the choice back: some sessions want
+  Subscriptions as the landing screen instead. Filed 2026-08-08. Should be possible without
+  disturbing `NavigationState`/`Navigator` — `START_DESTINATION` would read a stored preference
+  (`feature:settings`'s local-theme storage is the existing precedent for a device-only setting
+  with no server round trip) instead of the constant, with a picker on the Settings screen next to
+  Interface. Worth deciding whether the choice is just Dashboard-vs-Subscriptions or any drawer
+  destination before this becomes a step. Not tackled here — separate work.
 
