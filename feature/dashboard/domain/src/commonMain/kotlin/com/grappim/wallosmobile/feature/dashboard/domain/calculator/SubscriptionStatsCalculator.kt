@@ -12,21 +12,25 @@ private const val WEEKS_PER_MONTH = 4.35
 /**
  * The web's "Your Subscriptions" and "Your Savings" cards (`index.php:373`/`:411`,
  * `stats_calculations.php:195-262`) — a single pass over the same cached subscription list
- * [UpcomingPaymentsCalculator] already reads, no new endpoint. [calculate]'s [monthlyCost]
- * parameter is the dashboard's already-fetched total (not resummed here); only
- * [YourSubscriptions.yearlyCost] is derived from it (`× 12`, `stats_calculations.php`'s own
- * `$totalCostPerYear`).
+ * [UpcomingPaymentsCalculator] already reads, no new endpoint. [YourSubscriptions.monthlyCost] is
+ * summed locally from active rows' own [pricePerMonth] (`stats_calculations.php`'s own
+ * `$totalCostPerMonth`) rather than taking the dashboard's separately-fetched `get_monthly_cost`
+ * total (10.8) — that endpoint sums billing *occurrences* landing in a calendar month, a different
+ * metric the web itself never renders. [YourSubscriptions.yearlyCost] is that sum `× 12`
+ * (`$totalCostPerYear`).
  *
  * [YourSubscriptions.activeCount] mirrors `stats_calculations.php`'s own count exactly: an active,
- * one-time (`cycle = 5`) row is *not* counted, though it still contributes to the fetched
- * [monthlyCost] total the way the server computes it. [YourSavings.inactiveCount] has no such
+ * one-time (`cycle = 5`) row is *not* counted, though [pricePerMonth] returning 0 for it means it
+ * can't move [YourSubscriptions.monthlyCost] either way. [YourSavings.inactiveCount] has no such
  * filter — every inactive row counts, one-time or not — but [pricePerMonth] returns 0 for a
  * one-time row, so it can't move [YourSavings.savingsPerMonth] either way.
  */
 class SubscriptionStatsCalculator {
 
-    fun calculate(subscriptions: List<Subscription>, monthlyCost: Double): SubscriptionStats {
-        val activeCount = subscriptions.count { it.isActive && it.cycle != BillingCycle.ONE_TIME }
+    fun calculate(subscriptions: List<Subscription>): SubscriptionStats {
+        val activeRows = subscriptions.filter { it.isActive }
+        val activeCount = activeRows.count { it.cycle != BillingCycle.ONE_TIME }
+        val monthlyCost = activeRows.sumOf { pricePerMonth(it.cycle, it.frequency, it.price) }
         val inactiveRows = subscriptions.filter { !it.isActive }
 
         return SubscriptionStats(

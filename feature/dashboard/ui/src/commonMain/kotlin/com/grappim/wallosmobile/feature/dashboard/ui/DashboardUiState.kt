@@ -9,9 +9,11 @@ data class UpcomingPaymentUiItem(val id: Int, val name: String, val price: Strin
 
 /**
  * @param title the server's own period label (`MonthlyCost.title`, e.g. "August 2026"), blank
- *   while loading or on [error]. [costAmount] is shown whenever loaded; [budgetAmount],
- *   [usedPercent], [remainingAmount] and [overBudgetAmount] stay blank when the account has no
- *   monthly budget set (`MonthlyBudget.from`'s own `null` gate, 10.2).
+ *   while loading or on [error]. [costAmount] is shown whenever loaded — summed locally from
+ *   active subscriptions (`SubscriptionStatsCalculator`, 10.8), not `MonthlyCost.amount`, which is
+ *   a different metric (`get_monthly_cost.php`'s own per-occurrence total) the web dashboard never
+ *   renders. [budgetAmount], [usedPercent], [remainingAmount] and [overBudgetAmount] stay blank
+ *   when the account has no monthly budget set (`MonthlyBudget.from`'s own `null` gate, 10.2).
  */
 data class MonthlyBudgetCardUiState(
     val title: String = "",

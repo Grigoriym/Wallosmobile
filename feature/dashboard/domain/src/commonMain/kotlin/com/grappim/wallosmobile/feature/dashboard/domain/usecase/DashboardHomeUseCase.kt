@@ -20,6 +20,11 @@ import org.koin.core.annotation.Factory
  * subscription stats are derived from the subscriptions cache that's already there — a single
  * current snapshot, not a re-fetch, since nothing on this screen writes and the cache is refreshed
  * elsewhere.
+ *
+ * `monthlyBudget`/`subscriptionStats` are still gated on `monthlyCost.getOrNull()` (10.8) even
+ * though neither reads its `.amount` any more — both format their own numbers using its
+ * `.currencySymbol`, so a failed `getMonthlyCost` still means "nothing to format with," not "no
+ * cost data." `getMonthlyCost` stays fetched purely for `MonthlyCost.title`/`.currencySymbol`.
  */
 interface DashboardHomeUseCase {
     suspend fun getDashboardHomeData(today: LocalDate): DashboardHomeData
@@ -44,8 +49,8 @@ class DashboardHomeUseCaseImpl(
 
         val monthlyCost = monthlyCostDeferred.await()
         val user = userDeferred.await()
-        val monthlyCostAmount = monthlyCost.getOrNull()?.amount
         val periodBudget = periodBudgetDeferred.await()
+        val subscriptionStats = subscriptionStatsCalculator.calculate(subscriptions)
 
         DashboardHomeData(
             monthlyCost = monthlyCost,
@@ -54,12 +59,11 @@ class DashboardHomeUseCaseImpl(
             user = user,
             upcomingPayments = upcomingAndOverdue.upcoming,
             overdueRenewals = upcomingAndOverdue.overdue,
-            monthlyBudget = monthlyCostAmount?.let { cost ->
-                user.getOrNull()?.let { MonthlyBudget.from(it.budget, cost) }
+            monthlyBudget = monthlyCost.getOrNull()?.let {
+                val activeMonthlyCost = subscriptionStats.yourSubscriptions.monthlyCost
+                user.getOrNull()?.let { u -> MonthlyBudget.from(u.budget, activeMonthlyCost) }
             },
-            subscriptionStats = monthlyCostAmount?.let { cost ->
-                subscriptionStatsCalculator.calculate(subscriptions, cost)
-            }
+            subscriptionStats = monthlyCost.getOrNull()?.let { subscriptionStats }
         )
     }
 }

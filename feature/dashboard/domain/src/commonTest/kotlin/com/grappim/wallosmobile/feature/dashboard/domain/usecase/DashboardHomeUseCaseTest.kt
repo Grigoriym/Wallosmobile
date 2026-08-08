@@ -47,7 +47,7 @@ class DashboardHomeUseCaseTest {
             periodEnd = LocalDate(2026, 8, 31)
         )
         val user = user(budget = 50.0)
-        val sub = subscription(id = 1).copy(nextPayment = LocalDate(2026, 8, 20))
+        val sub = subscription(id = 1).copy(nextPayment = LocalDate(2026, 8, 20), price = 42.0)
         val dashboardRepository = FakeDashboardRepository(
             monthlyCost = Result.success(monthlyCost),
             periodBudget = Result.success(periodBudget)
@@ -132,7 +132,7 @@ class DashboardHomeUseCaseTest {
             periodStart = LocalDate(2026, 8, 1),
             periodEnd = LocalDate(2026, 8, 31)
         )
-        val sub = subscription(id = 1).copy(nextPayment = LocalDate(2026, 8, 20))
+        val sub = subscription(id = 1).copy(nextPayment = LocalDate(2026, 8, 20), price = 42.0)
         val dashboardRepository = FakeDashboardRepository(
             monthlyCost = Result.success(monthlyCost),
             periodBudget = Result.success(periodBudget)

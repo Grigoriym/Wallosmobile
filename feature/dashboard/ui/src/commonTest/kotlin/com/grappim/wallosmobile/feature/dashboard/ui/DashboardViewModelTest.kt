@@ -71,7 +71,10 @@ class DashboardViewModelTest {
             overdueRenewals = emptyList(),
             user = user,
             monthlyBudget = null,
-            subscriptionStats = null
+            subscriptionStats = SubscriptionStats(
+                yourSubscriptions = YourSubscriptions(activeCount = 1, monthlyCost = 42.0, yearlyCost = 504.0),
+                yourSavings = YourSavings(inactiveCount = 0, savingsPerMonth = 0.0)
+            )
         )
 
         val state = viewModel().uiState.value
@@ -206,7 +209,10 @@ class DashboardViewModelTest {
                 overBudget = 0.0,
                 isOverBudget = false
             ),
-            subscriptionStats = null
+            subscriptionStats = SubscriptionStats(
+                yourSubscriptions = YourSubscriptions(activeCount = 1, monthlyCost = 42.0, yearlyCost = 504.0),
+                yourSavings = YourSavings(inactiveCount = 0, savingsPerMonth = 0.0)
+            )
         )
 
         val state = viewModel().uiState.value
@@ -229,7 +235,10 @@ class DashboardViewModelTest {
             overdueRenewals = emptyList(),
             user = user,
             monthlyBudget = null,
-            subscriptionStats = null
+            subscriptionStats = SubscriptionStats(
+                yourSubscriptions = YourSubscriptions(activeCount = 1, monthlyCost = 42.0, yearlyCost = 504.0),
+                yourSavings = YourSavings(inactiveCount = 0, savingsPerMonth = 0.0)
+            )
         )
 
         val state = viewModel().uiState.value
@@ -328,7 +337,10 @@ class DashboardViewModelTest {
             overdueRenewals = emptyList(),
             user = user,
             monthlyBudget = null,
-            subscriptionStats = null
+            subscriptionStats = SubscriptionStats(
+                yourSubscriptions = YourSubscriptions(activeCount = 1, monthlyCost = 42.0, yearlyCost = 504.0),
+                yourSavings = YourSavings(inactiveCount = 0, savingsPerMonth = 0.0)
+            )
         )
         sut.uiState.value.onRetryClick()
 

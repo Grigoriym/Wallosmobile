@@ -6,9 +6,9 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred to last) · M10 `7/9` (reopened)
-**Current step:** 10.8 — M10 reopened the day it closed (two real number mismatches found
-comparing it against the live web dashboard); M9 stays parked until M10 has nothing left in it.
+M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred to last) · M10 `8/9` (reopened)
+**Current step:** 10.9 — the last of M10's two reopened number mismatches; M9 stays parked until
+this closes it.
 
 ---
 
@@ -587,7 +587,7 @@ PHP:
   cards, not because either matches the web. Real web figure on this account: `€496.63`/`€5,959.57`.
   See 10.8.
 
-- [ ] **10.8 — feature:dashboard: active-subscription monthly cost, normalized like the web's — not `get_monthly_cost.php`'s**
+- [x] **10.8 — feature:dashboard: active-subscription monthly cost, normalized like the web's — not `get_monthly_cost.php`'s**
   Replace `MonthlyCost.amount` as the source for `MonthlyBudget.from`'s cost figure and
   `YourSubscriptions.monthlyCost`/`.yearlyCost` with a locally computed sum of `pricePerMonth` over
   *active* subscriptions — mirrors the sum `SubscriptionStatsCalculator` already runs over inactive
@@ -607,6 +607,21 @@ PHP:
   Your Subscriptions' Monthly Cost/Yearly Cost rows read `€496.63`/`€5,959.57` — not `€711.39`/
   `€8,536.68` — matching the logged-in web dashboard read side by side.
   ·  *Ref:* `stats_calculations.php:195-224` (`$totalCostPerMonth`), this milestone's preamble
+  **Note:** `SubscriptionStatsCalculator.calculate(subscriptions)` dropped its external
+  `monthlyCost: Double` parameter and now sums `pricePerMonth` over active rows itself (the same
+  private helper `Your Savings` already summed over inactive rows), so both
+  `YourSubscriptions.monthlyCost` and `MonthlyBudget.from`'s cost argument read from that one local
+  sum rather than `MonthlyCost.amount`. **Decided: `getMonthlyCost()`/`get_monthly_cost.php` stays
+  fetched**, but purely for `MonthlyCost.title` ("August 2026") and `.currencySymbol` — nothing
+  reads `.amount` any more (left in the domain model rather than removed, since it's still a
+  correctly-mapped value from that endpoint, just unused by this screen now).
+  `DashboardHomeUseCaseImpl.monthlyBudget`/`.subscriptionStats` **stay gated on
+  `monthlyCost.getOrNull()`** even though neither needs its `.amount` any more — both format their
+  own numbers using its `.currencySymbol`, so a failed fetch still means nothing to format with,
+  not "no cost data" (documented on `DashboardHomeUseCase`'s own KDoc rather than left as a silent
+  invariant). Verified on device (real AVD, not just unit tests): Monthly Budget's Monthly Cost row
+  and Your Subscriptions' Monthly Cost/Yearly Cost rows all read **€496.63**/**€5,959.57** — the
+  web's own figures, not the old €711.39/€8,536.68.
 
 - [ ] **10.9 — feature:dashboard:ui: Period Budget — hide when the account's own period budget is 0**
   Add a `periodBudget.periodBudget <= 0` check to `DashboardViewModel.toPeriodBudgetCardState`,

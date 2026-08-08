@@ -53,7 +53,11 @@ class DashboardViewModel(
             _uiState.update {
                 it.copy(
                     isLoading = false,
-                    monthlyBudget = toMonthlyBudgetCardState(data.monthlyCost, data.monthlyBudget),
+                    monthlyBudget = toMonthlyBudgetCardState(
+                        data.monthlyCost,
+                        data.monthlyBudget,
+                        data.subscriptionStats?.yourSubscriptions?.monthlyCost
+                    ),
                     periodBudget = toPeriodBudgetCardState(data.periodBudget, data.isPeriodBudgetRedundant),
                     overdueRenewals = data.overdueRenewals.map(::toUiItem).toPersistentList(),
                     upcomingPayments = data.upcomingPayments.map(::toUiItem).toPersistentList(),
@@ -86,12 +90,13 @@ class DashboardViewModel(
 
     private fun toMonthlyBudgetCardState(
         monthlyCost: Result<MonthlyCost>,
-        monthlyBudget: MonthlyBudget?
+        monthlyBudget: MonthlyBudget?,
+        activeMonthlyCost: Double?
     ): MonthlyBudgetCardUiState = monthlyCost.fold(
         onSuccess = { cost ->
             MonthlyBudgetCardUiState(
                 title = cost.title,
-                costAmount = moneyFormatter.format(cost.amount, cost.currencySymbol),
+                costAmount = activeMonthlyCost?.let { moneyFormatter.format(it, cost.currencySymbol) }.orEmpty(),
                 budgetAmount = monthlyBudget?.let { moneyFormatter.format(it.amount, cost.currencySymbol) }.orEmpty(),
                 usedPercent = monthlyBudget?.let { "${moneyFormatter.format(it.used, "")}%" }.orEmpty(),
                 remainingAmount = monthlyBudget?.let {
