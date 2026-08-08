@@ -50,6 +50,7 @@ class DashboardHomeUseCaseTest {
         assertEquals(monthlyCost, result.monthlyCost.getOrThrow())
         assertEquals(periodBudget, result.periodBudget.getOrThrow())
         assertEquals(listOf(1), result.upcomingPayments.map { it.id })
+        assertEquals(emptyList(), result.overdueRenewals)
         assertEquals(8, dashboardRepository.lastMonth)
         assertEquals(2026, dashboardRepository.lastYear)
         assertEquals(today, dashboardRepository.lastReferenceDate)
@@ -83,6 +84,22 @@ class DashboardHomeUseCaseTest {
 
         val result = useCase(dashboardRepository, subscriptionsRepository).getDashboardHomeData(today)
 
+        assertEquals(emptyList(), result.upcomingPayments)
+        assertEquals(emptyList(), result.overdueRenewals)
+    }
+
+    @Test
+    fun `a past-due non-auto-renewing subscription surfaces as an overdue renewal`() = runTest {
+        val dashboardRepository = FakeDashboardRepository(
+            monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 0.0, currencySymbol = "€")),
+            periodBudget = Result.failure(WallosError.UnsupportedEndpoint)
+        )
+        val sub = subscription(id = 1).copy(autoRenew = false, nextPayment = LocalDate(2026, 8, 1))
+        val subscriptionsRepository = FakeSubscriptionsRepository(listOf(sub))
+
+        val result = useCase(dashboardRepository, subscriptionsRepository).getDashboardHomeData(today)
+
+        assertEquals(listOf(1), result.overdueRenewals.map { it.id })
         assertEquals(emptyList(), result.upcomingPayments)
     }
 

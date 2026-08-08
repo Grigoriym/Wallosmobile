@@ -11,5 +11,6 @@ import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 data class DashboardHomeData(
     val monthlyCost: Result<MonthlyCost>,
     val periodBudget: Result<PeriodBudget>,
-    val upcomingPayments: List<Subscription>
+    val upcomingPayments: List<Subscription>,
+    val overdueRenewals: List<Subscription>
 )

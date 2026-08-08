@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `2/7`
-**Current step:** 10.3 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
+M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `3/7`
+**Current step:** 10.4 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
 
 ---
 
@@ -367,7 +367,7 @@ Settled while scoping this milestone, each checked against the live PHP source r
   percentage, not an absolute amount) — worth flagging since "used" reads as an amount at first
   glance.
 
-- [ ] **10.3 — feature:dashboard:domain: Overdue Renewals + Upcoming Payments capped at 3**
+- [x] **10.3 — feature:dashboard:domain: Overdue Renewals + Upcoming Payments capped at 3**
   Extends `UpcomingPaymentsCalculator` (or splits it into a class that returns both lists in one
   pass over the same filtered/sorted sequence — decide here) to also return the past-due,
   non-auto-renewing rows it currently drops, and to exclude `BillingCycle.ONE_TIME` from the
@@ -381,6 +381,21 @@ Settled while scoping this milestone, each checked against the live PHP source r
   exactly as 8.2 left it; a future one-time subscription is excluded from Upcoming (regression for
   the gap this milestone found); more than 3 eligible upcoming rows yields exactly 3, the 3 soonest.
   ·  *Ref:* `WALLOS_API.md` §3.1, this milestone's preamble
+  **Note:** Kept a single `UpcomingPaymentsCalculator` class (the "decide here" this step left open)
+  rather than splitting it — `calculate()` now returns a new `UpcomingAndOverdue(upcoming, overdue)`
+  in one pass: a private `Eligible(subscription, nextPayment, cycle)` step filters inactive rows,
+  null `nextPayment`/`cycle`, and `BillingCycle.ONE_TIME` up front (mirrors `cycle != 5` on *both*
+  web queries, not just Upcoming's — the step text only called out excluding one-time from Upcoming,
+  but the preamble's own "both dashboard queries... exclude cycle = 5 entirely" covers Overdue too,
+  confirmed reading `index.php:76`/`:85` together), then a single `forEach` buckets each row into
+  `upcoming` (future as-is, or past-due+auto-renew rolled forward, per 8.2's existing logic) or
+  `overdue` (past-due+non-auto-renew, kept at its original date) before each list is sorted
+  ascending and only `upcoming` is `.take(3)`. `DashboardHomeData` gained a required
+  `overdueRenewals: List<Subscription>` field (no default, since `feature:dashboard:ui`'s
+  `DashboardViewModel` already ignores fields it doesn't read yet) — this rippled into all seven
+  `DashboardHomeData(...)` construction sites in `DashboardViewModelTest`, same shape 10.2's own
+  `periodStart`/`periodEnd` addition already rippled into that file. `feature:dashboard:ui` itself
+  is untouched; wiring `overdueRenewals` into `DashboardUiState`/the screen is 10.6.
 
 - [ ] **10.4 — feature:dashboard:domain: Your Subscriptions + Your Savings**
   A pure class over the cached subscription list (no new endpoint, this milestone's preamble):

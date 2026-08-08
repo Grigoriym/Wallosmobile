@@ -6,38 +6,57 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
 
+private const val UPCOMING_LIMIT = 3
+
 /**
  * The cached `next_payment` the app has can be stale: the server's own cron
  * (`endpoints/cronjobs/updatenextpayment.php`) is what normally rolls it forward each cycle, and
  * only runs against rows where `auto_renew = 1 AND inactive = 0` — a row this app hasn't refreshed
  * since that cron last ran can show a `nextPayment` that has already passed.
  *
- * Confirmed against that same cron source rather than guessed: it only ever advances a row the
- * server itself would advance, so [calculate] mirrors its two gates precisely — inactive rows are
- * dropped, and a past-due row with `autoRenew == false` is dropped rather than rolled forward,
- * because the server never advances that date either (there both is and never will be a "next"
- * occurrence to show). [BillingCycle.ONE_TIME] has no periodicity to roll by for the same reason a
- * one-time row is never auto-renewing in practice, so a past-due one is dropped too. A `frequency`
- * that isn't positive can't advance the date at all and is dropped rather than looping forever.
+ * [calculate] mirrors two web queries in one pass (`index.php:76` Upcoming, `:85` Overdue): both
+ * drop inactive rows and [BillingCycle.ONE_TIME] (`cycle != 5`) entirely. A past-due,
+ * auto-renewing row is rolled forward — this app's own compensation for a cache the web doesn't
+ * have, since the server's cron would already have advanced it — and lands on the *upcoming* side
+ * with its rolled date; a past-due, non-auto-renewing row is never rolled (there is no "next"
+ * occurrence to invent, since the server's own cron would never advance it either) and lands on
+ * the *overdue* side instead, at its original date. Upcoming is capped at 3 after sorting
+ * (`index.php:76`'s own `LIMIT 3`); Overdue is unlimited (`index.php:85` has none). A `frequency`
+ * that isn't positive can't advance the date at all and is dropped from both.
  */
 class UpcomingPaymentsCalculator {
 
-    fun calculate(subscriptions: List<Subscription>, today: LocalDate): List<Subscription> = subscriptions
-        .asSequence()
-        .filter { it.isActive }
-        .mapNotNull { subscription -> resolve(subscription, today) }
-        .sortedBy { it.nextPayment }
-        .toList()
+    fun calculate(subscriptions: List<Subscription>, today: LocalDate): UpcomingAndOverdue {
+        val eligible = subscriptions.mapNotNull { subscription -> toEligible(subscription) }
 
-    private fun resolve(subscription: Subscription, today: LocalDate): Subscription? {
+        val upcoming = mutableListOf<Subscription>()
+        val overdue = mutableListOf<Subscription>()
+
+        eligible.forEach { (subscription, nextPayment, cycle) ->
+            when {
+                nextPayment >= today -> upcoming += subscription
+
+                subscription.autoRenew -> {
+                    val rolled = rollForward(nextPayment, cycle, subscription.frequency, today)
+                    if (rolled != null) upcoming += subscription.copy(nextPayment = rolled)
+                }
+
+                else -> overdue += subscription
+            }
+        }
+
+        return UpcomingAndOverdue(
+            upcoming = upcoming.sortedBy { it.nextPayment }.take(UPCOMING_LIMIT),
+            overdue = overdue.sortedBy { it.nextPayment }
+        )
+    }
+
+    private fun toEligible(subscription: Subscription): Eligible? {
+        if (!subscription.isActive) return null
         val nextPayment = subscription.nextPayment ?: return null
         val cycle = subscription.cycle ?: return null
-
-        if (nextPayment >= today) return subscription
-        if (!subscription.autoRenew) return null
-
-        val rolled = rollForward(nextPayment, cycle, subscription.frequency, today) ?: return null
-        return subscription.copy(nextPayment = rolled)
+        if (cycle == BillingCycle.ONE_TIME) return null
+        return Eligible(subscription, nextPayment, cycle)
     }
 
     private fun rollForward(nextPayment: LocalDate, cycle: BillingCycle, frequency: Int, today: LocalDate): LocalDate? {
@@ -58,4 +77,12 @@ class UpcomingPaymentsCalculator {
         BillingCycle.YEARS -> DateTimeUnit.YEAR
         BillingCycle.ONE_TIME -> null
     }
+
+    private data class Eligible(val subscription: Subscription, val nextPayment: LocalDate, val cycle: BillingCycle)
 }
+
+/**
+ * [UpcomingPaymentsCalculator.calculate]'s two outputs — Upcoming Payments and Overdue Renewals
+ * are shown as separate dashboard sections, never merged.
+ */
+data class UpcomingAndOverdue(val upcoming: List<Subscription>, val overdue: List<Subscription>)

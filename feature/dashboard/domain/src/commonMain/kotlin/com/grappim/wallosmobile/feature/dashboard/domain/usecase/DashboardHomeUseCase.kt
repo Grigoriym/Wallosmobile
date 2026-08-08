@@ -33,11 +33,13 @@ class DashboardHomeUseCaseImpl(
         val monthlyCostDeferred = async { dashboardRepository.getMonthlyCost(today.monthNumber, today.year) }
         val periodBudgetDeferred = async { dashboardRepository.getPeriodBudget(today) }
         val subscriptions = subscriptionsRepository.observeSubscriptions().first()
+        val upcomingAndOverdue = upcomingPaymentsCalculator.calculate(subscriptions, today)
 
         DashboardHomeData(
             monthlyCost = monthlyCostDeferred.await(),
             periodBudget = periodBudgetDeferred.await(),
-            upcomingPayments = upcomingPaymentsCalculator.calculate(subscriptions, today)
+            upcomingPayments = upcomingAndOverdue.upcoming,
+            overdueRenewals = upcomingAndOverdue.overdue
         )
     }
 }

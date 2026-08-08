@@ -59,7 +59,8 @@ class DashboardViewModelTest {
                     periodEnd = LocalDate(2026, 8, 31)
                 )
             ),
-            upcomingPayments = listOf(subscription(id = 1, nextPayment = LocalDate(2026, 8, 20)))
+            upcomingPayments = listOf(subscription(id = 1, nextPayment = LocalDate(2026, 8, 20))),
+            overdueRenewals = emptyList()
         )
 
         val state = viewModel().uiState.value
@@ -81,7 +82,8 @@ class DashboardViewModelTest {
         useCase.result = DashboardHomeData(
             monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
             periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
-            upcomingPayments = emptyList()
+            upcomingPayments = emptyList(),
+            overdueRenewals = emptyList()
         )
 
         val state = viewModel().uiState.value
@@ -96,7 +98,8 @@ class DashboardViewModelTest {
         useCase.result = DashboardHomeData(
             monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
             periodBudget = Result.failure(WallosError.NotFound("Unauthorized or Not Found")),
-            upcomingPayments = emptyList()
+            upcomingPayments = emptyList(),
+            overdueRenewals = emptyList()
         )
 
         val state = viewModel().uiState.value
@@ -121,7 +124,8 @@ class DashboardViewModelTest {
                     periodEnd = LocalDate(2026, 8, 31)
                 )
             ),
-            upcomingPayments = listOf(subscription(id = 1, nextPayment = LocalDate(2026, 8, 20)))
+            upcomingPayments = listOf(subscription(id = 1, nextPayment = LocalDate(2026, 8, 20))),
+            overdueRenewals = emptyList()
         )
 
         val state = viewModel().uiState.value
@@ -148,7 +152,8 @@ class DashboardViewModelTest {
                     periodEnd = LocalDate(2026, 8, 31)
                 )
             ),
-            upcomingPayments = emptyList()
+            upcomingPayments = emptyList(),
+            overdueRenewals = emptyList()
         )
 
         val state = viewModel().uiState.value
@@ -162,7 +167,8 @@ class DashboardViewModelTest {
         useCase.result = DashboardHomeData(
             monthlyCost = Result.failure(WallosError.Server("boom")),
             periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
-            upcomingPayments = emptyList()
+            upcomingPayments = emptyList(),
+            overdueRenewals = emptyList()
         )
         val sut = viewModel()
         assertEquals(1, useCase.callCount)
@@ -171,7 +177,8 @@ class DashboardViewModelTest {
         useCase.result = DashboardHomeData(
             monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
             periodBudget = Result.failure(WallosError.UnsupportedEndpoint),
-            upcomingPayments = emptyList()
+            upcomingPayments = emptyList(),
+            overdueRenewals = emptyList()
         )
         sut.uiState.value.onRetryClick()
 

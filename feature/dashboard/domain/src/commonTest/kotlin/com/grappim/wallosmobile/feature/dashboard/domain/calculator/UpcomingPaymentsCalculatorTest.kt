@@ -7,10 +7,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * [UpcomingPaymentsCalculator.calculate] mirrors the server's own
- * `endpoints/cronjobs/updatenextpayment.php`: it only ever advances a row that cron would advance
- * (`isActive` + `autoRenew`), and drops one it wouldn't rather than inventing a date the server
- * itself never computes.
+ * [UpcomingPaymentsCalculator.calculate] mirrors two web queries in one pass (`index.php:76`
+ * Upcoming, `:85` Overdue): a past-due, auto-renewing row rolls forward onto the upcoming side
+ * (this app's own compensation for a cache the web doesn't have, since the server's own cron —
+ * `updatenextpayment.php` — would already have advanced it); a past-due, non-auto-renewing row
+ * lands on the overdue side instead, unrolled, since there is no "next" occurrence to invent.
  */
 class UpcomingPaymentsCalculatorTest {
 
@@ -18,12 +19,13 @@ class UpcomingPaymentsCalculatorTest {
     private val today = LocalDate(2026, 8, 8)
 
     @Test
-    fun `a future next payment passes through unchanged`() {
+    fun `a future next payment passes through unchanged on the upcoming side`() {
         val future = LocalDate(2026, 8, 18)
 
         val result = sut.calculate(listOf(subscription(id = 1).copy(nextPayment = future)), today)
 
-        assertEquals(future, result.single().nextPayment)
+        assertEquals(future, result.upcoming.single().nextPayment)
+        assertEquals(emptyList(), result.overdue)
     }
 
     @Test
@@ -36,7 +38,8 @@ class UpcomingPaymentsCalculatorTest {
 
         val result = sut.calculate(listOf(sub), today)
 
-        assertEquals(LocalDate(2026, 8, 9), result.single().nextPayment)
+        assertEquals(LocalDate(2026, 8, 9), result.upcoming.single().nextPayment)
+        assertEquals(emptyList(), result.overdue)
     }
 
     @Test
@@ -49,7 +52,7 @@ class UpcomingPaymentsCalculatorTest {
 
         val result = sut.calculate(listOf(sub), today)
 
-        assertEquals(LocalDate(2026, 8, 8), result.single().nextPayment)
+        assertEquals(LocalDate(2026, 8, 8), result.upcoming.single().nextPayment)
     }
 
     @Test
@@ -62,7 +65,7 @@ class UpcomingPaymentsCalculatorTest {
 
         val result = sut.calculate(listOf(sub), today)
 
-        assertEquals(LocalDate(2026, 8, 8), result.single().nextPayment)
+        assertEquals(LocalDate(2026, 8, 8), result.upcoming.single().nextPayment)
     }
 
     @Test
@@ -75,66 +78,85 @@ class UpcomingPaymentsCalculatorTest {
 
         val result = sut.calculate(listOf(sub), today)
 
-        assertEquals(LocalDate(2026, 8, 8), result.single().nextPayment)
+        assertEquals(LocalDate(2026, 8, 8), result.upcoming.single().nextPayment)
     }
 
     @Test
-    fun `an inactive row is excluded even with a future next payment`() {
-        val sub = subscription(id = 1).copy(isActive = false, nextPayment = LocalDate(2026, 9, 1))
+    fun `an inactive row is excluded from both lists even with a past-due next payment`() {
+        val sub = subscription(id = 1).copy(isActive = false, autoRenew = false, nextPayment = LocalDate(2026, 8, 1))
 
-        assertEquals(emptyList(), sut.calculate(listOf(sub), today))
+        val result = sut.calculate(listOf(sub), today)
+
+        assertEquals(emptyList(), result.upcoming)
+        assertEquals(emptyList(), result.overdue)
     }
 
     @Test
-    fun `a null next payment is excluded`() {
+    fun `a null next payment is excluded from both lists`() {
         val sub = subscription(id = 1).copy(nextPayment = null)
 
-        assertEquals(emptyList(), sut.calculate(listOf(sub), today))
+        val result = sut.calculate(listOf(sub), today)
+
+        assertEquals(emptyList(), result.upcoming)
+        assertEquals(emptyList(), result.overdue)
     }
 
     @Test
-    fun `an unrecognised cycle is excluded even with a future next payment`() {
+    fun `an unrecognised cycle is excluded from both lists even with a future next payment`() {
         val sub = subscription(id = 1).copy(cycle = null, nextPayment = LocalDate(2026, 9, 1))
 
-        assertEquals(emptyList(), sut.calculate(listOf(sub), today))
+        val result = sut.calculate(listOf(sub), today)
+
+        assertEquals(emptyList(), result.upcoming)
+        assertEquals(emptyList(), result.overdue)
     }
 
-    /**
-     * The server's cron only advances `auto_renew = 1` rows (`updatenextpayment.php`'s own
-     * `WHERE` clause) — a non-renewing row stays stuck in the past there too, so there is no real
-     * "next" occurrence to invent client-side.
-     */
     @Test
-    fun `a past-due row with auto-renew off is excluded rather than rolled forward`() {
+    fun `a past-due row with auto-renew off lands in overdue rather than rolled forward`() {
         val sub = subscription(id = 1).copy(autoRenew = false, nextPayment = LocalDate(2026, 8, 1))
 
-        assertEquals(emptyList(), sut.calculate(listOf(sub), today))
+        val result = sut.calculate(listOf(sub), today)
+
+        assertEquals(emptyList(), result.upcoming)
+        assertEquals(LocalDate(2026, 8, 1), result.overdue.single().nextPayment)
     }
 
     @Test
-    fun `a past-due one-time row is excluded, having no periodicity to roll by`() {
-        val sub = subscription(id = 1).copy(cycle = BillingCycle.ONE_TIME, nextPayment = LocalDate(2026, 8, 1))
+    fun `a past-due one-time row is excluded from both lists, having no periodicity to roll by`() {
+        val sub = subscription(id = 1).copy(
+            cycle = BillingCycle.ONE_TIME,
+            autoRenew = false,
+            nextPayment = LocalDate(2026, 8, 1)
+        )
 
-        assertEquals(emptyList(), sut.calculate(listOf(sub), today))
+        val result = sut.calculate(listOf(sub), today)
+
+        assertEquals(emptyList(), result.upcoming)
+        assertEquals(emptyList(), result.overdue)
     }
 
     @Test
-    fun `a future one-time row passes through unchanged`() {
-        val future = LocalDate(2026, 9, 1)
-        val sub = subscription(id = 1).copy(cycle = BillingCycle.ONE_TIME, nextPayment = future)
+    fun `a future one-time row is excluded from upcoming, unlike a future recurring row`() {
+        val sub = subscription(id = 1).copy(cycle = BillingCycle.ONE_TIME, nextPayment = LocalDate(2026, 9, 1))
 
-        assertEquals(future, sut.calculate(listOf(sub), today).single().nextPayment)
+        val result = sut.calculate(listOf(sub), today)
+
+        assertEquals(emptyList(), result.upcoming)
+        assertEquals(emptyList(), result.overdue)
     }
 
     @Test
     fun `a non-positive frequency is excluded rather than looping forever`() {
         val sub = subscription(id = 1).copy(frequency = 0, nextPayment = LocalDate(2026, 8, 1))
 
-        assertEquals(emptyList(), sut.calculate(listOf(sub), today))
+        val result = sut.calculate(listOf(sub), today)
+
+        assertEquals(emptyList(), result.upcoming)
+        assertEquals(emptyList(), result.overdue)
     }
 
     @Test
-    fun `output is sorted ascending by the resolved next payment`() {
+    fun `upcoming is sorted ascending by the resolved next payment`() {
         val rows = listOf(
             subscription(id = 1).copy(nextPayment = LocalDate(2026, 9, 1)),
             subscription(id = 2).copy(nextPayment = LocalDate(2026, 8, 20)),
@@ -143,12 +165,38 @@ class UpcomingPaymentsCalculatorTest {
 
         val result = sut.calculate(rows, today)
 
-        assertEquals(listOf(3, 2, 1), result.map { it.id })
+        assertEquals(listOf(3, 2, 1), result.upcoming.map { it.id })
     }
 
     @Test
-    fun `an empty cache calculates to an empty list rather than throwing`() {
-        assertEquals(emptyList(), sut.calculate(emptyList(), today))
+    fun `more than 3 eligible upcoming rows yields exactly the 3 soonest`() {
+        val rows = (1..5).map { id ->
+            subscription(id = id).copy(nextPayment = LocalDate(2026, 8, 8 + id))
+        }
+
+        val result = sut.calculate(rows, today)
+
+        assertEquals(listOf(1, 2, 3), result.upcoming.map { it.id })
+    }
+
+    @Test
+    fun `overdue is unlimited and sorted ascending, unlike upcoming`() {
+        val rows = (1..5).map { id ->
+            subscription(id = id).copy(autoRenew = false, nextPayment = LocalDate(2026, 8, id))
+        }
+
+        val result = sut.calculate(rows, today)
+
+        assertEquals(listOf(1, 2, 3, 4, 5), result.overdue.map { it.id })
+        assertEquals(emptyList(), result.upcoming)
+    }
+
+    @Test
+    fun `an empty cache calculates to two empty lists rather than throwing`() {
+        val result = sut.calculate(emptyList(), today)
+
+        assertEquals(emptyList(), result.upcoming)
+        assertEquals(emptyList(), result.overdue)
     }
 
     private fun subscription(id: Int) = Subscription(
