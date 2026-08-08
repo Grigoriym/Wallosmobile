@@ -364,4 +364,55 @@ settled twice.**
   talking to — `BaseUrlProvider.getBaseUrl()` (`core:api`, already a dependency of
   `feature:subscriptions:ui` for logo URLs) is the existing read path, so this looks like a small
   addition: one more row or a line above Disconnect, no new storage. Not investigated further here.
+- **Monthly Budget and Your Subscriptions show the wrong "monthly cost" — a real number mismatch
+  against the web, not a display bug.** Filed 2026-08-08 by the user ("I don't see where the
+  Monthly Budget value comes from — I don't see it on the web", "Your Subscriptions' monthly/yearly
+  cost are different on mobile vs. web"), root-caused the same session by logging into the live web
+  UI (`curl` with a session cookie, not just reading PHP) and diffing its rendered dashboard against
+  the app: web shows `€496.63`, mobile shows `€711.39`, on the same account at the same moment.
+  **Root cause**: two genuinely different metrics share the "monthly cost" name.
+  `get_monthly_cost.php` (`MonthlyCost.amount`, fetched since 8.1, and what 10.6/10.7 both display)
+  sums every billing *occurrence* that lands within a named calendar month — a weekly subscription
+  counts 4–5 times — confirmed both by reading the endpoint's own PHP loop and by the `wallos` MCP
+  tool's own description ("including every occurrence within it"). The web's Dashboard cards
+  (`Monthly Budget`'s "Monthly Cost" row *and* `Your Subscriptions`'s "Monthly Cost"/"Yearly Cost"
+  rows, `index.php:259`/`:375`) instead read `stats_calculations.php`'s own `$totalCostPerMonth`,
+  which normalizes each active subscription to a single monthly-equivalent via `getPricePerMonth`
+  (price ÷ frequency-adjusted cycle length, counted once regardless of how many times it actually
+  bills that month) — exactly the function `SubscriptionStatsCalculator.pricePerMonth` (10.4)
+  already ports, today used only for `Your Savings`'s inactive-row sum, never for the active side.
+  `get_monthly_cost.php`'s own metric isn't wrong, it's just for a different Wallos page this app
+  has no equivalent of yet (`stats.php`/`calendar.php`'s "amount due this month" — confirmed via
+  `grep -rn amountDueThisMonth`, it's computed in `stats_calculations.php` but never rendered by
+  `index.php`), so it isn't a candidate fix here.
+  **Fix sketch**: sum `pricePerMonth` over *active* subscriptions locally (mirrors the existing
+  inactive-side sum in `SubscriptionStatsCalculator`) and use that — not `MonthlyCost.amount` — for
+  both `MonthlyBudget.from`'s cost figure and `YourSubscriptions.monthlyCost`/`.yearlyCost`. Decide
+  while fixing whether `get_monthly_cost.php`/`MonthlyCost` stays fetched for anything afterward —
+  nothing else currently reads it.
+- **Period Budget renders on this account when the web never would — a missing gate, not a wrong
+  number.** Filed 2026-08-08 by the user ("I'm not sure what Period Budget is, I don't see it on
+  the web — remove it"), root-caused the same session against the same logged-in web dashboard
+  fetch above: no "Period Budget" section appears in the rendered HTML at all. **Root cause**: the
+  web's own gate (`index.php:317`) is three conditions ANDed —
+  `$periodDiffersFromCalendarMonth && isset($userData['period_budget']) && $userData['period_budget']
+  > 0`. `PeriodBudget.isRedundantWithCalendarMonth` (10.2) only encodes the first condition; nothing
+  in `DashboardViewModel.toPeriodBudgetCardState` checks whether the budget amount itself is `> 0`.
+  Confirmed live: `wallos_get_user`/`wallos_get_period_budget` both show `period_budget: 0` on this
+  account (the endpoint's own `notes` field already says `"Period budget is set to 0."`), yet
+  `get_period_budget.php` still answers `success: true` with a zeroed-out budget rather than an
+  error, so 10.6's card renders anyway (`Jul 18 - Aug 17`, `€0.00 remaining`) where the web shows
+  nothing. **Not** a case for removing the card outright (the user's own suggested fix) — a
+  genuinely non-calendar period *with* a real period budget set should still show it; this account
+  just isn't that case.
+  **Fix sketch**: add a `periodBudget.periodBudget <= 0` check to `toPeriodBudgetCardState`,
+  alongside the existing redundancy/`UnsupportedEndpoint` gates, hiding the card the same way.
+  **Aside, not a new ticket**: while diffing the two dashboards, `Your Savings`'s monthly figure
+  also differs (web `€38.82`, mobile `€102.82`) — but this is the *already-known, already-documented*
+  `replacement_subscription_id` simplification from 10.4's own `Note:`, confirmed exactly on this
+  account (Vattenfall id 12's replacement, eprimo id 37, costs €64.00/month; €102.82 − €64.00 =
+  €38.82, the web's own number). Not filed as a ticket — 10.4 already decided and documented this
+  gap. The web's `Your Savings` card also has a "Yearly Savings" row (`€465.84`) mobile has no
+  equivalent of at all; noted here in case it's wanted, not filed as its own ticket since the user
+  didn't raise it.
 
