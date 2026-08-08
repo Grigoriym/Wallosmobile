@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `0/4`
-**Current step:** 8.1
+M8 `1/4`
+**Current step:** 8.2
 
 ---
 
@@ -110,7 +110,7 @@ catalog granularity, so no step below has to re-derive them:
   dependency in the repo after 7.2's mapper one — upcoming payments is `Subscription` rows filtered
   and re-sorted, and duplicating that type here would fork it in two places for no caller.
 
-- [ ] **8.1 — feature:dashboard: dto + data + domain — monthly cost & period budget**
+- [x] **8.1 — feature:dashboard: dto + data + domain — monthly cost & period budget**
   `MonthlyCostDTO`/`PeriodBudgetDTO` (`WALLOS_API.md` §3.5–3.6); domain `MonthlyCost`/
   `PeriodBudget` trimmed to what the screen renders (2.1's rule) — `period_label` is already a
   human-readable string from the server, so check whether a `budget_period_type` enum earns its
@@ -127,6 +127,25 @@ catalog granularity, so no step below has to re-derive them:
   Remember the two easy misses 7.2/7.3 already paid for once: the new modules need a line in root
   `build.gradle.kts`'s `kover { }` block, and `DashboardDataModule`/`DashboardDomainModule` need
   `AppModule`'s `includes` even before anything calls them.
+  **Note:** confirmed both endpoints against the live PHP (`docker exec wallos cat
+  api/subscriptions/get_{monthly_cost,period_budget}.php`) rather than the doc summary alone —
+  both matched exactly. No `feature:dashboard:mapper` module: unlike categories/household/
+  paymentmethods, the DTO→domain step here is plain field selection plus one `MoneyFormatter.parse`
+  call, with no HTML-unescaping and no second caller, so `MonthlyCostMapper`/`PeriodBudgetMapper`
+  are `@Single` classes living in `feature:dashboard:data` itself (still one per file, still
+  unit-tested) rather than a separate Gradle module — CLAUDE.md's "add a layer when a real
+  repository or a second caller turns up" argues against a module neither condition asks for. No
+  `DashboardDomainModule` either: every existing `domain` module (categories/household/
+  paymentmethods/subscriptions) has zero `@Single`-annotated definitions to scan, and this one is
+  the same — nothing in `domain` needs Koin. `DashboardRepository` came out as one interface with
+  both calls, not the narrower split the step floated; nothing pushed the two apart.
+  `MonthlyCost` kept `title` (the server's own "March 2025" label) despite the trim, since 8.4's
+  card plausibly wants a month heading and it costs nothing to carry. `PeriodBudget` kept both
+  `amountRemainingThisPeriod` and `amountOverBudget` rather than deriving one from the other — the
+  server clamps the former to 0 once over budget, so an "over by X" display needs the latter
+  separately. `composeApp/build.gradle.kts` needed its own new `implementation(projects.feature.
+  dashboard.data)` line too (7.2/7.3's reminder didn't name it, but every prior feature's data
+  module is wired there the same way).
 
 - [ ] **8.2 — feature:dashboard:domain: upcoming payments**
   A pure class (`UpcomingPaymentsCalculator` or similar) taking the cached `List<Subscription>`

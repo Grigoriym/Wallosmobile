@@ -36,6 +36,7 @@ kotlin {
             implementation(projects.feature.household.mapper)
             implementation(projects.feature.paymentmethods.data)
             implementation(projects.feature.paymentmethods.mapper)
+            implementation(projects.feature.dashboard.data)
             implementation(projects.utils.formatter.datetime)
             implementation(projects.utils.formatter.decimal)
 
