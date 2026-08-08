@@ -352,11 +352,14 @@ anchor together with `period_budget` if you don't want them reset.
 
 ### 3.9 `GET/POST api/users/get_user.php`
 
-Returns the whole `user` row with `password` and `api_key` replaced by `"********"`.
-Includes `id`, `username`, `email`, `main_currency`, `avatar`, `language`, `budget`,
-`period_budget`, `budget_period_type`, `budget_period_anchor_date`, `totp_enabled`,
-`firstname`, `lastname`, `oidc_sub` (`null` off OIDC). `notes` is `[]`, same as every other
-endpoint — see §1's correction; do not special-case this one.
+Returns the whole `user` row with `password` and `api_key` replaced by `"********"`, nested under
+a top-level `"user"` key (`{"success":true,"user":{...},"notes":[]}`) — unlike §3.5/§3.6's flat
+envelope, this needs a wrapper DTO (`UserResponse(val user: UserDTO)`, the same shape §3.3's own
+`SubscriptionResponse` uses for its `"subscription"` key). Includes `id`, `username`, `email`,
+`main_currency`, `avatar`, `language`, `budget`, `period_budget`, `budget_period_type`,
+`budget_period_anchor_date`, `totp_enabled`, `firstname`, `lastname`, `oidc_sub` (`null` off
+OIDC). `notes` is `[]`, same as every other endpoint — see §1's correction; do not special-case
+this one.
 
 ### 3.10 Categories / Currencies / Household / Payment methods
 

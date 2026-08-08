@@ -86,3 +86,7 @@ include(":feature:dashboard:data")
 include(":feature:dashboard:domain")
 include(":feature:dashboard:dto")
 include(":feature:dashboard:ui")
+
+include(":feature:profile:data")
+include(":feature:profile:domain")
+include(":feature:profile:dto")

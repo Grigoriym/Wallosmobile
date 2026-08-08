@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `0/7`
-**Current step:** 10.1 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
+M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred) · M10 `1/7`
+**Current step:** 10.2 — M10 (dashboard web parity) takes priority over M9 (Phase 5), per the user.
 
 ---
 
@@ -313,7 +313,7 @@ Settled while scoping this milestone, each checked against the live PHP source r
   (`index.php:183–257`, a per-user `ai_recommendations` table with "savings" copy no endpoint in
   `WALLOS_API.md` describes), not a candidate for parity.
 
-- [ ] **10.1 — feature:profile: dto + domain + data — `getUser()` only**
+- [x] **10.1 — feature:profile: dto + domain + data — `getUser()` only**
   New module, minimal by design (this milestone's preamble). `UserDTO` (`WALLOS_API.md` §3.9 —
   `id`, `budget`, `period_budget`, `main_currency`; skip `password`/`api_key`, always masked, and
   anything M9's 9.9 needs that this card doesn't). `ProfileRepository.getUser(): Result<User>`,
@@ -322,6 +322,20 @@ Settled while scoping this milestone, each checked against the live PHP source r
   *Verify:* `./gradlew :feature:profile:data:testAndroidHostTest` — happy path against `MockEngine`
   fixtures, `budget`/`period_budget` parsed as numbers.
   ·  *Ref:* `WALLOS_API.md` §3.9, this milestone's preamble
+  **Note:** `get_user.php` nests the row under a `"user"` key (`{"success":true,"user":{...}}`),
+  unlike `get_monthly_cost.php`/`get_period_budget.php`'s flat envelope — confirmed against the
+  live PHP shown in this milestone's preamble. Needed a `UserResponse(val user: UserDTO)` wrapper
+  in `feature:profile:dto`, the same shape `get_subscription.php`'s own `SubscriptionResponse`
+  already uses for its own nested `"subscription"` key; `ProfileApiImpl.getUser()` reads
+  `apiClient.post<UserResponse>(...).user`. Domain `User` mirrors `UserDTO`'s four fields
+  one-for-one (`id`, `budget`, `periodBudget`, `mainCurrencyId`) since none is dead weight at this
+  trim. No `ProfileDomainModule`: `feature:profile:domain` has zero `@Single`-annotated
+  definitions, the same as every other feature's `domain` module before 8.1's own
+  `DashboardDomainModule` fixed on that fact (`docs/archive/CHECKLIST-DONE.md` 8.1's note) — its
+  `build.gradle.kts` carries only `kmp.library`, no `kmp.di`. `feature:profile:data` needed its own
+  `implementation(projects.feature.profile.data)` line in `composeApp/build.gradle.kts` and
+  `ProfileDataModule::class` in `AppModule`'s `includes` even though nothing calls it yet — 8.1's
+  same reminder, repeated here since nothing enforces it structurally.
 
 - [ ] **10.2 — feature:dashboard: budget domain rework**
   Restore `period_start`/`period_end` to `PeriodBudgetDTO`/`PeriodBudget` (dropped in 8.1). Add a

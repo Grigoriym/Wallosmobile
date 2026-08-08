@@ -114,6 +114,10 @@ dependencies {
     kover(project(":feature:dashboard:domain"))
     kover(project(":feature:dashboard:dto"))
     kover(project(":feature:dashboard:ui"))
+
+    kover(project(":feature:profile:data"))
+    kover(project(":feature:profile:domain"))
+    kover(project(":feature:profile:dto"))
 }
 
 tasks.register<Delete>("clean") {
