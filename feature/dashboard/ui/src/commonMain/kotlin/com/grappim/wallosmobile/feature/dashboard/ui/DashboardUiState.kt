@@ -27,10 +27,13 @@ data class MonthlyBudgetCardUiState(
 )
 
 /**
- * @param isHidden either the version-gating decision M8's preamble settled (an instance without
- *   `get_period_budget`, `WallosError.UnsupportedEndpoint`, hides this card rather than showing
- *   [error]) or 10.2's `PeriodBudget.isRedundantWithCalendarMonth` (the active period is a plain
- *   calendar month, so this card would repeat what Monthly Budget already shows).
+ * @param isHidden any of three gates: the version-gating decision M8's preamble settled (an
+ *   instance without `get_period_budget`, `WallosError.UnsupportedEndpoint`, hides this card
+ *   rather than showing [error]), 10.2's `PeriodBudget.isRedundantWithCalendarMonth` (the active
+ *   period is a plain calendar month, so this card would repeat what Monthly Budget already
+ *   shows), or 10.9's `periodBudget <= 0` (the account has no period budget set at all, so
+ *   `get_period_budget.php` still answers `success: true` with a zeroed budget the web itself
+ *   never renders a card for).
  * @param amountOverBudget shown only behind [isOverBudget]: the server clamps
  *   `amountRemainingThisPeriod` to 0 once spend passes the budget, so this is the only field left
  *   that says by how much.

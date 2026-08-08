@@ -119,13 +119,20 @@ class DashboardViewModel(
 
         return periodBudget.fold(
             onSuccess = { budget ->
-                PeriodBudgetCardUiState(
-                    periodLabel = budget.periodLabel,
-                    budgetAmount = moneyFormatter.format(budget.periodBudget, budget.currencySymbol),
-                    remainingAmount = moneyFormatter.format(budget.amountRemainingThisPeriod, budget.currencySymbol),
-                    isOverBudget = budget.isOverBudget,
-                    amountOverBudget = moneyFormatter.format(budget.amountOverBudget, budget.currencySymbol)
-                )
+                if (budget.periodBudget <= 0) {
+                    PeriodBudgetCardUiState(isHidden = true)
+                } else {
+                    PeriodBudgetCardUiState(
+                        periodLabel = budget.periodLabel,
+                        budgetAmount = moneyFormatter.format(budget.periodBudget, budget.currencySymbol),
+                        remainingAmount = moneyFormatter.format(
+                            budget.amountRemainingThisPeriod,
+                            budget.currencySymbol
+                        ),
+                        isOverBudget = budget.isOverBudget,
+                        amountOverBudget = moneyFormatter.format(budget.amountOverBudget, budget.currencySymbol)
+                    )
+                }
             },
             onFailure = { throwable ->
                 if (throwable == WallosError.UnsupportedEndpoint) {

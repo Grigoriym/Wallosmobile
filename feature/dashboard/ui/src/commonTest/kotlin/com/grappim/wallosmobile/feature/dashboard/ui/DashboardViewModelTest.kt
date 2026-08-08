@@ -130,6 +130,26 @@ class DashboardViewModelTest {
         assertTrue(state.periodBudget.error.isEmpty())
     }
 
+    /** 10.9: `period_budget: 0` hides the card even when it succeeded and isn't redundant. */
+    @Test
+    fun `a period budget of zero hides the card even though it succeeded and isn't redundant`() = runTest {
+        useCase.result = DashboardHomeData(
+            monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")),
+            periodBudget = Result.success(periodBudget.copy(periodBudget = 0.0)),
+            isPeriodBudgetRedundant = false,
+            upcomingPayments = emptyList(),
+            overdueRenewals = emptyList(),
+            user = user,
+            monthlyBudget = null,
+            subscriptionStats = null
+        )
+
+        val state = viewModel().uiState.value
+
+        assertTrue(state.periodBudget.isHidden)
+        assertTrue(state.periodBudget.error.isEmpty())
+    }
+
     /** Any other period-budget failure is a real error, and the card still shows it. */
     @Test
     fun `any other period-budget failure shows an error rather than hiding the card`() = runTest {
