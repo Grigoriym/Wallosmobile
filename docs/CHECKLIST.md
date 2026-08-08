@@ -176,4 +176,15 @@ kept here as the permanent answer rather than something to re-open; the rest is 
   with no server round trip) instead of the constant, with a picker on the Settings screen next to
   Interface. Worth deciding whether the choice is just Dashboard-vs-Subscriptions or any drawer
   destination before this becomes a step. Not tackled here — separate work.
+- **The subscriptions list scrolls laggy.** Filed 2026-08-08 by the user, not yet investigated —
+  no profiling done, so the cause (each `SubscriptionCard`'s Coil logo load, recomposition from
+  `SubscriptionsViewModel`'s combined flow re-emitting more than the scroll needs, something in the
+  `LazyColumn` item content itself) is a guess, not a finding. The `emulator-testing` skill's Step
+  4b (`dumpsys gfxinfo`/Perfetto, written up 2026-08-07 for the FAB-open investigation in this same
+  list) is the right technique to reach for first, not a fix guessed from the symptom alone.
+- **Show the connected server in Settings.** Filed 2026-08-08 by the user. `SettingsScreen`
+  currently shows Interface/About rows and Disconnect, but never the URL the app is actually
+  talking to — `BaseUrlProvider.getBaseUrl()` (`core:api`, already a dependency of
+  `feature:subscriptions:ui` for logo URLs) is the existing read path, so this looks like a small
+  addition: one more row or a line above Disconnect, no new storage. Not investigated further here.
 
