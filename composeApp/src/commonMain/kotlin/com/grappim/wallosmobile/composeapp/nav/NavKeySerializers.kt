@@ -2,7 +2,15 @@ package com.grappim.wallosmobile.composeapp.nav
 
 import androidx.navigation3.runtime.NavKey
 import androidx.savedstate.serialization.SavedStateConfiguration
+import com.grappim.wallosmobile.feature.categories.ui.editor.CategoryEditorRoute
+import com.grappim.wallosmobile.feature.categories.ui.list.CategoriesRoute
+import com.grappim.wallosmobile.feature.currencies.ui.editor.CurrencyEditorRoute
+import com.grappim.wallosmobile.feature.currencies.ui.list.CurrenciesRoute
 import com.grappim.wallosmobile.feature.dashboard.ui.DashboardRoute
+import com.grappim.wallosmobile.feature.household.ui.editor.HouseholdMemberEditorRoute
+import com.grappim.wallosmobile.feature.household.ui.list.HouseholdRoute
+import com.grappim.wallosmobile.feature.paymentmethods.ui.editor.PaymentMethodEditorRoute
+import com.grappim.wallosmobile.feature.paymentmethods.ui.list.PaymentMethodsRoute
 import com.grappim.wallosmobile.feature.settings.ui.SettingsRoute
 import com.grappim.wallosmobile.feature.settings.ui.about.AboutRoute
 import com.grappim.wallosmobile.feature.settings.ui.appearance.InterfaceRoute
@@ -30,6 +38,14 @@ internal val navKeySerializersModule = SerializersModule {
         subclass(SettingsRoute::class)
         subclass(InterfaceRoute::class)
         subclass(AboutRoute::class)
+        subclass(CategoriesRoute::class)
+        subclass(CategoryEditorRoute::class)
+        subclass(HouseholdRoute::class)
+        subclass(HouseholdMemberEditorRoute::class)
+        subclass(PaymentMethodsRoute::class)
+        subclass(PaymentMethodEditorRoute::class)
+        subclass(CurrenciesRoute::class)
+        subclass(CurrencyEditorRoute::class)
     }
 }
 

@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `6/9` · M10 `9/9` — **M10 done**
-**Current step:** 9.7 — composeApp: the "Manage" drawer group.
+M8 `4/4` — **M8 done** · M9 `7/9` · M10 `9/9` — **M10 done**
+**Current step:** 9.8 — feature:profile: dto + domain + data — `get_user` + `set_budget`.
 
 ---
 
@@ -360,7 +360,7 @@ them:
   step. Nav wiring itself (`NavKeySerializers`, `DrawerDestination`, `RouteConfigProvider`, entry
   providers) stays 9.7's, per its own scope.
 
-- [ ] **9.7 — composeApp: the "Manage" drawer group**
+- [x] **9.7 — composeApp: the "Manage" drawer group**
   Wires all four new routes into `DrawerDestination`/`DRAWER_NAV_ITEMS`/`NavKeySerializers`
   (miss one and `NavKeySerializersTest` catches it, per `CLAUDE.md`'s nav3 rule) and adds a
   `DrawerItem.Group("Manage", [...])` entry to `DrawerItemsBuilder`, below Settings — the first
@@ -369,6 +369,19 @@ them:
   *Verify:* on the emulator — open the drawer, confirm a "Manage" header with all four screens
   listed under it, open each one.
   ·  *Ref:* plan §5.4, this milestone's preamble
+  ·  *Note:* Each list route also picked up a `RouteConfigProvider` `FabConfig.Standard` (add) and
+  `DrawerConfig.GesturesDisabled` for its editor route, mirroring `SubscriptionsRoute`/
+  `SubscriptionEditorRoute` — 9.2–9.6 built the FAB-driving `RouteConfig` shape but left it
+  unwired for these four, per their own notes. **`Icons.Filled.List` does not actually resolve**
+  despite a `ListKt.class` existing in the `filled` package of the `material-icons-core` jar (a
+  same-named internal file, not the public API) — confirms CLAUDE.md's existing claim that `List`
+  lives only under `Icons.AutoMirrored.Filled.*`; caught by `compileGplayDebugKotlin`, not by
+  inspection. With no `Category`/`Label`/money icon in the ~50-icon core set, the four "Manage"
+  icons are picked for distinctness rather than semantic fit: Categories → `Star`, Household →
+  `Person`, Payment methods → `ShoppingCart`, Currencies → `Refresh`. On-device verify covered all
+  four screens (list renders, row tap opens a pre-filled editor, FAB opens a blank "New …" editor)
+  and closed out the emulator half of 9.2–9.6's own deferred `Verify:` lines — no crashes, no
+  layout issues; `adb logcat` confirmed no `FATAL EXCEPTION` across the whole session.
 
 - [ ] **9.8 — feature:profile: dto + domain + data — `get_user` + `set_budget`**
   New module. `UserDTO` (`WALLOS_API.md` §3.9 — `id`, `username`, `email`, `main_currency`,

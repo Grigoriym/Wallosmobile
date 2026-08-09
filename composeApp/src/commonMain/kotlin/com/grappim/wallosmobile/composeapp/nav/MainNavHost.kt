@@ -8,7 +8,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import com.grappim.wallosmobile.composeapp.nav.entries.categoriesEntry
+import com.grappim.wallosmobile.composeapp.nav.entries.currenciesEntry
 import com.grappim.wallosmobile.composeapp.nav.entries.dashboardEntry
+import com.grappim.wallosmobile.composeapp.nav.entries.householdEntry
+import com.grappim.wallosmobile.composeapp.nav.entries.paymentMethodsEntry
 import com.grappim.wallosmobile.composeapp.nav.entries.settingsEntry
 import com.grappim.wallosmobile.composeapp.nav.entries.subscriptionsEntry
 import com.grappim.wallosmobile.core.navigation.NavigationState
@@ -25,6 +29,10 @@ fun MainNavHost(navigationState: NavigationState, navigator: Navigator, modifier
         dashboardEntry(navigator)
         subscriptionsEntry(navigator)
         settingsEntry(navigator)
+        categoriesEntry(navigator)
+        householdEntry(navigator)
+        paymentMethodsEntry(navigator)
+        currenciesEntry(navigator)
     }
 
     NavDisplay(

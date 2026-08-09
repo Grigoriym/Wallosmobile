@@ -144,6 +144,8 @@
     <string name="subscription_editor_date_confirm">OK</string>
     <string name="subscription_editor_date_cancel">Cancel</string>
 
+    <string name="manage_group_title">Manage</string>
+
     <string name="categories_title">Categories</string>
     <string name="categories_empty">No categories yet.</string>
 
@@ -157,6 +159,7 @@
     <string name="category_editor_delete_confirm_message">This can't be undone.</string>
     <string name="category_editor_delete_confirm">Delete</string>
     <string name="category_editor_delete_cancel">Cancel</string>
+    <string name="category_editor_fab_content_description">Add category</string>
 
     <string name="household_title">Household</string>
     <string name="household_empty">No household members yet.</string>
@@ -172,6 +175,7 @@
     <string name="member_editor_delete_confirm_message">This can't be undone.</string>
     <string name="member_editor_delete_confirm">Delete</string>
     <string name="member_editor_delete_cancel">Cancel</string>
+    <string name="member_editor_fab_content_description">Add household member</string>
 
     <string name="payment_methods_title">Payment methods</string>
     <string name="payment_methods_empty">No payment methods yet.</string>
@@ -191,6 +195,7 @@
     <string name="payment_method_editor_delete_confirm_message">This can't be undone.</string>
     <string name="payment_method_editor_delete_confirm">Delete</string>
     <string name="payment_method_editor_delete_cancel">Cancel</string>
+    <string name="payment_method_editor_fab_content_description">Add payment method</string>
 
     <string name="currencies_title">Currencies</string>
     <string name="currencies_empty">No currencies yet.</string>
@@ -210,6 +215,7 @@
     <string name="currency_editor_delete_confirm_message">This can't be undone.</string>
     <string name="currency_editor_delete_confirm">Delete</string>
     <string name="currency_editor_delete_cancel">Cancel</string>
+    <string name="currency_editor_fab_content_description">Add currency</string>
 
     <string name="settings_disconnect">Disconnect</string>
     <string name="settings_disconnect_description">Disconnecting clears the API key stored on this device. Nothing changes on the server.</string>

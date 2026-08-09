@@ -197,13 +197,19 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   Compose set, including **material icons** (`Icons.Filled.*`), which material3 does *not* pull
   in transitively and which therefore lives in `configureKmpCompose()`, not in any module.
 - **`material-icons-core` is ~50 icons, and the obvious one is usually missing** — no
-  `Subscriptions`, `Payment`, `Visibility`/`VisibilityOff`, `FilterList`; `ArrowBack`, `List` and
-  `Send` live under `Icons.AutoMirrored.Filled.*`. `Icons.Filled.Add`/`.Edit`/`.Delete` **are** in
-  the set, confirmed and not to be re-doubted. Reaching for anything else means adding
-  `material-icons-extended` to `configureKmpCompose()`, so pick from the set, use a `TextButton`
-  with a word in it (the login password toggle is Show/Hide text), or say you're growing it. To
-  list the set without a compile: `unzip` the `material-icons-core-*.jar` from
-  `~/.gradle/caches` and `ls` its `androidx/compose/material/icons/filled/` directory.
+  `Subscriptions`, `Payment`, `Visibility`/`VisibilityOff`, `FilterList`, `Category`/`Label`, or
+  any money/currency glyph; `ArrowBack`, `List` and `Send` live under `Icons.AutoMirrored.Filled.*`.
+  `Icons.Filled.Add`/`.Edit`/`.Delete` **are** in the set, confirmed and not to be re-doubted.
+  Reaching for anything else means adding `material-icons-extended` to `configureKmpCompose()`, so
+  pick from the set, use a `TextButton` with a word in it (the login password toggle is Show/Hide
+  text), or say you're growing it. To list the set without a compile: `unzip` the
+  `material-icons-core-*.jar` from `~/.gradle/caches` and `ls` its
+  `androidx/compose/material/icons/filled/` directory — **but a `.class` file appearing there is
+  not proof the unqualified symbol resolves**: `ListKt.class` sits in `filled/` too (confirmed via
+  `javap`, 9.7), yet `Icons.Filled.List` fails to compile — only `Icons.AutoMirrored.Filled.List`
+  is the real public API, and the `filled/` file is an internal implementation class the jar
+  listing can't distinguish from a real one. A name that isn't already confirmed above still needs
+  an actual compile, not just a `ls`.
 - **Material 3's own source is in the Gradle cache, and it is the authority on which colour role a
   component reads** — `unzip` `material3-desktop-*-sources.jar` from
   `~/.gradle/caches/modules-2/files-2.1/org.jetbrains.compose.material3/` and read
