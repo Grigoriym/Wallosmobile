@@ -7,9 +7,8 @@ context, with no memory of previous sessions.
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
-**M11 done** · M12 `1/3`
-**Current step:** M12's 12.1 done (core/storage: `StartDestination` + `StartDestinationStorage`).
-Next: 12.2.
+**M11 done** · M12 `2/3`
+**Current step:** M12's 12.2 done (feature:settings:ui: a "Startup screen" picker). Next: 12.3.
 
 ---
 
@@ -130,7 +129,7 @@ actual `NavKey`.
   new `@Single` resolves with no further wiring: `StorageModule`'s existing `@ComponentScan` over
   `core.storage` picked it up automatically, same as `ThemeStorageImpl`.
 
-- [ ] **12.2 — feature:settings:ui: a "Startup screen" picker**
+- [x] **12.2 — feature:settings:ui: a "Startup screen" picker**
   A new sub-screen off Settings, mirroring `appearance/InterfaceScreen`'s shape exactly (Route/
   Screen/UiState/ViewModel, `RadioButton` + `Column` picker — seven rows now, still fixed-item so
   still a `Column`, not a `LazyColumn`), reached the way Interface/Profile/About are: a new
@@ -146,6 +145,18 @@ actual `NavKey`.
   seven options, confirm the radio selection persists across leaving and re-entering the screen.
   ·  *Ref:* `feature/settings/ui/.../appearance/` (whole package), `.../SettingsScreen.kt`,
   `composeApp/.../nav/entries/SettingsEntryProvider.kt`, `composeApp/.../nav/NavKeySerializers.kt`
+  ·  *Note:* Implemented exactly as specced, package `feature/settings/ui/.../startdestination/`.
+  The seven row labels reuse the existing drawer-title strings (`dashboard_title`,
+  `subscriptions_title`, `settings_title`, `categories_title`, `household_title`,
+  `payment_methods_title`, `currencies_title`) rather than adding new ones — `RString` is one
+  shared resource set and this module already depended on `:strings`. Only two new strings added:
+  `settings_start_destination` ("Startup screen", reused for both the `SettingsRow` title and the
+  picker's `TopBarConfig` title, same as `settings_interface`) and
+  `settings_start_destination_description` ("Which screen opens first"). Four tests in
+  `StartDestinationViewModelTest`, all green — `testAndroidHostTest`, `detekt`/`ktlintCheck`,
+  `:androidApp:compileGplayDebugKotlin --rerun-tasks` and `KoinGraphTest` all confirm the new
+  `@KoinViewModel` resolves with no further wiring. On-device: all seven rows render with Dashboard
+  selected by default, picking Subscriptions persists across leaving and re-entering the screen.
 
 - [ ] **12.3 — composeApp: read the stored preference into the real start destination**
   Replaces the `START_DESTINATION` constant (`nav/DrawerDestination.kt`) with a small

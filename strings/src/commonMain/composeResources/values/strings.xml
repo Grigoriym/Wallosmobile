@@ -236,6 +236,9 @@
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
 
+    <string name="settings_start_destination">Startup screen</string>
+    <string name="settings_start_destination_description">Which screen opens first</string>
+
     <string name="settings_about">About</string>
     <string name="settings_about_description">Version and build info</string>
     <string name="about_version">Version</string>

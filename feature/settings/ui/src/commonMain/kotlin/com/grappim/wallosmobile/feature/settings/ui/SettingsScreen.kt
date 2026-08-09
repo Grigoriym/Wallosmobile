@@ -26,6 +26,8 @@ import com.grappim.wallosmobile.strings.generated.resources.settings_interface_d
 import com.grappim.wallosmobile.strings.generated.resources.settings_profile
 import com.grappim.wallosmobile.strings.generated.resources.settings_profile_description
 import com.grappim.wallosmobile.strings.generated.resources.settings_server
+import com.grappim.wallosmobile.strings.generated.resources.settings_start_destination
+import com.grappim.wallosmobile.strings.generated.resources.settings_start_destination_description
 import com.grappim.wallosmobile.strings.generated.resources.settings_title
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
@@ -37,11 +39,12 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
-// Three callbacks without defaults, so `viewModel` moves last: `compose:parameter-order` only
+// Four callbacks without defaults, so `viewModel` moves last: `compose:parameter-order` only
 // exempts a *single* trailing function from having to follow the defaulted params.
 @Composable
 fun SettingsScreen(
     onInterfaceClick: () -> Unit,
+    onStartDestinationClick: () -> Unit,
     onAboutClick: () -> Unit,
     onProfileClick: () -> Unit,
     viewModel: SettingsViewModel = koinViewModel<SettingsViewModel>()
@@ -61,6 +64,7 @@ fun SettingsScreen(
     SettingsContent(
         uiState = uiState,
         onInterfaceClick = onInterfaceClick,
+        onStartDestinationClick = onStartDestinationClick,
         onAboutClick = onAboutClick,
         onProfileClick = onProfileClick
     )
@@ -70,6 +74,7 @@ fun SettingsScreen(
 private fun SettingsContent(
     uiState: SettingsUiState,
     onInterfaceClick: () -> Unit,
+    onStartDestinationClick: () -> Unit,
     onAboutClick: () -> Unit,
     onProfileClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -87,6 +92,12 @@ private fun SettingsContent(
             title = RString.settings_interface,
             subtitle = RString.settings_interface_description,
             onClick = onInterfaceClick
+        )
+
+        SettingsRow(
+            title = RString.settings_start_destination,
+            subtitle = RString.settings_start_destination_description,
+            onClick = onStartDestinationClick
         )
 
         SettingsRow(
@@ -171,6 +182,7 @@ private fun SettingsContentPreview() = WallosMobilePreviewTheme {
     SettingsContent(
         uiState = SettingsUiState(serverUrl = "https://wallos.example.com"),
         onInterfaceClick = {},
+        onStartDestinationClick = {},
         onAboutClick = {},
         onProfileClick = {}
     )
