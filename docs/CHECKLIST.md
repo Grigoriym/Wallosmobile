@@ -7,9 +7,9 @@ context, with no memory of previous sessions.
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
-**M11 done**
-**Current step:** M11 done (Settings now shows the connected server). Next: decompose the next
-milestone from "To review".
+**M11 done** · M12 `1/3`
+**Current step:** M12's 12.1 done (core/storage: `StartDestination` + `StartDestinationStorage`).
+Next: 12.2.
 
 ---
 
@@ -93,6 +93,85 @@ Settings screen; see `archive/CHECKLIST-DONE.md`.
 
 ---
 
+## M12 — User-configurable start destination (not in plan §8's phase order)
+
+Goal: replace the hard-coded `START_DESTINATION` constant with a stored preference the user can
+change from Settings, covering any of the 7 drawer sections — Dashboard, Subscriptions, Settings,
+Categories, Household, Payment methods, Currencies — not just Dashboard-vs-Subscriptions, which
+was the open scoping question this item carried in "To review". **Done when** picking a different
+start screen and cold-starting the app (not just backgrounding it) opens there instead, with the
+back stack still restoring correctly on process death.
+
+Filed to "To review" 2026-08-08, decomposed 2026-08-09 — picked over the other backlog items by
+the user. `feature:settings:ui`'s existing "Interface" sub-screen (9.9-era work:
+`appearance/ThemeMode` + `ThemeStorage`) is the precedent to copy directly: same `core/storage`
+interface+impl shape, same ui-only-feature ViewModel taking the storage straight (no repository),
+same `RadioButton` `Column` picker. `core/storage` cannot depend on any route type —
+`DrawerDestination` and the `NavKey` subclasses live in `composeApp` and feature `ui` modules,
+layers above it — so the stored value is a new, self-contained enum in `core/storage` (seven cases
+mirroring `DrawerDestination`'s names), and `composeApp` is the only place that maps it to an
+actual `NavKey`.
+
+- [x] **12.1 — core/storage: `StartDestination` + `StartDestinationStorage`**
+  Mirrors `ThemeMode`/`ThemeStorage` exactly: a `StartDestination` enum persisted by a stable
+  `value: String` (not ordinal) with seven cases — `Dashboard`, `Subscriptions`, `Settings`,
+  `Categories`, `Household`, `PaymentMethods`, `Currencies` — `default()` returning `Dashboard`,
+  and a `StartDestinationStorage` interface (`val startDestination: Flow<StartDestination>`,
+  `suspend fun setStartDestination(value: StartDestination)`) + `@Single`-bound `internal` impl
+  sharing the module's one DataStore file, its own `stringPreferencesKey` in a
+  `private companion object`, falling back to `default()` on an unset or unrecognized value.
+  *Verify:* `./gradlew :core:storage:testAndroidHostTest` — round-trips a stored value, and falls
+  back to `Dashboard` for an unset or unrecognized key (mirrors `ThemeStorageImplTest`).
+  ·  *Ref:* `core/storage/.../theme/ThemeMode.kt`, `ThemeStorage.kt`, `ThemeStorageImpl.kt`
+  ·  *Note:* Implemented exactly as specced, package `core/storage/.../startdestination/`. Five
+  tests in `StartDestinationStorageImplTest` (default, observed write, pre-stored value, unrecognised
+  value, dedup on identical write), all green — `testAndroidHostTest` green, `detekt`/`ktlintCheck`
+  green, and `:composeApp:compileGplayDebugKotlin --rerun-tasks` + `KoinGraphTest` both confirm the
+  new `@Single` resolves with no further wiring: `StorageModule`'s existing `@ComponentScan` over
+  `core.storage` picked it up automatically, same as `ThemeStorageImpl`.
+
+- [ ] **12.2 — feature:settings:ui: a "Startup screen" picker**
+  A new sub-screen off Settings, mirroring `appearance/InterfaceScreen`'s shape exactly (Route/
+  Screen/UiState/ViewModel, `RadioButton` + `Column` picker — seven rows now, still fixed-item so
+  still a `Column`, not a `LazyColumn`), reached the way Interface/Profile/About are: a new
+  `SettingsRow` on `SettingsScreen` (pushing it to a fourth callback — still exempt under
+  `compose:parameter-order`'s single-trailing-function rule, `viewModel` stays last), its `Route`
+  registered in `NavKeySerializers.kt` and wired into `SettingsEntryProvider.kt`. This is a
+  Settings sub-screen, not a drawer destination, so it needs no `DrawerDestination`/
+  `DRAWER_NAV_ITEMS` entry — 9.9's `ProfileRoute` is the precedent for this whole shape, not
+  9.1–9.7's drawer-destination one. `StartDestinationViewModel` takes `StartDestinationStorage`
+  directly, no repository.
+  *Verify:* `./gradlew :feature:settings:ui:testAndroidHostTest` (fake `StartDestinationStorage`,
+  mirrors `InterfaceViewModelTest`), and on the emulator: Settings → the new row → pick each of the
+  seven options, confirm the radio selection persists across leaving and re-entering the screen.
+  ·  *Ref:* `feature/settings/ui/.../appearance/` (whole package), `.../SettingsScreen.kt`,
+  `composeApp/.../nav/entries/SettingsEntryProvider.kt`, `composeApp/.../nav/NavKeySerializers.kt`
+
+- [ ] **12.3 — composeApp: read the stored preference into the real start destination**
+  Replaces the `START_DESTINATION` constant (`nav/DrawerDestination.kt`) with a small
+  `StartDestination -> NavKey` mapper (a `when` over the seven cases, returning each
+  `DrawerDestination` entry's own `.route`) and threads the stored value from `WallosAppContent`
+  down to `rememberNavigationState`'s `startKey` **the same way `themeMode` already is** — the
+  load-bearing precedent already in this file (`WallosAppContent.kt`'s own comment on
+  `rememberNavBackStack` consuming `startKey` only on the first composition): read
+  `startDestinationStorage.startDestination.collectAsState(initial = StartDestination.default())`
+  at the `WallosAppContent` call site, pass the mapped `NavKey` into
+  `rememberMainAppState(startDestination = ...)`, and thread it into `rememberNavigationState`'s
+  `startKey` param. Never gate `AuthenticatedMainScreen`/`rememberMainAppState()`'s composition on
+  the read finishing — `isConnected` is the one deliberate exception to that rule in this file,
+  `themeMode` is not, and this follows `themeMode`.
+  *Verify:* on the emulator against the live instance — set the picker to Subscriptions, force-stop
+  and cold-start the app (`emulator-testing` skill's `am start -n` recipe, not `monkey`: 11.1 found
+  `monkey` unreliable even on the first relaunch), confirm it opens on Subscriptions; then navigate
+  a few levels deep into a different section, `am kill` + cold-start again, and confirm the back
+  stack still restores correctly (the regression this design exists to avoid).
+  ·  *Ref:* `WallosAppContent.kt`'s `themeMode` handling, `MainAppState.kt`, `NavigationState.kt`
+
+**M12 is done** once all three steps are ticked — archive the same session, per the "one move per
+milestone" rule.
+
+---
+
 ## To review
 
 Written when M2 closed, as the place a verification step files a defect it finds rather than
@@ -105,8 +184,10 @@ compared 10.6/10.7's numbers against the real logged-in web dashboard, became M1
 and **10.9** instead of a fresh milestone — M10's own preamble (now `archive/CHECKLIST-DONE.md`,
 M10 having closed) has the root cause for both; see it there, not here, since it stays with the
 steps rather than duplicated in this list. One more — "Show the connected server in Settings" —
-left it to become **M11** (now closed; `archive/CHECKLIST-DONE.md`), 2026-08-09. Resolved
-entries aren't repeated here. Two of what's left are
+left it to become **M11** (now closed; `archive/CHECKLIST-DONE.md`), 2026-08-09. One more — "A
+user-configurable start destination" — left it to become **M12**, 2026-08-09, picked by the user
+over the other three real backlog candidates at the time. Resolved entries aren't repeated here.
+Two of what's left are
 standing decisions the user owns, kept here as the permanent answer rather than something to
 re-open; the rest is real backlog. **Don't re-open the first two per step; they have both been
 settled twice.**
@@ -190,15 +271,6 @@ settled twice.**
   questions a log line answers faster than a screencap round trip. Touching every clickable in
   every screen (and its preview) for this is not obviously worth it yet; wants a concrete case this
   would have shortened before it becomes a step rather than a hunch.
-- **A user-configurable start destination.** 8.4 made `START_DESTINATION` a hard-coded constant
-  (`DashboardRoute`), on the reasoning that a drawer ordering with Dashboard first only makes sense
-  if it's also where the app opens — but the user wants the choice back: some sessions want
-  Subscriptions as the landing screen instead. Filed 2026-08-08. Should be possible without
-  disturbing `NavigationState`/`Navigator` — `START_DESTINATION` would read a stored preference
-  (`feature:settings`'s local-theme storage is the existing precedent for a device-only setting
-  with no server round trip) instead of the constant, with a picker on the Settings screen next to
-  Interface. Worth deciding whether the choice is just Dashboard-vs-Subscriptions or any drawer
-  destination before this becomes a step. Not tackled here — separate work.
 - **The subscriptions list scrolls laggy.** Filed 2026-08-08 by the user, not yet investigated —
   no profiling done, so the cause (each `SubscriptionCard`'s Coil logo load, recomposition from
   `SubscriptionsViewModel`'s combined flow re-emitting more than the scroll needs, something in the
