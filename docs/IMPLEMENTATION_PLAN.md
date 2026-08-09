@@ -1942,7 +1942,11 @@ subscriptions' three-screen split:
   repositories has a single-row fetch (only a `getAll()`-shaped read), and the list screen the user
   just tapped from already holds the row — passing the values through the route avoids a second
   full-list round trip just to pre-fill one field, and needs no loading state in the editor for the
-  edit path.
+  edit path. **Except a field the list's own model doesn't hold the write-side value of**: 9.4's
+  `PaymentMethodEditorRoute` carries `name`/`enabled` but not `iconUrl` — `PaymentMethod.icon` is a
+  server-*resolved* path, never the source URL a caller submitted, so the list has nothing true to
+  prefill the field with. Leaving it blank happens to be exactly right, since a blank/null `iconUrl`
+  on a write is already defined as "leave the icon untouched."
 - **The list ViewModel has no `init { load() }`**, unlike every cache-free ViewModel before it
   (`DashboardViewModel`, `SubscriptionDetailViewModel`). It has to reload on *every* return trip
   from the editor after a write, not only on first open, and Nav3 disposes a covered entry's

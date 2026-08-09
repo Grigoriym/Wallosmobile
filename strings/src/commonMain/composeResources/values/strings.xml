@@ -173,6 +173,23 @@
     <string name="member_editor_delete_confirm">Delete</string>
     <string name="member_editor_delete_cancel">Cancel</string>
 
+    <string name="payment_methods_title">Payment methods</string>
+    <string name="payment_methods_empty">No payment methods yet.</string>
+    <string name="payment_methods_disabled">Disabled</string>
+
+    <string name="payment_method_editor_title">New payment method</string>
+    <string name="payment_method_editor_title_edit">Edit payment method</string>
+    <string name="payment_method_editor_name">Name</string>
+    <string name="payment_method_editor_enabled">Enabled</string>
+    <string name="payment_method_editor_icon_url">Icon URL</string>
+    <string name="payment_method_editor_save">Save</string>
+    <string name="payment_method_editor_error_invalid">Enter a name.</string>
+    <string name="payment_method_editor_delete">Delete</string>
+    <string name="payment_method_editor_delete_confirm_title">Delete this payment method?</string>
+    <string name="payment_method_editor_delete_confirm_message">This can't be undone.</string>
+    <string name="payment_method_editor_delete_confirm">Delete</string>
+    <string name="payment_method_editor_delete_cancel">Cancel</string>
+
     <string name="settings_disconnect">Disconnect</string>
     <string name="settings_disconnect_description">Disconnecting clears the API key stored on this device. Nothing changes on the server.</string>
 

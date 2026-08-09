@@ -111,6 +111,7 @@ dependencies {
     kover(project(":feature:paymentmethods:domain"))
     kover(project(":feature:paymentmethods:dto"))
     kover(project(":feature:paymentmethods:mapper"))
+    kover(project(":feature:paymentmethods:ui"))
 
     kover(project(":feature:currencies:data"))
     kover(project(":feature:currencies:domain"))

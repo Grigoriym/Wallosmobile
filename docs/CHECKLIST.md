@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `3/9` · M10 `9/9` — **M10 done**
-**Current step:** 9.4 — feature:paymentmethods:ui: list + add/edit (name, enabled, icon_url) + delete.
+M8 `4/4` — **M8 done** · M9 `4/9` · M10 `9/9` — **M10 done**
+**Current step:** 9.5 — feature:paymentmethods: icon via multipart upload.
 
 ---
 
@@ -249,7 +249,7 @@ them:
   now, same as 9.1/9.2 did at their own step. Nav wiring itself (`NavKeySerializers`,
   `DrawerDestination`, `RouteConfigProvider`, entry providers) stays 9.7's, per its own scope.
 
-- [ ] **9.4 — feature:paymentmethods:ui: list + add/edit (name, enabled, icon_url) + delete**
+- [x] **9.4 — feature:paymentmethods:ui: list + add/edit (name, enabled, icon_url) + delete**
   Same shape again: name, an enabled toggle, and `icon_url` as a text field (server-fetched,
   7.8's precedent) — the multipart picker is 9.5, not this step. Delete behind the same
   confirmation dialog.
@@ -258,6 +258,34 @@ them:
   method not referenced by any subscription; confirm one that is referenced fails with the in-use
   error.
   ·  *Ref:* `WALLOS_API.md` §3.10, this milestone's preamble
+  ·  *Note:* Same deferral as 9.2/9.3's own note: the emulator half of Verify needs the "Manage"
+  drawer group, which is 9.7's scope, so only the host-test half ran here — all 15 tests pass
+  (`PaymentMethodsViewModelTest`, `PaymentMethodEditorViewModelTest`), `detekt`/`ktlintCheck` pass
+  project-wide, and `KoinGraphTest` resolves both new ViewModels (including the `Boolean`
+  `@InjectedParam` on `PaymentMethodEditorViewModel` — not on `verify()`'s primitive whitelist, so
+  this is the first step to actually exercise that path rather than rely on the whitelist) after a
+  clean `:androidApp:compileGplayDebugKotlin --rerun-tasks`.
+  One route choice worth recording: unlike `HouseholdMemberEditorRoute`, `PaymentMethodEditorRoute`
+  does *not* carry `iconUrl` alongside `name`/`enabled` on the edit path — `PaymentMethod.icon` (the
+  list's own field) is a server-*resolved* path, not the source URL a caller submits, and the two
+  are never the same string. Leaving the field blank on open is exactly the value that already
+  means "leave the icon untouched" per `PaymentMethodsRepository.editPaymentMethod`'s own doc
+  comment, so there is nothing to prefill.
+  The list row's icon reuses `BaseUrlProvider` (`core:api`) the same way `feature:subscriptions:ui`
+  does for a logo, but through its own `toIconUrl` (`icon` is already root-relative, confirmed in
+  `WALLOS_API.md` §4 — no `images/uploads/.../` segment to insert, unlike a subscription logo's
+  bare filename) and its own small `PaymentMethodIcon` composable — a cross-feature reach into
+  `feature:subscriptions:ui` for a private, non-`api` widget isn't a seam this codebase uses.
+  `PaymentMethodIcon` skips `SubscriptionLogo`'s `logoRefreshToken` (5.6): that token exists to
+  retry a request Coil considers already `Error` without changing its cache key, needed because a
+  subscription's `logo` field can go from unreachable to reachable while staying the *same*
+  filename (a flaky server); here every reload is a fresh `getPaymentMethods()` call building a
+  brand new `PaymentMethodUiItem` list from whatever `icon` the server currently reports, so a
+  request that resolves differently is already a different request. Data/DI wiring
+  (`feature:paymentmethods:ui`'s `build.gradle.kts`, `settings.gradle.kts`, root `kover { }`,
+  `composeApp`'s `build.gradle.kts` and `Koin.kt`) landed now, same as 9.1–9.3 did at their own
+  step. Nav wiring itself (`NavKeySerializers`, `DrawerDestination`, `RouteConfigProvider`, entry
+  providers) stays 9.7's, per its own scope.
 
 - [ ] **9.5 — feature:paymentmethods: icon via multipart upload**
   Mirrors 7.9 exactly: an Android image picker (`ActivityResultContracts`, this module's first

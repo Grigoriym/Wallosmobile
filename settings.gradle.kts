@@ -83,6 +83,7 @@ include(":feature:paymentmethods:data")
 include(":feature:paymentmethods:domain")
 include(":feature:paymentmethods:dto")
 include(":feature:paymentmethods:mapper")
+include(":feature:paymentmethods:ui")
 
 include(":feature:currencies:data")
 include(":feature:currencies:domain")

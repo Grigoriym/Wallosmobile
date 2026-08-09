@@ -38,6 +38,7 @@ kotlin {
             implementation(projects.feature.household.ui)
             implementation(projects.feature.paymentmethods.data)
             implementation(projects.feature.paymentmethods.mapper)
+            implementation(projects.feature.paymentmethods.ui)
             implementation(projects.feature.currencies.data)
             implementation(projects.feature.currencies.mapper)
             implementation(projects.feature.dashboard.data)
