@@ -46,6 +46,7 @@ kotlin {
             implementation(projects.feature.dashboard.domain)
             implementation(projects.feature.dashboard.ui)
             implementation(projects.feature.profile.data)
+            implementation(projects.feature.profile.ui)
             implementation(projects.utils.formatter.datetime)
             implementation(projects.utils.formatter.decimal)
 

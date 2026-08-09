@@ -220,6 +220,14 @@
     <string name="settings_disconnect">Disconnect</string>
     <string name="settings_disconnect_description">Disconnecting clears the API key stored on this device. Nothing changes on the server.</string>
 
+    <string name="settings_profile">Profile</string>
+    <string name="settings_profile_description">Budget</string>
+    <string name="profile_title">Profile</string>
+    <string name="profile_budget">Monthly budget</string>
+    <string name="profile_period_budget">Period budget</string>
+    <string name="profile_save">Save</string>
+    <string name="profile_error_invalid">Enter valid amounts for both budgets.</string>
+
     <string name="settings_interface">Interface</string>
     <string name="settings_interface_description">Theme</string>
     <string name="settings_theme">Theme</string>

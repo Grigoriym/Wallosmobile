@@ -23,6 +23,8 @@ import com.grappim.wallosmobile.strings.generated.resources.settings_disconnect
 import com.grappim.wallosmobile.strings.generated.resources.settings_disconnect_description
 import com.grappim.wallosmobile.strings.generated.resources.settings_interface
 import com.grappim.wallosmobile.strings.generated.resources.settings_interface_description
+import com.grappim.wallosmobile.strings.generated.resources.settings_profile
+import com.grappim.wallosmobile.strings.generated.resources.settings_profile_description
 import com.grappim.wallosmobile.strings.generated.resources.settings_title
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
@@ -34,12 +36,13 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
-// Two callbacks without defaults, so `viewModel` moves last: `compose:parameter-order` only exempts
-// a *single* trailing function from having to follow the defaulted params.
+// Three callbacks without defaults, so `viewModel` moves last: `compose:parameter-order` only
+// exempts a *single* trailing function from having to follow the defaulted params.
 @Composable
 fun SettingsScreen(
     onInterfaceClick: () -> Unit,
     onAboutClick: () -> Unit,
+    onProfileClick: () -> Unit,
     viewModel: SettingsViewModel = koinViewModel<SettingsViewModel>()
 ) {
     val topBarController = LocalTopBarConfig.current
@@ -54,7 +57,12 @@ fun SettingsScreen(
         )
     }
 
-    SettingsContent(uiState = uiState, onInterfaceClick = onInterfaceClick, onAboutClick = onAboutClick)
+    SettingsContent(
+        uiState = uiState,
+        onInterfaceClick = onInterfaceClick,
+        onAboutClick = onAboutClick,
+        onProfileClick = onProfileClick
+    )
 }
 
 @Composable
@@ -62,6 +70,7 @@ private fun SettingsContent(
     uiState: SettingsUiState,
     onInterfaceClick: () -> Unit,
     onAboutClick: () -> Unit,
+    onProfileClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     // A fixed set of items, so a `Column` rather than a `LazyColumn`.
@@ -71,12 +80,18 @@ private fun SettingsContent(
             .padding(SCREEN_PADDING),
         verticalArrangement = Arrangement.spacedBy(ITEM_SPACING)
     ) {
-        // Sub-screens rather than sections on this one: the theme is device state and the version
-        // is build state, where the rest of this screen is account state.
+        // Sub-screens rather than sections on this one: the theme is device state, the budget is
+        // account state and the version is build state.
         SettingsRow(
             title = RString.settings_interface,
             subtitle = RString.settings_interface_description,
             onClick = onInterfaceClick
+        )
+
+        SettingsRow(
+            title = RString.settings_profile,
+            subtitle = RString.settings_profile_description,
+            onClick = onProfileClick
         )
 
         SettingsRow(
@@ -134,5 +149,5 @@ private val ROW_PADDING = 8.dp
 @PreviewWallosDarkLight
 @Composable
 private fun SettingsContentPreview() = WallosMobilePreviewTheme {
-    SettingsContent(uiState = SettingsUiState(), onInterfaceClick = {}, onAboutClick = {})
+    SettingsContent(uiState = SettingsUiState(), onInterfaceClick = {}, onAboutClick = {}, onProfileClick = {})
 }

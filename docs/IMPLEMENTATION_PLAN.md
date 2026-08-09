@@ -1967,6 +1967,13 @@ subscriptions' three-screen split:
   composition and restarts it once the entry is on top again — so the screen's own
   `LaunchedEffect(Unit) { uiState.onRetryClick() }` is the single load path for both first open and
   every return; an `init` block would only double the first one.
+- **9.9's budget editor (`feature:profile:ui`) reuses the same no-`init`/`onRetryClick` reload, with
+  no list and no separate editor route at all** — one screen, reached from a `SettingsRow`, is both
+  the read and the write. `ProfileUiState` doesn't carry `budgetPeriodType`/`budgetPeriodAnchorDate`:
+  `set_budget.php` requires all three period fields together (`WALLOS_API.md` §3.8) or resets
+  type/anchor to monthly/today, so `ProfileViewModel` holds whatever `getUser()` last reported in
+  two private `var`s and resends them unchanged on save, rather than building a second form for
+  fields the step never asked to make editable.
 
 ### 7.2 Explicitly out of v1
 

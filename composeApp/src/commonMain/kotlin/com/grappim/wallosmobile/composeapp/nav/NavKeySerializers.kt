@@ -11,6 +11,7 @@ import com.grappim.wallosmobile.feature.household.ui.editor.HouseholdMemberEdito
 import com.grappim.wallosmobile.feature.household.ui.list.HouseholdRoute
 import com.grappim.wallosmobile.feature.paymentmethods.ui.editor.PaymentMethodEditorRoute
 import com.grappim.wallosmobile.feature.paymentmethods.ui.list.PaymentMethodsRoute
+import com.grappim.wallosmobile.feature.profile.ui.ProfileRoute
 import com.grappim.wallosmobile.feature.settings.ui.SettingsRoute
 import com.grappim.wallosmobile.feature.settings.ui.about.AboutRoute
 import com.grappim.wallosmobile.feature.settings.ui.appearance.InterfaceRoute
@@ -38,6 +39,7 @@ internal val navKeySerializersModule = SerializersModule {
         subclass(SettingsRoute::class)
         subclass(InterfaceRoute::class)
         subclass(AboutRoute::class)
+        subclass(ProfileRoute::class)
         subclass(CategoriesRoute::class)
         subclass(CategoryEditorRoute::class)
         subclass(HouseholdRoute::class)
