@@ -18,6 +18,8 @@ kotlin {
             implementation(projects.core.domain)
             // The About screen's version and build type (4.4). Same single-seam case as above.
             implementation(projects.core.appinfoApi)
+            // The connected server row on the Settings screen (11.1). Same single-seam case.
+            implementation(projects.core.api)
 
             // `uikit` carries `utils:ui` as `api`, so `NativeText` needs no declaration here.
             implementation(projects.uikit)

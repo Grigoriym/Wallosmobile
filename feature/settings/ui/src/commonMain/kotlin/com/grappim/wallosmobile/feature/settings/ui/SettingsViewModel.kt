@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.feature.settings.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.resultOf
 import com.grappim.wallosmobile.core.logger.LogPriority
 import com.grappim.wallosmobile.core.logger.logcat
@@ -18,9 +19,14 @@ import org.koin.core.annotation.KoinViewModel
  * which is what leaves the server URL in the login field.
  */
 @KoinViewModel
-class SettingsViewModel(private val apiKeyStorage: ApiKeyStorage) : ViewModel() {
+class SettingsViewModel(private val apiKeyStorage: ApiKeyStorage, baseUrlProvider: BaseUrlProvider) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(SettingsUiState(onDisconnectClick = ::onDisconnectClick))
+    private val _uiState = MutableStateFlow(
+        SettingsUiState(
+            serverUrl = baseUrlProvider.getBaseUrl().trimEnd('/'),
+            onDisconnectClick = ::onDisconnectClick
+        )
+    )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     private fun onDisconnectClick() {

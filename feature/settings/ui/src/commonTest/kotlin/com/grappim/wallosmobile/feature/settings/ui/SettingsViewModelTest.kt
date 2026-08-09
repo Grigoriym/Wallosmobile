@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.settings.ui
 
+import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
 import com.grappim.wallosmobile.testing.MainDispatcherRule
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +15,7 @@ import kotlin.test.assertTrue
 class SettingsViewModelTest {
 
     private val apiKeyStorage = FakeApiKeyStorage()
+    private val baseUrlProvider = FakeBaseUrlProvider()
     private val mainDispatcherRule = MainDispatcherRule()
 
     @BeforeTest
@@ -26,7 +28,7 @@ class SettingsViewModelTest {
         mainDispatcherRule.tearDown()
     }
 
-    private fun viewModel() = SettingsViewModel(apiKeyStorage = apiKeyStorage)
+    private fun viewModel() = SettingsViewModel(apiKeyStorage = apiKeyStorage, baseUrlProvider = baseUrlProvider)
 
     @Test
     fun `disconnect clears the stored key`() = runTest {
@@ -54,6 +56,13 @@ class SettingsViewModelTest {
         assertEquals(1, apiKeyStorage.clearCount)
     }
 
+    @Test
+    fun `the server URL is shown with the load-bearing trailing slash trimmed`() = runTest {
+        baseUrlProvider.storedUrl = "http://10.0.2.2:8282/"
+
+        assertEquals("http://10.0.2.2:8282", viewModel().uiState.value.serverUrl)
+    }
+
     // Private to this file, as in 1.10 and 2.3: `:testing` is on every module's test classpath,
     // and this fake has exactly one consumer.
     private class FakeApiKeyStorage : ApiKeyStorage {
@@ -74,5 +83,10 @@ class SettingsViewModelTest {
             clearCount++
             if (failOnClear) error("the store is unwritable")
         }
+    }
+
+    private class FakeBaseUrlProvider : BaseUrlProvider {
+        var storedUrl = "http://10.0.2.2:8282/"
+        override fun getBaseUrl(): String = storedUrl
     }
 }

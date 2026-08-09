@@ -6,8 +6,10 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done**
-**Current step:** M9 done — Phase 5 complete. Next: decompose the next milestone from "To review".
+M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
+**M11 done**
+**Current step:** M11 done (Settings now shows the connected server). Next: decompose the next
+milestone from "To review".
 
 ---
 
@@ -61,7 +63,7 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 ---
 
 Completed steps live in [`archive/CHECKLIST-DONE.md`](./archive/CHECKLIST-DONE.md) — **all of M0
-through M8, and now M10 and M9**, verbatim. M10 was archived once before too (2026-08-08, its first seven
+through M8, and now M10, M9 and M11**, verbatim. M10 was archived once before too (2026-08-08, its first seven
 steps) and pulled back out the same day once two more real gaps turned up (10.8/10.9, below); once
 those two closed it, it was archived again for good, same day. On 2026-08-06 the per-step
 Deviations log that used to sit at the bottom of this file moved to
@@ -85,7 +87,9 @@ web shows, and later that the numbers it did show didn't match either; see
 screens: add/edit/delete for categories, household, payment methods and currencies, plus the
 budget editor), deliberately parked until M10 had nothing left in it, decided with the user
 2026-08-08 so dashboard work didn't hand off to M9 piecemeal one gap at a time; see
-`archive/CHECKLIST-DONE.md` for its nine steps.
+`archive/CHECKLIST-DONE.md` for its nine steps. **M11 is done** too — its one step, decomposed
+straight from "To review" rather than from a plan phase, showing the connected server on the
+Settings screen; see `archive/CHECKLIST-DONE.md`.
 
 ---
 
@@ -100,7 +104,8 @@ see `archive/DEVIATIONS.md` for how the first six closed. Two more, filed the sa
 compared 10.6/10.7's numbers against the real logged-in web dashboard, became M10's own **10.8**
 and **10.9** instead of a fresh milestone — M10's own preamble (now `archive/CHECKLIST-DONE.md`,
 M10 having closed) has the root cause for both; see it there, not here, since it stays with the
-steps rather than duplicated in this list. Resolved
+steps rather than duplicated in this list. One more — "Show the connected server in Settings" —
+left it to become **M11** (now closed; `archive/CHECKLIST-DONE.md`), 2026-08-09. Resolved
 entries aren't repeated here. Two of what's left are
 standing decisions the user owns, kept here as the permanent answer rather than something to
 re-open; the rest is real backlog. **Don't re-open the first two per step; they have both been
@@ -200,9 +205,4 @@ settled twice.**
   `LazyColumn` item content itself) is a guess, not a finding. The `emulator-testing` skill's Step
   4b (`dumpsys gfxinfo`/Perfetto, written up 2026-08-07 for the FAB-open investigation in this same
   list) is the right technique to reach for first, not a fix guessed from the symptom alone.
-- **Show the connected server in Settings.** Filed 2026-08-08 by the user. `SettingsScreen`
-  currently shows Interface/About rows and Disconnect, but never the URL the app is actually
-  talking to — `BaseUrlProvider.getBaseUrl()` (`core:api`, already a dependency of
-  `feature:subscriptions:ui` for logo URLs) is the existing read path, so this looks like a small
-  addition: one more row or a line above Disconnect, no new storage. Not investigated further here.
 

@@ -81,12 +81,24 @@ section and `docs/local-info.txt` — this file only covers the device side.
   disk. Filter/sort selections live in ViewModel memory, so a `force-stop` resets them
   and the list can come back in a different order — a coordinate noted before the kill
   may open a different subscription after.
-- **Run a kill cycle once, from a clean task**: repeated `monkey … LAUNCHER` calls after
-  `am kill` add activity instances to the same task rather than replacing the killed
-  one, so a second or third cycle in one session restores nothing.
+- **Relaunch after `am kill` with `am start -n
+  com.grappim.wallosmobile.debug/com.grappim.wallosmobile.MainActivity`, not
+  `monkey … LAUNCHER`.** `MainActivity` has no `launchMode` in the manifest (`standard`),
+  and `am start -n` gets Android's task-reuse treatment for that case — it prints
+  `Warning: Activity not started, its current task has been brought to the front` and
+  resumes the same activity record (`sz=` stays 1), which is what actually exercises
+  restore. `monkey` does not get this treatment and starts a **new** activity instance on
+  top on every call, including the very first one after a kill (confirmed 11.1: `pidof`
+  empty after kill, then one `monkey` call took `sz=` 1→2) — the app then reopens on
+  `DashboardRoute`, the start destination, which reads exactly like a back-stack-restore
+  bug but is really the relaunch technique creating a fresh activity rather than
+  restoring the killed one. Re-run with `am start -n` before concluding restore is
+  broken.
+- **Run a kill cycle once, from a clean task**, regardless of relaunch command:
   `adb shell dumpsys activity activities | grep com.grappim.wallosmobile` (`sz=`) or the
-  `ActivityTaskManager` logcat line's `numActivities` says which situation you're in.
-  Tapping About's GitHub link leaves the same kind of dirty two-activity task behind —
+  `ActivityTaskManager` logcat line's `numActivities` says whether the task is already
+  dirty. `adb shell am force-stop com.grappim.wallosmobile.debug` resets it. Tapping
+  About's GitHub link leaves the same kind of dirty two-activity task behind —
   `force-stop` both the app and the browser before starting a kill cycle that follows a
   link tap. The link itself is a logcat check, not a screenshot (the browser's own
   first-run page looks the same for every URL): `adb logcat -c`, tap, then

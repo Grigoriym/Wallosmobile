@@ -2833,3 +2833,51 @@ them:
   back to `0`/`0` afterward via the `wallos` MCP's `set_budget`, since this is the user's real
   account, not a throwaway row like the catalog screens' own test data.
   **M9 is done — Phase 5 (Management screens) is complete.**
+
+## M11 — Show the connected server (not in plan §8's phase order)
+
+Goal: `SettingsScreen` stops being silent about which Wallos instance it's talking to. **Done
+when** the URL from `BaseUrlProvider.getBaseUrl()` is visible somewhere on the screen.
+
+Filed to "To review" 2026-08-08, decomposed 2026-08-09 — picked over the other backlog items
+because it is a single-seam read with no new storage and no open design question, unlike the
+start-destination item (needs a scoping decision) or the scroll-lag item (needs profiling before
+any fix can be written).
+
+- [x] **11.1 — feature:settings ui: show the connected server**
+  A row (or a line above Disconnect) reading the instance root the app is actually talking to.
+  `BaseUrlProvider.getBaseUrl()` (`core:api`) is the existing read path — already a dependency of
+  `feature:subscriptions:ui` and `feature:paymentmethods:ui` for logo/icon URLs — so this is a
+  single-seam read, no new storage: `feature:settings:ui` gains
+  `implementation(projects.core.api)`, `SettingsViewModel` takes a `BaseUrlProvider` alongside
+  `ApiKeyStorage`, and `SettingsUiState` gains a `serverUrl: String` field read once at
+  construction — no loading/error state, since this is a synchronous, cached read (plan-documented
+  on `ServerUrlStorage`), not a network call. `getBaseUrl()`'s trailing `/` is load-bearing for
+  Ktor's `defaultRequest` (see its kdoc) but not for display — trim it before showing the value, so
+  the screen reads the URL the way the user typed it during login.
+  *Verify:* `./gradlew :feature:settings:ui:testAndroidHostTest` with a fake `BaseUrlProvider`, and
+  on device: open Settings, confirm the shown URL matches `docs/local-info.txt`'s instance
+  (`http://10.0.2.2:8282` from the emulator), and that the `am kill` cycle comes back on Settings
+  with the URL still shown.
+  ·  *Ref:* `core/api/.../BaseUrlProvider.kt`, `core/storage/.../ServerUrlStorage.kt`
+  **Note:** implemented as designed — `SettingsViewModel` takes `BaseUrlProvider` alongside
+  `ApiKeyStorage`, `SettingsUiState` gained `serverUrl`, and `SettingsScreen` gained a `Server` row
+  (new string `settings_server`) above the Disconnect section, styled like `AboutScreen`'s
+  title/value fields. Verified: `testAndroidHostTest` green (new fake `FakeBaseUrlProvider` in the
+  test file, same private-fake precedent as `FakeApiKeyStorage`), `KoinGraphTest` green (the new
+  constructor param resolves — `core:api`'s `NetworkModule` was already `@ComponentScan`ned and
+  already in `AppModule`'s includes; the only gap was `feature:settings:ui`'s own Gradle edge, fixed
+  by adding `implementation(projects.core.api)`), full `allTests`/`detekt`/`ktlintCheck`/both-flavor
+  assemble green, and on-device: Settings shows `http://10.0.2.2:8282` with no trailing slash.
+  **The `am kill` cycle surfaced a relaunch-technique pitfall, not a nav bug**: relaunching with
+  `monkey -c android.intent.category.LAUNCHER` after `am kill` added a *second* activity instance to
+  the task on the very first call (`dumpsys activity activities`'s `sz=` 1→2, confirmed with `pidof`
+  genuinely empty after the kill), which reopened on `DashboardRoute` — indistinguishable from a
+  broken back-stack restore until checked. `am start -n <package>/MainActivity` gets Android's
+  task-reuse treatment for this app's `standard`-launch-mode root activity instead (`Warning:
+  Activity not started, its current task has been brought to the front`, `sz=` stays 1) and
+  correctly restored Settings. Folded into `docs/EMULATOR_TESTING.md` and the shared
+  `emulator-testing` skill (edited uncommitted, for the user to review) — the skill's own kill-cycle
+  recipe used `monkey` for the relaunch step, which this session showed is unreliable even on the
+  first call, not only on repeats as previously documented.
+  **M11 is done.**

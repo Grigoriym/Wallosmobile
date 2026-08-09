@@ -25,6 +25,7 @@ import com.grappim.wallosmobile.strings.generated.resources.settings_interface
 import com.grappim.wallosmobile.strings.generated.resources.settings_interface_description
 import com.grappim.wallosmobile.strings.generated.resources.settings_profile
 import com.grappim.wallosmobile.strings.generated.resources.settings_profile_description
+import com.grappim.wallosmobile.strings.generated.resources.settings_server
 import com.grappim.wallosmobile.strings.generated.resources.settings_title
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
@@ -102,6 +103,8 @@ private fun SettingsContent(
 
         HorizontalDivider()
 
+        SettingsField(title = RString.settings_server, value = uiState.serverUrl)
+
         Text(
             text = stringResource(RString.settings_disconnect_description),
             style = MaterialTheme.typography.bodyMedium
@@ -142,6 +145,22 @@ private fun SettingsRow(
     }
 }
 
+@Composable
+private fun SettingsField(title: StringResource, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(title),
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
 private val SCREEN_PADDING = 16.dp
 private val ITEM_SPACING = 16.dp
 private val ROW_PADDING = 8.dp
@@ -149,5 +168,10 @@ private val ROW_PADDING = 8.dp
 @PreviewWallosDarkLight
 @Composable
 private fun SettingsContentPreview() = WallosMobilePreviewTheme {
-    SettingsContent(uiState = SettingsUiState(), onInterfaceClick = {}, onAboutClick = {}, onProfileClick = {})
+    SettingsContent(
+        uiState = SettingsUiState(serverUrl = "https://wallos.example.com"),
+        onInterfaceClick = {},
+        onAboutClick = {},
+        onProfileClick = {}
+    )
 }
