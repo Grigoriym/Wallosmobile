@@ -37,6 +37,3 @@ val DRAWER_NAV_ITEMS = persistentSetOf<NavKey>(
     PaymentMethodsRoute,
     CurrenciesRoute
 )
-
-/** Where the drawer shell opens. Navigating here from another section clears the section stack. */
-val START_DESTINATION: NavKey = DashboardRoute

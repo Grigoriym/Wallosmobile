@@ -1993,7 +1993,12 @@ v1 small:
 - **Extra drawer destinations** — the shell is fully wired (§5.4), but the drawer holds
   *Subscriptions* and *Settings* only. Dashboard and the *Manage* group arrive with their features.
   (Landed: Dashboard in 8.4 — it took the top drawer slot and `START_DESTINATION`, per §5.4's
-  sketch. The *Manage* group is still Phase 5.)
+  sketch. The *Manage* group is still Phase 5. `START_DESTINATION` itself is gone as of M12: the
+  start screen is a user-configurable `core/storage` preference — `StartDestination` +
+  `StartDestinationStorage`, mirroring `ThemeMode`/`ThemeStorage` — mapped to a real `NavKey` by
+  `composeApp`'s `StartDestinationMapper` object, the same "small `when` over a closed set, own file
+  in `nav/`" shape as `RouteConfigProvider`. `rememberMainAppState` takes the mapped value as a
+  required `startDestination: NavKey` parameter.)
 - **`password_login_disabled` probing, login backoff, non-HTTPS warning** — Phase 2b hardening.
   (Landed: the warning in 3.1, the probe and `LoginThrottle` in 3.10 — see §1.1.)
 - Writes, dashboard, catalog CRUD, settings, profile, notifications.

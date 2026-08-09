@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.composeapp.nav
 
 import androidx.navigation3.runtime.NavKey
+import com.grappim.wallosmobile.core.storage.startdestination.StartDestination
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlin.test.Test
 import kotlin.test.assertNotNull
@@ -35,7 +36,12 @@ class NavKeySerializersTest {
     }
 
     @Test
-    fun `the start destination is a drawer destination`() {
-        assertTrue(START_DESTINATION in DRAWER_NAV_ITEMS)
+    fun `every stored start destination maps to a drawer destination`() {
+        StartDestination.entries.forEach { startDestination ->
+            assertTrue(
+                StartDestinationMapper.toNavKey(startDestination) in DRAWER_NAV_ITEMS,
+                "$startDestination is missing from DRAWER_NAV_ITEMS"
+            )
+        }
     }
 }

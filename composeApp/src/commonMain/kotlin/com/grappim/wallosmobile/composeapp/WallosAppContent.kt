@@ -11,7 +11,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.grappim.wallosmobile.composeapp.nav.StartDestinationMapper
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
+import com.grappim.wallosmobile.core.storage.startdestination.StartDestination
+import com.grappim.wallosmobile.core.storage.startdestination.StartDestinationStorage
 import com.grappim.wallosmobile.core.storage.theme.ThemeMode
 import com.grappim.wallosmobile.core.storage.theme.ThemeStorage
 import com.grappim.wallosmobile.feature.setup.ui.LoginScreen
@@ -30,6 +33,7 @@ import org.koin.compose.koinInject
 fun WallosAppContent(
     apiKeyStorage: ApiKeyStorage = koinInject(),
     themeStorage: ThemeStorage = koinInject(),
+    startDestinationStorage: StartDestinationStorage = koinInject(),
     onDarkThemeChange: (Boolean) -> Unit = {}
 ) {
     /*
@@ -72,6 +76,14 @@ fun WallosAppContent(
         onDarkThemeChange(darkTheme)
     }
 
+    /*
+     * A third DataStore flow above the shell, seeded the same way as `themeMode` for the same
+     * reason: `rememberNavBackStack` (inside `rememberMainAppState`) consumes `startKey` only on
+     * the first composition, so this must never gate whether the tree composes.
+     */
+    val startDestination by startDestinationStorage.startDestination
+        .collectAsState(initial = StartDestination.default())
+
     WallosMobileTheme(darkTheme = darkTheme) {
         when (isConnected) {
             // Only on a genuinely first launch: nothing saved, and DataStore has not answered.
@@ -79,7 +91,11 @@ fun WallosAppContent(
             // a stutter.
             null -> Box(modifier = Modifier.fillMaxSize())
 
-            true -> AuthenticatedMainScreen(appState = rememberMainAppState())
+            true -> AuthenticatedMainScreen(
+                appState = rememberMainAppState(
+                    startDestination = StartDestinationMapper.toNavKey(startDestination)
+                )
+            )
 
             false -> LoginScreen()
         }

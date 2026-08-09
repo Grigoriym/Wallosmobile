@@ -9,12 +9,12 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.navigation3.runtime.NavKey
 import com.grappim.wallosmobile.composeapp.nav.DRAWER_NAV_ITEMS
 import com.grappim.wallosmobile.composeapp.nav.DrawerConfig
 import com.grappim.wallosmobile.composeapp.nav.DrawerDestination
 import com.grappim.wallosmobile.composeapp.nav.RouteConfig
 import com.grappim.wallosmobile.composeapp.nav.RouteConfigProvider
-import com.grappim.wallosmobile.composeapp.nav.START_DESTINATION
 import com.grappim.wallosmobile.composeapp.nav.navSavedStateConfiguration
 import com.grappim.wallosmobile.core.navigation.NavigationState
 import com.grappim.wallosmobile.core.navigation.rememberNavigationState
@@ -22,11 +22,12 @@ import kotlinx.coroutines.CoroutineScope
 
 @Composable
 fun rememberMainAppState(
+    startDestination: NavKey,
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
     drawerState: DrawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 ): MainAppState {
     val navigationState = rememberNavigationState(
-        startKey = START_DESTINATION,
+        startKey = startDestination,
         topLevelKeys = DRAWER_NAV_ITEMS,
         configuration = navSavedStateConfiguration
     )
