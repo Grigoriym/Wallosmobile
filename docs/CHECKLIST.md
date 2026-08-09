@@ -108,7 +108,15 @@ M10 having closed) has the root cause for both; see it there, not here, since it
 steps rather than duplicated in this list. One more — "Show the connected server in Settings" —
 left it to become **M11** (now closed; `archive/CHECKLIST-DONE.md`), 2026-08-09. One more — "A
 user-configurable start destination" — left it to become **M12**, 2026-08-09, picked by the user
-over the other three real backlog candidates at the time. Resolved entries aren't repeated here.
+over the other three real backlog candidates at the time. One more — "Why does a real account have
+no API key yet, when the web frontend logs in fine?" — was answered and closed with no app change,
+2026-08-09: Wallos backfills `api_key` for every existing user in `migrations/000029.php`, but that
+migration (like all of them) only runs from `startup.sh` at **container boot**, not on login or
+page load — confirmed against the local `wallos` container's own `startup.sh` and its `migrations`
+table. A long-uptime container that hasn't restarted since before that migration shipped
+(2024-10-04) can go on authenticating fine via session cookie indefinitely while never generating a
+key; a restart, or clicking regenerate on Profile, fixes it immediately. Resolved entries aren't
+repeated here.
 Two of what's left are
 standing decisions the user owns, kept here as the permanent answer rather than something to
 re-open; the rest is real backlog. **Don't re-open the first two per step; they have both been
@@ -147,17 +155,6 @@ settled twice.**
   leaves `set_budget`'s period fields, `logo_variant` and `square_icons` still unowned, all Phase 5
   surface — a real `VersionStorage` gets built there if one of those three turns out to need an
   upfront check rather than the same reactive pattern.
-- **Why does a real account (`gregorz` on the user's own `sbscrpt.gregstuff.click` instance) have
-  no API key yet, when the web frontend logs in fine?** Not a bug in this app — confirmed against
-  `WALLOS_API.md` §2 that this is Wallos's own design: `api/*.php` ignores the session cookie
-  entirely and resolves the caller by `api_key` alone, so a working frontend session proves nothing
-  about whether one has ever been generated. Filed 2026-08-07 as a "this looks strange" from the
-  user, worth a closer look rather than acted on: is `api_key` seeded at registration and this
-  account predates that, was it cleared by something, or does Wallos genuinely never generate one
-  until the user visits Profile and clicks generate? `docker exec wallos cat api/... ` /
-  `registration.php` source would settle it. No app change implied either way — the fix for the
-  user's own account is generating the key once in the web UI — this is purely a "why" to close out
-  of curiosity, not a defect to design around.
 - **The FAB → add-subscription screen is still slower to open than list → detail, after 4.4's fix.**
   4.4 shipped a real, tested, on-device-confirmed improvement — each no-cache picker
   (`EditorPickerUiState.isLoading`, category/payer/paymentMethod) now shows a spinner instead of
