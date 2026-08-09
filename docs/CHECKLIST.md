@@ -117,10 +117,10 @@ table. A long-uptime container that hasn't restarted since before that migration
 (2024-10-04) can go on authenticating fine via session cookie indefinitely while never generating a
 key; a restart, or clicking regenerate on Profile, fixes it immediately. Resolved entries aren't
 repeated here.
-Two of what's left are
+Three of what's left are
 standing decisions the user owns, kept here as the permanent answer rather than something to
-re-open; the rest is real backlog. **Don't re-open the first two per step; they have both been
-settled twice.**
+re-open; the rest is real backlog. **Don't re-open the first three per step** — the pre-v1 and
+Kover-floor ones have each been settled twice, the certificate-trust one once (2026-08-09).
 
 - **The pre-v1 no-backcompat bullet in `CLAUDE.md` expires at the first outside install** — see
   2.7's first deferred item. Nothing has changed yet: nobody but us has installed the app.
@@ -146,9 +146,17 @@ settled twice.**
   a "later" item any more; it needs a reason to come *back*, such as coverage on a logic module
   visibly falling.
 - **A certificate-trust prompt anywhere a refresh can fail, not only on the login screen** (3.8) —
-  5.1 closed the copy half (a rotated certificate names itself in the stale banner and points at
-  Disconnect) but not this one, which is a bigger change: it would put a pin write outside
-  `SetupRepository`.
+  **decided against, 2026-08-09.** 5.1 already closed the copy half (a rotated certificate names
+  itself in the stale banner/error message and points at Disconnect); this would have added the
+  actual dialog-and-retry to the other ~13 call sites across the app (every list, detail, editor
+  and dashboard card that calls `getErrorMessage`), which is a lot of surface for an event that's
+  rare in practice (a homelab cert rotating after onboarding) and already has a working, if
+  clunkier, recovery path. Checked TaigaMobileNova's own `docs/features/private-cert-trust/plan.md`
+  first, since this feature was ported from there: it hit the identical question and made the same
+  call under "Out of Scope" — the dialog stays login-only there too, everywhere else falls back to
+  the generic message. The user confirmed the same tradeoff applies here. **Don't re-open this per
+  step; it needs a reason to come back**, such as a user actually hitting a mid-session cert
+  rotation and finding the fallback message insufficient.
 - **Version gating (plan §4.6) is partly owned now.** M8 (8.1/8.4) gates `get_period_budget`
   reactively — off `WallosError.UnsupportedEndpoint`, not a stored version, since no minimum
   version is documented anywhere to compare against (M8's own preamble has the detail). That
