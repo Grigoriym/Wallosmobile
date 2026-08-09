@@ -71,11 +71,13 @@ include(":feature:categories:data")
 include(":feature:categories:domain")
 include(":feature:categories:dto")
 include(":feature:categories:mapper")
+include(":feature:categories:ui")
 
 include(":feature:household:data")
 include(":feature:household:domain")
 include(":feature:household:dto")
 include(":feature:household:mapper")
+include(":feature:household:ui")
 
 include(":feature:paymentmethods:data")
 include(":feature:paymentmethods:domain")

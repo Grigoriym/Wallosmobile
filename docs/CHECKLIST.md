@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `1/9` · M10 `9/9` — **M10 done**
-**Current step:** 9.2 — feature:categories:ui: list + add/edit/delete.
+M8 `4/4` — **M8 done** · M9 `3/9` · M10 `9/9` — **M10 done**
+**Current step:** 9.4 — feature:paymentmethods:ui: list + add/edit (name, enabled, icon_url) + delete.
 
 ---
 
@@ -188,7 +188,7 @@ them:
   `composeApp`'s `build.gradle.kts` now, same as 7.2/7.3/7.4/10.1 all did at their own data-only
   step rather than waiting for a UI step to land.
 
-- [ ] **9.2 — feature:categories:ui: list + add/edit/delete**
+- [x] **9.2 — feature:categories:ui: list + add/edit/delete**
   `CategoriesRoute`/`CategoriesScreen` (list, FAB per 7.6's `FabConfig` precedent) and
   `CategoryEditorRoute(categoryId: Int?)`/`CategoryEditorScreen` (one text field: name). Delete
   behind a confirmation dialog, same shape as 7.7's subscription detail
@@ -200,8 +200,32 @@ them:
   category (id 1) or one still referenced by a subscription surfaces the in-use error rather than
   crashing or silently failing.
   ·  *Ref:* `WALLOS_API.md` §3.10, `CLAUDE.md`'s Screen/Content split, this milestone's preamble
+  ·  *Note:* Ran only the host-test half of Verify — the emulator half needs a way to reach this
+  screen, and nothing does yet: the FAB is entirely shell-driven (`RouteConfigProvider.getConfig`
+  in `composeApp`, unwired until 9.7), and the "Manage" drawer group that would open `CategoriesRoute`
+  is also 9.7's own scope, by this milestone's own preamble ("Wires all four new routes..."). So the
+  on-device add/edit/delete/in-use-error check for all four catalog screens is deferred to land right
+  after 9.7 wires navigation, not skipped. Two other choices worth recording for 9.3–9.6, which
+  will hit the same shape:
+  (1) **One route pair, not three** — `CategoriesRoute` (list) and `CategoryEditorRoute(categoryId,
+  name)` (add/edit/delete together). A category is one field, so there is no separate detail screen
+  the way subscriptions has one; edit and delete both live on the editor, gated on `categoryId`.
+  (2) **`CategoryEditorRoute` carries the row's `name` alongside `categoryId`**, populated straight
+  from the list screen's own `uiState.items` at the tap — `CategoriesRepository` has no
+  single-row fetch (only `getCategories()`), so this avoids a second full-list round trip just to
+  prefill one field.
+  (3) **`CategoriesViewModel` has no `init { load() }`** — deliberately, unlike every other
+  no-cache ViewModel so far (`DashboardViewModel`, `SubscriptionDetailViewModel`). This list has to
+  reload both on first open and on every return trip from the editor after a write, and Nav3
+  disposes a covered entry's composition and restarts it when it comes back on top — so
+  `CategoriesScreen`'s own `LaunchedEffect(Unit) { uiState.onRetryClick() }` is the single load path
+  for both cases, and an `init` block would just double the first load. Data and DI wiring
+  (`CategoriesUiModule`, `AppModule`'s `includes`, `composeApp`'s `build.gradle.kts`) landed now,
+  same as 9.1 did for its data module — `KoinGraphTest` already resolves both new ViewModels.
+  Nav wiring itself (`NavKeySerializers`, `DrawerDestination`, `RouteConfigProvider`, entry
+  providers) stays 9.7's, per its own scope.
 
-- [ ] **9.3 — feature:household:ui: list + add/edit/delete**
+- [x] **9.3 — feature:household:ui: list + add/edit/delete**
   Same shape as 9.2, two fields (name, optional email) per `HouseholdRepository.addMember`/
   `editMember`. Reuses whatever generic list/editor/delete-dialog composables 9.2 produces if they
   turn out reusable across resources — worth checking before writing a second copy.
@@ -209,6 +233,21 @@ them:
   edit, delete a household member; confirm member id 1 (or one still referenced by a subscription)
   fails with the in-use error.
   ·  *Ref:* `WALLOS_API.md` §3.10, this milestone's preamble
+  ·  *Note:* No reusable list/editor/delete-dialog composables came out of 9.2 to share — its
+  `CategoriesScreen`/`CategoryEditorScreen` are plain, one-field-specific Composables with nothing
+  factored out, so this step wrote its own `HouseholdScreen`/`HouseholdMemberEditorScreen` following
+  the same shape rather than extracting a shared widget for a second, still-small user. Same
+  deferral as 9.2's own note: the emulator half of Verify needs a way to reach this screen, and
+  nothing does until 9.7 wires the "Manage" drawer group, so only the host-test half ran here — all
+  14 tests pass (`HouseholdViewModelTest`, `HouseholdMemberEditorViewModelTest`), `detekt`/
+  `ktlintCheck` pass project-wide, and `KoinGraphTest` resolves both new ViewModels after a clean
+  `:androidApp:compileGplayDebugKotlin --rerun-tasks`. One field differs from 9.2's shape: `email` is
+  optional (`HouseholdMember.email` is a plain, always-present `String` — blank reads as absent, same
+  as the domain model's own doc comment), so `HouseholdMemberEditorViewModel.onSaveClick` validates
+  only `name`, never `email`. Data/DI wiring (`feature:household:ui`'s `build.gradle.kts`,
+  `settings.gradle.kts`, root `kover { }`, `composeApp`'s `build.gradle.kts` and `Koin.kt`) landed
+  now, same as 9.1/9.2 did at their own step. Nav wiring itself (`NavKeySerializers`,
+  `DrawerDestination`, `RouteConfigProvider`, entry providers) stays 9.7's, per its own scope.
 
 - [ ] **9.4 — feature:paymentmethods:ui: list + add/edit (name, enabled, icon_url) + delete**
   Same shape again: name, an enabled toggle, and `icon_url` as a text field (server-fetched,

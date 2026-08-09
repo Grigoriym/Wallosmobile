@@ -99,11 +99,13 @@ dependencies {
     kover(project(":feature:categories:domain"))
     kover(project(":feature:categories:dto"))
     kover(project(":feature:categories:mapper"))
+    kover(project(":feature:categories:ui"))
 
     kover(project(":feature:household:data"))
     kover(project(":feature:household:domain"))
     kover(project(":feature:household:dto"))
     kover(project(":feature:household:mapper"))
+    kover(project(":feature:household:ui"))
 
     kover(project(":feature:paymentmethods:data"))
     kover(project(":feature:paymentmethods:domain"))

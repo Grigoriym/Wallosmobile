@@ -1928,6 +1928,28 @@ is that.
   `CompositionLocalProvider(LocalIsOffline provides true) { … }` inside the theme rather than
   faking the effect any other way.
 
+#### Simple catalog CRUD, from 9.2 (categories) — the shape 9.3–9.6 reuse
+
+A resource with one or two plain-text fields and no cache (categories, household, payment methods,
+currencies — 7.2's precedent: reference data, every call a round trip) does not need
+subscriptions' three-screen split:
+
+- **One route pair, not three.** A list route plus a single `EditorRoute(id: Int?, …fields)` that
+  is both add and edit, with delete gated on `id != null` — there is no separate detail screen, so
+  edit and delete both live on the editor the way 7.7's subscription detail carries delete rather
+  than the edit form.
+- **The editor route carries the row's current field values, not just its id.** None of these
+  repositories has a single-row fetch (only a `getAll()`-shaped read), and the list screen the user
+  just tapped from already holds the row — passing the values through the route avoids a second
+  full-list round trip just to pre-fill one field, and needs no loading state in the editor for the
+  edit path.
+- **The list ViewModel has no `init { load() }`**, unlike every cache-free ViewModel before it
+  (`DashboardViewModel`, `SubscriptionDetailViewModel`). It has to reload on *every* return trip
+  from the editor after a write, not only on first open, and Nav3 disposes a covered entry's
+  composition and restarts it once the entry is on top again — so the screen's own
+  `LaunchedEffect(Unit) { uiState.onRetryClick() }` is the single load path for both first open and
+  every return; an `init` block would only double the first one.
+
 ### 7.2 Explicitly out of v1
 
 Everything here is real work that the walking skeleton does not need. Deferring it is what keeps

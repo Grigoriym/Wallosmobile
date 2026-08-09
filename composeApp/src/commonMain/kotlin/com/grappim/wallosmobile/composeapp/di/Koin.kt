@@ -10,6 +10,7 @@ import com.grappim.wallosmobile.core.storage.StorageModule
 import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
 import com.grappim.wallosmobile.feature.categories.data.CategoriesDataModule
 import com.grappim.wallosmobile.feature.categories.mapper.CategoriesMapperModule
+import com.grappim.wallosmobile.feature.categories.ui.CategoriesUiModule
 import com.grappim.wallosmobile.feature.currencies.data.CurrenciesDataModule
 import com.grappim.wallosmobile.feature.currencies.mapper.CurrenciesMapperModule
 import com.grappim.wallosmobile.feature.dashboard.data.DashboardDataModule
@@ -17,6 +18,7 @@ import com.grappim.wallosmobile.feature.dashboard.domain.DashboardDomainModule
 import com.grappim.wallosmobile.feature.dashboard.ui.DashboardUiModule
 import com.grappim.wallosmobile.feature.household.data.HouseholdDataModule
 import com.grappim.wallosmobile.feature.household.mapper.HouseholdMapperModule
+import com.grappim.wallosmobile.feature.household.ui.HouseholdUiModule
 import com.grappim.wallosmobile.feature.paymentmethods.data.PaymentMethodsDataModule
 import com.grappim.wallosmobile.feature.paymentmethods.mapper.PaymentMethodsMapperModule
 import com.grappim.wallosmobile.feature.profile.data.ProfileDataModule
@@ -60,8 +62,10 @@ import org.koin.core.annotation.Single
         SubscriptionsUiModule::class,
         CategoriesDataModule::class,
         CategoriesMapperModule::class,
+        CategoriesUiModule::class,
         HouseholdDataModule::class,
         HouseholdMapperModule::class,
+        HouseholdUiModule::class,
         PaymentMethodsDataModule::class,
         PaymentMethodsMapperModule::class,
         CurrenciesDataModule::class,
