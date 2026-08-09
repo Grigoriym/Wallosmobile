@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.feature.paymentmethods.ui.editor
 
 import app.cash.turbine.test
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.feature.paymentmethods.domain.model.IconFile
 import com.grappim.wallosmobile.feature.paymentmethods.domain.model.PaymentMethod
 import com.grappim.wallosmobile.feature.paymentmethods.domain.repo.PaymentMethodsRepository
 import com.grappim.wallosmobile.testing.MainDispatcherRule
@@ -100,6 +101,24 @@ class PaymentMethodEditorViewModelTest {
     }
 
     @Test
+    fun `picking an icon file forwards it to the repository on save`() = runTest {
+        paymentMethodsRepository.addResult = Result.success(9)
+        val sut = viewModel()
+        sut.uiState.value.onNameChange("PayPal")
+        val file = IconFile(bytes = byteArrayOf(1, 2, 3), fileName = "icon.png", mimeType = "image/png")
+        sut.uiState.value.onIconFilePick(file)
+
+        assertEquals(file, sut.uiState.value.iconFile)
+
+        sut.saved.test {
+            sut.uiState.value.onSaveClick()
+            awaitItem()
+        }
+
+        assertEquals(file, paymentMethodsRepository.addedIconFile)
+    }
+
+    @Test
     fun `a set payment method id edits rather than adds, and emits saved`() = runTest {
         paymentMethodsRepository.editResult = Result.success(Unit)
         val sut = viewModel(paymentMethodId = 4, name = "PayPal", enabled = true)
@@ -184,6 +203,8 @@ class PaymentMethodEditorViewModelTest {
             private set
         var addedIconUrl: String? = null
             private set
+        var addedIconFile: IconFile? = null
+            private set
         var editedId: Int? = null
             private set
         var editedName: String? = null
@@ -195,11 +216,17 @@ class PaymentMethodEditorViewModelTest {
 
         override suspend fun getPaymentMethods(): Result<List<PaymentMethod>> = error("not used by this test")
 
-        override suspend fun addPaymentMethod(name: String, enabled: Boolean, iconUrl: String?): Result<Int> {
+        override suspend fun addPaymentMethod(
+            name: String,
+            enabled: Boolean,
+            iconUrl: String?,
+            iconFile: IconFile?
+        ): Result<Int> {
             addCalled = true
             addedName = name
             addedEnabled = enabled
             addedIconUrl = iconUrl
+            addedIconFile = iconFile
             return addResult
         }
 
@@ -207,7 +234,8 @@ class PaymentMethodEditorViewModelTest {
             id: Int,
             name: String,
             enabled: Boolean,
-            iconUrl: String?
+            iconUrl: String?,
+            iconFile: IconFile?
         ): Result<Unit> {
             editedId = id
             editedName = name

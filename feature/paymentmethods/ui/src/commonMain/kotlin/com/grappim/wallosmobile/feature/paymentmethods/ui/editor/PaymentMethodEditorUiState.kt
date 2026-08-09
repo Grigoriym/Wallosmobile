@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.paymentmethods.ui.editor
 
+import com.grappim.wallosmobile.feature.paymentmethods.domain.model.IconFile
 import com.grappim.wallosmobile.utils.ui.NativeText
 
 /**
@@ -14,6 +15,8 @@ data class PaymentMethodEditorUiState(
     val onEnabledChange: (Boolean) -> Unit = {},
     val iconUrl: String = "",
     val onIconUrlChange: (String) -> Unit = {},
+    val iconFile: IconFile? = null,
+    val onIconFilePick: (IconFile) -> Unit = {},
     val isSaving: Boolean = false,
     val error: NativeText = NativeText.Empty,
     val onSaveClick: () -> Unit = {},

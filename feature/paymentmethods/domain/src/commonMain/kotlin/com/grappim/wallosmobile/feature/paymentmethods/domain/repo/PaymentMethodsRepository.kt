@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.paymentmethods.domain.repo
 
+import com.grappim.wallosmobile.feature.paymentmethods.domain.model.IconFile
 import com.grappim.wallosmobile.feature.paymentmethods.domain.model.PaymentMethod
 
 /**
@@ -18,13 +19,27 @@ interface PaymentMethodsRepository {
 
     /**
      * @param iconUrl a source URL the server fetches server-side (same shape as subscriptions'
-     * `logo_url`, 7.8) — `null` leaves the icon unset on an add, or untouched on an edit. The
-     * multipart `paymenticon` upload is out of scope: no picker calls it before Phase 5.
+     * `logo_url`, 7.8) — `null` leaves the icon unset on an add, or untouched on an edit.
+     * @param iconFile a device-picked image, uploaded as the `paymenticon` multipart field
+     * (9.5) — `null` behaves the same as [iconUrl]'s `null`. Sending both is legal on the wire but
+     * neither caller (the editor's `iconUrl` field and its file picker) offers a way to fill both
+     * at once.
      * @return the id the server assigned the new payment method.
      */
-    suspend fun addPaymentMethod(name: String, enabled: Boolean, iconUrl: String? = null): Result<Int>
+    suspend fun addPaymentMethod(
+        name: String,
+        enabled: Boolean,
+        iconUrl: String? = null,
+        iconFile: IconFile? = null
+    ): Result<Int>
 
-    suspend fun editPaymentMethod(id: Int, name: String, enabled: Boolean, iconUrl: String? = null): Result<Unit>
+    suspend fun editPaymentMethod(
+        id: Int,
+        name: String,
+        enabled: Boolean,
+        iconUrl: String? = null,
+        iconFile: IconFile? = null
+    ): Result<Unit>
 
     suspend fun deletePaymentMethod(id: Int): Result<Unit>
 }

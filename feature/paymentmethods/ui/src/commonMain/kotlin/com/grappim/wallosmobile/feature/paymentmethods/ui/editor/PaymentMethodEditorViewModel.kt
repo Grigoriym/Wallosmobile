@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.grappim.wallosmobile.core.logger.LogPriority
 import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.wallosmobile.feature.paymentmethods.domain.model.IconFile
 import com.grappim.wallosmobile.feature.paymentmethods.domain.repo.PaymentMethodsRepository
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_error_invalid
@@ -41,6 +42,7 @@ class PaymentMethodEditorViewModel(
             enabled = initialEnabled,
             onEnabledChange = ::onEnabledChange,
             onIconUrlChange = ::onIconUrlChange,
+            onIconFilePick = ::onIconFilePick,
             onSaveClick = ::onSaveClick,
             onDeleteClick = ::onDeleteClick,
             onDeleteDialogDismiss = ::onDeleteDialogDismiss,
@@ -69,6 +71,10 @@ class PaymentMethodEditorViewModel(
         _uiState.update { it.copy(iconUrl = value) }
     }
 
+    private fun onIconFilePick(file: IconFile) {
+        _uiState.update { it.copy(iconFile = file) }
+    }
+
     private fun onSaveClick() {
         val name = _uiState.value.name.trim()
         if (name.isBlank()) {
@@ -77,13 +83,14 @@ class PaymentMethodEditorViewModel(
         }
         val enabled = _uiState.value.enabled
         val iconUrl = _uiState.value.iconUrl.trim().ifBlank { null }
+        val iconFile = _uiState.value.iconFile
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, error = NativeText.Empty) }
 
             val result = paymentMethodId?.let { id ->
-                paymentMethodsRepository.editPaymentMethod(id, name, enabled, iconUrl)
-            } ?: paymentMethodsRepository.addPaymentMethod(name, enabled, iconUrl).map { }
+                paymentMethodsRepository.editPaymentMethod(id, name, enabled, iconUrl, iconFile)
+            } ?: paymentMethodsRepository.addPaymentMethod(name, enabled, iconUrl, iconFile).map { }
 
             result.onSuccess {
                 _uiState.update { it.copy(isSaving = false) }

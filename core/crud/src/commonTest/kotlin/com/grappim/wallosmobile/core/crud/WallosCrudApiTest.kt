@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.core.crud
 
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.MultipartFile
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
 import com.grappim.wallosmobile.core.domain.WallosError
@@ -10,7 +11,10 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.forms.FormDataContent
+import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.PartData
+import io.ktor.utils.io.InternalAPI
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -78,6 +82,43 @@ class WallosCrudApiTest {
     fun `surfaces the in-use delete failure as a typed WallosError`() = runTest {
         assertFailsWith<WallosError.InUse> { api(IN_USE_BODY).delete(7) }
     }
+
+    @OptIn(InternalAPI::class)
+    @Test
+    fun `addWithFile sends a multipart body carrying the file alongside the caller's fields`() = runTest {
+        var body: MultiPartFormDataContent? = null
+
+        val id = api(ADD_BODY) { body = it.body as MultiPartFormDataContent }
+            .addWithFile(FormParams().put("name", "New"), fakeFile())
+
+        assertEquals(5, id)
+        val parts = body?.parts.orEmpty()
+        assertEquals("add", parts.formValue("action"))
+        assertEquals("New", parts.formValue("name"))
+        val filePart = parts.filterIsInstance<PartData.BinaryItem>().single()
+        assertEquals("icon", filePart.name)
+    }
+
+    @OptIn(InternalAPI::class)
+    @Test
+    fun `editWithFile sends action=edit, the id and the file, all multipart`() = runTest {
+        var body: MultiPartFormDataContent? = null
+
+        api(OK_BODY) { body = it.body as MultiPartFormDataContent }
+            .editWithFile(7, FormParams().put("name", "Renamed"), fakeFile())
+
+        val parts = body?.parts.orEmpty()
+        assertEquals("edit", parts.formValue("action"))
+        assertEquals("7", parts.formValue(ENDPOINT.idParam))
+        assertEquals("Renamed", parts.formValue("name"))
+        assertEquals(1, parts.filterIsInstance<PartData.BinaryItem>().size)
+    }
+
+    private fun fakeFile() =
+        MultipartFile(fieldName = "icon", fileName = "icon.png", mimeType = "image/png", bytes = byteArrayOf(1, 2, 3))
+
+    private fun List<PartData>.formValue(name: String): String? =
+        filterIsInstance<PartData.FormItem>().firstOrNull { it.name == name }?.value
 
     private fun api(responseBody: String, onRequest: (HttpRequestData) -> Unit = {}): WallosCrudApi<FakeCrudResource> {
         val engine = MockEngine { request ->

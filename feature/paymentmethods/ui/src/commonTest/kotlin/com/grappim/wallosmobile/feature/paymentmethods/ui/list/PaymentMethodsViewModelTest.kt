@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.feature.paymentmethods.ui.list
 
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.feature.paymentmethods.domain.model.IconFile
 import com.grappim.wallosmobile.feature.paymentmethods.domain.model.PaymentMethod
 import com.grappim.wallosmobile.feature.paymentmethods.domain.repo.PaymentMethodsRepository
 import com.grappim.wallosmobile.testing.MainDispatcherRule
@@ -132,14 +133,19 @@ class PaymentMethodsViewModelTest {
 
         override suspend fun getPaymentMethods(): Result<List<PaymentMethod>> = methods
 
-        override suspend fun addPaymentMethod(name: String, enabled: Boolean, iconUrl: String?): Result<Int> =
-            error("not used by this test")
+        override suspend fun addPaymentMethod(
+            name: String,
+            enabled: Boolean,
+            iconUrl: String?,
+            iconFile: IconFile?
+        ): Result<Int> = error("not used by this test")
 
         override suspend fun editPaymentMethod(
             id: Int,
             name: String,
             enabled: Boolean,
-            iconUrl: String?
+            iconUrl: String?,
+            iconFile: IconFile?
         ): Result<Unit> = error("not used by this test")
 
         override suspend fun deletePaymentMethod(id: Int): Result<Unit> = error("not used by this test")

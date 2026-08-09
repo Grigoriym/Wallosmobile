@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.feature.paymentmethods.data
 
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.MultipartFile
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
 import com.grappim.wallosmobile.core.domain.WallosError
@@ -10,7 +11,10 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.forms.FormDataContent
+import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.PartData
+import io.ktor.utils.io.InternalAPI
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -84,6 +88,48 @@ class PaymentMethodsApiImplTest {
     fun `surfaces the in-use delete failure as a typed WallosError`() = runTest {
         assertFailsWith<WallosError.InUse> { api(IN_USE_BODY).delete(7) }
     }
+
+    // --- 9.5: multipart icon upload -----------------------------------------------------------
+
+    @OptIn(InternalAPI::class)
+    @Test
+    fun `addWithIcon sends a multipart body carrying the paymenticon field`() = runTest {
+        var body: MultiPartFormDataContent? = null
+
+        val id = api(ADD_BODY) { body = it.body as MultiPartFormDataContent }
+            .addWithIcon(FormParams().put("name", "New"), iconFile())
+
+        assertEquals(32, id)
+        val parts = body?.parts.orEmpty()
+        assertEquals("add", parts.formValue("action"))
+        assertEquals("New", parts.formValue("name"))
+        val filePart = parts.filterIsInstance<PartData.BinaryItem>().single()
+        assertEquals("paymenticon", filePart.name)
+    }
+
+    @OptIn(InternalAPI::class)
+    @Test
+    fun `editWithIcon sends the id under the paymentId alias, still multipart`() = runTest {
+        var body: MultiPartFormDataContent? = null
+
+        api(OK_BODY) { body = it.body as MultiPartFormDataContent }
+            .editWithIcon(7, FormParams().put("name", "Renamed"), iconFile())
+
+        val parts = body?.parts.orEmpty()
+        assertEquals("edit", parts.formValue("action"))
+        assertEquals("7", parts.formValue("paymentId"))
+        assertEquals(1, parts.filterIsInstance<PartData.BinaryItem>().size)
+    }
+
+    private fun iconFile() = MultipartFile(
+        fieldName = "paymenticon",
+        fileName = "icon.png",
+        mimeType = "image/png",
+        bytes = byteArrayOf(1, 2, 3)
+    )
+
+    private fun List<PartData>.formValue(name: String): String? =
+        filterIsInstance<PartData.FormItem>().firstOrNull { it.name == name }?.value
 
     private fun api(responseBody: String, onRequest: (HttpRequestData) -> Unit = {}): PaymentMethodsApi {
         val engine = MockEngine { request ->

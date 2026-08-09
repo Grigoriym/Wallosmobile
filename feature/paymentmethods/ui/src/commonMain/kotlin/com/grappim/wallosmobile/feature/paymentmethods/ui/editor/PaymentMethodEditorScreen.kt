@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.grappim.wallosmobile.feature.paymentmethods.domain.model.IconFile
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_delete
 import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_delete_cancel
@@ -33,6 +34,8 @@ import com.grappim.wallosmobile.strings.generated.resources.payment_method_edito
 import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_delete_confirm_title
 import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_enabled
 import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_error_invalid
+import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_icon_file_pick
+import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_icon_file_picked
 import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_icon_url
 import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_name
 import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_save
@@ -94,11 +97,17 @@ fun PaymentMethodEditorScreen(
     ObserveAsEvents(flow = viewModel.saved) { onBackClick() }
     ObserveAsEvents(flow = viewModel.deleted) { onBackClick() }
 
-    PaymentMethodEditorContent(uiState = uiState)
+    val pickIconFile = rememberIconFilePickerLauncher(onPick = uiState.onIconFilePick)
+
+    PaymentMethodEditorContent(uiState = uiState, onPickIconFileClick = pickIconFile)
 }
 
 @Composable
-private fun PaymentMethodEditorContent(uiState: PaymentMethodEditorUiState, modifier: Modifier = Modifier) {
+private fun PaymentMethodEditorContent(
+    uiState: PaymentMethodEditorUiState,
+    modifier: Modifier = Modifier,
+    onPickIconFileClick: () -> Unit = {}
+) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -128,6 +137,8 @@ private fun PaymentMethodEditorContent(uiState: PaymentMethodEditorUiState, modi
             singleLine = true
         )
 
+        IconFilePicker(iconFile = uiState.iconFile, onPickIconFileClick = onPickIconFileClick)
+
         if (uiState.error.isNotEmpty()) {
             Text(
                 text = uiState.error.asString(),
@@ -151,6 +162,23 @@ private fun PaymentMethodEditorContent(uiState: PaymentMethodEditorUiState, modi
 
     if (uiState.isDeleteDialogOpen) {
         DeleteConfirmDialog(uiState = uiState)
+    }
+}
+
+/** The multipart alternative to [PaymentMethodEditorUiState.iconUrl] (9.5) — device gallery, not a URL. */
+@Composable
+private fun IconFilePicker(iconFile: IconFile?, onPickIconFileClick: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        TextButton(onClick = onPickIconFileClick) {
+            Text(stringResource(RString.payment_method_editor_icon_file_pick))
+        }
+
+        if (iconFile != null) {
+            Text(
+                text = stringResource(RString.payment_method_editor_icon_file_picked, iconFile.fileName),
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
     }
 }
 

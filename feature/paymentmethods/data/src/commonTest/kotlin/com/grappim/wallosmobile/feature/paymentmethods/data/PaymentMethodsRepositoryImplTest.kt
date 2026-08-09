@@ -1,16 +1,21 @@
 package com.grappim.wallosmobile.feature.paymentmethods.data
 
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.MultipartFile
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.feature.paymentmethods.domain.model.IconFile
 import com.grappim.wallosmobile.feature.paymentmethods.dto.PaymentMethodDTO
 import com.grappim.wallosmobile.feature.paymentmethods.mapper.PaymentMethodMapper
 import com.grappim.wallosmobile.feature.subscriptions.mapper.HtmlUnescaper
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class PaymentMethodsRepositoryImplTest {
 
@@ -67,6 +72,34 @@ class PaymentMethodsRepositoryImplTest {
     }
 
     @Test
+    fun `addPaymentMethod with an icon file switches to the multipart call`() = runTest {
+        val api = FakePaymentMethodsApi(addedId = 32)
+
+        repository(api).addPaymentMethod("PayPal", enabled = true, iconFile = iconFile()).getOrThrow()
+
+        assertNull(api.addedFields)
+        assertEquals("PayPal", api.addedIconFields?.asMap()?.get("name"))
+        val sentIcon = assertNotNull(api.addedIcon)
+        assertEquals("paymenticon", sentIcon.fieldName)
+        assertEquals("icon.png", sentIcon.fileName)
+        assertContentEquals(byteArrayOf(1, 2, 3), sentIcon.bytes)
+    }
+
+    @Test
+    fun `editPaymentMethod with an icon file switches to the multipart call too`() = runTest {
+        val api = FakePaymentMethodsApi()
+
+        repository(api).editPaymentMethod(7, "Renamed", enabled = false, iconFile = iconFile()).getOrThrow()
+
+        assertTrue(api.editCalls.isEmpty())
+        val (id, fields) = api.editIconCalls.single()
+        assertEquals(7, id)
+        assertEquals("Renamed", fields.asMap()["name"])
+    }
+
+    private fun iconFile() = IconFile(bytes = byteArrayOf(1, 2, 3), fileName = "icon.png", mimeType = "image/png")
+
+    @Test
     fun `deletePaymentMethod forwards the id`() = runTest {
         val api = FakePaymentMethodsApi()
 
@@ -100,7 +133,12 @@ class PaymentMethodsRepositoryImplTest {
 
         var addedFields: FormParams? = null
             private set
+        var addedIconFields: FormParams? = null
+            private set
+        var addedIcon: MultipartFile? = null
+            private set
         val editCalls = mutableListOf<Pair<Int, FormParams>>()
+        val editIconCalls = mutableListOf<Pair<Int, FormParams>>()
         val deleteCalls = mutableListOf<Int>()
 
         override suspend fun getAll(): List<PaymentMethodDTO> {
@@ -117,6 +155,18 @@ class PaymentMethodsRepositoryImplTest {
         override suspend fun edit(id: Int, fields: FormParams) {
             editFailure?.let { throw it }
             editCalls += id to fields
+        }
+
+        override suspend fun addWithIcon(fields: FormParams, icon: MultipartFile): Int {
+            addFailure?.let { throw it }
+            addedIconFields = fields
+            addedIcon = icon
+            return addedId
+        }
+
+        override suspend fun editWithIcon(id: Int, fields: FormParams, icon: MultipartFile) {
+            editFailure?.let { throw it }
+            editIconCalls += id to fields
         }
 
         override suspend fun delete(id: Int) {

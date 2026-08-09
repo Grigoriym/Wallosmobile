@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `4/9` · M10 `9/9` — **M10 done**
-**Current step:** 9.5 — feature:paymentmethods: icon via multipart upload.
+M8 `4/4` — **M8 done** · M9 `5/9` · M10 `9/9` — **M10 done**
+**Current step:** 9.6 — feature:currencies:ui: list + add/edit/delete.
 
 ---
 
@@ -287,7 +287,7 @@ them:
   step. Nav wiring itself (`NavKeySerializers`, `DrawerDestination`, `RouteConfigProvider`, entry
   providers) stays 9.7's, per its own scope.
 
-- [ ] **9.5 — feature:paymentmethods: icon via multipart upload**
+- [x] **9.5 — feature:paymentmethods: icon via multipart upload**
   Mirrors 7.9 exactly: an Android image picker (`ActivityResultContracts`, this module's first
   `androidMain`) feeding a multipart `paymenticon` field. Server resizes to 70×48 (confirmed live,
   this milestone's preamble) — different from a subscription logo's 135×42, so don't assume the
@@ -295,6 +295,31 @@ them:
   *Verify:* on the emulator against the live instance — pick an image for a payment method's icon,
   save, and see it render on the list without restarting the app (7.9's own verify shape).
   ·  *Ref:* `WALLOS_API.md` §3.10, §4; archive `CHECKLIST-DONE.md` 7.9
+  ·  *Note:* Ran only the host-test half of Verify — same deferral as 9.2–9.4's own notes:
+  `PaymentMethodEditorRoute` still isn't registered in `NavKeySerializers`/`DrawerDestination`
+  (confirmed by grep, still 9.7's scope), so nothing in the running app can reach this screen yet.
+  The on-device pick/save/render check is deferred to land right after 9.7, alongside the other
+  three catalog screens' own deferred checks.
+  One infra choice worth recording: `WallosCrudApi` (`core:crud`) gained `addWithFile`/
+  `editWithFile` — two new methods on the *class*, not on the generic `CrudApi<T>` interface, so
+  categories and household (which never take a file) are untouched. `PaymentMethodsApi` switched
+  from `CrudApi<PaymentMethodDTO> by WallosCrudApi(...)` (interface delegation) to composition — a
+  private `crud` field — mirroring 9.1's `CurrenciesApi` precedent, since `addWithFile`/
+  `editWithFile` aren't part of `CrudApi` and so aren't reachable through a `by` delegate.
+  `feature:paymentmethods:domain` gained `IconFile` (bytes/fileName/mimeType), a plain, non-`data`
+  class mirroring `feature:subscriptions`' `LogoFile` for the same reason (a `ByteArray` property
+  would give `equals`/`hashCode` a structural look they don't have). `PaymentMethodsRepository.
+  addPaymentMethod`/`editPaymentMethod` gained an `iconFile: IconFile? = null` parameter alongside
+  the existing `iconUrl`; the repository impl branches to `api.addWithIcon`/`editWithIcon` only
+  when a file is present, leaving every existing no-icon call site unchanged. UI side mirrors 7.9's
+  `LogoPicker`/`LogoFilePicker` shape exactly: an `expect`/`actual` `rememberIconFilePickerLauncher`
+  (this module's first `androidMain`, `feature:paymentmethods:ui/build.gradle.kts` gained the same
+  `androidx.activity.compose` line 7.9 added to `feature:subscriptions:ui`), a
+  `PaymentMethodEditorUiState.iconFile`/`onIconFilePick`, and an `IconFilePicker` composable (pick
+  button + "Selected: <filename>" text) next to the existing `iconUrl` field. Confirmed
+  `paymenticon` as the exact multipart field name via the live PHP (`docker exec wallos cat
+  api/payment_methods/set_payment_methods.php`), not just the doc summary, per `CLAUDE.md`'s
+  "a step that says it already checked an API still gets checked" rule.
 
 - [ ] **9.6 — feature:currencies:ui: list + add/edit/delete**
   Fields: name, symbol, code, rate (default `1.0`). Same list/editor/delete-dialog shape as

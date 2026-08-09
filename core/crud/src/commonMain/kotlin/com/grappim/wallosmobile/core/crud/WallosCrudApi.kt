@@ -1,8 +1,10 @@
 package com.grappim.wallosmobile.core.crud
 
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.MultipartFile
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.post
+import com.grappim.wallosmobile.core.api.postMultipart
 import com.grappim.wallosmobile.core.domain.WallosError
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.Json
@@ -44,6 +46,27 @@ class WallosCrudApi<T : CrudResource>(
         apiClient.post<JsonObject>(
             endpoint.setPath,
             fields.withAction(ACTION_EDIT).put(endpoint.idParam, id.toString())
+        )
+    }
+
+    /**
+     * [add], with [file] riding alongside as a `multipart/form-data` part — the shape
+     * `set_payment_methods.php`'s `paymenticon` needs (`WALLOS_API.md` §3.10, §4). Not part of
+     * [CrudApi] itself: categories and household never take a file, so the generic interface stays
+     * as it was.
+     */
+    suspend fun addWithFile(fields: FormParams, file: MultipartFile): Int {
+        val envelope = apiClient.postMultipart<JsonObject>(endpoint.setPath, fields.withAction(ACTION_ADD), file)
+        return (envelope[endpoint.idParam] as? JsonPrimitive)?.intOrNull
+            ?: throw WallosError.Malformed(envelope.toString())
+    }
+
+    /** [edit], with [file] riding alongside — see [addWithFile]. */
+    suspend fun editWithFile(id: Int, fields: FormParams, file: MultipartFile) {
+        apiClient.postMultipart<JsonObject>(
+            endpoint.setPath,
+            fields.withAction(ACTION_EDIT).put(endpoint.idParam, id.toString()),
+            file
         )
     }
 

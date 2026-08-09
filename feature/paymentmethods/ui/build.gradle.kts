@@ -10,6 +10,13 @@ plugins {
 
 kotlin {
     sourceSets {
+        // The icon picker (9.5) is this module's first reason to declare `androidMain` — every
+        // other call reaches the server through `core:api` alone. `feature:subscriptions:ui`'s
+        // `LogoPicker.android.kt` (7.9) is the precedent this mirrors.
+        androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
+        }
+
         commonMain.dependencies {
             implementation(projects.feature.paymentmethods.domain)
 

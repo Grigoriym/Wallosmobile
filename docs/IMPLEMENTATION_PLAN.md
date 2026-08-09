@@ -533,6 +533,17 @@ handling (decode to `JsonObject`, pull the field by name) rather than reusing it
 `feature:subscriptions:data` to add `kmp.serialization` — the module had never decoded a raw
 `JsonObject` before 7.5, only DTOs, so `kmp.network` alone (which it already had) wasn't enough.
 
+**9.5 added `addWithFile`/`editWithFile` to `WallosCrudApi<T>` itself, not to `CrudApi<T>`.**
+Payment methods is the only one of the four `core:crud` resources with a file upload
+(`paymenticon`), so the two new methods sit on the concrete class — reachable by whichever
+resource composes one — rather than widening the shared interface every resource implements.
+`PaymentMethodsApi` switched from `CrudApi<PaymentMethodDTO> by WallosCrudApi(...)` (interface
+delegation) to composition — a private `crud` field, one-line pass-throughs for the four `CrudApi`
+calls, plus `addWithIcon`/`editWithIcon` calling `crud.addWithFile`/`editWithFile` — since a `by`
+delegate only exposes what the delegated interface declares, and the two new methods aren't on
+it. Same shape 9.1 used for `CurrenciesApi`, for a different reason (there, `getAll()`'s return
+type needed to change).
+
 **7.6 is where `FabConfig` stopped being parked.** 1.8 trimmed it from the shell with "no writes
 before Phase 3"; it is now a `RouteConfig` field the same shape as MealieMobile's
 (`None`/`Standard(icon, contentDescription, navigateTo)`), read by `AuthenticatedMainScreen`'s
@@ -701,9 +712,10 @@ It builds on `httpClient.submitFormWithBinaryData` + a `formData { }` block: the
 and the file is one more `append(fieldName, bytes, Headers.build { ContentType; ContentDisposition
 = "filename=…" })`. `SubscriptionsApi.addSubscription`/`editSubscription` take an optional
 `logo: MultipartFile? = null` and switch to `postMultipart` only when it's set — every pre-existing,
-non-logo call site (and its tests) needed no change. Reused by nothing else yet;
-`feature:paymentmethods`' `paymenticon` upload (7.4's deliberately out-of-scope half) is the next
-caller whenever Phase 5 builds a picker for it.
+non-logo call site (and its tests) needed no change. **9.5 is its second caller**, one level down:
+`WallosCrudApi.addWithFile`/`editWithFile` call `postMultipart` directly, and
+`PaymentMethodsApi.addWithIcon`/`editWithIcon` reach it through those — `feature:paymentmethods`'s
+own `paymenticon` upload (7.4's deliberately out-of-scope half), closed by 9.5's picker.
 
 The `NetworkModule` itself follows MealieMobile's
 (`MealieMobile/core/api/.../core/api/NetworkModule.kt`) — `@HttpJson` and client qualifiers,

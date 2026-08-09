@@ -182,6 +182,8 @@
     <string name="payment_method_editor_name">Name</string>
     <string name="payment_method_editor_enabled">Enabled</string>
     <string name="payment_method_editor_icon_url">Icon URL</string>
+    <string name="payment_method_editor_icon_file_pick">Choose icon image</string>
+    <string name="payment_method_editor_icon_file_picked">Selected: %1$s</string>
     <string name="payment_method_editor_save">Save</string>
     <string name="payment_method_editor_error_invalid">Enter a name.</string>
     <string name="payment_method_editor_delete">Delete</string>
