@@ -246,12 +246,12 @@ feature/
   setup/          data domain dto ui      Onboarding: login bridge + manual key entry (§1.1)
   subscriptions/  data domain dto mapper ui   List, detail, add/edit/delete
   dashboard/      data domain dto ui      Monthly cost, period budget, upcoming payments
-  categories/     data domain dto mapper  \  Reference data. Identical CRUD shape — see §3.4 on
-  paymentmethods/ data domain dto mapper   | core:crud. No feature:currencies module: that data
-  household/      data domain dto mapper  /  stays inside subscriptions/ — see §3.4's note.
-                                              No `ui` of their own: M7 (`docs/CHECKLIST.md`)
-                                              surfaces all three as pickers inside
-                                              `feature:subscriptions:ui`, confirmed building 7.2.
+  categories/     data domain dto mapper ui   \  Reference data. Identical CRUD shape — see §3.4
+  paymentmethods/ data domain dto mapper ui    | on core:crud. Each also has a management screen
+  household/      data domain dto mapper ui   /  of its own (M9, `docs/CHECKLIST.md`), on top of
+  currencies/     data domain dto mapper ui      the read-only pickers `feature:subscriptions:ui`
+                                              built first (M7, confirmed 7.2) — `currencies` split
+                                              out of `subscriptions/` later still (9.1/9.6, §3.4).
   settings/       ui (data domain dto later)  Disconnect stub in v1; display settings in Phase 5
   profile/        data domain dto ui      get_user, set_budget
   notifications/  data domain dto ui      Read-only channel config
@@ -455,8 +455,8 @@ read path for currencies by the time Phase 3 was decomposed (§10) — 2.3's `cu
 3.11's `observeCurrencies` cache — so a `feature:currencies` module would have duplicated it for no
 caller. Phase 3's currency picker reads that existing flow unchanged. **9.1 (Phase 5) added the
 fourth module after all**, once `add`/`edit` (rate maintenance) plus a management screen turned up:
-`feature:currencies` (dto/domain/data so far, `ui` still to come at 9.6), on `core:crud` like the
-other three, with its own `CurrencyDTO` (`rate`/`inUse` restored) rather than reusing
+`feature:currencies` (dto/domain/data/ui, 9.6 having closed the last of it), on `core:crud` like
+the other three, with its own `CurrencyDTO` (`rate`/`inUse` restored) rather than reusing
 `feature:subscriptions`'s trimmed, read-only one — decided with the user as a small accepted
 duplication over a cross-feature reach into a module with no business owning currency management.
 
@@ -464,7 +464,9 @@ duplication over a cross-feature reach into a module with no business owning cur
 three** — the one deviation from 7.2's shape, decided at 9.1. `get_currencies.php`'s envelope
 carries a top-level `main_currency` alongside the list, which `CrudApi.getAll(): List<T>` (and
 `WallosCrudApi`'s generic implementation, which only ever reads `envelope[listKey]`) has no room
-for, and 9.6's list screen needs it to mark which currency is main and disable Delete on it.
+for, and 9.6's list screen needs it to mark which currency is main — a plain badge on the row; 9.6
+decided, for consistency with categories'/household's own default-row precedent, *not* to also
+disable Delete proactively on it, leaving that to the server's `"Cannot delete currency"` error.
 `CurrenciesApi.getAll()` instead returns a `CurrenciesPayload(currencies, mainCurrencyId)`, decoded
 in one shot via `apiClient.post<CurrenciesResponse>(path)` — a typed DTO mirroring
 `feature:subscriptions`'s own `CurrenciesResponse`/`SubscriptionsApi.getCurrencies()` precedent —

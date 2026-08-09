@@ -117,6 +117,7 @@ dependencies {
     kover(project(":feature:currencies:domain"))
     kover(project(":feature:currencies:dto"))
     kover(project(":feature:currencies:mapper"))
+    kover(project(":feature:currencies:ui"))
 
     kover(project(":feature:dashboard:data"))
     kover(project(":feature:dashboard:domain"))

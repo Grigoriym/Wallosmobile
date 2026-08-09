@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `5/9` · M10 `9/9` — **M10 done**
-**Current step:** 9.6 — feature:currencies:ui: list + add/edit/delete.
+M8 `4/4` — **M8 done** · M9 `6/9` · M10 `9/9` — **M10 done**
+**Current step:** 9.7 — composeApp: the "Manage" drawer group.
 
 ---
 
@@ -321,7 +321,7 @@ them:
   api/payment_methods/set_payment_methods.php`), not just the doc summary, per `CLAUDE.md`'s
   "a step that says it already checked an API still gets checked" rule.
 
-- [ ] **9.6 — feature:currencies:ui: list + add/edit/delete**
+- [x] **9.6 — feature:currencies:ui: list + add/edit/delete**
   Fields: name, symbol, code, rate (default `1.0`). Same list/editor/delete-dialog shape as
   9.2–9.4. Decide here whether the list marks the main currency (per 9.1's `getAll()` choice) and
   whether the editor disables Delete on it proactively, or leaves it to the server's
@@ -331,6 +331,34 @@ them:
   edit, delete a currency; confirm the main currency and any currency still referenced by a
   subscription fail to delete with the in-use error.
   ·  *Ref:* `WALLOS_API.md` §3.10, this milestone's preamble
+  ·  *Note:* Both open questions decided the same way: the list marks the main currency (a
+  trailing "Main" badge on the row, mirroring `PaymentMethodRow`'s "Disabled" badge — the one
+  precedent for a conditional label at the end of a catalog row), but the editor does **not**
+  proactively disable Delete on it — left to the server's `WallosError.InUse`, same as categories'
+  id 1 and household's member 1. Checked the actual web UI (`settings.php` around line 1044) before
+  deciding, per `CLAUDE.md`'s rule: it *does* disable the button proactively there, for both the
+  main currency and any currency still referenced by a subscription (`in_use`, the same field this
+  app's own `Currency.inUse` already carries) — so the data to match it is free, no extra round
+  trip. Went the other way anyway, for consistency with the three sibling screens already shipped
+  (9.2–9.4) rather than making currencies the one catalog screen with special-cased delete UX; a
+  server error already surfaces correctly (covered by `WallosErrorMapperTest`) and this is a UX
+  choice, not a defect. Worth revisiting all four screens together if this ever comes up again,
+  not currencies alone.
+  `rate` is a `String` in `CurrencyEditorUiState`, the same shape
+  `SubscriptionEditorUiState.price` uses for a decimal field (`KeyboardType.Decimal`), parsed with
+  `toDoubleOrNull()` only on save; an unparseable rate joins a blank name/symbol/code under one
+  `currency_editor_error_invalid` message. `CurrencyEditorRoute` carries `name`/`symbol`/`code`/
+  `rate` alongside `currencyId`, prefilling from the list's own row exactly like
+  `CategoryEditorRoute`/`HouseholdMemberEditorRoute` — `CurrenciesRepository` has no single-row
+  fetch either. Same deferral as 9.2–9.5's own notes: the emulator half of Verify needs the
+  "Manage" drawer group, which is 9.7's scope, so only the host-test half ran here — all 14 tests
+  pass (`CurrenciesViewModelTest`, `CurrencyEditorViewModelTest`), `detekt`/`ktlintCheck` pass
+  project-wide, and `KoinGraphTest` resolves both new ViewModels after a clean
+  `:androidApp:compileGplayDebugKotlin --rerun-tasks`. Data/DI wiring
+  (`feature:currencies:ui`'s `build.gradle.kts`, `settings.gradle.kts`, root `kover { }`,
+  `composeApp`'s `build.gradle.kts` and `Koin.kt`) landed now, same as 9.1–9.5 did at their own
+  step. Nav wiring itself (`NavKeySerializers`, `DrawerDestination`, `RouteConfigProvider`, entry
+  providers) stays 9.7's, per its own scope.
 
 - [ ] **9.7 — composeApp: the "Manage" drawer group**
   Wires all four new routes into `DrawerDestination`/`DRAWER_NAV_ITEMS`/`NavKeySerializers`

@@ -192,6 +192,25 @@
     <string name="payment_method_editor_delete_confirm">Delete</string>
     <string name="payment_method_editor_delete_cancel">Cancel</string>
 
+    <string name="currencies_title">Currencies</string>
+    <string name="currencies_empty">No currencies yet.</string>
+    <string name="currencies_main_label">Main</string>
+    <string name="currency_row_details">%1$s · %2$s · rate %3$s</string>
+
+    <string name="currency_editor_title">New currency</string>
+    <string name="currency_editor_title_edit">Edit currency</string>
+    <string name="currency_editor_name">Name</string>
+    <string name="currency_editor_symbol">Symbol</string>
+    <string name="currency_editor_code">Code</string>
+    <string name="currency_editor_rate">Rate</string>
+    <string name="currency_editor_save">Save</string>
+    <string name="currency_editor_error_invalid">Fill in the name, symbol, code and rate.</string>
+    <string name="currency_editor_delete">Delete</string>
+    <string name="currency_editor_delete_confirm_title">Delete this currency?</string>
+    <string name="currency_editor_delete_confirm_message">This can't be undone.</string>
+    <string name="currency_editor_delete_confirm">Delete</string>
+    <string name="currency_editor_delete_cancel">Cancel</string>
+
     <string name="settings_disconnect">Disconnect</string>
     <string name="settings_disconnect_description">Disconnecting clears the API key stored on this device. Nothing changes on the server.</string>
 

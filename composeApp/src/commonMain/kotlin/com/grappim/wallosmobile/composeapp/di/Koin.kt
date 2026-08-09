@@ -13,6 +13,7 @@ import com.grappim.wallosmobile.feature.categories.mapper.CategoriesMapperModule
 import com.grappim.wallosmobile.feature.categories.ui.CategoriesUiModule
 import com.grappim.wallosmobile.feature.currencies.data.CurrenciesDataModule
 import com.grappim.wallosmobile.feature.currencies.mapper.CurrenciesMapperModule
+import com.grappim.wallosmobile.feature.currencies.ui.CurrenciesUiModule
 import com.grappim.wallosmobile.feature.dashboard.data.DashboardDataModule
 import com.grappim.wallosmobile.feature.dashboard.domain.DashboardDomainModule
 import com.grappim.wallosmobile.feature.dashboard.ui.DashboardUiModule
@@ -72,6 +73,7 @@ import org.koin.core.annotation.Single
         PaymentMethodsUiModule::class,
         CurrenciesDataModule::class,
         CurrenciesMapperModule::class,
+        CurrenciesUiModule::class,
         DashboardDataModule::class,
         DashboardDomainModule::class,
         DashboardUiModule::class,

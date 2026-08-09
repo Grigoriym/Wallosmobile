@@ -89,6 +89,7 @@ include(":feature:currencies:data")
 include(":feature:currencies:domain")
 include(":feature:currencies:dto")
 include(":feature:currencies:mapper")
+include(":feature:currencies:ui")
 
 include(":feature:dashboard:data")
 include(":feature:dashboard:domain")
