@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `7/9` · M10 `9/9` — **M10 done**
-**Current step:** 9.8 — feature:profile: dto + domain + data — `get_user` + `set_budget`.
+M8 `4/4` — **M8 done** · M9 `8/9` · M10 `9/9` — **M10 done**
+**Current step:** 9.9 — feature:profile:ui: a Settings sub-screen for the budget.
 
 ---
 
@@ -383,7 +383,7 @@ them:
   and closed out the emulator half of 9.2–9.6's own deferred `Verify:` lines — no crashes, no
   layout issues; `adb logcat` confirmed no `FATAL EXCEPTION` across the whole session.
 
-- [ ] **9.8 — feature:profile: dto + domain + data — `get_user` + `set_budget`**
+- [x] **9.8 — feature:profile: dto + domain + data — `get_user` + `set_budget`**
   New module. `UserDTO` (`WALLOS_API.md` §3.9 — `id`, `username`, `email`, `main_currency`,
   `budget`, `period_budget`, `budget_period_type`, `budget_period_anchor_date`, `totp_enabled`;
   skip `password`/`api_key`, always masked). `ProfileRepository.getUser()` /
@@ -394,6 +394,26 @@ them:
   `MockEngine` fixtures, and `set_budget` sending all three period fields whenever any one of them
   changes, never a partial set.
   ·  *Ref:* `WALLOS_API.md` §3.8–3.9, this milestone's preamble
+  ·  *Note:* Not a new module — `feature:profile` (dto/domain/data) already existed from 10.1's
+  `getUser()`-only cut, so this step widened its existing `UserDTO`/`User`/`ProfileRepository`
+  rather than creating anything, and added `setBudget`. Confirmed live via `get_user.php`'s own PHP
+  source and the `wallos` MCP that all five new fields are always present on this instance (no
+  blank/missing case to guard), so none of the new `UserDTO` fields carry a default. `budget_period_type`
+  is a new domain enum, `BudgetPeriodType` (`WEEKLY`/`FORTNIGHTLY`/`MONTHLY`), mirroring
+  `BillingCycle`'s wire-value shape but defaulting unknown values to `MONTHLY` rather than going
+  nullable — confirmed against `set_budget.php`'s own `sanitizeBudgetPeriodType`, which does the
+  same fallback server-side, so a value this field can never actually be absent for doesn't need a
+  null case client-side either. `budget_period_anchor_date` maps to `LocalDate` (matching
+  `Subscription`'s own date fields), confirmed always a valid `YYYY-MM-DD` string — the DB column's
+  default is a literal install-date string, never blank. `totp_enabled`'s wire `Int` maps to a
+  domain `Boolean` via `== 1`, the same shape `PaymentMethodMapper` already uses for `enabled`.
+  `ProfileApi.setBudget`/`ProfileRepositoryImpl.setBudget` follow `CurrenciesRepositoryImpl`'s
+  precedent (9.1): the repository builds `FormParams` from primitives and hands it to a thin API
+  method, rather than modeling a request DTO for a write with no response body worth decoding.
+  Widening `User`'s constructor required fixing two other call sites that built one directly
+  (`DashboardHomeUseCaseTest.user()`, `DashboardViewModelTest`'s fixture) and adding a `setBudget`
+  override to `DashboardHomeUseCaseTest`'s `FakeProfileRepository` — both pre-existing from M10,
+  neither this step's own scope otherwise.
 
 - [ ] **9.9 — feature:profile:ui: a Settings sub-screen for the budget**
   `ProfileRoute`/`ProfileScreen`, reached from a new `SettingsRow` on `SettingsScreen` (this

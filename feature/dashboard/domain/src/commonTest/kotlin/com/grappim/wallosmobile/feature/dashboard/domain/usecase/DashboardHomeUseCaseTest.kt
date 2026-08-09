@@ -8,6 +8,7 @@ import com.grappim.wallosmobile.feature.dashboard.domain.model.PeriodBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.model.YourSavings
 import com.grappim.wallosmobile.feature.dashboard.domain.model.YourSubscriptions
 import com.grappim.wallosmobile.feature.dashboard.domain.repo.DashboardRepository
+import com.grappim.wallosmobile.feature.profile.domain.model.BudgetPeriodType
 import com.grappim.wallosmobile.feature.profile.domain.model.User
 import com.grappim.wallosmobile.feature.profile.domain.repo.ProfileRepository
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
@@ -210,7 +211,17 @@ class DashboardHomeUseCaseTest {
         profileRepository: ProfileRepository = FakeProfileRepository(Result.success(user()))
     ): DashboardHomeUseCase = DashboardHomeUseCaseImpl(dashboardRepository, subscriptionsRepository, profileRepository)
 
-    private fun user(budget: Double = 0.0) = User(id = 1, budget = budget, periodBudget = 0.0, mainCurrencyId = 1)
+    private fun user(budget: Double = 0.0) = User(
+        id = 1,
+        username = "gregorz",
+        email = "gregorz@example.com",
+        budget = budget,
+        periodBudget = 0.0,
+        mainCurrencyId = 1,
+        budgetPeriodType = BudgetPeriodType.MONTHLY,
+        budgetPeriodAnchorDate = LocalDate(2026, 7, 18),
+        totpEnabled = false
+    )
 
     private fun subscription(id: Int) = Subscription(
         id = id,
@@ -263,6 +274,13 @@ class DashboardHomeUseCaseTest {
 
     private class FakeProfileRepository(private val user: Result<User>) : ProfileRepository {
         override suspend fun getUser(): Result<User> = user
+
+        override suspend fun setBudget(
+            monthlyBudget: Double,
+            periodBudget: Double,
+            periodType: BudgetPeriodType,
+            anchorDate: LocalDate
+        ): Result<Unit> = error("not used by this test")
     }
 
     private class FakeSubscriptionsRepository(private val subscriptions: List<Subscription>) : SubscriptionsRepository {

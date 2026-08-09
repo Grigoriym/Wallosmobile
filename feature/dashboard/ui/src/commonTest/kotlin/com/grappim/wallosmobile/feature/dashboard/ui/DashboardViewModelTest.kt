@@ -9,6 +9,7 @@ import com.grappim.wallosmobile.feature.dashboard.domain.model.PeriodBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.model.YourSavings
 import com.grappim.wallosmobile.feature.dashboard.domain.model.YourSubscriptions
 import com.grappim.wallosmobile.feature.dashboard.domain.usecase.DashboardHomeUseCase
+import com.grappim.wallosmobile.feature.profile.domain.model.BudgetPeriodType
 import com.grappim.wallosmobile.feature.profile.domain.model.User
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
@@ -32,7 +33,19 @@ class DashboardViewModelTest {
     private val useCase = FakeDashboardHomeUseCase()
     private val mainDispatcherRule = MainDispatcherRule()
 
-    private val user = Result.success(User(id = 1, budget = 0.0, periodBudget = 0.0, mainCurrencyId = 1))
+    private val user = Result.success(
+        User(
+            id = 1,
+            username = "gregorz",
+            email = "gregorz@example.com",
+            budget = 0.0,
+            periodBudget = 0.0,
+            mainCurrencyId = 1,
+            budgetPeriodType = BudgetPeriodType.MONTHLY,
+            budgetPeriodAnchorDate = LocalDate(2026, 7, 18),
+            totpEnabled = false
+        )
+    )
 
     private val periodBudget = PeriodBudget(
         periodLabel = "Aug 1 - Aug 31",
