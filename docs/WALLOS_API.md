@@ -369,7 +369,12 @@ All four follow the same shape.
 boolean indicating whether any subscription references it.
 
 * Categories: `{ id, name, order, in_use }`
-* Currencies: `{ id, name, symbol, code, rate, in_use }` plus a top-level `main_currency` int
+* Currencies: `{ id, name, symbol, code, rate, in_use }` plus a top-level `main_currency` int.
+  `rate` is a plain decimal **string** (`"1.1000"`, `"1"`) straight off a SQLite `TEXT` column —
+  unlike `monthly_cost`/`period_budget` (§3.5–3.6), it is never PHP `number_format`'d, so it has no
+  comma grouping and `toDoubleOrNull()` parses it directly; `MoneyFormatter.parse` is the wrong tool
+  here. Confirmed against `api/currencies/get_currencies.php`'s own doc comment and both the live
+  and the currency-conversion scratch instance (9.1).
 * Household: `{ id, name, email, in_use }`
 * Payment methods: `{ id, name, icon, enabled, order, in_use }` — `icon` is a path already
   relative to the web root (e.g. `images/uploads/icons/paypal.png`), unlike subscription

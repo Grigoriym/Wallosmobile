@@ -6,8 +6,8 @@ context, with no memory of previous sessions.
 
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
-M8 `4/4` — **M8 done** · M9 `0/9` (decomposed, deferred to last) · M10 `9/9` — **M10 done**
-**Current step:** M10 has nothing left in it — M9 (Management screens) starts next, at 9.1.
+M8 `4/4` — **M8 done** · M9 `1/9` · M10 `9/9` — **M10 done**
+**Current step:** 9.2 — feature:categories:ui: list + add/edit/delete.
 
 ---
 
@@ -156,7 +156,7 @@ them:
   `WallosEnvelopeParser`'s defensive safe-cast is left in place (costs nothing) but its comment no
   longer claims the string case is observed. The source of the original wrong claim isn't known.
 
-- [ ] **9.1 — feature:currencies: dto + domain + data — full CRUD on `core:crud`**
+- [x] **9.1 — feature:currencies: dto + domain + data — full CRUD on `core:crud`**
   Mirrors 7.2's shape for `feature:categories` exactly: `CurrencyDTO : CrudResource` (`id`, `name`,
   `symbol`, `code`, `rate`, `inUse`) — `api(projects.core.crud)` in the `dto` module's
   `build.gradle.kts`, per 7.2's own reminder. `CurrenciesApi : CrudApi<CurrencyDTO>` delegating to
@@ -172,6 +172,21 @@ them:
   `Double` in the domain model, and a delete on an in-use or main currency surfaces as
   `WallosError.InUse` unchanged.
   ·  *Ref:* `WALLOS_API.md` §3.10, plan §3.4, this milestone's preamble
+  ·  *Note:* Took the hand-written path, mirroring `SubscriptionsApi.getCurrencies()`: `CurrenciesApi`
+  is *not* `CrudApi<CurrencyDTO>` (that interface's `getAll(): List<T>` has no room for
+  `main_currency`) — its `getAll()` returns a `CurrenciesPayload` decoded straight into a
+  `CurrenciesResponse` DTO (`apiClient.post<CurrenciesResponse>`, no manual `JsonObject`/`JsonArray`
+  parsing needed, since the envelope parser already decodes arbitrary shapes). `add`/`edit`/`delete`
+  still delegate to a private `WallosCrudApi<CurrencyDTO>` instance held by composition rather than
+  interface delegation. Domain `Currency` carries a fourth new field, `isMain` — computed by
+  `CurrencyMapper.toDomain(dto, mainCurrencyId)` comparing each row's id against the payload's
+  `main_currency` — rather than a separate `mainCurrencyId` sitting beside the list, so 9.6's list
+  screen has one thing to render per row instead of two to correlate. `rate.toDoubleOrNull() ?: 1.0`
+  in the mapper is a genuine fallback, not one hit by any live data: every row on both the live and
+  the scratch instance already carries a plain decimal string (`"1"`, `"1.1000"`), confirmed via the
+  `wallos` MCP and `set_currencies.php`'s live PHP source. Wired into `AppModule`/`Koin.kt` and
+  `composeApp`'s `build.gradle.kts` now, same as 7.2/7.3/7.4/10.1 all did at their own data-only
+  step rather than waiting for a UI step to land.
 
 - [ ] **9.2 — feature:categories:ui: list + add/edit/delete**
   `CategoriesRoute`/`CategoriesScreen` (list, FAB per 7.6's `FabConfig` precedent) and

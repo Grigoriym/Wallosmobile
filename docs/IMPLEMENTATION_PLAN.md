@@ -450,12 +450,32 @@ Taiga's granularity, since each gets its own screen), but their API contract is 
 `get_*.php` returning `[{id, name, …, in_use}]`, and `set_*.php` with `action=add|edit|delete`,
 differing only in field names and the ID parameter alias.
 
-**Currencies do not get a fourth module here.** The original sketch below counted four, but by the
-time Phase 3 was decomposed (§10) `feature:subscriptions` already had a full read path for
-currencies — 2.3's `currencySymbol` join and 3.11's `observeCurrencies` cache — so a
-`feature:currencies` module would duplicate it for no caller. Phase 3's currency picker reads that
-existing flow; a standalone module with `add`/`edit` (rate maintenance) is Phase 5 management-screen
-work, and it can sit on `core:crud` the same way the other three do when it lands.
+**Currencies did not get a fourth module in Phase 3.** `feature:subscriptions` already had a full
+read path for currencies by the time Phase 3 was decomposed (§10) — 2.3's `currencySymbol` join and
+3.11's `observeCurrencies` cache — so a `feature:currencies` module would have duplicated it for no
+caller. Phase 3's currency picker reads that existing flow unchanged. **9.1 (Phase 5) added the
+fourth module after all**, once `add`/`edit` (rate maintenance) plus a management screen turned up:
+`feature:currencies` (dto/domain/data so far, `ui` still to come at 9.6), on `core:crud` like the
+other three, with its own `CurrencyDTO` (`rate`/`inUse` restored) rather than reusing
+`feature:subscriptions`'s trimmed, read-only one — decided with the user as a small accepted
+duplication over a cross-feature reach into a module with no business owning currency management.
+
+**`feature:currencies:data`'s `CurrenciesApi` is not a `CrudApi<CurrencyDTO>`, unlike the other
+three** — the one deviation from 7.2's shape, decided at 9.1. `get_currencies.php`'s envelope
+carries a top-level `main_currency` alongside the list, which `CrudApi.getAll(): List<T>` (and
+`WallosCrudApi`'s generic implementation, which only ever reads `envelope[listKey]`) has no room
+for, and 9.6's list screen needs it to mark which currency is main and disable Delete on it.
+`CurrenciesApi.getAll()` instead returns a `CurrenciesPayload(currencies, mainCurrencyId)`, decoded
+in one shot via `apiClient.post<CurrenciesResponse>(path)` — a typed DTO mirroring
+`feature:subscriptions`'s own `CurrenciesResponse`/`SubscriptionsApi.getCurrencies()` precedent —
+rather than the manual `JsonObject`/`JsonArray` pulling `WallosCrudApi` does internally, since the
+envelope parser already decodes into any shape reflectively. `add`/`edit`/`delete` still reuse
+`WallosCrudApi<CurrencyDTO>`, held as a private `val` inside `CurrenciesApiImpl` and delegated to by
+plain method calls rather than Kotlin interface delegation (`by`), since the interface no longer
+matches. The domain `Currency` folds `mainCurrencyId` into a per-row `isMain: Boolean` rather than
+carrying a separate id beside the list — `CurrencyMapper.toDomain(dto, mainCurrencyId)` takes the
+envelope-level id as a second parameter and sets `isMain` per row, so a consumer has one flag to
+render instead of two values to correlate itself.
 
 `core:crud` holds that shape once:
 

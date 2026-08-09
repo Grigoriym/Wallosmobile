@@ -10,6 +10,8 @@ import com.grappim.wallosmobile.core.storage.StorageModule
 import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
 import com.grappim.wallosmobile.feature.categories.data.CategoriesDataModule
 import com.grappim.wallosmobile.feature.categories.mapper.CategoriesMapperModule
+import com.grappim.wallosmobile.feature.currencies.data.CurrenciesDataModule
+import com.grappim.wallosmobile.feature.currencies.mapper.CurrenciesMapperModule
 import com.grappim.wallosmobile.feature.dashboard.data.DashboardDataModule
 import com.grappim.wallosmobile.feature.dashboard.domain.DashboardDomainModule
 import com.grappim.wallosmobile.feature.dashboard.ui.DashboardUiModule
@@ -62,6 +64,8 @@ import org.koin.core.annotation.Single
         HouseholdMapperModule::class,
         PaymentMethodsDataModule::class,
         PaymentMethodsMapperModule::class,
+        CurrenciesDataModule::class,
+        CurrenciesMapperModule::class,
         DashboardDataModule::class,
         DashboardDomainModule::class,
         DashboardUiModule::class,
