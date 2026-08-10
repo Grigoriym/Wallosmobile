@@ -25,3 +25,16 @@ deleted — see `/finalize`.
   'System'" — kotlinx-datetime 0.8.0 deprecated `Clock` to a typealias for `kotlin.time.Clock`, and
   the deprecated typealias doesn't carry the `System` companion property; `import kotlin.time.Clock`
   is what actually compiles at this version.
+- `perfetto` Python package's `QueryResultIterator.as_pandas_dataframe()` failed with "pandas/numpy
+  dependency missing" even inside a fresh venv with only `pip install perfetto` run — that package
+  doesn't pull pandas/numpy transitively; iterating the `TraceProcessor.query(...)` result directly
+  (`for r in tp.query(...)`) needs neither and was simpler than adding two more dependencies.
+- Eyeballing a scaled screenshot to compute a FAB tap's real-pixel coordinates landed on the wrong
+  list row entirely (a background subscription card, not the FAB) with no error — `adb shell
+  uiautomator dump` and reading the target's own `bounds="[x1,y1][x2,y2]"` (already real-pixel) is
+  what the skill recommends for exactly this, and skipping it once cost a wasted Perfetto capture.
+- `./gradlew :androidApp:generateGplayReleaseBaselineProfile` (a `connectedAndroidTest`-backed task
+  that boots the AVD's instrumentation, installs two APKs, and runs `BaselineProfileRule` against a
+  real device) ran past a 590s foreground `timeout` with no result printed — running it under
+  `run_in_background` plus a `Monitor` watching for `BUILD SUCCESSFUL|FAILED` from the first attempt
+  would have avoided the wasted, silently-cancelled run.

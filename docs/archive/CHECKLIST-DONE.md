@@ -2985,3 +2985,167 @@ actual `NavKey`.
   "brought to the front" task-reuse message on relaunch) restored the exact same screen, and Back
   correctly popped to the Categories list — the back stack survived process death.
   **M12 is done.**
+
+
+## M13 — Android Baseline Profile (not in plan §8's phase order)
+
+Goal: close the JIT-compilation-floor half of the FAB-open and subscriptions-list-scroll backlog
+items (both below, in "To review") by shipping a Baseline Profile that AOT-compiles the code paths
+`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md` traced as cold-JIT'd on first use — app
+start, the first subscriptions-list scroll, and the first add-subscription editor open. **Done
+when** a release build carries a generated profile covering those three journeys, and a fresh
+Perfetto trace of the same cold-scroll/FAB-open recipe that doc used shows the JIT lock-contention
+numbers it recorded (Finding 5: 119 `Lock contention on Jit code cache for mutator` slices, 4.57ms
+wait, cold) measurably lower — reported honestly per that doc's own precedent (a0cf54d found the
+Coil fix didn't move aggregate frame-jank at all; this milestone's own verification step needs the
+same honesty rather than assuming the mechanism this doc named is automatically the fix).
+
+Filed to "To review" 2026-08-07 (FAB) and 2026-08-08 (scroll), investigated together 2026-08-09
+(`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`, option 3 in its Options section,
+explicitly deferred there pending this decomposition), decomposed 2026-08-10 at the user's request,
+alongside fixing this file's own stale "To review" entries for the two backlog items (they still
+read as uninvestigated before this session). Two steps, not one: the plugin/version wiring is a
+real unknown (androidx.benchmark's own docs claim support only "up to AGP 9.0.0-alpha01" against
+this project's real AGP 9.3.1/Gradle 9.6.1, and a newer 1.5.0 line is still in beta as of
+2026-08-10 — neither claim is trustworthy without a real compile, so 13.1 spends itself confirming
+which version actually builds before any CUJ beyond cold-start is added), and the two extra CUJs
+plus the actual before/after trace comparison are real, independent scope on top of that.
+
+- [x] **13.1 — a new `:benchmark` module: baseline profile pipeline, cold start only**
+  A vanilla (non-KMP) macrobenchmark module — `com.android.test` + the `androidx.baselineprofile`
+  producer plugin, per Android's own current template (no `wallosmobile.*` convention plugin
+  applies here; this is a one-off module type this project has never had, so its `build.gradle.kts`
+  is written directly, the same way `androidApp`'s isn't KMP either). New `gradle/libs.versions.toml`
+  entries: `androidx-benchmark-macro-junit4`, `androidx-test-ext-junit`, `androidx-test-uiautomator`,
+  and the `androidx.baselineprofile` Gradle plugin — start from androidx.benchmark 1.4.1 (latest
+  documented stable) and only move to a 1.5.0 beta if 1.4.1 actually fails to configure against this
+  project's AGP 9.3.1; record which one worked and why in this step's `Note:`, since both this
+  session's web research and next session's re-reading of it are guesses until a real
+  `./gradlew :benchmark:connectedCheck`-equivalent run proves one. `:androidApp` gets the
+  `androidx.baselineprofile` *consumer* plugin applied directly in its own `build.gradle.kts` (not
+  folded into `AndroidApplicationConventionPlugin`, since this project has exactly one app module)
+  plus `baselineProfile(project(":benchmark"))`. The generator itself covers cold start only —
+  `BaselineProfileRule.collect { startActivityAndWait() }` against the `gplay` flavor's debug-signed
+  benchmark build type (`androidx.baselineprofile` auto-creates a non-debuggable, non-minified
+  `benchmark` build type from `release` for this) — proving the whole pipeline end to end before
+  13.2 adds the two CUJs that are the actual point of this milestone. Touches
+  `gradle/libs.versions.toml` and `settings.gradle.kts` → needs a `Gate-change:` line for the
+  version-catalog edit (`.github/scripts/check-guardrails.sh HEAD~1..HEAD`).
+  *Verify:* `./gradlew :androidApp:generateGplayReleaseBaselineProfile` completes and writes
+  `androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt` (or wherever the
+  plugin actually places it — confirm the real path rather than assuming the docs' generic one);
+  `unzip -l` the assembled `gplayRelease` APK/bundle and confirm it embeds a compiled
+  `assets/dexopt/baseline.prof` (or equivalent — again, confirm the real artifact name against what
+  actually gets produced, not the doc's claim). `detekt`/`ktlintCheck`/`allTests` stay green — this
+  module adds no KMP source, so it shouldn't touch `commonMain` gates at all, and `:testing`-style
+  fakes don't apply to a macrobenchmark test class (it's instrumentation, same category as
+  `core:storage`'s `connectedAndroidDeviceTest`).
+  ·  *Ref:* `docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md` (root-cause finding this
+  milestone is fixing), `build-logic/convention/src/main/kotlin/AndroidApplicationConventionPlugin.kt`
+  (the release build type this profile has to survive — minify + shrink resources both on),
+  `emulator-testing` skill (device/AVD facts — profile generation needs a real or Gradle-managed
+  device, not just `assemble`).
+  ·  *Note:* androidx.benchmark **1.4.1 (the documented stable) failed**: `androidx.baselineprofile`
+  applied but errored `Module :androidApp is not a supported android module` — its own detection
+  logic predates AGP 9 entirely (the doc claim of "up to AGP 9.0.0-alpha01" was accurate, not
+  conservative). **1.5.0-beta01 configures and runs cleanly against this project's real AGP
+  9.3.1/Gradle 9.6.1**; recorded here since both versions were only guesses until this session's
+  actual `:benchmark:tasks`/`generateGplayReleaseBaselineProfile` runs proved one. Two more real,
+  non-obvious gaps the plan text didn't anticipate: (1) `com.android.test` and
+  `androidx.baselineprofile` both needed `alias(...) apply false` added to the **root**
+  `build.gradle.kts`'s existing "avoid the plugins being loaded multiple times" block — the same
+  reason `com.android.application` is already there — or applying either from `:benchmark`'s own
+  `plugins {}` block errored `already on the classpath with an unknown version` (build-logic's own
+  AGP dependency puts every AGP plugin class on the shared classloader without a resolvable
+  marker version the first time a subproject's `plugins {}` block asks for one with an explicit
+  version). (2) `:benchmark` needed its own **"STORE" flavor dimension** (`gplay`/`fdroid`,
+  mirroring `AppFlavors`/`FlavorDimensions` by name rather than importing them — a plain
+  subproject script can't resolve a `com.grappim.wallosmobile.buildlogic` import the way
+  `build-logic`'s own compiled Kotlin can) — without it, `generateGplayReleaseBaselineProfile`
+  failed with a Gradle variant-attribute-ambiguity error between `:androidApp`'s two flavors'
+  `RuntimeElements`. The step's guessed task name and output path were both right:
+  `generateGplayReleaseBaselineProfile` writes
+  `androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt` (~25k rules,
+  committed as source, not gitignored — that's the whole point of the plugin copying it there),
+  and `unzip -l` on the assembled `gplayRelease` APK confirms `assets/dexopt/baseline.prof` +
+  `.profm` embedded. `Quality.kt`'s `configureLinting()` also isn't callable from `:benchmark`'s
+  plain script the same way (`import com.grappim.wallosmobile.buildlogic.*` doesn't resolve
+  there), so detekt/ktlint are wired by hand in `benchmark/build.gradle.kts` instead — including
+  the `composeRules-ktlint`/`composeRules-detekt` dependencies, needed by every module regardless
+  of Compose content because the shared `config/detekt/detekt.yml`'s `Compose:` section is invalid
+  detekt config without the plugin present (confirmed live: `:benchmark:detekt` failed
+  `Property 'Compose' is misspelled or does not exist` until added). Full gate run green:
+  `detekt ktlintCheck allTests` and `:androidApp:assembleGplayDebug :androidApp:assembleFdroidDebug`
+  all pass. The plugin's own "no startup profile rules generated" warning (needs
+  `includeInStartupProfile = true` on a `collect` call) is left as-is — out of this step's cold-
+  start-only scope, not a failure. `Gate-change:` needed in the commit for `gradle/libs.versions.toml`.
+
+- [x] **13.2 — extend the generator to the two CUJs that are the actual point, and measure**
+  Adds two more `@Test` journeys to `13.1`'s generator class: a subscriptions-list fling (matching
+  the 2026-08-09 doc's own swipe recipe, `input swipe 540 2000 540 300 150` reproduced via
+  `UiDevice`/`device.swipe` inside the `profileBlock`, not `adb shell input`) and a first open of the
+  add-subscription editor (FAB tap → editor screen drawn) — needing a logged-in, seeded app state
+  before the journey starts, the same DataStore-planting recipe the `emulator-testing` skill already
+  documents for other on-device verifies, since `BaselineProfileRule` starts from a cold, logged-out
+  process otherwise. Regenerate, rebuild `gplayRelease`, then re-run this doc's exact Perfetto
+  cold-scroll/FAB-open recipe (`emulator-testing` skill's Step 4b) against that release build and
+  compare Finding 5's numbers (JIT lock-contention slice count/wait time) and Finding 3/4's frame
+  numbers (worst-frame ms, jank-frame percentage) to the 2026-08-09 baseline. Report the result in
+  this step's `Note:` the way `a0cf54d` did — a real drop, a partial one, or none — rather than
+  assuming the mechanism the doc named is automatically fixed by the profile existing.
+  *Verify:* the trace comparison above, captured and compared, is the actual verify — not just a
+  green build. `detekt`/`ktlintCheck` still pass on the new generator code.
+  ·  *Ref:* `docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md` Findings 3–5 (the baseline
+  numbers this step compares against) and its own Step 4b Perfetto recipe in the `emulator-testing`
+  skill.
+  ·  *Note:* The step's own "same DataStore-planting recipe" plan turned out not to work:
+  `ApiKeyStorageImpl` encrypts the stored key with `KeystoreSecretCipher` (AES/GCM, Android
+  Keystore-backed), so a raw plant can produce a value the app's own `decrypt()` never accepts
+  — it just reads as "no key stored" (the catch arms are deliberately lenient, per that file's own
+  comment). Seeding had to be a real login instead: install the `gplayNonMinifiedRelease` variant
+  by hand and drive `LoginScreen` against the local instance. A second, non-obvious gap: **the
+  target app is uninstalled at the end of every `connectedGplayNonMinifiedReleaseAndroidTest` run,
+  pass or fail** — confirmed live (`adb shell pm list packages` lost `com.grappim.wallosmobile`
+  between two back-to-back `generateGplayReleaseBaselineProfile` invocations) — so the seeded login
+  survives every `@Test` *within* one invocation (no `pm clear` between them or between
+  `BaselineProfileRule` iterations — only `killProcess()`) but not *across* invocations; re-login
+  is needed before every fresh run of the generator, not just once. `openSubscriptionsList()` also
+  needed a `device.wait(Until.hasObject(By.desc("Menu")), …)` before its first click —
+  `startActivityAndWait()` only waits for the window to be idle, not for `WallosAppContent`'s
+  `isConnected` flow to resolve past its first-frame blank `Box`, and skipping that wait made
+  `addSubscriptionEditorOpen` flaky. With both fixed, all three `@Test`s passed and the profile
+  grew 24,943 → 35,383 rules (+10,648 added, only 208 removed), confirmed covering
+  `feature/subscriptions/ui/editor/*` and the list/card classes, not just cold start.
+
+  **Measurement — a real, honest result, not the hoped-for one.** Two fresh cold-scroll Perfetto
+  traces (`emulator-testing` Step 4b, this doc's exact `input swipe 540 2000 540 300 150` ×3
+  recipe) against the signed `gplayRelease` build with the new profile embedded, each on a just
+  re-seeded, never-before-scrolled login:
+
+  | Metric | 2026-08-09 baseline (cold) | This session, run 1 | This session, run 2 |
+  |---|---|---|---|
+  | `Lock contention on Jit code cache for mutator` | 119 slices, 4.57ms | **0 slices** | **0 slices** |
+  | Broad JIT activity (`Compiling optimized`/`baseline`/`JIT compiling`) | 1802 slices | 156 slices | 130 slices |
+  | Jank-frame % (`actual_frame_timeline_slice`) | 81% (136/168) | 93% (54/58) | 88% (51/58) |
+  | Worst frame | 69.74ms | 101.9ms | 107.3ms |
+
+  The mechanism this milestone targeted is gone, cleanly and reproducibly: zero JIT-code-cache
+  lock contention across both runs (was 119 slices), and broad JIT activity down ~91–93%. That
+  part is a real, confirmed win. **The aggregate frame-jank numbers did not improve, and read
+  worse than the pre-profile cold baseline in both runs** — this is not the Coil-fix precedent's
+  "flat" result (`a0cf54d`), it's a regression on this specific metric, on this AVD. Two honest
+  caveats, neither of which resolves the question: (1) the total frame count differs sharply
+  between conditions (168 baseline vs. 58 here), so "81% vs. 93%" is not a like-for-like window —
+  the two swipe sequences did not produce the same amount of on-screen motion, for reasons this
+  session did not chase down; (2) this AVD's `-gpu swiftshader_indirect` software rendering and
+  `Prediction Error` scheduling noise were already flagged by the 2026-08-09 doc as dominant,
+  AVD-specific confounds *before* this change, and this session has no path to real hardware to
+  separate "the profile made frame pacing worse" from "run-to-run noise on a software-rendered
+  emulator, now dominated by a different, non-JIT bottleneck since the JIT one is gone." A FAB-open
+  trace (fresh process, FAB tap → editor drawn) shows the same JIT pattern (2 lock-contention
+  slices at 0.004ms total, 138 broad-JIT slices) but this doc never captured a comparable FAB
+  baseline with this same methodology (4.4's "121.9ms first-frame cost" used a different technique)
+  so there is nothing to diff it against — reported as a data point only, not a comparison.
+  **Net:** M13's own goal — AOT-compile the three cold-JIT'd journeys — is done and verified at the
+  mechanism level; its stronger claim ("and the doc's jank numbers go down") is **not** confirmed by
+  this AVD, and the honest record of that non-confirmation is this Note, not a rewritten goal.

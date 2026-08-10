@@ -129,6 +129,11 @@ section and `docs/local-info.txt` — this file only covers the device side.
   ```
 
   Force-stop first, or the running app overwrites the file on its own next write.
+- **`api_key` cannot be planted this way** — `ApiKeyStorageImpl` encrypts it with
+  `KeystoreSecretCipher` (AES/GCM, a key that never leaves the Android Keystore), so a raw planted
+  value fails to decrypt and is silently treated as "no key stored" rather than crashing (the
+  cipher's catch arms are deliberately lenient). A logged-in state needs a real pass through
+  `LoginScreen` against `docs/local-info.txt`'s instance — there is no shortcut for this one key.
 - **Launcher icon lives in the app drawer**: `adb shell input swipe 540 1800 540 600`
   pulls it up on this AVD's resolution; the swipe silently no-ops about as often as it
   works, so screenshot after every attempt and retry rather than trusting one call.

@@ -707,10 +707,34 @@ architecture:
   real AVD (`Medium_Phone_API_36.1`) for every other on-device `Verify:` line, so a second
   device-provisioning path would be pure duplication.
 
-13.1's generator (`BaselineProfileGenerator.coldStart`) covers app start only. 13.2 (not yet done
-as of this writing) adds the subscriptions-list-scroll and add-subscription-editor-open CUJs the
-2026-08-09 investigation actually traced as JIT-cold, and re-measures against that doc's baseline —
-see `docs/CHECKLIST.md`'s M13 for the current state.
+13.2 (2026-08-10) added the subscriptions-list-scroll and add-subscription-editor-open CUJs the
+2026-08-09 investigation actually traced as JIT-cold, closing M13. Two gotchas specific to seeding
+an authenticated `MacrobenchmarkScope` journey in *this* app, worth knowing before writing another
+one:
+
+- **`ApiKeyStorageImpl`'s stored key is Android Keystore-encrypted (`KeystoreSecretCipher`), so
+  the DataStore-planting trick `docs/EMULATOR_TESTING.md` documents for plain preferences (a raw
+  protobuf `Value` appended to the file) cannot seed a login — a planted value that doesn't decrypt
+  just reads as "no key stored" (the cipher's catch arms are deliberately lenient about that, not a
+  bug to work around).** Seeding a logged-in `MacrobenchmarkScope` journey means actually driving
+  `LoginScreen` once, by hand, before running the generator.
+- **The target app is uninstalled at the end of every `connectedGplayNonMinifiedReleaseAndroidTest`
+  run, pass or fail** (confirmed live: `com.grappim.wallosmobile` disappeared from `pm list
+  packages` between two back-to-back `generateGplayReleaseBaselineProfile` invocations). A manually
+  seeded login survives every `@Test` *within* one invocation — `BaselineProfileRule` only calls
+  `killProcess()` between iterations, never `pm clear` — but not *across* invocations, so re-login
+  is needed before every fresh generator run, not just once ever.
+
+**Measured result (13.2, on `Medium_Phone_API_36.1`, `-gpu swiftshader_indirect`): the JIT
+mechanism this milestone targeted is confirmed eliminated — zero `Lock contention on Jit code
+cache for mutator` slices across two cold-scroll runs, versus 119 in the 2026-08-09 doc's baseline
+— but the doc's own aggregate frame-jank numbers (the closer proxy for "does it feel laggy") did
+not improve, and read worse in both post-profile runs than the pre-profile baseline.** Full numbers
+and caveats (frame-count mismatch between conditions, this AVD's software-rendering floor) are in
+`docs/archive/CHECKLIST-DONE.md`'s 13.2. Read as: the mechanism-level fix is real and verified: a
+user-visible smoothness improvement is not confirmed by this AVD, and only real hardware can settle
+that — mirrors `a0cf54d`'s own precedent that a confirmed root-cause fix and a moved aggregate
+jank metric are two different claims.
 
 ---
 
