@@ -128,6 +128,13 @@ ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private sta
 # goes through a venv, never a bare/system `pip install`: this machine's `pip` refuses one outright
 # ("externally managed environment", PEP 668). `python3 -m venv` in the scratch directory first.
 
+# To sanity-check a GitHub Actions workflow YAML's syntax locally before pushing it (neither
+# `actionlint` nor Python's `PyYAML` is installed on this machine): system `node` already carries
+# `js-yaml` at /usr/share/nodejs, no install needed.
+# NODE_PATH=/usr/share/nodejs node -e "require('js-yaml').load(require('fs').readFileSync('path/to.yml','utf8'))"
+# The real check is still GitHub's own parse — `gh workflow list` after pushing shows `active` for
+# a file with no syntax error, `disabled_yaml_error` (or absence from the list) for one that fails.
+
 # Regenerate the Android Baseline Profile (M13, plan §3.7) — needs a connected device/AVD, same
 # one `emulator-testing` already boots for on-device Verify: lines. Writes straight into
 # androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt, committed as source.
