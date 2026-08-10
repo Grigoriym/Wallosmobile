@@ -732,9 +732,20 @@ cache for mutator` slices across two cold-scroll runs, versus 119 in the 2026-08
 not improve, and read worse in both post-profile runs than the pre-profile baseline.** Full numbers
 and caveats (frame-count mismatch between conditions, this AVD's software-rendering floor) are in
 `docs/archive/CHECKLIST-DONE.md`'s 13.2. Read as: the mechanism-level fix is real and verified: a
-user-visible smoothness improvement is not confirmed by this AVD, and only real hardware can settle
-that — mirrors `a0cf54d`'s own precedent that a confirmed root-cause fix and a moved aggregate
-jank metric are two different claims.
+user-visible smoothness improvement is not confirmed by this AVD *for the list-scroll journey*, and
+only real hardware can settle that — mirrors `a0cf54d`'s own precedent that a confirmed root-cause
+fix and a moved aggregate jank metric are two different claims.
+
+**A same-day addendum found the opposite for the editor-open journey specifically.** The scroll
+measurement above never directly timed the FAB item's own original complaint (FAB→editor feels
+slower to open than list→detail) — it used a proxy (scroll-jank aggregate) that happens to share
+the same root cause. A direct `dumpsys gfxinfo`/`framestats` tap-to-settled-frame measurement,
+cold process each run, found FAB→editor and list→detail indistinguishable (245ms/250ms vs.
+242ms/250ms across two runs) — the complaint that started this milestone reads as fixed, even
+though the scroll-jank proxy metric does not. The two journeys diverging like this is plausible,
+not contradictory: opening one screen and flinging a 35-row list of network images are different
+amounts of work, and the Baseline Profile removing a fixed JIT cost matters more, proportionally,
+to the lighter one.
 
 ---
 

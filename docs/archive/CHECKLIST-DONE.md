@@ -3149,3 +3149,17 @@ plus the actual before/after trace comparison are real, independent scope on top
   **Net:** M13's own goal — AOT-compile the three cold-JIT'd journeys — is done and verified at the
   mechanism level; its stronger claim ("and the doc's jank numbers go down") is **not** confirmed by
   this AVD, and the honest record of that non-confirmation is this Note, not a rewritten goal.
+
+  **Addendum, same session, prompted by the user re-asking about the FAB specifically:** the
+  measurement above used the scroll trace's methodology (`actual_frame_timeline_slice` aggregate
+  jank), which never directly timed the one thing the original FAB complaint was actually about —
+  tap-to-screen-visible latency for FAB→editor versus row-tap→detail. A direct `dumpsys gfxinfo
+  <pkg> reset` / `framestats` measurement of exactly that (`HandleInputStart` of the tap's own frame
+  to `FrameCompleted` of the last settled frame, discarding the ring-buffer-stale trailing row per
+  the `emulator-testing` skill's own caveat), each from a freshly `am force-stop`'d cold process,
+  two runs apiece: FAB 245ms/250ms, Detail 242ms/250ms — indistinguishable. **This is a materially
+  more direct answer to the FAB item's own complaint than the scroll-based numbers above, and it
+  reads as fixed**, not merely mechanism-level. Still only two runs on the same software-rendered
+  AVD, so treat as encouraging rather than conclusive — but it meaningfully narrows the "not
+  confirmed" verdict above to the scroll-jank metric specifically, not to the FAB-open complaint
+  that started this milestone.

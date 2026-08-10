@@ -130,8 +130,11 @@ rather than a milestone step) and closed the Coil half of both; the JIT-compilat
 found underneath both left it to become **M13**, 2026-08-10, closed the same day — the JIT
 mechanism itself is confirmed gone (zero `Lock contention on Jit code cache for mutator` slices,
 was 119), but the aggregate frame-jank numbers the doc used as the user-visible proxy did **not**
-improve on this AVD (`archive/CHECKLIST-DONE.md`'s 13.2 has the honest measurement), so neither
-entry below is treated as resolved by M13 alone. Both entries below are updated in place rather
+improve on this AVD (`archive/CHECKLIST-DONE.md`'s 13.2 has the honest measurement). A same-day
+addendum measuring the FAB item's own complaint directly (tap-to-screen-visible latency, not the
+scroll-jank proxy) found no measurable difference from list→detail any more — see the FAB entry
+below. The scroll item stays unresolved by M13 alone; the FAB item's JIT half now reads as fixed,
+though its separate network-wait half still doesn't. Both entries below are updated in place rather
 than removed, since the FAB item still carries an unresolved network-wait half that isn't part of
 M13 either. Resolved entries aren't repeated here.
 Three of what's left are
@@ -196,15 +199,19 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
      this for real means giving these three repositories a cache the way `SubscriptionsRepository`
      already has one — Phase 5 management-screen scope, not a small change. Filed 2026-08-07; the
      next session picking this up should read this entry before re-deriving the measurement.
-  2. **The JIT warm-up tax on cold navigation — addressed by M13, not confirmed fixed.**
-     Re-investigated 2026-08-09 alongside the scroll-laggy item below
+  2. **The JIT warm-up tax on cold navigation — addressed by M13, and this specific complaint now
+     reads as fixed.** Re-investigated 2026-08-09 alongside the scroll-laggy item below
      (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), which confirmed the same
      mechanism (ART JIT-compiling this process's cold code paths under a lock the main thread's
      rendering work contends on) recurs on both screens, and decomposed into **M13** (an Android
-     Baseline Profile), 2026-08-10, closed the same day. The editor-open code path is now AOT-
-     compiled and its own JIT-lock-contention numbers are near zero, but this doc never captured a
-     comparable FAB-open baseline trace to diff against, so whether the screen now opens
-     *perceptibly* faster is unconfirmed — a real device would be needed to settle it.
+     Baseline Profile), 2026-08-10, closed the same day. 13.2's own scroll-based measurement
+     (`archive/CHECKLIST-DONE.md`) left this "not confirmed" since it never directly timed FAB-open
+     against a baseline — a same-day addendum did, with `dumpsys gfxinfo`/`framestats`
+     (tap-to-settled-frame, cold process, `am force-stop` between runs): FAB→editor 245ms/250ms
+     across two runs, row-tap→detail 242ms/250ms — indistinguishable. Prompted by the user directly
+     asking whether this exact complaint (FAB slower than list→detail) was fixed; two runs on the
+     same software-rendered AVD is encouraging, not conclusive, but it's a direct measurement of the
+     actual complaint, not a proxy metric, and it looks fixed.
 - **A tentative idea, not a decision: log on tap during emulator regression passes**, so a click's
   effect shows up in `logcat` immediately instead of needing a screenshot read every time. Filed
   2026-08-07, with the user's own caveat attached — not expected to replace screenshots, since the
