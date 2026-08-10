@@ -38,3 +38,8 @@ deleted — see `/finalize`.
   real device) ran past a 590s foreground `timeout` with no result printed — running it under
   `run_in_background` plus a `Monitor` watching for `BUILD SUCCESSFUL|FAILED` from the first attempt
   would have avoided the wasted, silently-cancelled run.
+- 15.3's `signingConfigs` step generated throwaway test keystores under a guessed filename
+  (`wallosmobile_keystore_<flavor>_release.jks`) to verify the Gradle wiring, without first
+  checking whether the user already had real ones — they did, under different names
+  (`wallos_mobile_<flavor>.jks`), created via Android Studio. `find . -iname "*.jks"` before
+  generating anything would have caught this for free.

@@ -1,7 +1,9 @@
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.dsl.ApplicationProductFlavor
+import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.grappim.wallosmobile.buildlogic.AppBuildTypes
 import com.grappim.wallosmobile.buildlogic.AppFlavors
+import com.grappim.wallosmobile.buildlogic.FlavorDimensions
 import com.grappim.wallosmobile.buildlogic.configureFlavors
 import com.grappim.wallosmobile.buildlogic.configureKotlinAndroid
 import com.grappim.wallosmobile.buildlogic.configureLinting
@@ -31,13 +33,27 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     AppFlavors.entries.forEach { flavor ->
                         create("${flavor.title}Release") {
                             val envSuffix = flavor.title.uppercase()
-                            storeFile = rootProject.file("wallosmobile_keystore_${flavor.title}_release.jks")
+                            storeFile = rootProject.file("wallos_mobile_${flavor.title}.jks")
                             storePassword = System.getenv("WALLOS_STORE_PASS_$envSuffix")
                             keyAlias = System.getenv("WALLOS_ALIAS_$envSuffix")
                             keyPassword = System.getenv("WALLOS_KEY_PASS_$envSuffix")
                             enableV2Signing = true
                             enableV3Signing = true
                         }
+                    }
+
+                    // F-Droid also ships a debug channel, and it needs a signing identity that's
+                    // stable across CI runs (unlike AGP's own per-machine debug key) so a device
+                    // can upgrade in place from one build to the next. Wired onto the variant
+                    // below, not the flavor, because a flavor-level signingConfig would apply to
+                    // both its build types and this one must not touch `fdroidRelease`.
+                    create("fdroidDebug") {
+                        storeFile = rootProject.file("wallos_mobile_fdroid_debug.jks")
+                        storePassword = System.getenv("WALLOS_STORE_PASS_FDROID_DEBUG")
+                        keyAlias = System.getenv("WALLOS_ALIAS_FDROID_DEBUG")
+                        keyPassword = System.getenv("WALLOS_KEY_PASS_FDROID_DEBUG")
+                        enableV2Signing = true
+                        enableV3Signing = true
                     }
                 }
 
@@ -88,6 +104,19 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     }
                 }
                 configureKotlinAndroid(this)
+            }
+
+            // The Variant API, not the classic DSL: a flavor-level signingConfig applies to every
+            // build type of that flavor, so `fdroidDebug` (unlike the two `*Release` configs
+            // above) can only be targeted at the exact (fdroid, debug) variant this way.
+            extensions.configure<ApplicationAndroidComponentsExtension> {
+                onVariants(
+                    selector().withBuildType("debug").withFlavor(FlavorDimensions.STORE.name to AppFlavors.FDROID.title)
+                ) { variant ->
+                    variant.signingConfig.setConfig(
+                        extensions.getByType(ApplicationExtension::class.java).signingConfigs.getByName("fdroidDebug")
+                    )
+                }
             }
 
             // `:androidApp` holds MainActivity and the Koin startup glue — real Kotlin that

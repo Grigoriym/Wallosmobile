@@ -880,15 +880,34 @@ future update once one's uploaded).
 `ApplicationProductFlavor`, not on the `release` `BuildType` block. AGP's `debug` `BuildType`
 already carries its own non-null default signing config from the plugin itself, and that wins over
 a flavor-level `signingConfig` — so assigning it on the flavor affects only `release` (which sets
-none) and leaves `debug` on the ordinary debug keystore, with no separate opt-out needed. Confirmed
-by building all four variants after the change: `assembleGplayDebug`/`assembleFdroidDebug`
-unaffected, `assembleGplayRelease`/`assembleFdroidRelease` each signed with a distinct cert
-(`apksigner verify --print-certs`, `$ANDROID_HOME/build-tools/<version>/apksigner`). Env-var
+none) and leaves `debug` on the ordinary debug keystore, with no separate opt-out needed. Env-var
 naming ended up per-flavor (`WALLOS_STORE_PASS_<FLAVOR>`, `WALLOS_ALIAS_<FLAVOR>`,
-`WALLOS_KEY_PASS_<FLAVOR>`) rather than Taiga's `_R`/`_D`, since only release needed signing here —
-there was no debug half of the pattern to port. The keystore file itself is a root-relative,
-gitignored `wallosmobile_keystore_<flavor>_release.jks`, same shape as Taiga's `file()` path plus
-`.gitignore` entry (not an env var).
+`WALLOS_KEY_PASS_<FLAVOR>`) rather than Taiga's `_R`/`_D`.
+
+**Grew mid-step to a third config, `fdroidDebug`:** the user wants F-Droid's debug channel
+upgradeable in place across CI builds, which needs a signing identity stable across runs — AGP's
+own per-machine debug key can't give it that. A flavor-level `signingConfig` would have applied to
+*both* `fdroidRelease` and the fdroid debug variant (the flavor-vs-buildType precedence above cuts
+only one way — it protects a build type that sets its own config, not one that doesn't), so this
+one needed the Variant API instead: `androidComponents.onVariants(selector().withBuildType("debug")
+.withFlavor("STORE" to "fdroid")) { variant.signingConfig.setConfig(signingConfigs.getByName(
+"fdroidDebug")) }` — the only way to target one exact (flavor, build type) pair. `ApplicationVariant
+.signingConfig` (`com.android.build.api.variant.SigningConfig`) is the variant-API type,
+distinct from the DSL's `ApkSigningConfig`; `setConfig(dslSigningConfig)` is what bridges them.
+
+The keystore files are root-relative and gitignored, but **named by the user, not the session**:
+`wallos_mobile_gplay.jks`, `wallos_mobile_fdroid.jks`, `wallos_mobile_fdroid_debug.jks`. The user
+had already generated all three real keystores through Android Studio's own signing wizard before
+this step touched the code — an early attempt at this step guessed a different filename
+(`wallosmobile_keystore_<flavor>_release.jks`) and generated throwaway test keystores under that
+guess instead of checking first, which needed cleaning up once the real files turned up under
+their own names. Confirmed by building all four variants against the **real** keystores (real
+passwords set as local env vars by the user, never seen by the session): `assembleGplayDebug`
+stayed on AGP's ordinary `CN=Android Debug` cert, and `assembleGplayRelease`/`assembleFdroidRelease`
+/`assembleFdroidDebug` each came back signed with a distinct real cert (`apksigner verify
+--print-certs`, `$ANDROID_HOME/build-tools/<version>/apksigner`). All three keystores' passwords
+and base64 content are already GitHub repo secrets too (`WALLOS_FILE_<FLAVOR>` for 15.4 to decode)
+— confirmed via `gh secret list`, 15.4 does not need to treat them as missing.
 
 `ci.yml`/`guardrails.yml` (15.1), the two new workflow files (15.2, 15.4) and
 `AndroidApplicationConventionPlugin.kt` (15.3) are all tripwire paths (§3.6) — each of M15's four

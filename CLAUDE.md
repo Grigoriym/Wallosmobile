@@ -238,13 +238,20 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
 - **Same technique for AGP's own DSL, when a `build-logic` convention plugin needs an exact
   interface shape** — `com.android.tools.build:gradle-api`'s `-sources.jar` sits in
   `~/.gradle/caches/modules-2/files-2.1/com.android.tools.build/gradle-api/<agp version>/`; `unzip`
-  its `com/android/build/api/dsl/*.kt` rather than guessing which supertype carries a property.
-  15.3 used this to confirm `signingConfig` is `ApplicationVariantDimension`'s, reached through
-  `ApplicationProductFlavor : ApplicationBaseFlavor, ProductFlavor` — and that a flavor-level
-  `signingConfig` only takes effect for a build type that leaves its own unset, since `debug`
-  already carries a non-null default from the plugin itself. `build-logic` itself has no
-  `detekt`/`ktlintCheck` coverage (confirmed via `./gradlew -p build-logic tasks --all` finding no
-  matching task) — `compileKotlin` is what a convention-plugin change needs to pass locally.
+  its `com/android/build/api/dsl/*.kt` (classic DSL) or `com/android/build/api/variant/*.kt` (the
+  newer Variant API — `AndroidComponentsExtension`, `onVariants`, `VariantSelector`) rather than
+  guessing which supertype carries a property or method. 15.3 used the `dsl/` half to confirm
+  `signingConfig` is `ApplicationVariantDimension`'s, reached through `ApplicationProductFlavor :
+  ApplicationBaseFlavor, ProductFlavor` — and that a flavor-level `signingConfig` only takes effect
+  for a build type that leaves its own unset, since `debug` already carries a non-null default from
+  the plugin itself. It then needed the `variant/` half too: giving *one* (flavor, build type) pair
+  its own signing identity without that bleed-through isn't expressible in the classic DSL at all —
+  `androidComponents.onVariants(selector().withBuildType(...).withFlavor(...)) { variant ->
+  variant.signingConfig.setConfig(dslSigningConfig) }` is the mechanism, and `ApplicationVariant
+  .signingConfig` (variant-API type) vs. the DSL's `ApkSigningConfig` are deliberately distinct
+  types that `setConfig` bridges. `build-logic` itself has no `detekt`/`ktlintCheck` coverage
+  (confirmed via `./gradlew -p build-logic tasks --all` finding no matching task) — `compileKotlin`
+  is what a convention-plugin change needs to pass locally.
 
 ## Non-negotiables
 
