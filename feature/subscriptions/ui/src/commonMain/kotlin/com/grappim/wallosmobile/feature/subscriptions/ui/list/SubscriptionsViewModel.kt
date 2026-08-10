@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -66,6 +67,11 @@ class SubscriptionsViewModel(
 
     private val _uiState = MutableStateFlow(
         SubscriptionsUiState(
+            // Seeded true, not left on the default false: `init` below always calls `load`, so the
+            // screen's first-ever frame is genuinely loading, never "checked and found nothing" —
+            // the default would make `isEmpty` true for that one frame and flash the empty-state
+            // text before `load` gets a chance to say otherwise.
+            isLoading = true,
             filters = SubscriptionsFilterUiState(
                 // Seeded rather than left on the defaults: `onCached` sets these too, but the first
                 // frame after a restore is drawn before the cache has emitted anything.
@@ -241,7 +247,19 @@ class SubscriptionsViewModel(
         .sortedBy(String::lowercase)
         .toPersistentList()
 
-    private fun onRefreshed() {
+    /**
+     * This call landing only proves the write reached Room — not that [observeCache]'s own
+     * long-lived collector has re-run against it yet, which needs an invalidation notice to
+     * cross back from Room's own executor. Clearing [SubscriptionsUiState.isLoading] off that
+     * alone flashes the empty state for however long that hop takes (confirmed 2026-08-10: a
+     * real, reported delay, not a theoretical one). A **fresh** collection of the same query
+     * doesn't have that gap — Room re-runs a cold `Flow`'s query against current state the
+     * moment it's collected, invalidation or not — so waiting on one here, before declaring
+     * done, gives the long-lived collector's own notification (triggered by the same write, and
+     * typically delivered to every collector in the same round) a real chance to have landed too.
+     */
+    private suspend fun onRefreshed() {
+        subscriptionsRepository.observeSubscriptions().first()
         _uiState.update { it.copy(isLoading = false, isRefreshing = false) }
         refreshGeneration.update { it + 1 }
     }

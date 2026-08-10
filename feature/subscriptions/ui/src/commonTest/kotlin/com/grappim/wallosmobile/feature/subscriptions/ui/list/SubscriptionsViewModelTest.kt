@@ -21,6 +21,8 @@ import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
@@ -248,6 +250,30 @@ class SubscriptionsViewModelTest {
         repository.gate = CompletableDeferred()
 
         assertFalse(viewModel().uiState.value.isLoading)
+    }
+
+    /**
+     * The bug this guards: `onRefreshed()` used to clear `isLoading` the moment the refresh call
+     * itself returned, which only proves the write reached Room — not that this screen's own
+     * cache flow had re-run against it yet, a separate, genuinely slower hop. That gap flashed
+     * the empty-state text between the two. [FakeSubscriptionsRepository.queryDelay] reproduces
+     * it directly: the write lands (`refreshSubscriptions()` returns) while every collection of
+     * [SubscriptionsRepository.observeSubscriptions] — the *only* thing either combine in this
+     * ViewModel reads — is still gated, exactly the shape a slow Room query re-run takes.
+     */
+    @Test
+    fun `the spinner survives a refresh that answers before the cache catches up`() = runTest {
+        repository.result = Result.success(listOf(subscription()))
+        val queryDelay = CompletableDeferred<Unit>()
+        repository.queryDelay = queryDelay
+
+        val sut = viewModel()
+        assertTrue(sut.uiState.value.isLoading)
+        assertFalse(sut.uiState.value.isEmpty)
+
+        queryDelay.complete(Unit)
+        assertFalse(sut.uiState.value.isLoading)
+        assertEquals(1, sut.uiState.value.items.size)
     }
 
     @Test
@@ -714,11 +740,23 @@ class SubscriptionsViewModelTest {
         /** Set to hold a refresh open, for the states that only exist while one is in flight. */
         var gate: CompletableDeferred<Unit>? = null
 
+        /**
+         * Gates every fresh collection of [observeSubscriptions], not just the first — modelling
+         * Room's real cost: a cold `Flow`'s query genuinely re-runs (and can genuinely take time)
+         * on each new collector, unlike a plain `StateFlow`, whose `.first()` always returns
+         * whatever it already holds, instantly. A test proving something waits on the *cache*,
+         * not just on [refreshSubscriptions] returning, sets this and completes it separately.
+         */
+        var queryDelay: CompletableDeferred<Unit>? = null
+
         fun seed(subscriptions: List<Subscription>) {
             cached.value = subscriptions
         }
 
-        override fun observeSubscriptions(): Flow<List<Subscription>> = cached
+        override fun observeSubscriptions(): Flow<List<Subscription>> = flow {
+            queryDelay?.await()
+            emitAll(cached)
+        }
 
         override fun observePriceConversion(): Flow<PriceConversion> = conversion
 

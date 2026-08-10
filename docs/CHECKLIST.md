@@ -177,12 +177,6 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   the generic message. The user confirmed the same tradeoff applies here. **Don't re-open this per
   step; it needs a reason to come back**, such as a user actually hitting a mid-session cert
   rotation and finding the fallback message insufficient.
-- **Version gating (plan §4.6) is partly owned now.** M8 (8.1/8.4) gates `get_period_budget`
-  reactively — off `WallosError.UnsupportedEndpoint`, not a stored version, since no minimum
-  version is documented anywhere to compare against (M8's own preamble has the detail). That
-  leaves `set_budget`'s period fields, `logo_variant` and `square_icons` still unowned, all Phase 5
-  surface — a real `VersionStorage` gets built there if one of those three turns out to need an
-  upfront check rather than the same reactive pattern.
 - **The FAB → add-subscription screen is still slower to open than list → detail, after 4.4's fix.**
   4.4 shipped a real, tested, on-device-confirmed improvement — each no-cache picker
   (`EditorPickerUiState.isLoading`, category/payer/paymentMethod) now shows a spinner instead of
@@ -227,13 +221,6 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
      the same as 13.2's own 93%/101.9ms and 88%/107.3ms) — that "did not improve" result stands
      on its own, unaffected by the profile-application gap. See the doc's "What landed" section
      for full numbers.
-- **A tentative idea, not a decision: log on tap during emulator regression passes**, so a click's
-  effect shows up in `logcat` immediately instead of needing a screenshot read every time. Filed
-  2026-08-07, with the user's own caveat attached — not expected to replace screenshots, since the
-  UI still has to be checked visually, so at most a supplement for "did the tap even register"
-  questions a log line answers faster than a screencap round trip. Touching every clickable in
-  every screen (and its preview) for this is not obviously worth it yet; wants a concrete case this
-  would have shortened before it becomes a step rather than a hunch.
 - **The subscriptions list scrolls laggy.** Filed 2026-08-08 by the user; investigated 2026-08-09
   (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), together with the FAB item above on
   the hunch they shared a cause — confirmed true. A static code trace ruled out all three original
@@ -256,4 +243,30 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
     13.2 has the full numbers and the caveats around them). **The user's original complaint is not
     confirmed fixed** — real hardware, not this software-rendered AVD, is the only way to settle
     whether the profile actually helps a real user's felt experience.
+- **The Subscriptions list flashed its empty-state text on every login — fixed and verified,
+  2026-08-10, outside the checklist step process, same shape as `a0cf54d`.**
+  Two compounding causes in `SubscriptionsViewModel`: (1) `_uiState`'s initial value defaulted
+  `isLoading = false`, so the screen's very first frame — before `init`'s `load()` had a chance to
+  run — read as "checked, found nothing" rather than "about to load"; (2) `onRefreshed()` cleared
+  `isLoading` the moment the network call returned, which only proves the write reached Room, not
+  that `observeCache()`'s own long-lived collector had re-run against it — a separate, genuinely
+  slower, cross-thread hop. Fixed by seeding `isLoading = true` and by having `onRefreshed()` await
+  a fresh `observeSubscriptions().first()` (which, unlike the long-lived collector, always re-runs
+  its query against current state) before declaring the refresh done. Regression test needed a fake
+  repository upgrade (`queryDelay`, modelling that a cold `Flow` collection genuinely re-queries,
+  unlike a plain `StateFlow`) to actually reproduce the race rather than the atomic write the old
+  fake collapsed it into.
+- **The Login screen doesn't scroll — filed 2026-08-10 by the user, not yet investigated on
+  device.** Focusing a field (e.g. username) with the keyboard open leaves password and everything
+  below it unreachable. A likely lead, not yet confirmed: `LoginScreen.kt`'s `LoginContent`
+  (`LoginScreen.kt:107-114`) sets `verticalArrangement = Arrangement.spacedBy(FIELD_SPACING,
+  Alignment.CenterVertically)` on a `Modifier.verticalScroll(...)` `Column` — centering children
+  needs a bounded height to center *within*, which a scrollable Column's content doesn't have, and
+  mixing the two is a known Compose failure mode (sometimes breaking the scroll range outright).
+  Checked TaigaMobileNova's own login screen (`feature/login/ui/.../LoginScreen.kt:151-157`) per
+  the user's own pointer: same `.verticalScroll(...).imePadding()` modifier order (so that's not
+  the difference), but **no `verticalArrangement` at all** — it defaults to `Arrangement.Top` and
+  uses explicit `Spacer`s for gaps instead of `spacedBy(..., alignment)`. That structural
+  difference is the one real lead so far; needs an on-device repro before treating it as confirmed
+  or scoping a fix.
 
