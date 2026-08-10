@@ -142,3 +142,12 @@ section and `docs/local-info.txt` — this file only covers the device side.
   file:///sdcard/Pictures/x.jpg` after `adb push`) and, on this AVD's picker, an explicit
   **Done** tap after selecting the thumbnail — tapping the thumbnail alone only checks
   it.
+- **`Medium_Phone_API_36.1` cannot reproduce an IME-insets/`windowSoftInputMode` bug on
+  its own.** The 2026-08-10 "Login screen doesn't scroll" report (`docs/issues/2026-08-10-login-screen-doesnt-scroll.md`)
+  never reproduced on this AVD — forcing real content overflow (landscape rotation) with
+  the keyboard open still scrolled correctly. The actual bug (a missing
+  `android:windowSoftInputMode="adjustResize"` on `MainActivity`, breaking every
+  `imePadding()` screen) only showed up on a real Android 10/API 29 device, where the
+  keyboard opening left the whole content area blank. This AVD's API 36 insets dispatch
+  papers over that class of bug — any change to `imePadding()`/`WindowInsets.ime` usage
+  needs a real device or a lower-API AVD to actually verify, not just this one.

@@ -256,17 +256,17 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   repository upgrade (`queryDelay`, modelling that a cold `Flow` collection genuinely re-queries,
   unlike a plain `StateFlow`) to actually reproduce the race rather than the atomic write the old
   fake collapsed it into.
-- **The Login screen doesn't scroll — filed 2026-08-10 by the user, not yet investigated on
-  device.** Focusing a field (e.g. username) with the keyboard open leaves password and everything
-  below it unreachable. A likely lead, not yet confirmed: `LoginScreen.kt`'s `LoginContent`
-  (`LoginScreen.kt:107-114`) sets `verticalArrangement = Arrangement.spacedBy(FIELD_SPACING,
-  Alignment.CenterVertically)` on a `Modifier.verticalScroll(...)` `Column` — centering children
-  needs a bounded height to center *within*, which a scrollable Column's content doesn't have, and
-  mixing the two is a known Compose failure mode (sometimes breaking the scroll range outright).
-  Checked TaigaMobileNova's own login screen (`feature/login/ui/.../LoginScreen.kt:151-157`) per
-  the user's own pointer: same `.verticalScroll(...).imePadding()` modifier order (so that's not
-  the difference), but **no `verticalArrangement` at all** — it defaults to `Arrangement.Top` and
-  uses explicit `Spacer`s for gaps instead of `spacedBy(..., alignment)`. That structural
-  difference is the one real lead so far; needs an on-device repro before treating it as confirmed
-  or scoping a fix.
+- **The Login screen doesn't scroll — filed 2026-08-10 by the user, fixed and verified the same
+  day, outside the checklist step process.** Investigated per
+  `docs/issues/2026-08-10-login-screen-doesnt-scroll.md`: the checklist's own prior lead
+  (`Arrangement.spacedBy(..., Alignment.CenterVertically)` on a `verticalScroll` `Column`,
+  `LoginScreen.kt:107-114`) did not reproduce — on `Medium_Phone_API_36.1` (API 36), forcing real
+  overflow via landscape still scrolled correctly by hand, keyboard open or not. The real repro
+  needed the user's own physical device (`SM-A920F`, Android 10/API 29): there, opening the
+  keyboard left the *entire* content area blank, not just the tail end unreachable. Root cause,
+  found by the user directly: `androidApp/src/main/AndroidManifest.xml`'s `MainActivity` declared
+  no `android:windowSoftInputMode`, so `imePadding()` (used here and in
+  `AuthenticatedMainScreen.kt`) had no correct IME insets to push content against on that API
+  level — API 36's own insets dispatch masks the gap, which is why the emulator never reproduced
+  it. Fixed with a single `android:windowSoftInputMode="adjustResize"` on the activity.
 
