@@ -109,10 +109,10 @@ This project uses the **`emulator-testing`** and **`finalize`** skills; both are
 
 # A plain `assembleGplayDebug` above (no `-PgplayBuild`) silently builds without the Firebase/Play
 # Core plugins and dependencies at all — not a partial build, a structurally different one (16.1,
-# plan §3.10). A build that actually needs Crashlytics/In-App Update — including once 16.3 lands
-# and CrashReporterImpl exists — needs the property and a `google-services.json` at
-# androidApp/src/gplay/google-services.json (real file, gitignored; not created until the user
-# sets up the Firebase project):
+# plan §3.10). A build that actually needs Crashlytics/In-App Update — every gplay build now that
+# 16.3's `CrashReporterImpl` exists and is always compiled into that flavor — needs the property
+# and a `google-services.json` at androidApp/src/gplay/google-services.json (real file, gitignored;
+# a plain `installGplayDebug` without both crashes on cold start, 16.3's own `Note:`):
 ./gradlew :androidApp:assembleGplayDebug -PgplayBuild
 
 ./gradlew allTests                           # all KMP module tests
@@ -175,8 +175,9 @@ CI (`.github/workflows/ci.yml`, plan §3.5, §3.8, §3.10) runs `assembleFdroidD
 to Codecov) on push and PR to `dev` and `master`, but `paths-ignore` skips `**.md` and `docs/**` —
 a docs-only commit produces **no CI run**, which is not a failure. The gplay assemble step restores
 `androidApp/src/gplay/google-services.json` from the `WALLOS_GOOGLE_SERVICES_GPLAY` secret first
-(`mkdir -p` ahead of the redirect — that directory has no other tracked file until 16.3, so it
-doesn't exist on a fresh checkout without it; `docs/CHECKLIST.md`'s 16.2 `Note:`). The
+(`mkdir -p` ahead of the redirect, kept even though `androidApp/src/gplay/` now has other tracked
+files as of 16.3 — a fresh checkout still needs the `mkdir -p` on any commit older than that;
+`docs/CHECKLIST.md`'s 16.2 `Note:`). The
 instrumented Room DAO tests are still local/emulator-only — `allTests` doesn't fan out to device
 tests and the CI job has no emulator, so Kover's XML report never sees them either. The second
 workflow, `guardrails.yml` (plan §3.6), has no `paths-ignore` and runs no Gradle, so a docs-only
@@ -304,7 +305,16 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   `@InjectedParam` on the constructor property**, or the graph looks for a definition of that
   type and the screen crashes at first injection — `KoinGraphTest` will **not** catch a missing
   one for a primitive type (`verify()` whitelists `String`/`Int`/`Long`/`Double`), but **will**
-  catch a missing one on `SavedStateHandle`, which is not whitelisted. **A module class needs its
+  catch a missing one on `SavedStateHandle`, which is not whitelisted. **`KoinGraphTest` verifies
+  only `AppModule` (`composeApp`'s own graph) and can never see a binding that lives in
+  `AndroidModule` (`androidApp`)** — `androidApp` sits above `composeApp`, the same reason
+  `AppInfoProvider` is in the test's own `EXTERNALLY_SUPPLIED` list. A flavor-swapped `@Single`
+  binding declared per-flavor in `androidApp/src/<flavor>/kotlin/.../di/` (16.3's
+  `CrashReporterImpl`, and 16.5's `AppUpdateChecker` impl by the same trick) is invisible to it on
+  *both* flavors — a missing one is a runtime crash at first injection, not a test failure.
+  Compiling both flavors (`compileFdroidDebugKotlin`, `compileGplayDebugKotlin -PgplayBuild`)
+  proves the binding class exists and satisfies the interface, but not that Koin can resolve it —
+  only an on-device cold start does that. **A module class needs its
   own line in `composeApp`'s dependencies, separate from `AppModule`'s `includes`** — `includes`
   only tells the Koin compiler where to find the class, it doesn't add a Gradle dependency edge.
   8.3 hit this adding `DashboardDomainModule`: `composeApp` already depended on

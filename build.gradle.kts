@@ -74,6 +74,7 @@ dependencies {
     kover(project(":core:navigation"))
     kover(project(":core:async-kmp"))
     kover(project(":core:appinfo-api"))
+    kover(project(":core:crashreporting-api"))
     kover(project(":core:logger"))
     kover(project(":core:crud"))
 

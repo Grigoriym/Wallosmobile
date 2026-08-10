@@ -44,6 +44,7 @@ include(":core:storage")
 include(":core:navigation")
 include(":core:async-kmp")
 include(":core:appinfo-api")
+include(":core:crashreporting-api")
 include(":core:logger")
 include(":core:crud")
 

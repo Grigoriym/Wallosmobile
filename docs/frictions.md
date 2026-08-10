@@ -43,3 +43,7 @@ deleted — see `/finalize`.
   checking whether the user already had real ones — they did, under different names
   (`wallos_mobile_<flavor>.jks`), created via Android Studio. `find . -iname "*.jks"` before
   generating anything would have caught this for free.
+- `./gradlew :androidApp:installFdroidDebug` failed with `INSTALL_FAILED_UPDATE_INCOMPATIBLE:
+  ... signatures do not match` against a prior session's install of the same package id on the
+  same AVD — `adb uninstall <package-id>` first, then reinstall, is the fix; no need to chase
+  which signing config actually changed.

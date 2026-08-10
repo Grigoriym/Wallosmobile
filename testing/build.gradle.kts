@@ -18,6 +18,9 @@ kotlin {
             // `FakeNetworkMonitor` implements a `core:storage` interface, so consumers resolve it
             // through here — the same shape TaigaMobileNova's `:testing` uses.
             api(projects.core.storage)
+
+            // `FakeCrashReporter` implements this interface, same reasoning as `core:storage` above.
+            api(projects.core.crashreportingApi)
         }
     }
 }

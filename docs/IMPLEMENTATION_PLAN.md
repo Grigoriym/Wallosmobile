@@ -1146,14 +1146,13 @@ calling `appUpdateChecker.completeUpdate()`.
 nothing for either), consistent with the finding earlier in this section for every other
 dependency checked.
 
-**Firebase project: still to be created** — unlike 15.3's keystores, which already existed by the
-time the Gradle wiring landed, WallosMobile has no Firebase project yet (confirmed with the user
-2026-08-10). The Gradle/DI/UI wiring below can be built and structurally verified
-(`assembleGplayDebug -PgplayBuild` compiling, the toggle rendering) without a real
-`google-services.json` sitting in place of a placeholder, but nothing that actually talks to
-Crashlytics can be verified on-device until the user creates the project and downloads the real
-file — same shape as 15.3's "generating the keystore is the user's own call," not a blocker on
-building the mechanism itself.
+**Firebase project: created during 16.2, same day as this design pass** — unlike 15.3's keystores,
+which already existed by the time the Gradle wiring landed, this plan was written when
+WallosMobile had no Firebase project yet; the user created one same-day, ahead of the original
+plan (`docs/CHECKLIST.md`'s M16 preamble has the debug-app-id gotcha that surfaced). 16.3 verified
+real Crashlytics delivery on-device against it (`FirebaseCrashlytics: Initializing Firebase
+Crashlytics` in `logcat`, no crash on cold start for either flavor) — this is no longer a blocker
+on anything in M16.
 
 Decomposed into `docs/CHECKLIST.md` as **M16** below, all four open questions now answered.
 

@@ -8,21 +8,25 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `2/5`
-**Current step:** 16.3 — `CrashReporter` seam: `core:crashreporting-api`, flavor impls, consent
-storage. M16 was planned and decomposed 2026-08-10, right after M15 closed: full design in plan
-§3.10, ported from TaigaMobileNova. **The Firebase project now exists** — created by the user
-during 16.2, same day, ahead of the original plan (see M16's own preamble for the debug-app-id
-gotcha this surfaced) — so 16.3 onward can verify real Crashlytics wiring on-device instead of
-only structurally; don't assume the "can't verify without the Firebase project" framing in earlier
-step text still holds. 16.2 also found and fixed a real CI bug: the restore step's target
-directory, `androidApp/src/gplay/`, has no other tracked file yet and so doesn't exist on a fresh
-checkout — `mkdir -p` was added ahead of the redirect in both `ci.yml` and `release.yml`; read
-16.2's `Note:` before assuming a red gplay CI run means something else broke. Read M16's own
-preamble before starting 16.3 — it also flags a real gotcha that lands the moment 16.3 ships: a
-plain `installGplayDebug` with no `-PgplayBuild` and no real `google-services.json` starts
-crashing on cold start, because the gplay `CrashReporterImpl` is chosen by *flavor*, not by that
-property.
+M15 `4/4` — **M15 done** · M16 `3/5`
+**Current step:** 16.4 — Settings UI: crash-reporting toggle, privacy-policy link. M16 was planned
+and decomposed 2026-08-10, right after M15 closed: full design in plan §3.10, ported from
+TaigaMobileNova. **The Firebase project now exists** — created by the user during 16.2, same day,
+ahead of the original plan (see M16's own preamble for the debug-app-id gotcha this surfaced) — so
+16.4 onward can verify real Crashlytics wiring on-device instead of only structurally; don't assume
+the "can't verify without the Firebase project" framing in earlier step text still holds. 16.2 also
+found and fixed a real CI bug: the restore step's target directory, `androidApp/src/gplay/`, has no
+other tracked file yet and so doesn't exist on a fresh checkout — `mkdir -p` was added ahead of the
+redirect in both `ci.yml` and `release.yml`; read 16.2's `Note:` before assuming a red gplay CI run
+means something else broke. 16.3 landed the `CrashReporter` seam (`core:crashreporting-api`, both
+flavor impls, `CrashReportingStorage`) and verified it for real: both flavors installed clean on
+the emulator, and gplay's `logcat` showed `FirebaseCrashlytics: Initializing Firebase Crashlytics`
+firing with no crash — read 16.3's `Note:` before assuming `KoinGraphTest` covers either flavor's
+`CrashReporterImpl` binding (it doesn't; `AndroidModule` sits above what it verifies). The gotcha
+16.3's own preamble text flagged — a plain `installGplayDebug` with no `-PgplayBuild` and no real
+`google-services.json` crashing on cold start, because the gplay `CrashReporterImpl` is chosen by
+*flavor*, not by that property — is now live, since `CrashReporterImpl` exists as of this step;
+`CLAUDE.md`'s "Build commands" already carries the warning (added in 16.1, ahead of it landing).
 
 ---
 
@@ -137,11 +141,11 @@ build type alone produces that id — a Firebase project that only registered th
 `processGplayDebugGoogleServices` with "No matching client found" until the debug one is added
 too), lives at `androidApp/src/gplay/google-services.json` (gitignored, real machine only), and
 `WALLOS_GOOGLE_SERVICES_GPLAY` is set as a GitHub secret. `assembleGplayDebug -PgplayBuild` builds
-clean locally against it. **What's still unverified is Crashlytics *delivery* itself** — nothing
-in 16.1/16.2 talks to `Firebase.crashlytics` yet, that starts with 16.3's `CrashReporterImpl` — so
-16.3/16.4/16.5's own `Verify:` lines should now expect the real file to be present rather than
-assuming it's still missing; update each to say what it can confirm live rather than deferring to
-this paragraph. And **the moment 16.3 lands, a plain
+clean locally against it. **Crashlytics *delivery* is now verified, not just structural** — 16.3's
+`CrashReporterImpl` landed and an on-device install showed `FirebaseCrashlytics: Initializing
+Firebase Crashlytics` firing on cold start with no crash (16.3's own `Note:`); 16.4/16.5's own
+`Verify:` lines should expect the real file to be present rather than assuming it's still missing.
+And **since 16.3 landed, a plain
 `./gradlew :androidApp:installGplayDebug` (no `-PgplayBuild`, no real `google-services.json`)
 starts crashing on cold start** — `CrashReporterImpl` for the gplay flavor is chosen by *flavor*,
 not by the `gplayBuild` property, so it's always compiled into a gplay build and always touches
@@ -209,7 +213,7 @@ building gplay locally doesn't lose time to it.
   are registered clients in the same file. `./gradlew :androidApp:assembleGplayDebug -PgplayBuild`
   now builds clean locally against the real file with both clients present.
 
-- [ ] **16.3 — `CrashReporter` seam: `core:crashreporting-api`, flavor impls, consent storage**
+- [x] **16.3 — `CrashReporter` seam: `core:crashreporting-api`, flavor impls, consent storage**
   New KMP module `core/crashreporting-api` (mirrors `core:appinfo-api`'s one-file interface
   shape): `CrashReporter` with `isAvailable: Boolean`, `setCollectionEnabled(enabled: Boolean)`,
   `recordException(throwable: Throwable)`, `log(message: String)`. Two implementations, both
@@ -230,6 +234,29 @@ building gplay locally doesn't lose time to it.
   flavors (catches a missing binding on either side); a new module needs its own line in the root
   `kover {}` block (non-negotiable, easy to silently skip). Real Crashlytics delivery is not
   verifiable without 16.1's blocked Firebase project — say so rather than claiming it.
+  Note: All ran clean — `./gradlew allTests detekt ktlintCheck` green, `compileFdroidDebugKotlin`
+  and `compileGplayDebugKotlin -PgplayBuild` both clean with `--rerun-tasks` (forces the Koin
+  compiler plugin to see the two new `@Single`s). Two corrections to this step's own text: (1)
+  `KoinGraphTest` verifies only `AppModule` (`composeApp`'s graph) — `AndroidModule`, where both
+  `CrashReporterImpl`s actually live, sits in `androidApp` above `composeApp` and was never
+  reachable from it (same reason `AppInfoProvider` is in `KoinGraphTest`'s own `EXTERNALLY_SUPPLIED`
+  list). It cannot catch a missing binding on either flavor; that only happens at runtime. Verified
+  instead by installing both flavors on the emulator and confirming cold start — 16.1's Firebase
+  project is real now (see M16 preamble), so this was a genuine check, not just a structural one:
+  `logcat` showed `FirebaseCrashlytics: Initializing Firebase Crashlytics 20.1.0` for
+  `com.grappim.wallosmobile.debug` (gplay) and a clean `Displayed …` line with no
+  `FATAL EXCEPTION`/`AndroidRuntime` for both `com.grappim.wallosmobile.debug` and
+  `com.grappim.wallosmobile.fdroid.debug`. (2) The "not verifiable without 16.1's blocked Firebase
+  project" line was already stale by the time this step ran — 16.1's own preamble had already
+  flagged that the project exists now; superseded by the above. Two other deviations, neither
+  structural: `CrashlyticsTree` went in `com.grappim.wallosmobile` (top-level, alongside
+  `WallosApp`/`MainActivity`) rather than Taiga's `data` package — no `data` package exists yet in
+  `androidApp/src/main`, and it isn't a Koin definition itself so it doesn't need `di`. And
+  `androidApp/build.gradle.kts` only needed an explicit `core:async-kmp` line (for
+  `ApplicationScope`, used by `WallosApp`'s new consent-observing collector) — `core:storage`
+  itself reaches `androidApp` transitively already, because `composeApp` declares it `api`, not
+  `implementation` (composeApp/build.gradle.kts) — worth knowing before assuming every module
+  androidApp touches needs its own explicit line.
 
 - [ ] **16.4 — Settings UI: crash-reporting toggle, privacy-policy link**
   `feature/settings/ui`'s existing `InterfaceScreen`/`InterfaceViewModel` (already home to the

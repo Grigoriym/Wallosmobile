@@ -32,7 +32,13 @@ dependencies {
 
     implementation(project(":composeApp"))
     implementation(project(":core:appinfo-api"))
+    implementation(project(":core:crashreporting-api"))
     implementation(project(":core:logger"))
+
+    // `core:storage` itself reaches androidApp transitively via composeApp's `api` dependency on
+    // it (composeApp/build.gradle.kts) — only `core:async-kmp` (an `implementation` dependency
+    // there) needs its own line here, for `ApplicationScope`.
+    implementation(project(":core:async-kmp"))
 
     implementation(platform(libs.koin.bom))
     implementation(libs.koin.android)
