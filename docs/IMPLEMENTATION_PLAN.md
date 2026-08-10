@@ -824,6 +824,62 @@ This edits `.github/workflows/ci.yml`, a guardrails tripwire path (§3.6) — th
 (no token) is fixed. `.codacy.yml`, `renovate.json` and `codecov.yml` are root-level files, none
 of them under a tripwire path, so adding those three costs no `Gate-change:` line.
 
+### 3.9 Branch model and release flow — ported from TaigaMobileNova, planned 2026-08-10 as M15
+
+The repo is about to go public (the user's decision, made the same session this was planned) —
+that's what unblocks a straight port of Taiga's `dev`/`master` model, which needs branch
+protection, and branch protection needs a public repo or a paid GitHub tier (§3.8 already hit a
+403 confirming that on this repo while private). `docs/CHECKLIST.md`'s **M15** decomposes the port
+into four steps; this section is the design behind them, and the two things a straight port would
+have gotten wrong.
+
+**Taiga's protection sits on `dev`, not `master`.** `gh api .../branches/dev/protection` on Taiga
+returns a real ruleset (no force-push, no deletions, a `required_pull_request_reviews` block) —
+`dev` is the branch that blocks direct pushes, which is exactly why `release-finalize.yml`'s
+back-merge into it needs `RELEASE_PAT` (an admin PAT) rather than the workflow's own
+`GITHUB_TOKEN`: it has to bypass the protection it's there to enforce. `master` itself carries no
+equivalent ruleset in Taiga — it's just the branch nothing but the release automation ever
+touches, so nothing protects it because nothing needs to.
+
+**WallosMobile is deliberately adopting the branch *shape* now and deferring the protection.** The
+user's own instruction: write the "add branch protection" step down as a follow-up for once the
+repo is public and nears its first real release, not turn it on as part of M15. Until then, `dev`
+behaves exactly like `master` does today — every checklist step commits and pushes straight to
+it, no PR required — and `release-prepare`/`release-finalize` (15.2) can use plain `GITHUB_TOKEN`
+instead of a `RELEASE_PAT`, since nothing is protected yet to bypass. `RELEASE_PAT` becomes a real
+requirement only once protection actually lands.
+
+**Three more scoped-down adaptations, all because this repo isn't Taiga's:**
+- `ci.yml`/`guardrails.yml` retarget to `branches: [dev, master]` on both `push` and
+  `pull_request`, matching Taiga's `code_analysis.yml` (one workflow, both branches) rather than
+  `build.yml`'s dev-only PR trigger — WallosMobile has a single combined CI job, not Taiga's
+  build/code_analysis split, and `master` still needs both gates for 15.2's release PR.
+- `release-prepare.yml` drops Taiga's F-Droid/Play changelog-stub steps: neither
+  `fastlane/metadata/android/en-US/changelogs/` nor `playstore/changelogs/` exists here — this app
+  has no store listing yet, unlike Taiga's already-published one. Scaffolding those is a later
+  milestone's job, once the app is actually close to a store submission, not M15's.
+  Making a version-bump/tag workflow assume changelog directories that don't exist would fail on
+  first real use rather than plan around a gap that's already known.
+- `release.yml` drops Taiga's desktop `deb`/`rpm` packaging (no desktop target here — Android
+  only, per this project's own scope) and its `google-services.json` restore step — the
+  `google-services`/`firebase-*` `gradle/libs.versions.toml` entries are declared but unapplied
+  anywhere in this repo, so there's no file for that step to restore.
+
+**One real gap this planning pass found, not a doc omission:**
+`AndroidApplicationConventionPlugin.kt`'s `release` build type has **no `signingConfigs` block at
+all** (confirmed by grepping `build-logic/` and `androidApp/build.gradle.kts`) — neither the
+`gplay` nor `fdroid` flavor can produce a signed release build today. 15.3 adds the Gradle wiring
+(env-sourced keystore path/passwords, matching Taiga's `TAIGA_KEYSTORE_R`/`_D` shape), but
+**generating the actual production keystore is left to the user** — a `keytool -genkeypair` run
+locally, its `.jks` and four passwords added as GitHub secrets, never committed. A session
+fabricating a signing identity on its own would be the wrong kind of autonomy for something this
+security-sensitive and effectively irreversible (Play requires the same signing key for every
+future update once one's uploaded).
+
+`ci.yml`/`guardrails.yml` (15.1), the two new workflow files (15.2, 15.4) and
+`AndroidApplicationConventionPlugin.kt` (15.3) are all tripwire paths (§3.6) — each of M15's four
+steps needs its own `Gate-change:` line when actually executed.
+
 ---
 
 ## 4. `core:api` — the load-bearing module
