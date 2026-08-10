@@ -120,6 +120,11 @@ ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private sta
 # Any ad-hoc Python tooling (a trace analyzer, a one-off script — not part of the Gradle build)
 # goes through a venv, never a bare/system `pip install`: this machine's `pip` refuses one outright
 # ("externally managed environment", PEP 668). `python3 -m venv` in the scratch directory first.
+
+# Regenerate the Android Baseline Profile (M13, plan §3.7) — needs a connected device/AVD, same
+# one `emulator-testing` already boots for on-device Verify: lines. Writes straight into
+# androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt, committed as source.
+./gradlew :androidApp:generateGplayReleaseBaselineProfile
 ```
 
 A step whose `Verify:` line is about the running app is verified **on the emulator**, not by

@@ -655,6 +655,63 @@ Three things about its shape, each of which the alternative gets wrong:
 
 Locally: `.github/scripts/check-guardrails.sh HEAD~1..HEAD`.
 
+### 3.7 `:benchmark` — Android Baseline Profile
+
+Added in M13 (13.1, 2026-08-10) to close the JIT-compilation floor half of the FAB-open and
+subscriptions-list-scroll performance backlog (`docs/issues/2026-08-09-fab-open-and-list-scroll-
+jank.md`). A `com.android.test` macrobenchmark producer module — the one module type in this repo
+that is neither KMP nor a `wallosmobile.*` convention-plugin consumer, so it is wired by hand
+rather than through `build-logic`, and its gotchas are build-tooling facts rather than app
+architecture:
+
+- **androidx.benchmark 1.4.1 (the documented-stable version at the time) does not work against
+  this project's real AGP 9.3.1** — `androidx.baselineprofile` fails to apply with `Module
+  :androidApp is not a supported android module`; its module-detection logic predates AGP 9
+  entirely, and its own docs' claim of support "up to AGP 9.0.0-alpha01" was accurate, not
+  conservative. **1.5.0-beta01 configures and runs cleanly.** Re-check this pin whenever AGP is
+  bumped — a stable androidx.benchmark release compatible with AGP 9 may exist by then.
+- **`com.android.test` and `androidx.baselineprofile` both need `alias(...) apply false` in the
+  root `build.gradle.kts`'s existing plugin-dedup block**, for the same reason
+  `com.android.application` is already there (the comment on that block: "necessary to avoid the
+  plugins being loaded multiple times in each subproject's classloader"). Without it, applying
+  either plugin from `:benchmark`'s own `plugins {}` block with an explicit version fails
+  `already on the classpath with an unknown version` — `build-logic`'s own AGP dependency puts
+  every AGP plugin class (including `com.android.test`'s) on the shared classloader the moment any
+  subproject applies `com.android.application`, and a second, versioned request for a class
+  already loaded that way can't be checked for compatibility.
+- **`:benchmark` needs its own "STORE" flavor dimension** (`gplay`/`fdroid`, matching
+  `AppFlavors`/`FlavorDimensions` by *name* — a plain subproject script can't `import
+  com.grappim.wallosmobile.buildlogic.*` the way `build-logic`'s own compiled Kotlin can, so the
+  two flavors are declared directly rather than reused). Left unflavored, `:androidApp`'s
+  `gplayNonMinifiedRelease`/`fdroidNonMinifiedRelease` variants become ambiguous to `:benchmark`'s
+  own unflavored one, and `generateGplayReleaseBaselineProfile` fails with a Gradle
+  variant-attribute-ambiguity error between the two flavors' `RuntimeElements`.
+- **`Quality.kt`'s `configureLinting()` isn't callable from a plain subproject script** — the
+  `import com.grappim.wallosmobile.buildlogic.configureLinting` that works inside `build-logic`'s
+  own compiled Kotlin doesn't resolve from `:benchmark/build.gradle.kts`. detekt/ktlint are
+  configured by hand there instead (same settings, inlined), including the
+  `composeRules-ktlint`/`composeRules-detekt` dependencies — needed in *every* module regardless of
+  Compose content, because the shared `config/detekt/detekt.yml`'s `Compose:` section is invalid
+  detekt config without the plugin present (`Property 'Compose' is misspelled or does not exist`
+  otherwise), not because `:benchmark` has any Compose code.
+- **Confirmed real task/output names** (both were guesses in 13.1's own plan text, since neither
+  androidx.benchmark's docs nor this session's web research were trustworthy without a real
+  build): `:androidApp:generateGplayReleaseBaselineProfile` writes
+  `androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt`, committed as source
+  (not gitignored — that placement under `src/` is the whole point of the plugin copying it there,
+  so a release build can consume it without regenerating). The assembled `gplayRelease` APK embeds
+  the compiled form at `assets/dexopt/baseline.prof` + `.profm` (confirmed via `unzip -l`).
+- **Generation runs against `:androidApp`'s connected device** (`useConnectedDevices = true` in
+  `:benchmark`'s `baselineProfile { }` block), reusing whatever AVD the `emulator-testing` skill
+  already has booted rather than a separate Gradle Managed Device — this project already has one
+  real AVD (`Medium_Phone_API_36.1`) for every other on-device `Verify:` line, so a second
+  device-provisioning path would be pure duplication.
+
+13.1's generator (`BaselineProfileGenerator.coldStart`) covers app start only. 13.2 (not yet done
+as of this writing) adds the subscriptions-list-scroll and add-subscription-editor-open CUJs the
+2026-08-09 investigation actually traced as JIT-cold, and re-measures against that doc's baseline —
+see `docs/CHECKLIST.md`'s M13 for the current state.
+
 ---
 
 ## 4. `core:api` — the load-bearing module
