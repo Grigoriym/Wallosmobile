@@ -931,6 +931,232 @@ steps carried its own `Gate-change:` line. **M15 is done**: all four steps ticke
 default branch, and `master` now moves only through the release-automation chain, with branch
 protection still deliberately deferred until the repo nears its first real release.
 
+**Post-M15 check, not a fifth step: does `androidApp/proguard-rules.pro` need anything?** The
+`release` build type has carried `isMinifyEnabled = true`/`isShrinkResources = true` since before
+M15, but 15.3's own `Verify:` only checked that R8 produced a *signed* APK, never that the
+shrunk/obfuscated app actually runs — so this was checked directly rather than ported from
+Taiga's `proguard-rules.pro` on faith. Taiga's file adds four blocks: kotlinx.serialization
+keeps, FileKit/JNA keeps, a Room `RoomDatabase` `<init>()` keep, and Koin annotation keeps.
+Unzipping the actual dependency AARs/jars from the Gradle cache found the first three already
+duplicated by the library's own bundled consumer rules — `kotlinx-serialization-core-jvm-1.11.0.jar`
+carries a much more precise `META-INF/proguard/kotlinx-serialization-common.pro` than Taiga's blunt
+`-keep @kotlinx.serialization.Serializable class * { *; }` (targeted `Companion`/`serializer()`
+keeps instead of keeping every serializable class whole), and `room-runtime-2.8.4`'s own
+`proguard.txt` contains the *exact* `-keep class * extends androidx.room.RoomDatabase { void
+<init>(); }` line Taiga hand-added — both auto-merge into the app's R8 config with zero project
+file needed. FileKit is a moot point: like `google-services` (15.3), `filekit-*` is declared in
+`gradle/libs.versions.toml` but applied nowhere in this repo, confirmed by `grep -rl filekit
+--include="*.kt" .` returning nothing. Koin's rule doesn't carry over either: `koin-android-4.2.2.aar`'s
+own `proguard.txt` has no annotation-keep block (just `-dontwarn org.koin.**` and a note about
+`Class.forName`-loaded Fragments, which this single-Activity app has none of) — consistent with
+`io.insert-koin.compiler.plugin` (not KSP-runtime annotation processing) generating the DI graph
+as plain Kotlin at compile time, so `@Single`/`@Factory` are never read reflectively at runtime.
+Confirmed empirically too, not just by cache inspection: installed the real, signed
+`assembleGplayRelease` APK on `Medium_Phone_API_36.1` and drove it end to end — web-login-bridge
+sign-in (HTML scrape + Ktor + kotlinx.serialization), the cached subscriptions list (Room + Coil +
+`HtmlUnescaper` mapping, 8 distinct logos rendered), a subscription detail route, and an `am kill`
++ `am start -n` process-death cycle on that detail screen — the exact case that would break if
+`NavKeySerializers.kt`'s polymorphic `SerializersModule` lost a class to obfuscation. All of it
+came back intact with no crash and nothing in logcat (`FATAL EXCEPTION`, `ClassNotFoundException`,
+`NoSuchMethodError`, `SerializationException`) across the whole session. **Conclusion:
+`androidApp/proguard-rules.pro` needs no project-specific rules and was left as AGP's untouched
+default stub** — every dependency that would need one already ships its own, and the one thing
+that's genuinely project-specific (Nav3's polymorphic route serialization) was verified directly
+rather than assumed safe.
+
+### 3.10 Firebase Crashlytics + Play In-App Update — planned 2026-08-10, ported from TaigaMobileNova, gplay-only
+
+Not decomposed into `docs/CHECKLIST.md` steps yet — this is the design pass, filed directly by the
+user the same session M15 closed. `gradle/libs.versions.toml` already carries every version this
+needs (`firebase-bom = "34.16.0"`, `google-services = "4.5.0"`,
+`firebase-crashlytics-plugin = "3.0.7"`, `in-app-update = "2.1.0"`, plus the matching
+`firebase-bom`/`firebase-crashlytics`/`google-inapp-update-ktx` library and
+`google-services`/`firebase-crashlytics` plugin catalog entries) — carried over wholesale from
+Taiga's own catalog the same way `google-services`/`firebase-*` were, per 15.3's note, and
+unapplied anywhere until now.
+
+**Both features are gplay-only, and Taiga's own history has a sharp warning about *how* that has
+to be enforced.** Taiga's `docs/build/fdroid-reproducibility.md` records a real incident: gating
+only the *dependency* (`gplayImplementation(...)`) while leaving the `google-services`/
+`firebase-crashlytics` Gradle **plugins** applied unconditionally broke F-Droid's reproducible
+build two ways — F-Droid's own scanner flags any Firebase catalog reference anywhere in the build
+files regardless of whether a given flavor actually pulls it in, and applying the Crashlytics
+plugin injects extra string resources into the build *for every flavor*, shifting resource IDs and
+cascading into a full APK diff even on fdroid. The fix has to be at the `apply(plugin = ...)` call
+itself, not just the dependency. WallosMobile has no F-Droid reproducible-build pipeline today, but
+the `fdroid` flavor exists and ships to F-Droid's own repo (M6), so the same trap is live here too
+— get the plugin gating right from the first commit rather than as a follow-up fix.
+
+**Mechanism, adapted to this repo's shape:**
+
+- `androidApp/build.gradle.kts` gains `alias(libs.plugins.google.services) apply false` and
+  `alias(libs.plugins.firebase.crashlytics) apply false` in its `plugins {}` block (matching the
+  `apply false` already used at root in Taiga — `plugins {}` can't express a conditional itself,
+  it has no access to `project`), then, imperatively, after the block:
+  ```kotlin
+  if (project.hasProperty("gplayBuild")) {
+      apply(plugin = libs.plugins.google.services.get().pluginId)
+      apply(plugin = libs.plugins.firebase.crashlytics.get().pluginId)
+  }
+  ```
+  `gplayBuild` (Taiga's exact property name — no reason to diverge) becomes a project property a
+  build passes explicitly: `./gradlew :androidApp:assembleGplayDebug -PgplayBuild`. Without it,
+  `assembleFdroidDebug`/`assembleFdroidRelease` (and an ordinary gplay build run without the flag)
+  never see either plugin at all — structurally absent, not just unused.
+- Dependencies, same file, using the `gplayImplementation` configuration AGP already generates
+  from the `gplay` product flavor (`AppFlavors.kt`/`configureFlavors`, no build-logic change
+  needed):
+  ```kotlin
+  gplayImplementation(platform(libs.firebase.bom))
+  gplayImplementation(libs.firebase.crashlytics)
+  gplayImplementation(libs.google.inapp.update.ktx)
+  ```
+- `androidApp/src/gplay/google-services.json` is gitignored (`.gitignore` already carries a `*.jks`
+  pattern for the keystores from 15.3; this needs its own line, `androidApp/src/gplay/
+  google-services.json` specifically, not a blanket `google-services.json` glob — Taiga scopes it
+  to the one path deliberately). **Generating the actual Firebase project and downloading this
+  file is the user's own call, not a session's** — same framing as 15.3's keystore: a Firebase
+  project is an external, account-linked resource, not something to fabricate. Taiga also commits a
+  placeholder `androidApp/src/fdroid/google-services.json` with fake `PLACEHOLDER_NOT_A_REAL_KEY`
+  values so that flavor's source set is well-formed if the plugin were ever applied to it by
+  accident — purely defensive, since the plugin is structurally never applied there; worth
+  carrying over for the same one-line insurance, not required for the feature to work.
+- CI needs the same base64-secret restore 15.4 already does for keystores, scoped to the one path:
+  a `WALLOS_GOOGLE_SERVICES_GPLAY` (or similarly named) secret, decoded to
+  `androidApp/src/gplay/google-services.json` before any gplay assemble/bundle task, in both
+  `ci.yml` and `release.yml`. **This is a real gap in what 15.4 already shipped**: `release.yml`'s
+  `assembleGplayRelease`/`bundleGplayRelease` steps don't pass `-PgplayBuild` today, so as written
+  they'd silently produce a release APK/AAB with *no* Crashlytics and *no* Play In-App Update the
+  moment this feature lands — 15.4 needs a follow-up edit, not a new step, to add the property and
+  the restore step once this design is approved. `ci.yml` needs a bigger shape change: its current
+  single `./gradlew :androidApp:assembleDebug` task builds both flavors in one Gradle invocation,
+  but `gplayBuild` is a whole-build project property — there's no way to pass it for one flavor's
+  aggregate sub-task and not the other's within a single invocation. CI has to split into two
+  invocations the way Taiga's does: `assembleFdroidDebug` (no property) and
+  `assembleGplayDebug -PgplayBuild` (with it, plus the restore step first) — which also brings
+  `ci.yml` in line with the two-flavor command `CLAUDE.md`'s own "Build commands" section already
+  documents, which `ci.yml`'s single `assembleDebug` line has quietly drifted from.
+
+**Crashlytics — the `CrashReporter` seam.** Taiga lifts this into a KMP module
+(`core/crash-api`, `commonMain` interface) because its `feature/settings/ui` is a real
+multi-platform consumer (Android/desktop/iOS all build against it). WallosMobile is Android-only
+today, but the *reason* for a separate module still holds even with one target: `feature/settings/
+ui` (a lower Gradle module) cannot depend upward on `androidApp`, so the interface needs to live
+somewhere both `androidApp` (for the two flavor impls) and `feature/settings/ui` (for the toggle)
+can reach. `core:appinfo-api` is this repo's own precedent for exactly that shape — a one-file KMP
+interface module (`AppInfoProvider`, no logic) with its single implementation living in
+`androidApp/src/main/kotlin/.../di/AppInfoProviderImpl.kt`. A new `core:crashreporting-api` module
+mirrors it exactly:
+```kotlin
+interface CrashReporter {
+    val isAvailable: Boolean
+    fun setCollectionEnabled(enabled: Boolean)
+    fun recordException(throwable: Throwable)
+    fun log(message: String)
+}
+```
+Two implementations, both `@Single(binds = [CrashReporter::class])`, both in package
+`com.grappim.wallosmobile.di` — matching `AndroidModule`'s `@ComponentScan("com.grappim.
+wallosmobile.di")` exactly rather than adding a second scanned package:
+- `androidApp/src/gplay/kotlin/com/grappim/wallosmobile/di/CrashReporterImpl.kt` — wraps
+  `Firebase.crashlytics`, `isAvailable = true`.
+- `androidApp/src/fdroid/kotlin/com/grappim/wallosmobile/di/CrashReporterImpl.kt` — every member a
+  no-op, `isAvailable = false`.
+Only one is ever on the classpath for a given flavor build, so the single `@ComponentScan` never
+sees two conflicting bindings — same trick `AndroidModule` already relies on implicitly (it just
+hasn't had a second flavor-swapped binding yet).
+
+**Wiring into the app:** `WallosApp.kt` already plants `Timber.DebugTree()` (debug builds only)
+and calls `TimberLogger.install()` unconditionally — `core:logger`'s `WallosLogger` seam funnels
+every `logcat { }` call through `TimberLogger` into real Timber regardless of flavor, so the
+natural hook is a second `Timber.Tree`, planted unconditionally right beside the existing one, that
+forwards `ERROR`-priority logs to the injected `CrashReporter` (a no-op on fdroid, so nothing to
+gate at the call site) — the same shape as Taiga's `CrashlyticsTree`, ported as-is. Consent: a new
+`core/storage/.../crashreporting/CrashReportingStorage.kt` (interface + `@Single` impl,
+DataStore-backed) mirrors `ThemeStorage`'s exact shape — `val crashReportingEnabled: Flow<Boolean>`
+defaulting to `false` pending a real decision (Taiga defaults similarly opt-in, not opt-out) plus
+`suspend fun setCrashReportingEnabled(enabled: Boolean)`. `WallosApp.onCreate()` observes it and
+calls `crashReporter.setCollectionEnabled(enabled)` on every change, same as Taiga's
+`applicationScope`-launched collector. The toggle itself belongs in `feature/settings/ui`'s
+existing `InterfaceScreen`/`InterfaceViewModel` (already the home of the theme-mode picker), gated
+on `crashReporter.isAvailable` so the control doesn't render at all on fdroid — runtime-gated via
+DI, not a compile-time flavor check, the same reason Taiga's own `SettingsInterfaceViewModel` reads
+`isAvailable` rather than a `BuildConfig` field (keeps the ViewModel flavor-agnostic and testable
+with `:testing`'s existing fake pattern — a `FakeCrashReporter` alongside the module's other fakes).
+**Privacy policy — decided 2026-08-10, port both of Taiga's.** `PRIVACY_POLICY.md` (fdroid) and
+`PRIVACY_POLICY_GPLAY.md` (gplay, adds a "Firebase Crashlytics" section) live at Taiga's repo
+root and are committed docs, not app assets — adapt both for WallosMobile: swap every
+Taiga.io/TaigaMobileNova reference for Wallos/WallosMobile, and swap the "Taiga.io Authentication"
+section for what this app actually stores (the API key and server URL, `core:storage`, not a
+username/password or an OAuth token — `ApiKeyStorageImpl`'s `KeystoreSecretCipher` encryption is
+worth a line, it's a stronger claim than Taiga's plain "stored locally"). Two docs at repo root,
+`PRIVACY_POLICY.md` and `PRIVACY_POLICY_GPLAY.md`, same as Taiga. Linked from `AboutScreen`
+exactly like Taiga's `SettingsAboutScreenViewModel`: a `privacyPolicyLink` field picked by
+`crashReporter.isAvailable` between two new string resources
+(`privacy_policy_url`/`privacy_policy_url_gplay`, raw GitHub blob URLs, `translatable="false"`
+same as Taiga's), rendered as a second `Button` beside the existing "Project" one in
+`AboutContent` (`feature/settings/ui/.../about/AboutScreen.kt`) — **the GitHub project link this
+button sits beside already exists** (`about_project_url`, wired since before this plan), so
+nothing new needed there, only the privacy-policy button is new.
+
+**Play In-App Update — the `AppUpdateChecker` seam.** Unlike Crashlytics, nothing outside
+`androidApp` needs this (Taiga's own UI for it is a plain Android `Snackbar` triggered from
+`MainActivity`, not a Compose screen or ViewModel), so the interface stays entirely inside
+`androidApp` — no new module, following Taiga's own choice there rather than `AppInfoProvider`'s
+KMP-module shape:
+```kotlin
+interface AppUpdateChecker {
+    val updateState: Flow<UpdateState>
+    fun checkAndRequestUpdate(activity: Activity)
+    fun checkUpdateStateOnResume()
+    fun registerUpdateListener()
+    fun unregisterUpdateListener()
+    fun completeUpdate()
+}
+sealed class UpdateState { data object UpdateDownloaded : UpdateState() }
+```
+Same flavor-swap trick, same `com.grappim.wallosmobile.di` package: a gplay impl wrapping
+`AppUpdateManagerFactory.create(context)` (Play Core, **FLEXIBLE** update type — the app stays
+usable while the update downloads in the background, then prompts to restart, never blocks
+launch), and an fdroid impl where every member is a no-op / `flowOf()`. `MainActivity` wires it
+exactly like Taiga: `checkAndRequestUpdate(this)` once in `onCreate`, `registerUpdateListener()` +
+`checkUpdateStateOnResume()` in `onResume`, `unregisterUpdateListener()` in `onPause`, and a
+`lifecycleScope` collector on `updateState` — **decided 2026-08-10: a real Compose snackbar
+surface, not Taiga's plain View `Snackbar`**, since WallosMobile has none today and this is worth
+having as reusable shell infrastructure rather than a one-off. Shape, mirroring `TopBarController`
+(`uikit/.../widgets/topappbar/`) — a remembered controller class holding a `SnackbarHostState`,
+provided through a new `LocalSnackbarHostController` `CompositionLocal`, `Scaffold`'s existing
+`snackbarHost = { SnackbarHost(...) }` slot in `AuthenticatedMainScreen`'s `MainScaffold` wired to
+it. **A new `CompositionLocal` fails `ktlintCheck` until named in `.editorconfig`'s
+`compose_allowed_composition_locals`** — a third entry alongside `LocalTopBarConfig`/
+`LocalIsOffline`, and `.editorconfig` is a tripwire path (§3.6), so the step that adds it needs its
+own `Gate-change:` line, same as any other. **Scoped to the authenticated shell only** — `LoginScreen`
+(state, not a route, per its own section above) has no `Scaffold` today and doesn't get one for
+this; the update snackbar only shows once past login, which is an acceptable scope limit rather
+than a reason to add a `Scaffold` to the login screen. `MainActivity` still owns the imperative
+half unavoidably (`checkAndRequestUpdate(this)` needs a real `Activity` for Play Core's
+`startUpdateFlow`, and `onResume`/`onPause` listener registration is plain Android lifecycle) —
+what moves into Compose is only the *display*: collect `appUpdateChecker.updateState` where the
+new snackbar controller is reachable (`AuthenticatedMainScreen` or above) and call
+`snackbarHostController.show(...)` on `UpdateState.UpdateDownloaded`, with the restart action
+calling `appUpdateChecker.completeUpdate()`.
+
+**Proguard:** neither AAR needs a project rule — both `firebase-crashlytics` and
+`app-update-ktx` ship their own consumer ProGuard rules (Taiga's own `proguard-rules.pro` carries
+nothing for either), consistent with the finding earlier in this section for every other
+dependency checked.
+
+**Firebase project: still to be created** — unlike 15.3's keystores, which already existed by the
+time the Gradle wiring landed, WallosMobile has no Firebase project yet (confirmed with the user
+2026-08-10). The Gradle/DI/UI wiring below can be built and structurally verified
+(`assembleGplayDebug -PgplayBuild` compiling, the toggle rendering) without a real
+`google-services.json` sitting in place of a placeholder, but nothing that actually talks to
+Crashlytics can be verified on-device until the user creates the project and downloads the real
+file — same shape as 15.3's "generating the keystore is the user's own call," not a blocker on
+building the mechanism itself.
+
+Decomposed into `docs/CHECKLIST.md` as **M16** below, all four open questions now answered.
+
 ---
 
 ## 4. `core:api` — the load-bearing module
