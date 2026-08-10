@@ -42,6 +42,16 @@ ticked, and don't expand scope beyond the step.
 4. Commit and push. One commit per step, straight to `dev` — subject `0.N — short title`,
    body listing the deltas that aren't obvious from the diff.
 
+**Decomposing a new milestone is its own commit, made the moment it happens — not left
+for the session that does step 1 to discover via `git status`.** Every milestone from M3
+onward has one (`git log --oneline | grep decompos`), subject `docs: plan M<N> — …` or
+`docs: decompose M<N> …`. M16's planning session broke this once (2026-08-10): the plan
+§3.10 write-up and the M16 checklist entries sat uncommitted across a `/clear`, and the
+next session only caught it by noticing the initial `git status` still showed those two
+files modified before it had touched anything. Recovered by splitting the pending diff
+into the missing planning commit plus the step's own — but don't rely on that recovery
+path; commit the decomposition before ending the planning session.
+
 **`master` only moves via release automation, not ordinary steps.** `dev` is the default branch
 and behaves exactly like `master` did before M15 — direct pushes, no PR required. `master`
 advances only through 15.2–15.4's `release-prepare` → PR → `release-finalize` → tag → `release`
@@ -96,6 +106,15 @@ This project uses the **`emulator-testing`** and **`finalize`** skills; both are
 
 ```bash
 ./gradlew :androidApp:assembleGplayDebug :androidApp:assembleFdroidDebug   # build (both store flavors)
+
+# A plain `assembleGplayDebug` above (no `-PgplayBuild`) silently builds without the Firebase/Play
+# Core plugins and dependencies at all — not a partial build, a structurally different one (16.1,
+# plan §3.10). A build that actually needs Crashlytics/In-App Update — including once 16.3 lands
+# and CrashReporterImpl exists — needs the property and a `google-services.json` at
+# androidApp/src/gplay/google-services.json (real file, gitignored; not created until the user
+# sets up the Firebase project):
+./gradlew :androidApp:assembleGplayDebug -PgplayBuild
+
 ./gradlew allTests                           # all KMP module tests
 ./gradlew :module:path:testAndroidHostTest   # one module
 ./gradlew detekt ktlintCheck                 # must pass before ticking a step
