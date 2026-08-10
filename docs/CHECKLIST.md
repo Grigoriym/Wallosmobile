@@ -8,17 +8,17 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `0/5`
-**Current step:** 16.1 — Gradle wiring for Firebase Crashlytics + Play In-App Update (`gplay`
-flavor only). M16 was planned and decomposed 2026-08-10, right after M15 closed: full design in
-plan §3.10, ported from TaigaMobileNova. **Two things block full on-device verification of every
-`gplay`-side step (16.1, 16.3, 16.4, 16.5) until the user acts**: the Firebase project itself
-doesn't exist yet (confirmed with the user 2026-08-10 — same "user's own call" shape as 15.3's
-keystores), so nothing that actually talks to Crashlytics can be proven live; each such step's own
-`Verify:` line says exactly what it can and can't confirm without it. Read M16's own preamble
-before starting 16.1 — it also flags a real gotcha that lands the moment 16.3 ships: a plain
-`installGplayDebug` with no `-PgplayBuild` and no real `google-services.json` starts crashing on
-cold start, because the gplay `CrashReporterImpl` is chosen by *flavor*, not by that property.
+M15 `4/4` — **M15 done** · M16 `1/5`
+**Current step:** 16.2 — CI: split flavor builds, restore `google-services.json`. M16 was planned
+and decomposed 2026-08-10, right after M15 closed: full design in plan §3.10, ported from
+TaigaMobileNova. **Two things block full on-device verification of every `gplay`-side step (16.1,
+16.3, 16.4, 16.5) until the user acts**: the Firebase project itself doesn't exist yet (confirmed
+with the user 2026-08-10 — same "user's own call" shape as 15.3's keystores), so nothing that
+actually talks to Crashlytics can be proven live; each such step's own `Verify:` line says exactly
+what it can and can't confirm without it. Read M16's own preamble before starting 16.2 — it also
+flags a real gotcha that lands the moment 16.3 ships: a plain `installGplayDebug` with no
+`-PgplayBuild` and no real `google-services.json` starts crashing on cold start, because the gplay
+`CrashReporterImpl` is chosen by *flavor*, not by that property.
 
 ---
 
@@ -141,7 +141,7 @@ passes `-PgplayBuild` for every gplay task, so the crash path is never actually 
 `CLAUDE.md`'s "Build commands" needs a line about this once 16.1 lands, so a future session
 building gplay locally doesn't lose time to it.
 
-- [ ] **16.1 — Gradle wiring: `gplayBuild` property, conditional Firebase plugins, gplay-scoped dependencies**
+- [x] **16.1 — Gradle wiring: `gplayBuild` property, conditional Firebase plugins, gplay-scoped dependencies**
   `androidApp/build.gradle.kts` gains `alias(libs.plugins.google.services) apply false` and
   `alias(libs.plugins.firebase.crashlytics) apply false` in `plugins {}`, then, imperatively after
   the block, `if (project.hasProperty("gplayBuild")) { apply(plugin =
