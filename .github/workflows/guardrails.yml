@@ -10,9 +10,11 @@ permissions:
 on:
   push:
     branches:
+      - dev
       - master
   pull_request:
     branches:
+      - dev
       - master
 
 concurrency:

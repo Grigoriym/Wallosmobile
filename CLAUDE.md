@@ -39,8 +39,15 @@ ticked, and don't expand scope beyond the step.
 3. **Check the docs for claims the step just made false** — `IMPLEMENTATION_PLAN.md` and this
    file both accumulate stale present-tense statements (a build command that no longer exists,
    a "the repo is still…" line). Grep for what changed rather than trusting a read-through.
-4. Commit and push. One commit per step, straight to `master` — subject `0.N — short title`,
+4. Commit and push. One commit per step, straight to `dev` — subject `0.N — short title`,
    body listing the deltas that aren't obvious from the diff.
+
+**`master` only moves via release automation, not ordinary steps.** `dev` is the default branch
+and behaves exactly like `master` did before M15 — direct pushes, no PR required. `master`
+advances only through 15.2–15.4's `release-prepare` → PR → `release-finalize` → tag → `release`
+workflows (plan §3.9). Branch protection on `dev` is deliberately **not** turned on yet — that's
+a follow-up for once the repo nears its first real release, not something M15 itself does — so
+don't assume a push to `dev` is gated by anything beyond CI and Guardrails passing.
 
 ### Changing a gate means saying so
 
@@ -137,8 +144,8 @@ recipe, the stale-banner network check, and more) live in the **`emulator-testin
 driving the emulator rather than re-deriving any of it.
 
 CI (`.github/workflows/ci.yml`, plan §3.5, §3.8) runs assemble + `allTests` + `detekt ktlintCheck`
-+ `koverXmlReport` (uploaded to Codecov) on push and PR to `master`, but `paths-ignore` skips
-`**.md` and `docs/**` — a docs-only commit produces **no CI run**, which is not a failure. The
++ `koverXmlReport` (uploaded to Codecov) on push and PR to `dev` and `master`, but `paths-ignore`
+skips `**.md` and `docs/**` — a docs-only commit produces **no CI run**, which is not a failure. The
 instrumented Room DAO tests are still local/emulator-only — `allTests` doesn't fan out to device
 tests and the CI job has no emulator, so Kover's XML report never sees them either. The second
 workflow, `guardrails.yml` (plan §3.6), has no `paths-ignore` and runs no Gradle, so a docs-only

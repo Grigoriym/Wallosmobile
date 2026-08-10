@@ -31,6 +31,7 @@ comment:
 # Branch configuration
 branches:
     - master
+    - dev
 
 # Ignore paths
 ignore:

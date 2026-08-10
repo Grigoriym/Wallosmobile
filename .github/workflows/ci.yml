@@ -6,12 +6,14 @@ permissions:
 on:
   push:
     branches:
+      - dev
       - master
     paths-ignore:
       - '**.md'
       - 'docs/**'
   pull_request:
     branches:
+      - dev
       - master
     paths-ignore:
       - '**.md'

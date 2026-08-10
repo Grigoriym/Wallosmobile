@@ -8,15 +8,16 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `0/4`
-**Current step:** M14 done — `.codacy.yml`, `renovate.json` and `codecov.yml` now exist at root,
-and `.github/workflows/ci.yml` uploads a Kover XML report to Codecov after `detekt`/`ktlintCheck`;
-`CODECOV_TOKEN` was missing at session start (`gh secret list` empty) and the user added it via
-the GitHub UI mid-session. The push-based half of 14.1/14.2's `Verify:` lines (Codacy/Renovate
-dashboard reactions, a green Codecov check on the pushed commit) still needs a look after this
-session's push lands. **M15 planned** the same day (branch model + release automation, see
-below), one step per future session — next session can start at 15.1, or pick something else from
-"To review".
+M15 `1/4`
+**Current step:** 15.1 done — `dev` branch created off `master`'s tip, pushed, and set as the
+repo's default (`gh repo edit --default-branch dev`); `ci.yml` and `guardrails.yml` retargeted to
+`branches: [dev, master]` on both `push` and `pull_request`; `codecov.yml`'s `branches` allowlist
+also got `dev` added, a gap in the step's own prose (see 15.1's `Note:`); `CLAUDE.md` and
+`README.md` updated so "straight to `master`" now reads "straight to `dev`", with a new paragraph
+stating `master` only moves via 15.2–15.4's release automation and that branch protection on `dev`
+is deliberately not turned on yet. Repo is still private — that doesn't block anything 15.1 does,
+since branch protection (which does need public/paid) is out of scope here. Next session can start
+at 15.2 (`release-prepare.yml` + `release-finalize.yml`).
 
 ---
 
@@ -125,7 +126,7 @@ explicitly out of scope here** — the user's own instruction was to write it do
 once the repo is public and nears its first release, not to turn it on now. Until then `dev`
 behaves exactly like `master` does today.
 
-- [ ] **15.1 — Create `dev`, make it default, retarget `ci.yml` + `guardrails.yml`, update the docs**
+- [x] **15.1 — Create `dev`, make it default, retarget `ci.yml` + `guardrails.yml`, update the docs**
   Branch `dev` off current `master` tip, push it, then flip the repo's default branch to `dev`
   (`gh repo edit --default-branch dev` or the GitHub UI). Retarget both `ci.yml` and
   `guardrails.yml`: `branches: [master]` → `branches: [dev, master]` on their `push` and
@@ -142,6 +143,11 @@ behaves exactly like `master` does today.
   both the CI and Guardrails checks running against it (`gh run list --branch dev`); grep confirms
   no remaining "straight to `master`" line in `CLAUDE.md`/`README.md`. **Touches `.github/` — needs
   a `Gate-change:` line.**
+  Note: `codecov.yml` needed the same `dev` addition as the two workflows — its own
+  `branches: [master]` allowlist isn't covered by the step's "`.codacy.yml`/`renovate.json` need no
+  edits" claim (those two follow whichever branch GitHub reports as default; `codecov.yml`'s
+  `branches` key is a separate, explicit list). Confirmed against Taiga's own `codecov.yml`, which
+  already carries `[master, dev]`.
 
 - [ ] **15.2 — `release-prepare.yml` + `release-finalize.yml`: branch, version-bump and tag mechanics**
   Port both from Taiga near-verbatim: `release-prepare` (manual `workflow_dispatch`, takes

@@ -42,7 +42,7 @@ Requires JDK 21. There is no `jvmTest` task — the project declares no `jvm()` 
 tests run as the AGP KMP host test (`testAndroidHostTest`) over `commonTest`.
 
 CI runs assemble, `allTests`, detekt, ktlint and a Kover coverage upload to Codecov on every push
-and pull request to `master`.
+and pull request to `dev` and `master`.
 
 ## Layout
 
