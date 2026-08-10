@@ -602,9 +602,10 @@ needs nothing restored. `assembleDebug` itself is unaffected: AGP still creates 
 task depending on `assembleGplayDebug` + `assembleFdroidDebug`, so CI's own command didn't need to
 change.
 
-Two deliberate omissions: **Kover/Codecov is not in CI** (the upload wants a `CODECOV_TOKEN` this
-repo doesn't have; `koverXmlReport` stays a local command), and `paths-ignore` skips `**.md` and
-`docs/**`, so a **docs-only commit produces no run** — an absent run is not a failed one.
+One remaining deliberate omission: `paths-ignore` skips `**.md` and `docs/**`, so a **docs-only
+commit produces no run** — an absent run is not a failed one. Kover/Codecov used to be the other
+one (the upload wanted a `CODECOV_TOKEN` this repo didn't have), but M14 (§3.8) wired it in once
+the token was added — `koverXmlReport` now runs in CI too, uploaded to Codecov.
 
 **There is still no coverage floor, and 3.12 measured why an aggregate one would be the wrong
 instrument.** The project reads 48.8% line overall, which sounds like a floor worth setting until the
@@ -770,6 +771,58 @@ profile-application gap explains and partially fixes the editor-open journey, bu
 explain the scroll journey's non-improvement — that verdict was correct all along. Full numbers:
 `docs/issues/2026-08-10-editor-open-stall-and-unapplied-profile.md`'s "What landed" section.
 Option 4 (the remaining ~600-class first-touch cost) stays open and unscoped.
+
+### 3.8 Codacy, Codecov, Renovate — ported from TaigaMobileNova, landed 2026-08-10 as M14
+
+Three GitHub Apps Taiga already runs, ported into `docs/CHECKLIST.md`'s **M14** (done) — the user
+had installed all three on this repo already, so what was missing was the config files each one
+reads, plus (for Codecov only) a CI step to produce and upload a report. Codacy and Renovate need
+neither: both are GitHub-App-driven and act on any push/PR once a config file exists, with no
+workflow of their own — confirmed against Taiga's `.github/`, which has no Codacy step anywhere
+and no Renovate step anywhere, only `.codacy.yml` and `renovate.json` at the root.
+
+Three adjustments from a straight port, all because Taiga's repo shape differs from this one's:
+
+- **`.codacy.yml`** — same `exclude_paths` as Taiga's (`.github/**`, `docs/**`, `.claude/**`)
+  minus its fourth entry, `PRIVACY_POLICY_GPLAY.md`: WallosMobile has no Play Store privacy-policy
+  file yet, so there's nothing there to exclude.
+- **`renovate.json`** — same `extends`/`prHourlyLimit`/`osvVulnerabilityAlerts` as Taiga's, but
+  **without** its `baseBranchPatterns: ["dev"]`. That key exists in Taiga only because Taiga's
+  default branch is `dev`, not `master` — `config:recommended` targets a repo's default branch
+  with no override needed, and WallosMobile's default branch already **is** `master` (confirmed:
+  `gh repo view --json defaultBranchRef`), matching this project's single-branch, straight-to-
+  `master` workflow (`CLAUDE.md`, "How work happens here").
+- **`codecov.yml`** — same shape as Taiga's, `branches: [master]` only (Taiga has
+  `[master, dev]`) and the same `ignore:` path list (test/mock/fake/generated patterns) as a
+  second, redundant net over what the root `build.gradle.kts` `kover { reports { filters {
+  excludes ... } } }` block already keeps out of the XML report reaching Codecov in the first
+  place. **Coverage-status thresholds are ported unchanged** (project: `auto` target, 1%
+  threshold; patch: `80%` target, 5% threshold) — decided with the user 2026-08-10 to match
+  Taiga's practice (informed by Taiga's own testing overhaul, `TaigaMobileNova/docs/testing/`)
+  rather than stay informational-only. This is a **different mechanism** from the Kover/Gradle
+  floor this project separately declined (`CLAUDE.md`'s Settled decisions table): that decision
+  was about `:koverVerify` failing a *build* on an uneven per-package aggregate, not about
+  Codecov's PR-level status checks, which report per-commit and (on this private repo, which
+  can't set branch protection without GitHub Pro — confirmed via `gh api .../branches/master/
+  protection` → 403) can't block anything yet regardless. Declining the Kover floor doesn't argue
+  against this one.
+- **CI wiring** — §3.5 called the Codecov upload a *deliberate* omission because the repo had no
+  `CODECOV_TOKEN`. **The secret was missing at this session's start too** (`gh secret list`
+  returned empty on 2026-08-10, despite the user's earlier belief it was already added); the user
+  added it through the GitHub UI mid-session, confirmed by re-running `gh secret list`.
+  `.github/workflows/ci.yml`'s single job now gains two steps after "Run detekt and ktlint":
+  `./gradlew koverXmlReport`, then `codecov/codecov-action@v7` uploading
+  `./build/reports/kover/report.xml`. **No standalone test run needed first**, unlike Taiga's
+  `code_analysis.yml`, which runs `jvmTest` explicitly because Kover's aggregation there skips
+  modules outside the root `kover {}` block (`:testing`, `:uikit`, `:tools:*`) that only `jvmTest`
+  (run for every module) reaches — this job already runs `allTests` (every module, by
+  `CLAUDE.md`'s own build-commands table) earlier in the same job, a superset that leaves
+  `koverXmlReport` with nothing left to compile or execute.
+
+This edits `.github/workflows/ci.yml`, a guardrails tripwire path (§3.6) — the step needs a
+`Gate-change:` line reversing §3.5's "deliberate omission" framing now that the blocking reason
+(no token) is fixed. `.codacy.yml`, `renovate.json` and `codecov.yml` are root-level files, none
+of them under a tripwire path, so adding those three costs no `Gate-change:` line.
 
 ---
 

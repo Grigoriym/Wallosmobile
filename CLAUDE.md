@@ -136,12 +136,13 @@ recipe, the stale-banner network check, and more) live in the **`emulator-testin
 (`~/.claude/skills/emulator-testing`) and `docs/EMULATOR_TESTING.md`, not here — read those before
 driving the emulator rather than re-deriving any of it.
 
-CI (`.github/workflows/ci.yml`, plan §3.5) runs assemble + `allTests` + `detekt ktlintCheck` on
-push and PR to `master`, but `paths-ignore` skips `**.md` and `docs/**` — a docs-only commit
-produces **no CI run**, which is not a failure. Kover is local-only, and so are the instrumented
-Room DAO tests — `allTests` doesn't fan out to device tests and the CI job has no emulator. The second workflow,
-`guardrails.yml` (plan §3.6), has no `paths-ignore` and runs no Gradle, so a docs-only commit
-does produce *that* run — see "Changing a gate means saying so" above.
+CI (`.github/workflows/ci.yml`, plan §3.5, §3.8) runs assemble + `allTests` + `detekt ktlintCheck`
++ `koverXmlReport` (uploaded to Codecov) on push and PR to `master`, but `paths-ignore` skips
+`**.md` and `docs/**` — a docs-only commit produces **no CI run**, which is not a failure. The
+instrumented Room DAO tests are still local/emulator-only — `allTests` doesn't fan out to device
+tests and the CI job has no emulator, so Kover's XML report never sees them either. The second
+workflow, `guardrails.yml` (plan §3.6), has no `paths-ignore` and runs no Gradle, so a docs-only
+commit does produce *that* run — see "Changing a gate means saying so" above.
 
 ## Architecture
 

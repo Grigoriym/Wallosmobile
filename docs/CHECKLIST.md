@@ -7,12 +7,14 @@ context, with no memory of previous sessions.
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
-**M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done**
-**Current step:** M13 done — the Baseline Profile now covers cold start, first list scroll and
-first editor open, and eliminates the JIT-code-cache lock contention the 2026-08-09 doc found
-(0 slices vs. 119, reproduced across two runs); the doc's aggregate frame-jank numbers did not
-improve on this AVD, honestly reported in 13.2's own `Note:` rather than assumed fixed. No
-milestone chosen yet for the next session — see "To review" for the remaining backlog.
+**M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done**
+**Current step:** M14 done — `.codacy.yml`, `renovate.json` and `codecov.yml` now exist at root,
+and `.github/workflows/ci.yml` uploads a Kover XML report to Codecov after `detekt`/`ktlintCheck`;
+`CODECOV_TOKEN` was missing at session start (`gh secret list` empty) and the user added it via
+the GitHub UI mid-session. The push-based half of 14.1/14.2's `Verify:` lines (Codacy/Renovate
+dashboard reactions, a green Codecov check on the pushed commit) still needs a look after this
+session's push lands. No milestone chosen yet for the next session — see "To review" for the
+remaining backlog.
 
 ---
 
@@ -66,7 +68,7 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 ---
 
 Completed steps live in [`archive/CHECKLIST-DONE.md`](./archive/CHECKLIST-DONE.md) — **all of M0
-through M8, and now M10, M9, M11, M12 and M13**, verbatim. M10 was archived once before too (2026-08-08, its first seven
+through M8, and now M10, M9, M11, M12, M13 and M14**, verbatim. M10 was archived once before too (2026-08-08, its first seven
 steps) and pulled back out the same day once two more real gaps turned up (10.8/10.9, below); once
 those two closed it, it was archived again for good, same day. On 2026-08-06 the per-step
 Deviations log that used to sit at the bottom of this file moved to
@@ -97,7 +99,9 @@ decomposed straight from "To review", replacing the hard-coded start destination
 user-configurable one; see `archive/CHECKLIST-DONE.md`. **M13 is done** too — its two steps
 shipped the `:benchmark` module and extended its generator to all three cold-JIT'd journeys; see
 `archive/CHECKLIST-DONE.md` for the honest measurement result (JIT lock contention eliminated,
-aggregate frame-jank on this AVD not improved).
+aggregate frame-jank on this AVD not improved). **M14 is done** too — its two steps, filed
+directly by the user rather than decomposed from "To review", wired Codacy, Renovate and Codecov
+the way `TaigaMobileNova` already has them; see `archive/CHECKLIST-DONE.md`.
 
 ---
 

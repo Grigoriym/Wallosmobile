@@ -51,3 +51,18 @@ jobs:
 
       - name: Run detekt and ktlint
         run: ./gradlew detekt ktlintCheck
+
+      - name: Generate Kover XML report
+        run: ./gradlew koverXmlReport
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v7
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          files: ./build/reports/kover/report.xml
+          disable_search: true
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          verbose: true

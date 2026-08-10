@@ -3163,3 +3163,75 @@ plus the actual before/after trace comparison are real, independent scope on top
   AVD, so treat as encouraging rather than conclusive — but it meaningfully narrows the "not
   confirmed" verdict above to the scroll-jank metric specifically, not to the FAB-open complaint
   that started this milestone.
+
+## M14 — CI tooling: Codacy, Codecov, Renovate (plan §3.8)
+
+Goal: this repo's static analysis (Codacy), coverage reporting (Codecov) and dependency updates
+(Renovate) are wired up the way `TaigaMobileNova` already has them, ported and adjusted for a
+single-branch (`master`), single-workflow repo. **Done when** all three config files exist and a
+push shows each app act on it — a Codacy analysis run, a Codecov coverage check, and (whenever
+Renovate next runs its schedule) a dependency PR against `master`.
+
+Planned 2026-08-10, not decomposed straight from "To review" like M11/M12: filed directly by the
+user. Full rationale for each adjustment from Taiga's own files: plan §3.8.
+
+- [x] **14.1 — root: add `.codacy.yml` and `renovate.json`**
+  Both are GitHub-App-driven — the app itself acts on pushes/PRs once the repo is enabled (already
+  done, per the user) and a config file exists; neither needs a workflow file, confirmed against
+  Taiga's `.github/` having no Codacy or Renovate step anywhere.
+  Port `.codacy.yml` from Taiga verbatim, minus its `PRIVACY_POLICY_GPLAY.md` exclude entry (no
+  equivalent file here yet):
+  ```yaml
+  exclude_paths:
+    - ".github/**"
+    - "docs/**"
+    - ".claude/**"
+  ```
+  Port `renovate.json` too, but **drop Taiga's `baseBranchPatterns: ["dev"]`** — WallosMobile's
+  default branch already is `master`, so `config:recommended` targets it with no override:
+  ```json
+  {
+      "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+      "extends": ["config:recommended"],
+      "prHourlyLimit": 3,
+      "osvVulnerabilityAlerts": true
+  }
+  ```
+  *Verify:* both files parse (`python3 -c "import yaml;yaml.safe_load(open('.codacy.yml'))"`,
+  `python3 -c "import json;json.load(open('renovate.json'))"`); since this is app-driven, not
+  Gradle-driven, the real check is a push followed by a look at the Codacy and Renovate dashboards
+  for this repo. Neither file is under a tripwire path (`.github/`, `build-logic/`,
+  `config/detekt/`, `.editorconfig`, `gradle/libs.versions.toml`) — no `Gate-change:` line.
+  *Note:* the system `python3` has no `yaml` module (`pip` refuses a bare install on this
+  machine), so the `.codacy.yml` parse check ran from a scratch venv per `CLAUDE.md`'s Python
+  rule; `renovate.json`'s `json` check needed no venv, stdlib only. Default branch confirmed
+  `master` via `gh repo view --json defaultBranchRef`.
+
+- [x] **14.2 — .github: wire Kover into Codecov**
+  **First check `CODECOV_TOKEN` is actually set** (`gh secret list`) — as of 2026-08-10 this repo
+  has no secrets at all despite the user's belief one was already added; add it (from the Codecov
+  dashboard's repo settings) before the `Verify:` line below can pass.
+  Add `codecov.yml` at root, ported from Taiga's with `branches: [master]` only (Taiga has
+  `[master, dev]`) and the same `ignore:` path list (test/mock/fake/generated patterns) — a
+  redundant-but-harmless second net over the root `build.gradle.kts` `kover { reports { filters {
+  excludes … } } }` block that already keeps those out of the XML report. Coverage-status
+  thresholds ported unchanged from Taiga (project: `auto` target, 1% threshold; patch: `80%`
+  target, 5% threshold) — decided with the user 2026-08-10; see plan §3.8 for why this doesn't
+  reopen the separate, already-declined Kover/Gradle floor decision.
+  Extend `.github/workflows/ci.yml`'s single job with two steps after "Run detekt and ktlint":
+  `./gradlew koverXmlReport`, then `codecov/codecov-action@v7` uploading
+  `./build/reports/kover/report.xml` with `CODECOV_TOKEN`. **No standalone test run needed
+  first** — unlike Taiga's `code_analysis.yml`, which runs `jvmTest` explicitly because its Kover
+  aggregation skips modules outside the root `kover {}` block; this job already runs `allTests`
+  (every module) earlier in the same job, so `koverXmlReport` has nothing left to execute.
+  *Verify:* `./gradlew koverXmlReport` locally produces `build/reports/kover/report.xml`; after
+  push, the Actions run's Codecov step succeeds and the commit shows a Codecov check.
+  **Touches `.github/workflows/ci.yml` — needs a `Gate-change:` line**: plan §3.5 called the
+  Codecov upload a *deliberate* omission for lack of a token; this step reverses that.
+  *Note:* `gh secret list` confirmed the repo had no secrets at session start; the user added
+  `CODECOV_TOKEN` directly through the GitHub UI (not `gh secret set`) mid-session, confirmed
+  present by re-running `gh secret list`. The `codecov-action@v7` step's `with:` block otherwise
+  mirrors Taiga's (`disable_search`, `flags: unittests`, `name: codecov-umbrella`,
+  `fail_ci_if_error: false`, `verbose: true`) — Taiga's additional `override_branch`/
+  `override_commit` lines weren't carried over; the step's own text didn't call for them and
+  nothing here needs them since this workflow already scopes to `master` and PRs against it.
