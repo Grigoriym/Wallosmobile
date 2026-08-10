@@ -314,7 +314,12 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   *both* flavors — a missing one is a runtime crash at first injection, not a test failure.
   Compiling both flavors (`compileFdroidDebugKotlin`, `compileGplayDebugKotlin -PgplayBuild`)
   proves the binding class exists and satisfies the interface, but not that Koin can resolve it —
-  only an on-device cold start does that. **A module class needs its
+  only an on-device cold start does that. The **first** `composeApp`-level class to take such a
+  type as a constructor parameter breaks `verify()` outright, not silently — 16.4's
+  `AboutViewModel`/`InterfaceViewModel` were `CrashReporter`'s first consumers below `androidApp`
+  (16.3 only used it from `WallosApp.kt` itself), and `KoinGraphTest` failed with a real
+  `MissingKoinDefinitionException` until `CrashReporter::class` joined `AppInfoProvider::class` in
+  `EXTERNALLY_SUPPLIED`. **A module class needs its
   own line in `composeApp`'s dependencies, separate from `AppModule`'s `includes`** — `includes`
   only tells the Koin compiler where to find the class, it doesn't add a Gradle dependency edge.
   8.3 hit this adding `DashboardDomainModule`: `composeApp` already depended on

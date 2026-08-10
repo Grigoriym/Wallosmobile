@@ -783,9 +783,9 @@ and no Renovate step anywhere, only `.codacy.yml` and `renovate.json` at the roo
 
 Three adjustments from a straight port, all because Taiga's repo shape differs from this one's:
 
-- **`.codacy.yml`** — same `exclude_paths` as Taiga's (`.github/**`, `docs/**`, `.claude/**`)
-  minus its fourth entry, `PRIVACY_POLICY_GPLAY.md`: WallosMobile has no Play Store privacy-policy
-  file yet, so there's nothing there to exclude.
+- **`.codacy.yml`** — same `exclude_paths` as Taiga's (`.github/**`, `docs/**`, `.claude/**`,
+  `PRIVACY_POLICY_GPLAY.md`). At M14 time WallosMobile had no Play Store privacy-policy file yet,
+  so the fourth entry was dropped; 16.4 added `PRIVACY_POLICY_GPLAY.md` and put the exclude back.
 - **`renovate.json`** — same `extends`/`prHourlyLimit`/`osvVulnerabilityAlerts` as Taiga's, but
   **without** its `baseBranchPatterns: ["dev"]`. That key exists in Taiga only because Taiga's
   default branch is `dev`, not `master` — `config:recommended` targets a repo's default branch

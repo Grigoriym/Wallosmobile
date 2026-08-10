@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.composeapp.di
 
 import android.content.Context
 import com.grappim.wallosmobile.core.appinfoapi.AppInfoProvider
+import com.grappim.wallosmobile.core.crashreportingapi.CrashReporter
 import io.ktor.client.engine.HttpClientEngine
 import org.koin.test.verify.verify
 import kotlin.test.Test
@@ -28,6 +29,11 @@ class KoinGraphTest {
          * - `Context` comes from `androidContext()` in `WallosApp`.
          * - `AppInfoProvider`'s only implementation needs `BuildConfig`, so it lives in
          *   `:androidApp` — which sits above this module and cannot be included from here.
+         * - `CrashReporter` is the same shape as `AppInfoProvider` (16.4): both flavor impls live
+         *   in `androidApp/src/<flavor>/kotlin/.../di/CrashReporterImpl.kt`, invisible from here
+         *   for the same reason. `AboutViewModel`/`InterfaceViewModel` are real runtime consumers,
+         *   verified only by installing the app, not by this test — same caveat 16.3 already
+         *   documented for `WallosApp.kt`'s own use of it.
          * - `HttpClientEngine` is a false positive rather than a real gap. `verify()` reads a
          *   definition through its *bound type's* constructor, so for the `@Single fun
          *   provideHttpClient(…)` factories it inspects `HttpClient(engine)` instead of the
@@ -37,6 +43,7 @@ class KoinGraphTest {
         val EXTERNALLY_SUPPLIED = listOf(
             Context::class,
             AppInfoProvider::class,
+            CrashReporter::class,
             HttpClientEngine::class
         )
     }

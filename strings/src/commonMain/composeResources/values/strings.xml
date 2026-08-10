@@ -235,6 +235,9 @@
     <string name="settings_theme_system">Follow the device</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+    <string name="settings_privacy">Privacy</string>
+    <string name="settings_crash_reporting">Crash reporting</string>
+    <string name="settings_crash_reporting_description">Automatically send crash reports to help improve the app</string>
 
     <string name="settings_start_destination">Startup screen</string>
     <string name="settings_start_destination_description">Which screen opens first</string>
@@ -248,6 +251,9 @@
     <string name="about_build_release">Release</string>
     <string name="about_project">Project on GitHub</string>
     <string name="about_project_url">https://github.com/Grigoriym/Wallosmobile</string>
+    <string name="about_privacy_policy">Privacy Policy</string>
+    <string name="privacy_policy_url" translatable="false">https://github.com/Grigoriym/Wallosmobile/blob/dev/PRIVACY_POLICY.md</string>
+    <string name="privacy_policy_url_gplay" translatable="false">https://github.com/Grigoriym/Wallosmobile/blob/dev/PRIVACY_POLICY_GPLAY.md</string>
 
     <plurals name="subscription_cycle_days">
         <item quantity="one">Every day</item>

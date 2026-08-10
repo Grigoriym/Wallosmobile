@@ -8,8 +8,8 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `3/5`
-**Current step:** 16.4 — Settings UI: crash-reporting toggle, privacy-policy link. M16 was planned
+M15 `4/4` — **M15 done** · M16 `4/5`
+**Current step:** 16.5 — `AppUpdateChecker` seam + a Compose snackbar shell surface. M16 was planned
 and decomposed 2026-08-10, right after M15 closed: full design in plan §3.10, ported from
 TaigaMobileNova. **The Firebase project now exists** — created by the user during 16.2, same day,
 ahead of the original plan (see M16's own preamble for the debug-app-id gotcha this surfaced) — so
@@ -258,7 +258,7 @@ building gplay locally doesn't lose time to it.
   `implementation` (composeApp/build.gradle.kts) — worth knowing before assuming every module
   androidApp touches needs its own explicit line.
 
-- [ ] **16.4 — Settings UI: crash-reporting toggle, privacy-policy link**
+- [x] **16.4 — Settings UI: crash-reporting toggle, privacy-policy link**
   `feature/settings/ui`'s existing `InterfaceScreen`/`InterfaceViewModel` (already home to the
   theme-mode picker) gains a toggle bound to `CrashReportingStorage`, gated on
   `crashReporter.isAvailable` so it doesn't render at all on fdroid — runtime-gated via DI, not a
@@ -278,6 +278,23 @@ building gplay locally doesn't lose time to it.
   `./gradlew detekt ktlintCheck`; on-device, `fdroidDebug` shows neither the toggle nor a
   gplay-flavored privacy link (only `PRIVACY_POLICY.md`) — full gplay-side confirmation waits on
   16.1's blocked Firebase project the same as 16.3.
+  Note: All ran clean — `allTests detekt ktlintCheck` green (new `InterfaceViewModelTest`/
+  `AboutViewModelTest` cases for both `isAvailable` states), both flavors compile
+  (`compileFdroidDebugKotlin`, `compileGplayDebugKotlin -PgplayBuild --rerun-tasks`). One correction
+  to this step's own text: 16.1's Firebase project was never actually blocking (M16's preamble
+  already flagged this before 16.3 ran) — both flavors were installed and driven on-device for
+  real, not just structurally. `fdroidDebug`: Interface shows only the theme radio group, no
+  Privacy section. `gplayDebug`: Interface shows a Privacy section with the crash-reporting
+  toggle, defaulting off, and the toggle survives `am force-stop` + relaunch (the DataStore write
+  is real, not in-memory only). The About screen's "Privacy Policy" button renders on **both**
+  flavors always (by design — only its target URL differs by `isAvailable`, per plan §3.10); tapping
+  it on fdroid opened `github.com/.../blob/dev/PRIVACY_POLICY.md`, a 404 only because this commit
+  hadn't been pushed yet, not a wrong URL. `KoinGraphTest` needed a new `EXTERNALLY_SUPPLIED` entry
+  for `CrashReporter::class` (same shape as `AppInfoProvider`, documented in
+  `KoinGraphTest.kt`'s own comment) — `AboutViewModel`/`InterfaceViewModel` are the first
+  `composeApp`-graph consumers of a binding that actually lives in `androidApp`'s `AndroidModule`,
+  which the test cannot see; this was not caught by the step's own `Verify:` line as written and
+  only surfaced by running the repo-wide `allTests`.
 
 - [ ] **16.5 — `AppUpdateChecker` seam + a Compose snackbar shell surface**
   New `AppUpdateChecker` interface, living entirely in `androidApp` (no KMP module — nothing
