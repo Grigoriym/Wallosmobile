@@ -909,9 +909,27 @@ stayed on AGP's ordinary `CN=Android Debug` cert, and `assembleGplayRelease`/`as
 and base64 content are already GitHub repo secrets too (`WALLOS_FILE_<FLAVOR>` for 15.4 to decode)
 — confirmed via `gh secret list`, 15.4 does not need to treat them as missing.
 
+**15.4, as built:** `release.yml` is tag-triggered (`push: tags: [v*]`) plus `workflow_dispatch`
+(a required `tag` input, for a dry run against a tag that doesn't exist yet). It restores only the
+two *release* keystores from `WALLOS_FILE_GPLAY`/`WALLOS_FILE_FDROID` (not `fdroidDebug` — that
+config exists for CI builds generally, per 15.3, not this tag-triggered path) into the
+root-relative paths `AndroidApplicationConventionPlugin.kt` reads, then runs
+`assembleGplayRelease assembleFdroidRelease bundleGplayRelease` and publishes everything via
+`softprops/action-gh-release@v3`, same as Taiga. No composite setup action exists in this repo
+(unlike Taiga's `android-setup-composite-action`), so the Java 21/Gradle/Android SDK setup steps
+are copied inline from `ci.yml` instead of factored out. The live dry run
+(`gh workflow run release.yml -f tag=v0.0.0-test`) was deliberately not run this session — it
+would push a real tag and publish a visible GitHub Release on the now-public repo, and the user
+asked to defer that; only the YAML's syntax (locally, via `js-yaml`) and its post-push `active`
+status in `gh workflow list` were checked. An end-to-end dispatch, proving the build actually
+produces a signed APK/AAB and a real Release, is still unverified and is the user's own to trigger
+whenever they choose — consistent with M15's own `Done when` not requiring an actual release.
+
 `ci.yml`/`guardrails.yml` (15.1), the two new workflow files (15.2, 15.4) and
 `AndroidApplicationConventionPlugin.kt` (15.3) are all tripwire paths (§3.6) — each of M15's four
-steps needs its own `Gate-change:` line when actually executed.
+steps carried its own `Gate-change:` line. **M15 is done**: all four steps ticked, `dev` is the
+default branch, and `master` now moves only through the release-automation chain, with branch
+protection still deliberately deferred until the repo nears its first real release.
 
 ---
 

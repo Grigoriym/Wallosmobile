@@ -8,23 +8,20 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `3/4`
-**Current step:** 15.3 done — `signingConfigs` added to `AndroidApplicationConventionPlugin.kt`:
-`gplayRelease`/`fdroidRelease`, assigned per `ApplicationProductFlavor` so only `release` picks one
-up and `debug` keeps AGP's own default debug signing; plus `fdroidDebug`, a separate stable signing
-identity for F-Droid's debug channel (so it can upgrade in place across CI builds), wired through
-the Variant API (`onVariants` + `signingConfig.setConfig(...)`) since a flavor-level assignment
-would have bled into `fdroidRelease` too. Keystore path/alias/passwords come from env
-(`WALLOS_STORE_PASS_<FLAVOR>`, `WALLOS_ALIAS_<FLAVOR>`, `WALLOS_KEY_PASS_<FLAVOR>`), keystore files
-are root-relative and gitignored (`wallos_mobile_gplay.jks`, `wallos_mobile_fdroid.jks`,
-`wallos_mobile_fdroid_debug.jks` — user-chosen names, not the session's). The user already
-generated the three real keystores via Android Studio and set the real secrets both as GitHub
-repo secrets (`WALLOS_FILE_<FLAVOR>` holding the base64 content, for 15.4) and as local env vars;
-verified against those real keystores, not throwaway ones: `assembleGplayRelease`,
-`assembleFdroidRelease` and `assembleFdroidDebug` each produced an APK signed with its own distinct
-cert (`apksigner verify --print-certs`), and `assembleGplayDebug` stayed on AGP's ordinary
-`CN=Android Debug` cert, confirming no override leaked onto it.
-Next session can start at 15.4 (`release.yml`) — the GitHub secrets it needs already exist.
+M15 `4/4` — **M15 done**
+**Current step:** M15 done. 15.4 added `release.yml`: tag-triggered (`v*`) + `workflow_dispatch`
+(`tag` input), builds `assembleGplayRelease`/`assembleFdroidRelease`/`bundleGplayRelease` using the
+two release keystores restored from `WALLOS_FILE_GPLAY`/`WALLOS_FILE_FDROID`, then publishes a
+GitHub Release via `softprops/action-gh-release@v3` — no desktop packaging, no
+`google-services.json` restore, matching 15.3's decision that neither exists for this repo. The
+live dry run (`gh workflow run release.yml -f tag=v0.0.0-test`) was deferred at the user's request
+— it would push a real tag and publish a visible Release on the now-public repo — so only the
+YAML's syntax and its post-push `active` status in `gh workflow list` were checked; an end-to-end
+dispatch is still unverified and is the user's to trigger whenever they choose. With all four
+steps ticked, `dev` is the default branch behaving like `master` did before it, and `master` now
+moves only through `release-prepare` → PR → `release-finalize` → tag → `release.yml`, with branch
+protection still deliberately deferred (15.1) until the repo nears its first real release.
+Next session should pick a new milestone — nothing in M15 carries forward as a dependency.
 
 ---
 
@@ -78,7 +75,7 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 ---
 
 Completed steps live in [`archive/CHECKLIST-DONE.md`](./archive/CHECKLIST-DONE.md) — **all of M0
-through M8, and now M10, M9, M11, M12, M13 and M14**, verbatim. M10 was archived once before too (2026-08-08, its first seven
+through M8, and now M10, M9, M11, M12, M13, M14 and M15**, verbatim. M10 was archived once before too (2026-08-08, its first seven
 steps) and pulled back out the same day once two more real gaps turned up (10.8/10.9, below); once
 those two closed it, it was archived again for good, same day. On 2026-08-06 the per-step
 Deviations log that used to sit at the bottom of this file moved to
@@ -111,128 +108,12 @@ shipped the `:benchmark` module and extended its generator to all three cold-JIT
 `archive/CHECKLIST-DONE.md` for the honest measurement result (JIT lock contention eliminated,
 aggregate frame-jank on this AVD not improved). **M14 is done** too — its two steps, filed
 directly by the user rather than decomposed from "To review", wired Codacy, Renovate and Codecov
-the way `TaigaMobileNova` already has them; see `archive/CHECKLIST-DONE.md`.
-
----
-
-## M15 — Branch model (dev/master) + release automation, ported from TaigaMobileNova (plan §3.9)
-
-Goal: `dev` is the default branch and receives ordinary work exactly the way `master` does today
-(direct pushes, one step per commit — no PR required yet); `master` moves only on a release, via
-three GitHub Actions workflows ported from Taiga (`release-prepare` → PR → `release-finalize` →
-tag → `release`). **Done when** all four steps below are ticked; a *real* release is not part of
-this milestone's own `Done when` — 15.4's own text says why.
-
-Planned 2026-08-10, filed directly by the user, same as M14: the repo is about to go public
-(user's decision, made this session), which unblocks the one thing that made a straight Taiga port
-impossible before now — branch protection needs a public repo or a paid GitHub tier, confirmed via
-a 403 on this repo back in M14 (plan §3.8). Full design and the two corrections this session's
-research made to a straight port — Taiga's protection actually sits on `dev`, not `master`, and
-this repo has no `signingConfigs` at all yet — live in plan §3.9. **Branch protection itself is
-explicitly out of scope here** — the user's own instruction was to write it down as a follow-up
-once the repo is public and nears its first release, not to turn it on now. Until then `dev`
-behaves exactly like `master` does today.
-
-- [x] **15.1 — Create `dev`, make it default, retarget `ci.yml` + `guardrails.yml`, update the docs**
-  Branch `dev` off current `master` tip, push it, then flip the repo's default branch to `dev`
-  (`gh repo edit --default-branch dev` or the GitHub UI). Retarget both `ci.yml` and
-  `guardrails.yml`: `branches: [master]` → `branches: [dev, master]` on their `push` and
-  `pull_request` triggers — mirroring Taiga's `code_analysis.yml` shape (runs on both branches),
-  not `build.yml`'s dev-only PR trigger, since WallosMobile has one combined CI job rather than
-  Taiga's two-workflow split, and `master` still needs both gates for 15.2's eventual release PR.
-  **`.codacy.yml` and `renovate.json` need no edits** — both act on whichever branch GitHub reports
-  as default, so flipping the default repoints them with no file change; only the *prose*
-  describing that (plan §3.8) needs updating, not the config. Update `CLAUDE.md`'s "How work
-  happens here" step 4 ("straight to `master`") to "straight to `dev`", and add a short paragraph
-  stating `master` only moves via 15.2–15.4's automation, with branch protection deliberately not
-  turned on yet. Update `README.md`'s CI line and any other `master`-as-the-branch text.
-  *Verify:* `gh repo view --json defaultBranchRef` reports `dev`; a trivial push to `dev` shows
-  both the CI and Guardrails checks running against it (`gh run list --branch dev`); grep confirms
-  no remaining "straight to `master`" line in `CLAUDE.md`/`README.md`. **Touches `.github/` — needs
-  a `Gate-change:` line.**
-  Note: `codecov.yml` needed the same `dev` addition as the two workflows — its own
-  `branches: [master]` allowlist isn't covered by the step's "`.codacy.yml`/`renovate.json` need no
-  edits" claim (those two follow whichever branch GitHub reports as default; `codecov.yml`'s
-  `branches` key is a separate, explicit list). Confirmed against Taiga's own `codecov.yml`, which
-  already carries `[master, dev]`.
-
-- [x] **15.2 — `release-prepare.yml` + `release-finalize.yml`: branch, version-bump and tag mechanics**
-  Port both from Taiga near-verbatim: `release-prepare` (manual `workflow_dispatch`, takes
-  version + version code) merges `dev` into `master` locally, cuts a `release/vX` branch, bumps
-  `gradle/libs.versions.toml`'s `version-code`/`version-name`, opens a PR `release/vX` → `master`.
-  `release-finalize` fires on that PR closing merged, tags `vX`, and back-merges `master` into
-  `dev`. **Drop Taiga's F-Droid/Play changelog-stub steps** — `fastlane/metadata/android/en-US/
-  changelogs/` and `playstore/changelogs/` don't exist in this repo, unlike Taiga's already-
-  published one; note in the release PR body that changelog content is still manual, and leave the
-  real scaffolding to whichever later milestone actually prepares the store listings. No
-  `RELEASE_PAT` needed yet — plain `GITHUB_TOKEN` (`contents: write`, `pull-requests: write`)
-  suffices while nothing is branch-protected; note in the workflow that a real admin PAT is needed
-  once 15.1's deferred protection actually lands.
-  *Verify:* both workflow YAMLs pass GitHub's own syntax validation (a push with no `on:` errors in
-  the Actions tab); a full dry run is deliberately not part of this step — see 15.4. **Touches
-  `.github/` — needs a `Gate-change:` line.**
-  Note: this repo's two workflows use 2-space YAML indentation throughout (`ci.yml`,
-  `guardrails.yml`), not Taiga's 4-space/tab style — both new files follow the local convention
-  rather than the source's. Validated locally with `js-yaml` (already present system-wide, no venv
-  needed) before pushing, since neither `actionlint` nor `PyYAML` is installed; the Actions tab is
-  still the real check per this step's own `Verify:` line.
-
-- [x] **15.3 — Release signing: `signingConfigs` + keystore secrets**
-  `AndroidApplicationConventionPlugin.kt`'s `release` build type currently has **no
-  `signingConfigs` at all** — confirmed via a grep across `build-logic/` and `androidApp/
-  build.gradle.kts`, neither flavor can produce a signed release build today. Add a
-  `signingConfigs` block reading keystore path/passwords from env (matching Taiga's
-  `TAIGA_KEYSTORE_R`/`_D` + password secrets shape), wired per flavor (`gplay`, `fdroid`).
-  **Generating the actual production keystore is the user's own call, not a session's** —
-  `keytool -genkeypair` run locally, the resulting `.jks` plus its four passwords added as GitHub
-  secrets, never committed. This step's job is the Gradle wiring and documenting the recipe, not
-  fabricating a signing identity. No Google Services/Firebase restore step is needed — the
-  `google-services`/`firebase-*` catalog entries are declared in `gradle/libs.versions.toml` but
-  unapplied anywhere in this repo.
-  *Verify:* `./gradlew :androidApp:assembleGplayRelease :androidApp:assembleFdroidRelease` builds
-  and signs both, using a locally-provided test keystore. **Touches `build-logic/` — needs a
-  `Gate-change:` line.**
-  Note: generalized Taiga's `_R`/`_D` (release/debug) env-var suffix into a per-flavor one instead
-  (`_GPLAY`/`_FDROID`) for the two release configs. `signingConfig` is assigned on each
-  `ApplicationProductFlavor` (in `configureFlavors`'s `flavorConfigurationBlock`), not on the
-  `release` build type itself: AGP's `debug` build type already carries its own non-null default
-  signing config, which wins over a flavor-level one, so `debug` stays on the auto debug keystore
-  while `release` (which sets none) picks up the flavor's. Env vars: `WALLOS_STORE_PASS_<FLAVOR>`,
-  `WALLOS_ALIAS_<FLAVOR>`, `WALLOS_KEY_PASS_<FLAVOR>`.
-  **Grew mid-step**: the user wants F-Droid's debug channel installable across CI builds too (a
-  device upgrading in place needs the same signing identity every time, which AGP's own per-machine
-  debug key can't give it), so a third config, `fdroidDebug`, was added with its own
-  `WALLOS_*_FDROID_DEBUG` env trio. A flavor-level `signingConfig` would have applied to *both*
-  `fdroidRelease` and the fdroid debug variant, so this one is wired through the Variant API instead
-  — `androidComponents.onVariants(selector().withBuildType("debug").withFlavor("STORE" to "fdroid"))
-  { variant.signingConfig.setConfig(signingConfigs.getByName("fdroidDebug")) }` — the only way to
-  target one exact (flavor, build type) combination without the flavor-level DSL's bleed-through.
-  Keystore files are root-relative and gitignored, but **named by the user, not the session**:
-  `wallos_mobile_gplay.jks`, `wallos_mobile_fdroid.jks`, `wallos_mobile_fdroid_debug.jks` — the user
-  had already generated the three real keystores through Android Studio before this step touched
-  the code, so the naming in `AndroidApplicationConventionPlugin.kt` was written to match what
-  existed rather than the other way around. `build-logic` has no `detekt`/`ktlintCheck` coverage
-  (an included build, confirmed via `./gradlew -p build-logic tasks --all`, no matching tasks) —
-  nothing to run there beyond `compileKotlin`. Verified against the **real** keystores (the user
-  set the real passwords as local env vars): `assembleGplayRelease`, `assembleFdroidRelease` and
-  `assembleFdroidDebug` each produced an APK signed with a distinct cert, `assembleGplayDebug`
-  stayed on AGP's `CN=Android Debug` — all checked via `apksigner verify --print-certs`. GitHub
-  secrets already exist too (`WALLOS_STORE_PASS_*`/`WALLOS_ALIAS_*`/`WALLOS_KEY_PASS_*` per config,
-  plus `WALLOS_FILE_<FLAVOR>` holding each keystore's base64 content for 15.4 to decode) — 15.4
-  does not need to treat them as missing.
-
-- [ ] **15.4 — `release.yml`: build and publish signed artifacts**
-  Port Taiga's tag-triggered (+ `workflow_dispatch`) release workflow, scoped down: Android only
-  (`assembleGplayRelease`/`assembleFdroidRelease` + `bundleGplayRelease`), no desktop `deb`/`rpm`
-  packaging (no desktop target exists here), no `google-services.json` restore (per 15.3). Uploads
-  to a GitHub Release via `softprops/action-gh-release@v3`, same as Taiga. **First check 15.3's
-  keystore secrets actually exist** (`gh secret list`) before this step's `Verify:` line can pass —
-  same shape as 14.2's `CODECOV_TOKEN` callout.
-  *Verify:* `gh workflow run release.yml -f tag=v0.0.0-test` (or a real first tag, if the app is
-  ready by then) produces a signed APK/AAB and a GitHub Release. **This milestone's own `Done
-  when` does not require an actual release to exist** — only that the mechanism is provably wired;
-  a real first release is a product decision for whenever the app is actually ready to ship, not a
-  gate on closing M15. **Touches `.github/` — needs a `Gate-change:` line.**
+the way `TaigaMobileNova` already has them; see `archive/CHECKLIST-DONE.md`. **M15 is done** too —
+its four steps, filed directly by the user the same session the repo went public, ported Taiga's
+branch model and release automation: `dev` as the default branch, `release-prepare`/
+`release-finalize` for the version-bump and tag mechanics, `signingConfigs` for release signing,
+and `release.yml` to build and publish the signed artifacts; see `archive/CHECKLIST-DONE.md` for
+its four steps.
 
 ---
 
