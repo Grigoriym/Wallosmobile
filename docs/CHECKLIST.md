@@ -7,8 +7,8 @@ context, with no memory of previous sessions.
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
-**M11 done** · M12 `3/3` — **M12 done**
-**Current step:** M12 done. Next milestone not yet decomposed — pick from "To review".
+**M11 done** · M12 `3/3` — **M12 done** · M13 `0/2`
+**Current step:** M13 decomposed, not started. Next: 13.1.
 
 ---
 
@@ -94,6 +94,86 @@ user-configurable one; see `archive/CHECKLIST-DONE.md`.
 
 ---
 
+## M13 — Android Baseline Profile (not in plan §8's phase order)
+
+Goal: close the JIT-compilation-floor half of the FAB-open and subscriptions-list-scroll backlog
+items (both below, in "To review") by shipping a Baseline Profile that AOT-compiles the code paths
+`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md` traced as cold-JIT'd on first use — app
+start, the first subscriptions-list scroll, and the first add-subscription editor open. **Done
+when** a release build carries a generated profile covering those three journeys, and a fresh
+Perfetto trace of the same cold-scroll/FAB-open recipe that doc used shows the JIT lock-contention
+numbers it recorded (Finding 5: 119 `Lock contention on Jit code cache for mutator` slices, 4.57ms
+wait, cold) measurably lower — reported honestly per that doc's own precedent (a0cf54d found the
+Coil fix didn't move aggregate frame-jank at all; this milestone's own verification step needs the
+same honesty rather than assuming the mechanism this doc named is automatically the fix).
+
+Filed to "To review" 2026-08-07 (FAB) and 2026-08-08 (scroll), investigated together 2026-08-09
+(`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`, option 3 in its Options section,
+explicitly deferred there pending this decomposition), decomposed 2026-08-10 at the user's request,
+alongside fixing this file's own stale "To review" entries for the two backlog items (they still
+read as uninvestigated before this session). Two steps, not one: the plugin/version wiring is a
+real unknown (androidx.benchmark's own docs claim support only "up to AGP 9.0.0-alpha01" against
+this project's real AGP 9.3.1/Gradle 9.6.1, and a newer 1.5.0 line is still in beta as of
+2026-08-10 — neither claim is trustworthy without a real compile, so 13.1 spends itself confirming
+which version actually builds before any CUJ beyond cold-start is added), and the two extra CUJs
+plus the actual before/after trace comparison are real, independent scope on top of that.
+
+- [ ] **13.1 — a new `:benchmark` module: baseline profile pipeline, cold start only**
+  A vanilla (non-KMP) macrobenchmark module — `com.android.test` + the `androidx.baselineprofile`
+  producer plugin, per Android's own current template (no `wallosmobile.*` convention plugin
+  applies here; this is a one-off module type this project has never had, so its `build.gradle.kts`
+  is written directly, the same way `androidApp`'s isn't KMP either). New `gradle/libs.versions.toml`
+  entries: `androidx-benchmark-macro-junit4`, `androidx-test-ext-junit`, `androidx-test-uiautomator`,
+  and the `androidx.baselineprofile` Gradle plugin — start from androidx.benchmark 1.4.1 (latest
+  documented stable) and only move to a 1.5.0 beta if 1.4.1 actually fails to configure against this
+  project's AGP 9.3.1; record which one worked and why in this step's `Note:`, since both this
+  session's web research and next session's re-reading of it are guesses until a real
+  `./gradlew :benchmark:connectedCheck`-equivalent run proves one. `:androidApp` gets the
+  `androidx.baselineprofile` *consumer* plugin applied directly in its own `build.gradle.kts` (not
+  folded into `AndroidApplicationConventionPlugin`, since this project has exactly one app module)
+  plus `baselineProfile(project(":benchmark"))`. The generator itself covers cold start only —
+  `BaselineProfileRule.collect { startActivityAndWait() }` against the `gplay` flavor's debug-signed
+  benchmark build type (`androidx.baselineprofile` auto-creates a non-debuggable, non-minified
+  `benchmark` build type from `release` for this) — proving the whole pipeline end to end before
+  13.2 adds the two CUJs that are the actual point of this milestone. Touches
+  `gradle/libs.versions.toml` and `settings.gradle.kts` → needs a `Gate-change:` line for the
+  version-catalog edit (`.github/scripts/check-guardrails.sh HEAD~1..HEAD`).
+  *Verify:* `./gradlew :androidApp:generateGplayReleaseBaselineProfile` completes and writes
+  `androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt` (or wherever the
+  plugin actually places it — confirm the real path rather than assuming the docs' generic one);
+  `unzip -l` the assembled `gplayRelease` APK/bundle and confirm it embeds a compiled
+  `assets/dexopt/baseline.prof` (or equivalent — again, confirm the real artifact name against what
+  actually gets produced, not the doc's claim). `detekt`/`ktlintCheck`/`allTests` stay green — this
+  module adds no KMP source, so it shouldn't touch `commonMain` gates at all, and `:testing`-style
+  fakes don't apply to a macrobenchmark test class (it's instrumentation, same category as
+  `core:storage`'s `connectedAndroidDeviceTest`).
+  ·  *Ref:* `docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md` (root-cause finding this
+  milestone is fixing), `build-logic/convention/src/main/kotlin/AndroidApplicationConventionPlugin.kt`
+  (the release build type this profile has to survive — minify + shrink resources both on),
+  `emulator-testing` skill (device/AVD facts — profile generation needs a real or Gradle-managed
+  device, not just `assemble`).
+
+- [ ] **13.2 — extend the generator to the two CUJs that are the actual point, and measure**
+  Adds two more `@Test` journeys to `13.1`'s generator class: a subscriptions-list fling (matching
+  the 2026-08-09 doc's own swipe recipe, `input swipe 540 2000 540 300 150` reproduced via
+  `UiDevice`/`device.swipe` inside the `profileBlock`, not `adb shell input`) and a first open of the
+  add-subscription editor (FAB tap → editor screen drawn) — needing a logged-in, seeded app state
+  before the journey starts, the same DataStore-planting recipe the `emulator-testing` skill already
+  documents for other on-device verifies, since `BaselineProfileRule` starts from a cold, logged-out
+  process otherwise. Regenerate, rebuild `gplayRelease`, then re-run this doc's exact Perfetto
+  cold-scroll/FAB-open recipe (`emulator-testing` skill's Step 4b) against that release build and
+  compare Finding 5's numbers (JIT lock-contention slice count/wait time) and Finding 3/4's frame
+  numbers (worst-frame ms, jank-frame percentage) to the 2026-08-09 baseline. Report the result in
+  this step's `Note:` the way `a0cf54d` did — a real drop, a partial one, or none — rather than
+  assuming the mechanism the doc named is automatically fixed by the profile existing.
+  *Verify:* the trace comparison above, captured and compared, is the actual verify — not just a
+  green build. `detekt`/`ktlintCheck` still pass on the new generator code.
+  ·  *Ref:* `docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md` Findings 3–5 (the baseline
+  numbers this step compares against) and its own Step 4b Perfetto recipe in the `emulator-testing`
+  skill.
+
+---
+
 ## To review
 
 Written when M2 closed, as the place a verification step files a defect it finds rather than
@@ -115,8 +195,14 @@ migration (like all of them) only runs from `startup.sh` at **container boot**, 
 page load — confirmed against the local `wallos` container's own `startup.sh` and its `migrations`
 table. A long-uptime container that hasn't restarted since before that migration shipped
 (2024-10-04) can go on authenticating fine via session cookie indefinitely while never generating a
-key; a restart, or clicking regenerate on Profile, fixes it immediately. Resolved entries aren't
-repeated here.
+key; a restart, or clicking regenerate on Profile, fixes it immediately. Two more — the
+FAB-slow-open and list-scroll-laggy entries below — were investigated together 2026-08-09
+(`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`): a scoped Coil concurrency-cap fix
+landed the same day (`a0cf54d`, outside the checklist step process since it was framed as a bug fix
+rather than a milestone step) and closed the Coil half of both; the JIT-compilation floor the doc
+found underneath both left it to become **M13**, 2026-08-10. Both entries below are updated in
+place rather than removed, since the FAB item still carries an unresolved network-wait half that
+isn't part of M13. Resolved entries aren't repeated here.
 Three of what's left are
 standing decisions the user owns, kept here as the permanent answer rather than something to
 re-open; the rest is real backlog. **Don't re-open the first three per step** — the pre-v1 and
@@ -168,29 +254,22 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   (`EditorPickerUiState.isLoading`, category/payer/paymentMethod) now shows a spinner instead of
   sitting silently empty while `loadCategories`/`loadPayers`/`loadPaymentMethods` are in flight — but
   the user still sees the screen itself take a while to open, which that fix never addressed. Two
-  separate, real costs, neither with a small fix:
-  1. **The network wait**: 2 of the 3 picker calls land together ~500–700ms after the request (the
-     third, `get_household`, is fast — under 15ms) against the local instance, with no retries or
-     exceptions logged. Confirmed server-side, not client: `LoginThrottle` only gates
-     `login.php`/`totp.php`, `NetworkModule.kt` sets no connection-pool limit, and a bare `curl` to
-     the same three endpoints from the host resolved in ~7ms each — so whatever serializes two of
-     the three only shows up through the app's own request pattern (PHP-FPM worker count or
-     session-file locking are the live guesses, still unconfirmed). Fixing this for real means giving
-     these three repositories a cache the way `SubscriptionsRepository` already has one — Phase 5
-     management-screen scope, not a small change.
-  2. **A one-time JIT warm-up tax on cold navigation**, found by breaking down a captured Perfetto
-     trace frame-by-frame (technique: `emulator-testing` skill's Step 4b, written up 2026-08-07): the
-     very first `Choreographer#doFrame` after the FAB tap took 121.9ms by itself, and slice-level
-     breakdown showed that time dominated by repeated `Lock contention on Jit code cache for mutator`
-     entries — ART's JIT compiling this screen's heavier components (date pickers, dropdown menus;
-     more than list/detail exercise) for the first time in the process, while the main thread waits on
-     the same lock. Confirmed real by measuring the same screen's *second* visit in the same process:
-     90th-percentile frame time roughly halved (450–500ms cold → 200–250ms warm) with nothing else
-     changed. This is what Android Baseline Profiles exist to remove; investigating one is unscoped,
-     separate work — plan §8/Phase 5 territory at best, not investigated further here.
-  Filed 2026-08-07. Not a regression to chase further in a single session — the next session picking
-  this up should treat (1) and (2) as two independent tickets with two independent fixes, and read
-  this entry plus the Step 4b recipe before re-deriving either measurement.
+  separate, real costs, only one still unscoped:
+  1. **The network wait — still open, unscoped.** 2 of the 3 picker calls land together ~500–700ms
+     after the request (the third, `get_household`, is fast — under 15ms) against the local
+     instance, with no retries or exceptions logged. Confirmed server-side, not client:
+     `LoginThrottle` only gates `login.php`/`totp.php`, `NetworkModule.kt` sets no connection-pool
+     limit, and a bare `curl` to the same three endpoints from the host resolved in ~7ms each — so
+     whatever serializes two of the three only shows up through the app's own request pattern
+     (PHP-FPM worker count or session-file locking are the live guesses, still unconfirmed). Fixing
+     this for real means giving these three repositories a cache the way `SubscriptionsRepository`
+     already has one — Phase 5 management-screen scope, not a small change. Filed 2026-08-07; the
+     next session picking this up should read this entry before re-deriving the measurement.
+  2. **The JIT warm-up tax on cold navigation — now M13.** Re-investigated 2026-08-09 alongside the
+     scroll-laggy item below (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), which
+     confirmed the same mechanism (ART JIT-compiling this process's cold code paths under a lock the
+     main thread's rendering work contends on) recurs on both screens, and decomposed into **M13**
+     (an Android Baseline Profile), 2026-08-10.
 - **A tentative idea, not a decision: log on tap during emulator regression passes**, so a click's
   effect shows up in `logcat` immediately instead of needing a screenshot read every time. Filed
   2026-08-07, with the user's own caveat attached — not expected to replace screenshots, since the
@@ -198,10 +277,19 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   questions a log line answers faster than a screencap round trip. Touching every clickable in
   every screen (and its preview) for this is not obviously worth it yet; wants a concrete case this
   would have shortened before it becomes a step rather than a hunch.
-- **The subscriptions list scrolls laggy.** Filed 2026-08-08 by the user, not yet investigated —
-  no profiling done, so the cause (each `SubscriptionCard`'s Coil logo load, recomposition from
-  `SubscriptionsViewModel`'s combined flow re-emitting more than the scroll needs, something in the
-  `LazyColumn` item content itself) is a guess, not a finding. The `emulator-testing` skill's Step
-  4b (`dumpsys gfxinfo`/Perfetto, written up 2026-08-07 for the FAB-open investigation in this same
-  list) is the right technique to reach for first, not a fix guessed from the symptom alone.
+- **The subscriptions list scrolls laggy.** Filed 2026-08-08 by the user; investigated 2026-08-09
+  (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), together with the FAB item above on
+  the hunch they shared a cause — confirmed true. A static code trace ruled out all three original
+  guesses (missing `key`, unstable item type, ViewModel flow re-emission during scroll — none
+  survive a read of `SubscriptionsScreen.kt`/`SubscriptionCard.kt`/`SubscriptionsViewModel.kt`).
+  Two real causes turned up by trace instead:
+  - **Coil loading ~20+ previously-unfetched logos at once on a fast fling, contending on a lock
+    inside Coil's own disk-cache writer — fixed and verified, `a0cf54d`.**
+    `AppModule.provideImageLoader`'s fetcher concurrency is now capped at 4
+    (`fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(4))`); on-device contention dropped
+    from 18 events/50.6ms to 0 across two follow-up cold-scroll runs.
+  - **The same JIT-compilation floor as the FAB item above — now M13.** The Coil fix alone didn't
+    move it: overall frame-jank numbers stayed flat even with Coil contention at zero, confirming
+    Coil was never the dominant cause of the *aggregate* jank this AVD measures. Folded into
+    **M13** (an Android Baseline Profile) alongside the FAB item's JIT half, 2026-08-10.
 
