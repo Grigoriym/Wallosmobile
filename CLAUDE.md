@@ -115,6 +115,14 @@ This project uses the **`emulator-testing`** and **`finalize`** skills; both are
 # a plain `installGplayDebug` without both crashes on cold start, 16.3's own `Note:`):
 ./gradlew :androidApp:assembleGplayDebug -PgplayBuild
 
+# `assembleFdroidDebug` and any `*Release`/`*fdroidDebug` package task need six env vars
+# (`WALLOS_STORE_PASS_<FLAVOR>`/`WALLOS_ALIAS_<FLAVOR>`/`WALLOS_KEY_PASS_<FLAVOR>` for GPLAY and
+# FDROID, plus the three `_FDROID_DEBUG` siblings — 15.3) that this shell may not have set; without
+# them, `compileFdroidDebugKotlin` still succeeds but `packageFdroidDebug` fails with `SigningConfig
+# "fdroidDebug" is missing required property "storePassword"`. `assembleGplayDebug`'s own `debug`
+# build type keeps AGP's default debug signing and needs none of this — only `fdroidDebug`'s stable
+# signing identity (15.3) does. `git stash -u` and re-running is the fast way to confirm a
+# packaging failure like this is a missing-env-var gap, not something the current change broke.
 ./gradlew allTests                           # all KMP module tests
 ./gradlew :module:path:testAndroidHostTest   # one module
 ./gradlew detekt ktlintCheck                 # must pass before ticking a step
@@ -222,6 +230,17 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
 - **What a repository has to say *during* a call is a callback parameter, not a flow beside it**
   (`onThrottleWait: (Duration) -> Unit`, defaulted to `{}`). The call is already the scope, so a
   flow would need a lifetime and an initial value that a parameter has none of.
+- **An `androidApp`-only type can never be named in `composeApp`/`uikit` code** — the Gradle
+  dependency runs one way (`androidApp` → `composeApp`), so a `koinInject<T>()` for a type that
+  lives in `androidApp` doesn't compile from below it. A seam that has to live in `androidApp`
+  (Play Core's `AppUpdateChecker` needs a real `Activity`, so it can't be a KMP module the way
+  `CrashReporter` is) but has to signal into the Compose shell narrows to a plain callback/`Flow`
+  before crossing the boundary — `WallosAppContent.onDarkThemeChange: (Boolean) -> Unit` was the
+  first instance, `AppUpdateChecker.updateState` → `Flow<Unit>` + `onRestartUpdate: () -> Unit`
+  (16.5) the second. One consequence: a type kept out of `composeApp` this way never needs a
+  `KoinGraphTest` `EXTERNALLY_SUPPLIED` entry, since nothing below `androidApp` ever asks Koin
+  for it — unlike `CrashReporter`, which *is* injected straight into `composeApp`-graph
+  ViewModels and therefore needs one (see the DI paragraph below).
 - **A `SavedStateHandle` holds a JSON string here, not an encoded `SavedState`.** On Android
   `androidx.savedstate`'s `SavedState` **is** `Bundle`, unreachable from a host test — Robolectric
   is out. `SavedStateHandle()` itself, `get`, `set` and `getMutableStateFlow` are pure Kotlin, so

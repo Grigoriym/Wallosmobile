@@ -1154,6 +1154,25 @@ real Crashlytics delivery on-device against it (`FirebaseCrashlytics: Initializi
 Crashlytics` in `logcat`, no crash on cold start for either flavor) — this is no longer a blocker
 on anything in M16.
 
+**16.5 as-built: the module boundary this section's own wording glossed over.** "Collected
+wherever the new controller is reachable (`AuthenticatedMainScreen` or above)" reads as if
+`composeApp` could inject `AppUpdateChecker` the way `feature/settings/ui` injects `CrashReporter`
+— it can't. `androidApp` depends on `composeApp` (never the reverse), so `AppUpdateChecker`/
+`UpdateState`, both `androidApp` types, cannot be named in any `composeApp`/`uikit` file; a `koinInject<AppUpdateChecker>()`
+inside `AuthenticatedMainScreen` would not compile. What actually shipped: `MainActivity` narrows
+`appUpdateChecker.updateState` to a plain `Flow<Unit>`
+(`.filterIsInstance<UpdateState.UpdateDownloaded>().map { Unit }`) plus an `onRestartUpdate: () ->
+Unit`, and only those two framework-neutral values cross into `WallosAppContent`/
+`AuthenticatedMainScreen` — the same shape `onDarkThemeChange: (Boolean) -> Unit` already used for
+its own androidApp-bound callback. `SnackbarHostController` itself (`uikit/.../widgets/snackbar/`)
+never leaves `composeApp`/`uikit`: `AuthenticatedMainScreen` creates it via `remember { }` exactly
+like `TopBarController`, and `MainActivity` never touches the instance directly. One consequence:
+because `AppUpdateChecker` is never injected into a `composeApp`-graph class, `KoinGraphTest`
+needed no `EXTERNALLY_SUPPLIED` entry for it — unlike `CrashReporter`, which 16.4's
+`AboutViewModel`/`InterfaceViewModel` inject directly and which therefore did need one. Any future
+androidApp-only seam that has to signal into the Compose shell should reach for this same
+narrow-to-a-plain-callback shape rather than trying to inject the androidApp interface downward.
+
 Decomposed into `docs/CHECKLIST.md` as **M16** below, all four open questions now answered.
 
 ---

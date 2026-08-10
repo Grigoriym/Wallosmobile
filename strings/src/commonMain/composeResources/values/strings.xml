@@ -255,6 +255,9 @@
     <string name="privacy_policy_url" translatable="false">https://github.com/Grigoriym/Wallosmobile/blob/dev/PRIVACY_POLICY.md</string>
     <string name="privacy_policy_url_gplay" translatable="false">https://github.com/Grigoriym/Wallosmobile/blob/dev/PRIVACY_POLICY_GPLAY.md</string>
 
+    <string name="app_update_downloaded">An update has just been downloaded</string>
+    <string name="app_update_restart">Restart</string>
+
     <plurals name="subscription_cycle_days">
         <item quantity="one">Every day</item>
         <item quantity="other">Every %1$d days</item>

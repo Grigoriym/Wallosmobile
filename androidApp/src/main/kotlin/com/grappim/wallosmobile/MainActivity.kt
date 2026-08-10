@@ -7,15 +7,42 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.grappim.wallosmobile.composeapp.WallosAppContent
+import com.grappim.wallosmobile.di.AppUpdateChecker
+import com.grappim.wallosmobile.di.UpdateState
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.map
+import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
+
+    private val appUpdateChecker: AppUpdateChecker by inject()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        appUpdateChecker.checkAndRequestUpdate(this)
+
         setContent {
-            WallosAppContent(onDarkThemeChange = ::applyEdgeToEdge)
+            WallosAppContent(
+                onDarkThemeChange = ::applyEdgeToEdge,
+                updateDownloaded = appUpdateChecker.updateState
+                    .filterIsInstance<UpdateState.UpdateDownloaded>()
+                    .map { Unit },
+                onRestartUpdate = appUpdateChecker::completeUpdate
+            )
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appUpdateChecker.registerUpdateListener()
+        appUpdateChecker.checkUpdateStateOnResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        appUpdateChecker.unregisterUpdateListener()
     }
 
     /**

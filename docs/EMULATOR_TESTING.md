@@ -26,6 +26,13 @@ section and `docs/local-info.txt` — this file only covers the device side.
 
 ## App-specific gotchas
 
+- **This machine can have a real phone (`SM-A920F`, a Samsung Galaxy A9 on Android 10) connected
+  over USB**, and `adb`/an `installXxxDebug` task silently prefers it over the AVD whenever no
+  emulator is booted yet (16.5: `installGplayDebug -PgplayBuild` landed there on its first run of
+  a session, install succeeding with no error). Always `adb devices -l` before trusting an install
+  reached `Medium_Phone_API_36.1`, and boot the AVD explicitly rather than assuming it's the only
+  device attached — the skill's own generic warning about this, not a one-off.
+
 - **`screencap` is 1080×2400 while the returned image is scaled** — multiply screenshot
   coordinates by the display factor before `input tap`, or better, read a
   `uiautomator dump`'s real-pixel `bounds` instead. Mixing scaled and unscaled

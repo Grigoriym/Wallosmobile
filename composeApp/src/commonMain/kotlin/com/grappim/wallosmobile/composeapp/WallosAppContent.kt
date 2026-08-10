@@ -19,6 +19,8 @@ import com.grappim.wallosmobile.core.storage.theme.ThemeMode
 import com.grappim.wallosmobile.core.storage.theme.ThemeStorage
 import com.grappim.wallosmobile.feature.setup.ui.LoginScreen
 import com.grappim.wallosmobile.uikit.WallosMobileTheme
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import org.koin.compose.koinInject
 
 /**
@@ -34,7 +36,9 @@ fun WallosAppContent(
     apiKeyStorage: ApiKeyStorage = koinInject(),
     themeStorage: ThemeStorage = koinInject(),
     startDestinationStorage: StartDestinationStorage = koinInject(),
-    onDarkThemeChange: (Boolean) -> Unit = {}
+    onDarkThemeChange: (Boolean) -> Unit = {},
+    updateDownloaded: Flow<Unit> = emptyFlow(),
+    onRestartUpdate: () -> Unit = {}
 ) {
     /*
      * Seeding the branch from saved instance state is load-bearing, not an optimisation.
@@ -94,7 +98,9 @@ fun WallosAppContent(
             true -> AuthenticatedMainScreen(
                 appState = rememberMainAppState(
                     startDestination = StartDestinationMapper.toNavKey(startDestination)
-                )
+                ),
+                updateDownloaded = updateDownloaded,
+                onRestartUpdate = onRestartUpdate
             )
 
             false -> LoginScreen()

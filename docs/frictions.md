@@ -47,3 +47,15 @@ deleted — see `/finalize`.
   ... signatures do not match` against a prior session's install of the same package id on the
   same AVD — `adb uninstall <package-id>` first, then reinstall, is the fix; no need to chase
   which signing config actually changed.
+- `./gradlew :androidApp:assembleFdroidDebug` (16.5's own `Verify:` line, run literally) failed at
+  `packageFdroidDebug` with `SigningConfig "fdroidDebug" is missing required property
+  "storePassword"` — `WALLOS_STORE_PASS_FDROID_DEBUG`/`WALLOS_ALIAS_FDROID_DEBUG`/
+  `WALLOS_KEY_PASS_FDROID_DEBUG` aren't set in this shell session's environment. `compileFdroidDebugKotlin`
+  itself succeeds; only packaging needs them. Confirmed pre-existing (fails identically on a clean
+  `git stash`'d tree) rather than caused by the step's own changes — worth a `git stash -u` +
+  re-run check before assuming a `Verify:` command failure is new.
+- `./gradlew :androidApp:installGplayDebug -PgplayBuild`'s first run landed on a stray physical
+  device (`SM-A920F`, connected over USB) instead of the intended AVD — no emulator was booted yet,
+  so it was the only device `adb`/the install task saw. `adb devices -l` before trusting an install
+  reached the AVD (the `emulator-testing` skill's own standing warning) caught it before driving
+  unfamiliar hardware any further.

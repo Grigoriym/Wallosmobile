@@ -8,25 +8,20 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `4/5`
-**Current step:** 16.5 — `AppUpdateChecker` seam + a Compose snackbar shell surface. M16 was planned
-and decomposed 2026-08-10, right after M15 closed: full design in plan §3.10, ported from
-TaigaMobileNova. **The Firebase project now exists** — created by the user during 16.2, same day,
-ahead of the original plan (see M16's own preamble for the debug-app-id gotcha this surfaced) — so
-16.4 onward can verify real Crashlytics wiring on-device instead of only structurally; don't assume
-the "can't verify without the Firebase project" framing in earlier step text still holds. 16.2 also
-found and fixed a real CI bug: the restore step's target directory, `androidApp/src/gplay/`, has no
-other tracked file yet and so doesn't exist on a fresh checkout — `mkdir -p` was added ahead of the
-redirect in both `ci.yml` and `release.yml`; read 16.2's `Note:` before assuming a red gplay CI run
-means something else broke. 16.3 landed the `CrashReporter` seam (`core:crashreporting-api`, both
-flavor impls, `CrashReportingStorage`) and verified it for real: both flavors installed clean on
-the emulator, and gplay's `logcat` showed `FirebaseCrashlytics: Initializing Firebase Crashlytics`
-firing with no crash — read 16.3's `Note:` before assuming `KoinGraphTest` covers either flavor's
-`CrashReporterImpl` binding (it doesn't; `AndroidModule` sits above what it verifies). The gotcha
-16.3's own preamble text flagged — a plain `installGplayDebug` with no `-PgplayBuild` and no real
-`google-services.json` crashing on cold start, because the gplay `CrashReporterImpl` is chosen by
-*flavor*, not by that property — is now live, since `CrashReporterImpl` exists as of this step;
-`CLAUDE.md`'s "Build commands" already carries the warning (added in 16.1, ahead of it landing).
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done**
+**Current step:** M16 done. 16.5 added the `AppUpdateChecker` seam (interface + `UpdateState` in
+`androidApp/src/main/.../di/`, no KMP module — nothing outside `androidApp` needs it) with the same
+gplay/fdroid flavor-swap trick 16.3 used for `CrashReporter`, and a real Compose snackbar surface
+(`SnackbarHostController`, mirroring `TopBarController`) instead of Taiga's plain View `Snackbar` —
+WallosMobile had no snackbar infra before this step. Because `composeApp` cannot depend upward on
+`androidApp`, `MainActivity` narrows `appUpdateChecker.updateState` to a plain `Flow<Unit>` before
+crossing into `WallosAppContent`, the same shape `onDarkThemeChange` already used — so unlike
+`CrashReporter`, `AppUpdateChecker` never needed a `KoinGraphTest` `EXTERNALLY_SUPPLIED` entry.
+With M16 closed, `gplay` has crash reporting (opt-out toggle in Settings, verified delivering to a
+real Firebase project) and a Play In-App Update prompt, both structurally absent from `fdroid`; see
+`archive/CHECKLIST-DONE.md` for all five steps' full detail, including 16.2's CI restore-step
+`mkdir -p` fix and 16.4's `KoinGraphTest` `EXTERNALLY_SUPPLIED` gotcha.
+Next session should pick a new milestone — nothing in M16 carries forward as a dependency.
 
 ---
 
@@ -80,7 +75,7 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 ---
 
 Completed steps live in [`archive/CHECKLIST-DONE.md`](./archive/CHECKLIST-DONE.md) — **all of M0
-through M8, and now M10, M9, M11, M12, M13, M14 and M15**, verbatim. M10 was archived once before too (2026-08-08, its first seven
+through M8, and now M10, M9, M11, M12, M13, M14, M15 and M16**, verbatim. M10 was archived once before too (2026-08-08, its first seven
 steps) and pulled back out the same day once two more real gaps turned up (10.8/10.9, below); once
 those two closed it, it was archived again for good, same day. On 2026-08-06 the per-step
 Deviations log that used to sit at the bottom of this file moved to
@@ -118,212 +113,10 @@ its four steps, filed directly by the user the same session the repo went public
 branch model and release automation: `dev` as the default branch, `release-prepare`/
 `release-finalize` for the version-bump and tag mechanics, `signingConfigs` for release signing,
 and `release.yml` to build and publish the signed artifacts; see `archive/CHECKLIST-DONE.md` for
-its four steps.
-
----
-
-## M16 — Firebase Crashlytics + Play In-App Update, ported from TaigaMobileNova, `gplay` only (plan §3.10)
-
-Goal: the `gplay` flavor gets crash reporting (with a user-facing opt-out) and a Play In-App
-Update prompt, exactly as TaigaMobileNova has both; `fdroid` gets neither, structurally — not just
-undeployed, but the Firebase Gradle plugins never applied to it at all (Taiga's own
-`docs/build/fdroid-reproducibility.md` documents why a dependency-only gate isn't enough: applying
-the Crashlytics plugin unconditionally shifts resource IDs on *every* flavor, breaking F-Droid's
-reproducible build even when fdroid never uses the dependency). **Done when** all five steps below
-are ticked. **Full design, all four open questions from planning answered, lives in plan §3.10** —
-read it before starting any step here, the way M15's steps pointed at §3.9.
-
-Planned 2026-08-10, filed directly by the user right after M15 closed. **The Firebase project
-existed only as a future step at planning time — the user created it same-day, during 16.2**:
-`google-services.json` is now real, registers both `com.grappim.wallosmobile` (release) and
-`com.grappim.wallosmobile.debug` (the gplay flavor has no `applicationIdSuffix`, so the debug
-build type alone produces that id — a Firebase project that only registered the release app fails
-`processGplayDebugGoogleServices` with "No matching client found" until the debug one is added
-too), lives at `androidApp/src/gplay/google-services.json` (gitignored, real machine only), and
-`WALLOS_GOOGLE_SERVICES_GPLAY` is set as a GitHub secret. `assembleGplayDebug -PgplayBuild` builds
-clean locally against it. **Crashlytics *delivery* is now verified, not just structural** — 16.3's
-`CrashReporterImpl` landed and an on-device install showed `FirebaseCrashlytics: Initializing
-Firebase Crashlytics` firing on cold start with no crash (16.3's own `Note:`); 16.4/16.5's own
-`Verify:` lines should expect the real file to be present rather than assuming it's still missing.
-And **since 16.3 landed, a plain
-`./gradlew :androidApp:installGplayDebug` (no `-PgplayBuild`, no real `google-services.json`)
-starts crashing on cold start** — `CrashReporterImpl` for the gplay flavor is chosen by *flavor*,
-not by the `gplayBuild` property, so it's always compiled into a gplay build and always touches
-`Firebase.crashlytics` the moment Koin constructs it in `WallosApp.onCreate()`; only the Gradle
-*plugin* (which processes `google-services.json` into the resources `FirebaseApp` auto-init
-reads) is gated by the property. This is the same latent risk Taiga accepted — its own CI always
-passes `-PgplayBuild` for every gplay task, so the crash path is never actually hit there either.
-`CLAUDE.md`'s "Build commands" needs a line about this once 16.1 lands, so a future session
-building gplay locally doesn't lose time to it.
-
-- [x] **16.1 — Gradle wiring: `gplayBuild` property, conditional Firebase plugins, gplay-scoped dependencies**
-  `androidApp/build.gradle.kts` gains `alias(libs.plugins.google.services) apply false` and
-  `alias(libs.plugins.firebase.crashlytics) apply false` in `plugins {}`, then, imperatively after
-  the block, `if (project.hasProperty("gplayBuild")) { apply(plugin =
-  libs.plugins.google.services.get().pluginId); apply(plugin =
-  libs.plugins.firebase.crashlytics.get().pluginId) }` — Taiga's exact property name and
-  mechanism, ported as-is (plan §3.10 has the reproducibility incident that makes this the
-  non-negotiable part, not a simplification to skip). Dependencies via the `gplayImplementation`
-  configuration AGP already generates from the `gplay` flavor: `platform(libs.firebase.bom)`,
-  `libs.firebase.crashlytics`, `libs.google.inapp.update.ktx`. `gradle/libs.versions.toml` needs
-  no edit — every version/library/plugin entry this step uses already exists there (confirmed
-  15.3/15.4 sessions left them in place unused). `.gitignore` gains a line for
-  `androidApp/src/gplay/google-services.json` (the real file, never committed — matching the
-  existing `*.jks` pattern's reasoning, not its glob shape: this is one exact path, not a
-  extension-wide pattern). Commit a placeholder `androidApp/src/fdroid/google-services.json` with
-  fake `PLACEHOLDER_NOT_A_REAL_KEY` values (Taiga's exact file), purely defensive insurance for
-  that flavor's source set.
-  *Verify:* `./gradlew :androidApp:assembleFdroidDebug :androidApp:assembleFdroidRelease` build
-  clean (plugins structurally absent from fdroid, provable by their absence changing nothing).
-  `./gradlew :androidApp:assembleGplayDebug -PgplayBuild` fails with Gradle's own "File
-  google-services.json is missing" error — a **real** green signal even without the file yet: it
-  proves the property actually reaches the conditional `apply(plugin = ...)` calls rather than a
-  typo'd property name silently no-op'ing. No `Gate-change:` line — `androidApp/build.gradle.kts`
-  and `.gitignore` aren't tripwire paths (only `build-logic/`, not app modules).
-
-- [x] **16.2 — CI: split flavor builds, restore `google-services.json`**
-  `ci.yml`'s single `./gradlew :androidApp:assembleDebug` (both flavors in one invocation) can't
-  pass `-PgplayBuild` to only one — split into `assembleFdroidDebug` (no property) and a
-  `Restore google-services.json` step (`echo $ENCODED | base64 -d >
-  androidApp/src/gplay/google-services.json`, new secret — name it
-  `WALLOS_GOOGLE_SERVICES_GPLAY`, matching 15.3/15.4's `WALLOS_*` convention rather than Taiga's
-  `GOOGLE_SERVICES_GPLAY`) followed by `assembleGplayDebug -PgplayBuild`. This also fixes a real
-  gap 15.4 left standing (not a regression this step introduces): `release.yml`'s existing
-  `assembleGplayRelease`/`bundleGplayRelease` step runs with no `-PgplayBuild` and no restore
-  step today, so as shipped it would silently produce a release APK/AAB with neither feature the
-  moment 16.1 lands — add both there too.
-  *Verify:* `gh secret set WALLOS_GOOGLE_SERVICES_GPLAY` (once the user has a real or placeholder
-  file to hand — a placeholder is enough to prove the CI plumbing, same reasoning as 16.1's own
-  `Verify:`); a push shows both `ci.yml`'s split steps and `release.yml`'s restore step running
-  (`gh run list`), and `js-yaml` validates both files' syntax locally first. **Touches `.github/`
-  — needs a `Gate-change:` line.**
-  Note: `js-yaml` validated both files locally. The secret was initially left unset (no file yet),
-  then the user created the real Firebase project, downloaded `google-services.json`, and set
-  `WALLOS_GOOGLE_SERVICES_GPLAY`. That first live CI run still failed, on a real bug this step's
-  own restore step had: `androidApp/src/gplay/` has no other tracked file yet (16.3 is what first
-  adds one, `CrashReporterImpl.kt`), so git doesn't materialize the directory on a fresh checkout at
-  all — `echo ... > androidApp/src/gplay/google-services.json` fails with "No such file or
-  directory" before the secret's contents ever matter. Fixed with a `mkdir -p androidApp/src/gplay`
-  ahead of the redirect in both `ci.yml` and `release.yml`. This is also why the real
-  `google-services.json` needed a debug-variant Android app added in the Firebase console
-  alongside the release one: `gplay` has no `applicationIdSuffix` (`AppFlavors.kt`), so the debug
-  build type alone produces `com.grappim.wallosmobile.debug`, which a Firebase project that only
-  registered the release `com.grappim.wallosmobile` app doesn't recognize —
-  `processGplayDebugGoogleServices` fails with "No matching client found" until both package ids
-  are registered clients in the same file. `./gradlew :androidApp:assembleGplayDebug -PgplayBuild`
-  now builds clean locally against the real file with both clients present.
-
-- [x] **16.3 — `CrashReporter` seam: `core:crashreporting-api`, flavor impls, consent storage**
-  New KMP module `core/crashreporting-api` (mirrors `core:appinfo-api`'s one-file interface
-  shape): `CrashReporter` with `isAvailable: Boolean`, `setCollectionEnabled(enabled: Boolean)`,
-  `recordException(throwable: Throwable)`, `log(message: String)`. Two implementations, both
-  `@Single(binds = [CrashReporter::class])`, both in package `com.grappim.wallosmobile.di` (matches
-  `AndroidModule`'s existing single-package `@ComponentScan`, no second scan path needed):
-  `androidApp/src/gplay/kotlin/.../di/CrashReporterImpl.kt` (wraps `Firebase.crashlytics`,
-  `isAvailable = true`) and `androidApp/src/fdroid/kotlin/.../di/CrashReporterImpl.kt` (every
-  member a no-op, `isAvailable = false`). `WallosApp.kt` plants a second `Timber.Tree`
-  unconditionally (beside the existing debug-only `Timber.DebugTree()`) that forwards
-  `ERROR`-priority logs to the injected `CrashReporter` — ported from Taiga's `CrashlyticsTree`
-  as-is; it's a no-op on fdroid via the impl, not a branch at the call site. New
-  `core/storage/.../crashreporting/CrashReportingStorage.kt` (interface + `@Single` impl,
-  DataStore-backed, mirrors `ThemeStorage`'s exact shape) holds `crashReportingEnabled:
-  Flow<Boolean>` (default `false`, opt-in) + `suspend fun setCrashReportingEnabled(enabled:
-  Boolean)`; `WallosApp.onCreate()` observes it and calls `crashReporter.setCollectionEnabled(...)`
-  on every change. `FakeCrashReporter` in `:testing`, alongside the module's other fakes.
-  *Verify:* `./gradlew allTests detekt ktlintCheck` passes; `KoinGraphTest` passes for both
-  flavors (catches a missing binding on either side); a new module needs its own line in the root
-  `kover {}` block (non-negotiable, easy to silently skip). Real Crashlytics delivery is not
-  verifiable without 16.1's blocked Firebase project — say so rather than claiming it.
-  Note: All ran clean — `./gradlew allTests detekt ktlintCheck` green, `compileFdroidDebugKotlin`
-  and `compileGplayDebugKotlin -PgplayBuild` both clean with `--rerun-tasks` (forces the Koin
-  compiler plugin to see the two new `@Single`s). Two corrections to this step's own text: (1)
-  `KoinGraphTest` verifies only `AppModule` (`composeApp`'s graph) — `AndroidModule`, where both
-  `CrashReporterImpl`s actually live, sits in `androidApp` above `composeApp` and was never
-  reachable from it (same reason `AppInfoProvider` is in `KoinGraphTest`'s own `EXTERNALLY_SUPPLIED`
-  list). It cannot catch a missing binding on either flavor; that only happens at runtime. Verified
-  instead by installing both flavors on the emulator and confirming cold start — 16.1's Firebase
-  project is real now (see M16 preamble), so this was a genuine check, not just a structural one:
-  `logcat` showed `FirebaseCrashlytics: Initializing Firebase Crashlytics 20.1.0` for
-  `com.grappim.wallosmobile.debug` (gplay) and a clean `Displayed …` line with no
-  `FATAL EXCEPTION`/`AndroidRuntime` for both `com.grappim.wallosmobile.debug` and
-  `com.grappim.wallosmobile.fdroid.debug`. (2) The "not verifiable without 16.1's blocked Firebase
-  project" line was already stale by the time this step ran — 16.1's own preamble had already
-  flagged that the project exists now; superseded by the above. Two other deviations, neither
-  structural: `CrashlyticsTree` went in `com.grappim.wallosmobile` (top-level, alongside
-  `WallosApp`/`MainActivity`) rather than Taiga's `data` package — no `data` package exists yet in
-  `androidApp/src/main`, and it isn't a Koin definition itself so it doesn't need `di`. And
-  `androidApp/build.gradle.kts` only needed an explicit `core:async-kmp` line (for
-  `ApplicationScope`, used by `WallosApp`'s new consent-observing collector) — `core:storage`
-  itself reaches `androidApp` transitively already, because `composeApp` declares it `api`, not
-  `implementation` (composeApp/build.gradle.kts) — worth knowing before assuming every module
-  androidApp touches needs its own explicit line.
-
-- [x] **16.4 — Settings UI: crash-reporting toggle, privacy-policy link**
-  `feature/settings/ui`'s existing `InterfaceScreen`/`InterfaceViewModel` (already home to the
-  theme-mode picker) gains a toggle bound to `CrashReportingStorage`, gated on
-  `crashReporter.isAvailable` so it doesn't render at all on fdroid — runtime-gated via DI, not a
-  compile-time flavor check (testable with `FakeCrashReporter` from 16.3, same reasoning as
-  Taiga's own `SettingsInterfaceViewModel`). `AboutScreen`'s `AboutContent` gains a second
-  `Button` beside the existing "Project" one (`about_project_url`, already there — nothing to add
-  for that link), opening a new `privacyPolicyLink` resolved in `AboutViewModel` the same way
-  Taiga's `SettingsAboutScreenViewModel` does: `crashReporter.isAvailable` picks between two new
-  `translatable="false"` string resources, `privacy_policy_url`/`privacy_policy_url_gplay`, both
-  raw GitHub blob URLs. Two new docs at repo root, `PRIVACY_POLICY.md` and
-  `PRIVACY_POLICY_GPLAY.md`, adapted from Taiga's own (plan §3.10 has the specifics — swap every
-  Taiga.io/TaigaMobileNova reference for Wallos/WallosMobile, and rewrite the "Authentication"
-  section for what this app actually stores: the API key and server URL via `core:storage`, not a
-  username/password or OAuth token, and `ApiKeyStorageImpl`'s Keystore-backed encryption is a
-  stronger claim than Taiga's plain "stored locally" that's worth stating).
-  *Verify:* `InterfaceViewModelTest`/`AboutViewModelTest` cover both `isAvailable` states;
-  `./gradlew detekt ktlintCheck`; on-device, `fdroidDebug` shows neither the toggle nor a
-  gplay-flavored privacy link (only `PRIVACY_POLICY.md`) — full gplay-side confirmation waits on
-  16.1's blocked Firebase project the same as 16.3.
-  Note: All ran clean — `allTests detekt ktlintCheck` green (new `InterfaceViewModelTest`/
-  `AboutViewModelTest` cases for both `isAvailable` states), both flavors compile
-  (`compileFdroidDebugKotlin`, `compileGplayDebugKotlin -PgplayBuild --rerun-tasks`). One correction
-  to this step's own text: 16.1's Firebase project was never actually blocking (M16's preamble
-  already flagged this before 16.3 ran) — both flavors were installed and driven on-device for
-  real, not just structurally. `fdroidDebug`: Interface shows only the theme radio group, no
-  Privacy section. `gplayDebug`: Interface shows a Privacy section with the crash-reporting
-  toggle, defaulting off, and the toggle survives `am force-stop` + relaunch (the DataStore write
-  is real, not in-memory only). The About screen's "Privacy Policy" button renders on **both**
-  flavors always (by design — only its target URL differs by `isAvailable`, per plan §3.10); tapping
-  it on fdroid opened `github.com/.../blob/dev/PRIVACY_POLICY.md`, a 404 only because this commit
-  hadn't been pushed yet, not a wrong URL. `KoinGraphTest` needed a new `EXTERNALLY_SUPPLIED` entry
-  for `CrashReporter::class` (same shape as `AppInfoProvider`, documented in
-  `KoinGraphTest.kt`'s own comment) — `AboutViewModel`/`InterfaceViewModel` are the first
-  `composeApp`-graph consumers of a binding that actually lives in `androidApp`'s `AndroidModule`,
-  which the test cannot see; this was not caught by the step's own `Verify:` line as written and
-  only surfaced by running the repo-wide `allTests`.
-
-- [ ] **16.5 — `AppUpdateChecker` seam + a Compose snackbar shell surface**
-  New `AppUpdateChecker` interface, living entirely in `androidApp` (no KMP module — nothing
-  outside it needs this, unlike `CrashReporter`): `updateState: Flow<UpdateState>`,
-  `checkAndRequestUpdate(activity: Activity)`, `checkUpdateStateOnResume()`,
-  `registerUpdateListener()`, `unregisterUpdateListener()`, `completeUpdate()`; `sealed class
-  UpdateState { data object UpdateDownloaded }`. Same flavor-swap trick as 16.3, same
-  `com.grappim.wallosmobile.di` package: gplay wraps `AppUpdateManagerFactory.create(context)`
-  (Play Core, **FLEXIBLE** type only), fdroid is every member a no-op / `flowOf()`. `MainActivity`
-  wires the imperative half exactly like Taiga: `checkAndRequestUpdate(this)` once in `onCreate`,
-  `registerUpdateListener()` + `checkUpdateStateOnResume()` in `onResume`,
-  `unregisterUpdateListener()` in `onPause` — Play Core's `startUpdateFlow` needs a real
-  `Activity`, so this part can't move into Compose. **Decided 2026-08-10, diverging from Taiga's
-  plain View `Snackbar`**: build a real Compose snackbar surface, since WallosMobile has none
-  today and it's worth having as reusable shell infra rather than a one-off. Mirrors
-  `TopBarController`'s shape (`uikit/.../widgets/topappbar/`) — a remembered controller wrapping a
-  `SnackbarHostState`, provided through a new `LocalSnackbarHostController`, wired into
-  `AuthenticatedMainScreen`'s `MainScaffold` via `Scaffold`'s existing `snackbarHost = {
-  SnackbarHost(...) }` slot. Scoped to the authenticated shell only — `LoginScreen` has no
-  `Scaffold` and doesn't get one for this. `updateState` is collected wherever the new controller
-  is reachable and shows the restart prompt on `UpdateState.UpdateDownloaded`, action calling
-  `appUpdateChecker.completeUpdate()`.
-  *Verify:* `./gradlew :androidApp:assembleFdroidDebug :androidApp:assembleGplayDebug` (plain,
-  no property — both flavors' no-op-vs-real split compiles); `detekt ktlintCheck`; on-device,
-  drive the snackbar surface with something already in the shell that can trigger it (or a
-  temporary manual `show()` call removed before ticking) to confirm the `Scaffold` wiring actually
-  renders one, since `AppUpdateChecker` itself can't be forced to emit `UpdateDownloaded` without
-  a real Play Store release channel. **Touches `.editorconfig`** (new
-  `compose_allowed_composition_locals` entry) **— needs a `Gate-change:` line.**
+its four steps. **M16 is done** too — its five steps ported Taiga's Firebase Crashlytics (with a
+user-facing opt-out) and Play In-App Update to the `gplay` flavor only, structurally absent from
+`fdroid`; see `archive/CHECKLIST-DONE.md` for its five steps, including 16.5's Compose snackbar
+shell surface (`SnackbarHostController`, mirroring `TopBarController`) that Taiga itself never had.
 
 ---
 
