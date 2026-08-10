@@ -8,16 +8,18 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `2/4`
-**Current step:** 15.2 done — `release-prepare.yml` (`workflow_dispatch`, merges `dev` into
-`master` locally, cuts `release/vX`, bumps `gradle/libs.versions.toml`, opens a PR to `master`)
-and `release-finalize.yml` (fires on that PR closing merged, tags `vX`, back-merges `master` into
-`dev`) ported from TaigaMobileNova, both using plain `GITHUB_TOKEN` since `dev` carries no branch
-protection yet — `release-finalize.yml` carries a comment on its checkout step saying an admin PAT
-(`RELEASE_PAT`) becomes necessary once 15.1's deferred protection lands. Taiga's F-Droid/Play
-changelog-stub steps were dropped per the step's own text (no `fastlane/`/`playstore/` directories
-in this repo); the release PR body notes release-notes writing as a manual step instead. Next
-session can start at 15.3 (`signingConfigs` + keystore secrets).
+M15 `3/4`
+**Current step:** 15.3 done — `signingConfigs` added to `AndroidApplicationConventionPlugin.kt`,
+one per store flavor (`gplayRelease`, `fdroidRelease`), assigned on each `ApplicationProductFlavor`
+so only `release` picks it up and `debug` keeps AGP's own default debug signing. Keystore
+path/alias/passwords come from env (`WALLOS_STORE_PASS_<FLAVOR>`, `WALLOS_ALIAS_<FLAVOR>`,
+`WALLOS_KEY_PASS_<FLAVOR>`), keystore file itself is a root-relative, gitignored
+`wallosmobile_keystore_<flavor>_release.jks` — generalizing Taiga's release/debug (`_R`/`_D`) env
+shape into a per-flavor one since only release signing was in scope here. Verified locally with a
+throwaway test keystore: both `assembleGplayRelease`/`assembleFdroidRelease` produced APKs signed
+with distinct certs, and both `assembleGplayDebug`/`assembleFdroidDebug` still built unaffected.
+Next session can start at 15.4 (`release.yml`, gated on 15.3's keystore secrets actually existing
+in GitHub — they don't yet, only the Gradle wiring and the local test-keystore recipe do).
 
 ---
 
@@ -170,7 +172,7 @@ behaves exactly like `master` does today.
   needed) before pushing, since neither `actionlint` nor `PyYAML` is installed; the Actions tab is
   still the real check per this step's own `Verify:` line.
 
-- [ ] **15.3 — Release signing: `signingConfigs` + keystore secrets**
+- [x] **15.3 — Release signing: `signingConfigs` + keystore secrets**
   `AndroidApplicationConventionPlugin.kt`'s `release` build type currently has **no
   `signingConfigs` at all** — confirmed via a grep across `build-logic/` and `androidApp/
   build.gradle.kts`, neither flavor can produce a signed release build today. Add a
@@ -185,6 +187,21 @@ behaves exactly like `master` does today.
   *Verify:* `./gradlew :androidApp:assembleGplayRelease :androidApp:assembleFdroidRelease` builds
   and signs both, using a locally-provided test keystore. **Touches `build-logic/` — needs a
   `Gate-change:` line.**
+  Note: generalized Taiga's `_R`/`_D` (release/debug) env-var suffix into a per-flavor one instead
+  (`_GPLAY`/`_FDROID`) — this step only needed release signing, so there's no debug half of the
+  pattern to port. `signingConfig` is assigned on each `ApplicationProductFlavor` (in
+  `configureFlavors`'s `flavorConfigurationBlock`), not on the `release` build type itself: AGP's
+  `debug` build type already carries its own non-null default signing config, which wins over a
+  flavor-level one, so `debug` stays on the auto debug keystore while `release` (which sets none)
+  picks up the flavor's — confirmed by building both `assembleGplayDebug`/`assembleFdroidDebug`
+  (unaffected) and `assembleGplayRelease`/`assembleFdroidRelease` (each signed with a distinct
+  test cert, checked via `apksigner verify --print-certs`) after the change. Env vars:
+  `WALLOS_STORE_PASS_<FLAVOR>`, `WALLOS_ALIAS_<FLAVOR>`, `WALLOS_KEY_PASS_<FLAVOR>`; keystore file
+  is `wallosmobile_keystore_<flavor>_release.jks` at the repo root (gitignored, not committed —
+  matches Taiga's shape of a root-relative `file()` path plus a `.gitignore` entry, not an env var
+  for the path itself). `build-logic` has no `detekt`/`ktlintCheck` coverage (an included build,
+  confirmed via `./gradlew -p build-logic tasks --all`, no matching tasks) — nothing to run there
+  beyond `compileKotlin`.
 
 - [ ] **15.4 — `release.yml`: build and publish signed artifacts**
   Port Taiga's tag-triggered (+ `workflow_dispatch`) release workflow, scoped down: Android only

@@ -5,6 +5,8 @@
 xcuserdata
 !src/**/build/
 local.properties
+wallosmobile_keystore_gplay_release.jks
+wallosmobile_keystore_fdroid_release.jks
 .idea
 .DS_Store
 captures

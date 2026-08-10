@@ -1,5 +1,7 @@
 import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.dsl.ApplicationProductFlavor
 import com.grappim.wallosmobile.buildlogic.AppBuildTypes
+import com.grappim.wallosmobile.buildlogic.AppFlavors
 import com.grappim.wallosmobile.buildlogic.configureFlavors
 import com.grappim.wallosmobile.buildlogic.configureKotlinAndroid
 import com.grappim.wallosmobile.buildlogic.configureLinting
@@ -21,6 +23,22 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                 defaultConfig.apply {
                     targetSdk = libs.findVersion("targetSdk").get().toString().toInt()
                     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+                }
+
+                // One release identity per store flavor — assigned on the flavor below, not on
+                // the `release` build type, so `debug` keeps AGP's own default debug signing.
+                signingConfigs {
+                    AppFlavors.entries.forEach { flavor ->
+                        create("${flavor.title}Release") {
+                            val envSuffix = flavor.title.uppercase()
+                            storeFile = rootProject.file("wallosmobile_keystore_${flavor.title}_release.jks")
+                            storePassword = System.getenv("WALLOS_STORE_PASS_$envSuffix")
+                            keyAlias = System.getenv("WALLOS_ALIAS_$envSuffix")
+                            keyPassword = System.getenv("WALLOS_KEY_PASS_$envSuffix")
+                            enableV2Signing = true
+                            enableV3Signing = true
+                        }
+                    }
                 }
 
                 buildTypes {
@@ -64,7 +82,11 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     compose = true
                 }
 
-                configureFlavors(this)
+                configureFlavors(this) { flavor ->
+                    if (this is ApplicationProductFlavor) {
+                        signingConfig = signingConfigs.getByName("${flavor.title}Release")
+                    }
+                }
                 configureKotlinAndroid(this)
             }
 
