@@ -294,4 +294,17 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   `AuthenticatedMainScreen.kt`) had no correct IME insets to push content against on that API
   level — API 36's own insets dispatch masks the gap, which is why the emulator never reproduced
   it. Fixed with a single `android:windowSoftInputMode="adjustResize"` on the activity.
+- **TaigaMobileNova recently did a security review and a testing overhaul — worth investigating
+  whether WallosMobile needs the same, not yet looked into.** Filed 2026-08-10 by the user, flagged
+  for a future session rather than investigated now. `/home/gregory/proj/grappim/TaigaMobileNova/docs/security/`
+  holds `masvs.md` (an OWASP MASVS compliance register) and `masvs-review-plan.md`, plus two
+  reference crypto studies (Aegis, KeePassDX) read while building it — directly relevant since this
+  repo already has the shared `masvs-review` skill but no `docs/security/masvs.md` of its own yet.
+  `/home/gregory/proj/grappim/TaigaMobileNova/docs/testing/` holds `improvement-plan.md`,
+  `integration-tests-plan.md`, `compose-ui-test-spike.md`, `kover-coverage-heuristics.md`,
+  `survey.md`, `deferred.md`, and two `kover-*.py` scripts — worth checking against this repo's own
+  **Settled decisions** table above (no Kover floor, no Robolectric) in case Taiga's overhaul found
+  new reasoning that should reopen either, and against the still-open "Compose UI test setup"
+  entry above, since `compose-ui-test-spike.md` may already be exactly that precedent. Read both
+  directories before deciding whether either becomes a WallosMobile milestone.
 
