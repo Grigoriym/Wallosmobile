@@ -3577,37 +3577,51 @@ building gplay locally doesn't lose time to it.
   Note: `composeApp` cannot depend on `androidApp` (Gradle dependency runs the other way), so
   `AppUpdateChecker`/`UpdateState` — both androidApp types — can never appear in `composeApp`
   code, unlike `CrashReporter` (a real KMP module 16.3 could inject straight into `AboutViewModel`).
-  `MainActivity` narrows `appUpdateChecker.updateState` down to a plain `Flow<Unit>` (`
-  .filterIsInstance<UpdateState.UpdateDownloaded>().map { Unit }`) plus an `onRestartUpdate: () ->
-  Unit` before it ever crosses into `WallosAppContent`/`AuthenticatedMainScreen` — the same shape
-  `onDarkThemeChange: (Boolean) -> Unit` already uses for its own androidApp-bound callback. One
-  consequence worth knowing: because `AppUpdateChecker` is never injected into a `composeApp`-graph
-  class, `KoinGraphTest` needed **no** new `EXTERNALLY_SUPPLIED` entry this time — 16.3/16.4's
-  `CrashReporter::class` addition doesn't repeat here, since nothing below `androidApp` ever asks
-  Koin for this type. `AppUpdateChecker`'s interface + `UpdateState` live in
+  **First pass narrowed `appUpdateChecker.updateState` to a `Flow<Unit>` signal threaded down
+  through `WallosAppContent`/`AuthenticatedMainScreen`** (mirroring `onDarkThemeChange`) — reverted
+  same session after review: unnecessary indirection, and its `.filterIsInstance<>().map { Unit }`
+  call sat directly inside `setContent`'s composable lambda, which Android Studio's Compose lint
+  flags as `FlowOperatorInvokedInComposition` (a fresh `Flow` object every recomposition; neither
+  `detekt` nor `ktlintCheck` runs Compose lint, so both gates missed it). **What actually shipped**:
+  `SnackbarHostController` (`uikit/.../widgets/snackbar/`, `LocalSnackbarHostController` + a thin
+  `SnackbarHostState` wrapper — legal to construct outside composition, since `SnackbarHostState`
+  has no composition dependency, only a `mutableStateOf` read inside `SnackbarHost`) is now a plain
+  `MainActivity` field, not `remember`ed in `AuthenticatedMainScreen`. `MainActivity` collects
+  `appUpdateChecker.updateState` in `lifecycleScope` (not `LaunchedEffect`) and calls
+  `snackbarHostController.show(...)` directly — closer to Taiga's own imperative structure than the
+  reverted design. Only the plain `SnackbarHostController` instance crosses into
+  `WallosAppContent`/`AuthenticatedMainScreen` as a parameter (default
+  `remember { SnackbarHostController() }` for callers that don't pass one), which then provide it
+  via `LocalSnackbarHostController` and thread it into `MainScaffold`'s new
+  `snackbarHost = { SnackbarHost(...) }` slot — `WallosMobilePreviewTheme` now provides the local
+  too, matching `LocalTopBarConfig`/`LocalIsOffline`. Because `AppUpdateChecker` is never injected
+  into a `composeApp`-graph class either way, `KoinGraphTest` needed **no** new
+  `EXTERNALLY_SUPPLIED` entry — 16.3/16.4's `CrashReporter::class` addition doesn't repeat here.
+  `AppUpdateChecker`'s interface + `UpdateState` live in
   `androidApp/src/main/kotlin/.../di/AppUpdateChecker.kt`, package `com.grappim.wallosmobile.di`
   (not Taiga's `data` package) — colocated with both flavor impls, which the single
-  `@ComponentScan("com.grappim.wallosmobile.di")` in `AndroidModule` already covers.
-  `SnackbarHostController` (`uikit/.../widgets/snackbar/`, `LocalSnackbarHostController` +
-  a thin `SnackbarHostState` wrapper, `SnackbarHostControllerTest` alongside it) is created once in
-  `AuthenticatedMainScreen` via `remember { }`, exactly like `TopBarController`, and threaded into
-  `MainScaffold`'s new `snackbarHost = { SnackbarHost(...) }` slot — `WallosMobilePreviewTheme` now
-  provides it too, matching `LocalTopBarConfig`/`LocalIsOffline`. Two new `:strings` entries,
-  `app_update_downloaded`/`app_update_restart` (not `androidApp`'s own resources — the collector
-  that resolves them lives in `composeApp`, which already depends on `:strings`).
-  `./gradlew :androidApp:assembleGplayDebug -PgplayBuild detekt ktlintCheck allTests` all green.
-  `assembleFdroidDebug` compiles clean (`compileFdroidDebugKotlin` succeeds) but fails at
-  `packageFdroidDebug` in this session — `SigningConfig "fdroidDebug" is missing required property
-  "storePassword"` — confirmed **pre-existing and unrelated to this step**: the same command fails
-  identically against a clean `git stash`'d tree, because `WALLOS_STORE_PASS_FDROID_DEBUG` and its
-  two siblings (`build-logic`'s `AndroidApplicationConventionPlugin`) are per-machine env vars this
-  shell session doesn't have set, not a regression. On-device: `installGplayDebug -PgplayBuild`'s
-  first attempt landed on a stray physical device (`SM-A920F`) connected over USB rather than the
-  documented AVD — caught via `adb devices -l` per the `emulator-testing` skill's own warning,
-  redirected to `Medium_Phone_API_36.1` instead of proceeding on unfamiliar hardware. A temporary
-  `LaunchedEffect(Unit) { snackbarHostController.show(message = "TEMP VERIFY", actionLabel = "OK")
-  }` in `AuthenticatedMainScreen`, removed before ticking, confirmed the `Scaffold` wiring: the
-  snackbar rendered over the Dashboard with its message and action button. Real `UpdateDownloaded`
-  delivery stays unverifiable without a Play Store release channel, as the step's own text
-  anticipated.
+  `@ComponentScan("com.grappim.wallosmobile.di")` in `AndroidModule` already covers. Two new
+  `:strings` entries, `app_update_downloaded`/`app_update_restart`, resolved from `androidApp`
+  itself via the suspend `org.jetbrains.compose.resources.getString(RString.x)` accessor (not the
+  `@Composable`-only `stringResource(...)`) inside `lifecycleScope` — which needed `androidApp` to
+  gain its own `implementation` lines on `:strings`, `:uikit` and `jetbrains.compose.material3`
+  (none reach it transitively: `composeApp` depends on all three via `implementation`, and
+  `SnackbarHostController.show()` takes/returns `SnackbarDuration`/`SnackbarResult`, both material3
+  types). `./gradlew :androidApp:assembleGplayDebug -PgplayBuild detekt ktlintCheck allTests` all
+  green, both flavors' `compileXxxDebugKotlin` clean. `assembleFdroidDebug` compiles clean but fails
+  at `packageFdroidDebug` in this session — `SigningConfig "fdroidDebug" is missing required
+  property "storePassword"` — confirmed **pre-existing and unrelated to this step**: the same
+  command fails identically against a clean `git stash`'d tree, because
+  `WALLOS_STORE_PASS_FDROID_DEBUG` and its two siblings (`build-logic`'s
+  `AndroidApplicationConventionPlugin`) are per-machine env vars this shell session doesn't have
+  set, not a regression. On-device (`installGplayDebug -PgplayBuild`, `Medium_Phone_API_36.1` —
+  the first attempt landed on a stray physical device, `SM-A920F` connected over USB, caught via
+  `adb devices -l` per the `emulator-testing` skill's own warning before proceeding on unfamiliar
+  hardware): a temporary `lifecycleScope.launch { showRestartSnackbar() }` in `onCreate`, removed
+  before ticking, confirmed the full real path — the snackbar rendered over the Dashboard with its
+  actual resolved strings ("An update has just been downloaded" / "Restart"), and tapping Restart
+  (`uiautomator dump`'s real-pixel bounds, not a scaled screenshot coordinate) dismissed it cleanly
+  with no `FATAL`/`AndroidRuntime` in `logcat` — `appUpdateChecker.completeUpdate()` doesn't throw
+  with no real update session active. Real `UpdateDownloaded` delivery stays unverifiable without a
+  Play Store release channel, as the step's own text anticipated.
 

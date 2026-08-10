@@ -14,9 +14,15 @@ M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done**
 gplay/fdroid flavor-swap trick 16.3 used for `CrashReporter`, and a real Compose snackbar surface
 (`SnackbarHostController`, mirroring `TopBarController`) instead of Taiga's plain View `Snackbar` —
 WallosMobile had no snackbar infra before this step. Because `composeApp` cannot depend upward on
-`androidApp`, `MainActivity` narrows `appUpdateChecker.updateState` to a plain `Flow<Unit>` before
-crossing into `WallosAppContent`, the same shape `onDarkThemeChange` already used — so unlike
-`CrashReporter`, `AppUpdateChecker` never needed a `KoinGraphTest` `EXTERNALLY_SUPPLIED` entry.
+`androidApp`, `AppUpdateChecker`/`UpdateState` never cross into `composeApp` at all: `MainActivity`
+owns `SnackbarHostController` directly (a plain field, not `remember`ed — `SnackbarHostState` has
+no composition dependency) and collects `appUpdateChecker.updateState` in `lifecycleScope`, calling
+`.show()` on it straight from there — closer to Taiga's own imperative structure than a first pass
+that tried threading a narrowed `Flow<Unit>` signal through `WallosAppContent` (reverted same
+session after review: unnecessary indirection once `SnackbarHostController` itself, a plain
+`uikit` type, can just be constructed in `androidApp` and passed down instead). So unlike
+`CrashReporter`, `AppUpdateChecker` never needed a `KoinGraphTest` `EXTERNALLY_SUPPLIED` entry —
+nothing below `androidApp` ever asks Koin for it.
 With M16 closed, `gplay` has crash reporting (opt-out toggle in Settings, verified delivering to a
 real Firebase project) and a Play In-App Update prompt, both structurally absent from `fdroid`; see
 `archive/CHECKLIST-DONE.md` for all five steps' full detail, including 16.2's CI restore-step

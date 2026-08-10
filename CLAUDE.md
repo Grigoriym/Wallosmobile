@@ -240,13 +240,20 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   dependency runs one way (`androidApp` → `composeApp`), so a `koinInject<T>()` for a type that
   lives in `androidApp` doesn't compile from below it. A seam that has to live in `androidApp`
   (Play Core's `AppUpdateChecker` needs a real `Activity`, so it can't be a KMP module the way
-  `CrashReporter` is) but has to signal into the Compose shell narrows to a plain callback/`Flow`
-  before crossing the boundary — `WallosAppContent.onDarkThemeChange: (Boolean) -> Unit` was the
-  first instance, `AppUpdateChecker.updateState` → `Flow<Unit>` + `onRestartUpdate: () -> Unit`
-  (16.5) the second. One consequence: a type kept out of `composeApp` this way never needs a
-  `KoinGraphTest` `EXTERNALLY_SUPPLIED` entry, since nothing below `androidApp` ever asks Koin
-  for it — unlike `CrashReporter`, which *is* injected straight into `composeApp`-graph
-  ViewModels and therefore needs one (see the DI paragraph below).
+  `CrashReporter` is) but has to surface something in the Compose shell has two ways across the
+  boundary, and the cheaper one wins when it's available: **check whether the display mechanism
+  itself is a plain, composition-independent type from a shared module first** (16.5:
+  `SnackbarHostController` has no composition dependency, so `MainActivity` just constructs it
+  and passes the instance *down* into `WallosAppContent`, collecting `appUpdateChecker.updateState`
+  in `lifecycleScope` and calling `.show()` directly — `AppUpdateChecker`/`UpdateState` never need
+  to be nameable in Compose code at all this way). Only when the shell has to own the whole
+  mechanism does the narrower `Flow`/callback shape apply — `WallosAppContent.onDarkThemeChange:
+  (Boolean) -> Unit` is that case, since the platform edge-to-edge call can't move into a shared
+  module. Don't reach for the narrow-signal shape by default; 16.5's own first pass did, and
+  reverted it once the cheaper option turned up. One consequence either way: a type kept out of
+  `composeApp` never needs a `KoinGraphTest` `EXTERNALLY_SUPPLIED` entry, since nothing below
+  `androidApp` ever asks Koin for it — unlike `CrashReporter`, which *is* injected straight into
+  `composeApp`-graph ViewModels and therefore needs one (see the DI paragraph below).
 - **A `SavedStateHandle` holds a JSON string here, not an encoded `SavedState`.** On Android
   `androidx.savedstate`'s `SavedState` **is** `Bundle`, unreachable from a host test — Robolectric
   is out. `SavedStateHandle()` itself, `get`, `set` and `getMutableStateFlow` are pure Kotlin, so

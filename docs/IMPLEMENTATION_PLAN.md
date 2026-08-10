@@ -1158,20 +1158,39 @@ on anything in M16.
 wherever the new controller is reachable (`AuthenticatedMainScreen` or above)" reads as if
 `composeApp` could inject `AppUpdateChecker` the way `feature/settings/ui` injects `CrashReporter`
 — it can't. `androidApp` depends on `composeApp` (never the reverse), so `AppUpdateChecker`/
-`UpdateState`, both `androidApp` types, cannot be named in any `composeApp`/`uikit` file; a `koinInject<AppUpdateChecker>()`
-inside `AuthenticatedMainScreen` would not compile. What actually shipped: `MainActivity` narrows
-`appUpdateChecker.updateState` to a plain `Flow<Unit>`
-(`.filterIsInstance<UpdateState.UpdateDownloaded>().map { Unit }`) plus an `onRestartUpdate: () ->
-Unit`, and only those two framework-neutral values cross into `WallosAppContent`/
-`AuthenticatedMainScreen` — the same shape `onDarkThemeChange: (Boolean) -> Unit` already used for
-its own androidApp-bound callback. `SnackbarHostController` itself (`uikit/.../widgets/snackbar/`)
-never leaves `composeApp`/`uikit`: `AuthenticatedMainScreen` creates it via `remember { }` exactly
-like `TopBarController`, and `MainActivity` never touches the instance directly. One consequence:
-because `AppUpdateChecker` is never injected into a `composeApp`-graph class, `KoinGraphTest`
-needed no `EXTERNALLY_SUPPLIED` entry for it — unlike `CrashReporter`, which 16.4's
-`AboutViewModel`/`InterfaceViewModel` inject directly and which therefore did need one. Any future
-androidApp-only seam that has to signal into the Compose shell should reach for this same
-narrow-to-a-plain-callback shape rather than trying to inject the androidApp interface downward.
+`UpdateState`, both `androidApp` types, cannot be named in any `composeApp`/`uikit` file; a
+`koinInject<AppUpdateChecker>()` inside `AuthenticatedMainScreen` would not compile. A first pass
+tried narrowing `appUpdateChecker.updateState` to a `Flow<Unit>` signal threaded down through
+`WallosAppContent` (mirroring `onDarkThemeChange: (Boolean) -> Unit`) — reverted the same session:
+unnecessary indirection once the actual constraint is understood, and its
+`.filterIsInstance<>().map { Unit }` call, sitting directly inside `setContent`'s composable
+lambda, is exactly what Compose lint's `FlowOperatorInvokedInComposition` flags (a fresh `Flow`
+object every recomposition — neither `detekt` nor `ktlintCheck` runs Compose lint, so both gates
+missed it; see CLAUDE.md's Build commands section).
+
+**What actually shipped is the mirror image**: instead of narrowing an `androidApp` signal down
+into `composeApp`, `SnackbarHostController` — a plain type from `uikit`, not `androidApp` — moved
+*up*. `MainActivity` constructs it directly as a field (legal outside composition:
+`SnackbarHostState` has no composition dependency, only a `mutableStateOf` read inside
+`SnackbarHost`), collects `appUpdateChecker.updateState` in `lifecycleScope` (not a `LaunchedEffect`
+— `AppUpdateChecker`/`UpdateState` never need to be nameable in Compose code at all this way), and
+calls `.show()` on it straight from there, resolving the snackbar strings via the suspend
+`org.jetbrains.compose.resources.getString(RString.x)` accessor rather than the `@Composable`-only
+`stringResource(...)`. Only the `SnackbarHostController` instance crosses into
+`WallosAppContent`/`AuthenticatedMainScreen` as a constructor parameter (default
+`remember { SnackbarHostController() }` for callers that don't supply one) — closer to Taiga's own
+imperative `MainActivity`-owns-the-display-mechanism structure than the reverted design was. This
+needed `androidApp` to gain its own `implementation` lines on `:strings`, `:uikit` and
+`jetbrains.compose.material3` (`composeApp` depends on all three only via `implementation`, so none
+reach `androidApp` transitively — same rule as `core:async-kmp`'s own line, see Architecture above).
+One consequence either design shares: because `AppUpdateChecker` is never injected into a
+`composeApp`-graph class, `KoinGraphTest` needed no `EXTERNALLY_SUPPLIED` entry for it — unlike
+`CrashReporter`, which 16.4's `AboutViewModel`/`InterfaceViewModel` inject directly and which
+therefore did need one. **The lesson for any future `androidApp`-only seam that has to surface
+something in the Compose shell: check whether the *display mechanism itself* (not just the event)
+is a plain, composition-independent type reachable from a shared module first** — if so, own it in
+`androidApp` and pass the instance down, rather than reaching for a narrowed signal crossing the
+boundary the other way.
 
 Decomposed into `docs/CHECKLIST.md` as **M16** below, all four open questions now answered.
 

@@ -40,6 +40,18 @@ dependencies {
     // there) needs its own line here, for `ApplicationScope`.
     implementation(project(":core:async-kmp"))
 
+    // Neither reaches androidApp transitively: composeApp depends on both only via
+    // `implementation` (composeApp/build.gradle.kts), so a direct consumer here — MainActivity
+    // resolving the update-snackbar strings and constructing the shared `SnackbarHostController`
+    // (16.5 follow-up) — needs its own line for each, same rule as `core:async-kmp` above.
+    implementation(project(":strings"))
+    implementation(project(":uikit"))
+
+    // `SnackbarHostController.show()` (`uikit`) takes/returns `SnackbarDuration`/`SnackbarResult`
+    // — `uikit` only depends on material3 via `implementation` (`configureKmpCompose()`), so those
+    // types don't reach a direct caller here either without their own line.
+    implementation(libs.jetbrains.compose.material3)
+
     implementation(platform(libs.koin.bom))
     implementation(libs.koin.android)
     implementation(libs.koin.annotations)

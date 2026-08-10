@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -19,8 +20,7 @@ import com.grappim.wallosmobile.core.storage.theme.ThemeMode
 import com.grappim.wallosmobile.core.storage.theme.ThemeStorage
 import com.grappim.wallosmobile.feature.setup.ui.LoginScreen
 import com.grappim.wallosmobile.uikit.WallosMobileTheme
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
+import com.grappim.wallosmobile.uikit.widgets.snackbar.SnackbarHostController
 import org.koin.compose.koinInject
 
 /**
@@ -37,8 +37,7 @@ fun WallosAppContent(
     themeStorage: ThemeStorage = koinInject(),
     startDestinationStorage: StartDestinationStorage = koinInject(),
     onDarkThemeChange: (Boolean) -> Unit = {},
-    updateDownloaded: Flow<Unit> = emptyFlow(),
-    onRestartUpdate: () -> Unit = {}
+    snackbarHostController: SnackbarHostController = remember { SnackbarHostController() }
 ) {
     /*
      * Seeding the branch from saved instance state is load-bearing, not an optimisation.
@@ -99,8 +98,7 @@ fun WallosAppContent(
                 appState = rememberMainAppState(
                     startDestination = StartDestinationMapper.toNavKey(startDestination)
                 ),
-                updateDownloaded = updateDownloaded,
-                onRestartUpdate = onRestartUpdate
+                snackbarHostController = snackbarHostController
             )
 
             false -> LoginScreen()
