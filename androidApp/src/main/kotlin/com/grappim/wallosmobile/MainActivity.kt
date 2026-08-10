@@ -23,12 +23,18 @@ class MainActivity : ComponentActivity() {
 
         appUpdateChecker.checkAndRequestUpdate(this)
 
+        // Built once here, not inside `setContent`'s composable lambda: a Flow operator invoked
+        // during composition (`FlowOperatorInvokedInComposition`) would build a *new* Flow object
+        // on every recomposition, and `AuthenticatedMainScreen` keys its collector's
+        // `LaunchedEffect` on this instance — a fresh one each pass would restart it.
+        val updateDownloaded = appUpdateChecker.updateState
+            .filterIsInstance<UpdateState.UpdateDownloaded>()
+            .map { Unit }
+
         setContent {
             WallosAppContent(
                 onDarkThemeChange = ::applyEdgeToEdge,
-                updateDownloaded = appUpdateChecker.updateState
-                    .filterIsInstance<UpdateState.UpdateDownloaded>()
-                    .map { Unit },
+                updateDownloaded = updateDownloaded,
                 onRestartUpdate = appUpdateChecker::completeUpdate
             )
         }

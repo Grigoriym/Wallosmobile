@@ -59,3 +59,10 @@ deleted — see `/finalize`.
   so it was the only device `adb`/the install task saw. `adb devices -l` before trusting an install
   reached the AVD (the `emulator-testing` skill's own standing warning) caught it before driving
   unfamiliar hardware any further.
+- 16.5's first `MainActivity.kt` built `appUpdateChecker.updateState.filterIsInstance<>().map { }`
+  directly inside `setContent { ... }`'s composable lambda — compiled clean, `detekt`/`ktlintCheck`
+  both passed, and only Android Studio's own Compose lint (`FlowOperatorInvokedInComposition`)
+  caught that this builds a *new* `Flow` object every recomposition. Neither Gradle gate runs
+  Compose-specific lint; the fix (hoist the `.filterIsInstance()`/`.map()` call out of the
+  composable, into a `val` computed once in `onCreate` before `setContent`) needed a human/IDE
+  flag, not a `Verify:` line, to surface at all.

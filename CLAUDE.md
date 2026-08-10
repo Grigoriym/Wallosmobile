@@ -129,6 +129,12 @@ This project uses the **`emulator-testing`** and **`finalize`** skills; both are
 ./gradlew :module:path:ktlintFormat          # fix style — don't hand-format
 ./gradlew koverHtmlReport                    # coverage
 
+# Neither of the above runs Android/Compose lint (no `./gradlew lint` task in any `Verify:` line
+# or CI job) — `detekt ktlintCheck` passing does not prove a Compose file is clean. 16.5 shipped a
+# `FlowOperatorInvokedInComposition` (a Flow built inside a composable lambda, `setContent { }`
+# counts) that both gates missed; only Android Studio's own inspection caught it. Skim for
+# Compose-lint-shaped issues by eye on any `@Composable`-touching step, since nothing else will.
+
 # The Room DAOs are the one instrumented suite (3.3) — an emulator must be up, and neither
 # `allTests` nor CI runs it. Nothing else in the repo has a device-test source set.
 ./gradlew :core:storage:connectedAndroidDeviceTest
