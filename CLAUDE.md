@@ -174,9 +174,9 @@ CI (`.github/workflows/ci.yml`, plan §3.5, §3.8, §3.10) runs `assembleFdroidD
 `-PgplayBuild` to only one flavor) + `allTests` + `detekt ktlintCheck` + `koverXmlReport` (uploaded
 to Codecov) on push and PR to `dev` and `master`, but `paths-ignore` skips `**.md` and `docs/**` —
 a docs-only commit produces **no CI run**, which is not a failure. The gplay assemble step restores
-`androidApp/src/gplay/google-services.json` from the `WALLOS_GOOGLE_SERVICES_GPLAY` secret first;
-until that secret holds a real or placeholder file, expect that step red on Gradle's own "File
-google-services.json is missing" (`docs/CHECKLIST.md`'s 16.2 `Note:`). The
+`androidApp/src/gplay/google-services.json` from the `WALLOS_GOOGLE_SERVICES_GPLAY` secret first
+(`mkdir -p` ahead of the redirect — that directory has no other tracked file until 16.3, so it
+doesn't exist on a fresh checkout without it; `docs/CHECKLIST.md`'s 16.2 `Note:`). The
 instrumented Room DAO tests are still local/emulator-only — `allTests` doesn't fan out to device
 tests and the CI job has no emulator, so Kover's XML report never sees them either. The second
 workflow, `guardrails.yml` (plan §3.6), has no `paths-ignore` and runs no Gradle, so a docs-only

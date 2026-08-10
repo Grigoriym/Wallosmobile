@@ -11,18 +11,18 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `2/5`
 **Current step:** 16.3 — `CrashReporter` seam: `core:crashreporting-api`, flavor impls, consent
 storage. M16 was planned and decomposed 2026-08-10, right after M15 closed: full design in plan
-§3.10, ported from TaigaMobileNova. **Two things block full on-device verification of every
-`gplay`-side step (16.1, 16.3, 16.4, 16.5) until the user acts**: the Firebase project itself
-doesn't exist yet (confirmed with the user 2026-08-10 — same "user's own call" shape as 15.3's
-keystores), so nothing that actually talks to Crashlytics can be proven live; each such step's own
-`Verify:` line says exactly what it can and can't confirm without it. 16.2 also left the
-`WALLOS_GOOGLE_SERVICES_GPLAY` GitHub secret unset by the user's own choice (no real or placeholder
-file yet), so `ci.yml`'s `assembleGplayDebug -PgplayBuild` step is expected to fail red on
-"File google-services.json is missing" until it's set — read 16.2's `Note:` before assuming a red
-gplay CI run means something broke. Read M16's own preamble before starting 16.3 — it also flags a
-real gotcha that lands the moment 16.3 ships: a plain `installGplayDebug` with no `-PgplayBuild`
-and no real `google-services.json` starts crashing on cold start, because the gplay
-`CrashReporterImpl` is chosen by *flavor*, not by that property.
+§3.10, ported from TaigaMobileNova. **The Firebase project now exists** — created by the user
+during 16.2, same day, ahead of the original plan (see M16's own preamble for the debug-app-id
+gotcha this surfaced) — so 16.3 onward can verify real Crashlytics wiring on-device instead of
+only structurally; don't assume the "can't verify without the Firebase project" framing in earlier
+step text still holds. 16.2 also found and fixed a real CI bug: the restore step's target
+directory, `androidApp/src/gplay/`, has no other tracked file yet and so doesn't exist on a fresh
+checkout — `mkdir -p` was added ahead of the redirect in both `ci.yml` and `release.yml`; read
+16.2's `Note:` before assuming a red gplay CI run means something else broke. Read M16's own
+preamble before starting 16.3 — it also flags a real gotcha that lands the moment 16.3 ships: a
+plain `installGplayDebug` with no `-PgplayBuild` and no real `google-services.json` starts
+crashing on cold start, because the gplay `CrashReporterImpl` is chosen by *flavor*, not by that
+property.
 
 ---
 
@@ -129,12 +129,19 @@ reproducible build even when fdroid never uses the dependency). **Done when** al
 are ticked. **Full design, all four open questions from planning answered, lives in plan §3.10** —
 read it before starting any step here, the way M15's steps pointed at §3.9.
 
-Planned 2026-08-10, filed directly by the user right after M15 closed. Two things are still
-outside any step below, same shape as 15.3's keystores: **the Firebase project doesn't exist
-yet** — the user confirmed 2026-08-10 it still needs creating via the Firebase console, so nothing
-that actually talks to Crashlytics can be verified on-device until the real
-`google-services.json` exists; steps here structurally verify what compiles/wires without it and
-say so explicitly rather than claiming a false green. And **the moment 16.3 lands, a plain
+Planned 2026-08-10, filed directly by the user right after M15 closed. **The Firebase project
+existed only as a future step at planning time — the user created it same-day, during 16.2**:
+`google-services.json` is now real, registers both `com.grappim.wallosmobile` (release) and
+`com.grappim.wallosmobile.debug` (the gplay flavor has no `applicationIdSuffix`, so the debug
+build type alone produces that id — a Firebase project that only registered the release app fails
+`processGplayDebugGoogleServices` with "No matching client found" until the debug one is added
+too), lives at `androidApp/src/gplay/google-services.json` (gitignored, real machine only), and
+`WALLOS_GOOGLE_SERVICES_GPLAY` is set as a GitHub secret. `assembleGplayDebug -PgplayBuild` builds
+clean locally against it. **What's still unverified is Crashlytics *delivery* itself** — nothing
+in 16.1/16.2 talks to `Firebase.crashlytics` yet, that starts with 16.3's `CrashReporterImpl` — so
+16.3/16.4/16.5's own `Verify:` lines should now expect the real file to be present rather than
+assuming it's still missing; update each to say what it can confirm live rather than deferring to
+this paragraph. And **the moment 16.3 lands, a plain
 `./gradlew :androidApp:installGplayDebug` (no `-PgplayBuild`, no real `google-services.json`)
 starts crashing on cold start** — `CrashReporterImpl` for the gplay flavor is chosen by *flavor*,
 not by the `gplayBuild` property, so it's always compiled into a gplay build and always touches
@@ -186,13 +193,21 @@ building gplay locally doesn't lose time to it.
   `Verify:`); a push shows both `ci.yml`'s split steps and `release.yml`'s restore step running
   (`gh run list`), and `js-yaml` validates both files' syntax locally first. **Touches `.github/`
   — needs a `Gate-change:` line.**
-  Note: `js-yaml` validated both files locally. The user chose to hold off on setting
-  `WALLOS_GOOGLE_SERVICES_GPLAY` (no real or placeholder file yet) — the plumbing is in place but
-  unproven live: `ci.yml`'s `assembleGplayDebug -PgplayBuild` step will fail on Gradle's own "File
-  google-services.json is missing" the moment it runs, same real-but-red signal 16.1's own Verify
-  line already treats as informative rather than a failure to fix. Setting the secret (with a real
-  or placeholder file) is what turns that red into the actual proof this step's Verify line asks
-  for; not done here by the user's choice.
+  Note: `js-yaml` validated both files locally. The secret was initially left unset (no file yet),
+  then the user created the real Firebase project, downloaded `google-services.json`, and set
+  `WALLOS_GOOGLE_SERVICES_GPLAY`. That first live CI run still failed, on a real bug this step's
+  own restore step had: `androidApp/src/gplay/` has no other tracked file yet (16.3 is what first
+  adds one, `CrashReporterImpl.kt`), so git doesn't materialize the directory on a fresh checkout at
+  all — `echo ... > androidApp/src/gplay/google-services.json` fails with "No such file or
+  directory" before the secret's contents ever matter. Fixed with a `mkdir -p androidApp/src/gplay`
+  ahead of the redirect in both `ci.yml` and `release.yml`. This is also why the real
+  `google-services.json` needed a debug-variant Android app added in the Firebase console
+  alongside the release one: `gplay` has no `applicationIdSuffix` (`AppFlavors.kt`), so the debug
+  build type alone produces `com.grappim.wallosmobile.debug`, which a Firebase project that only
+  registered the release `com.grappim.wallosmobile` app doesn't recognize —
+  `processGplayDebugGoogleServices` fails with "No matching client found" until both package ids
+  are registered clients in the same file. `./gradlew :androidApp:assembleGplayDebug -PgplayBuild`
+  now builds clean locally against the real file with both clients present.
 
 - [ ] **16.3 — `CrashReporter` seam: `core:crashreporting-api`, flavor impls, consent storage**
   New KMP module `core/crashreporting-api` (mirrors `core:appinfo-api`'s one-file interface

@@ -55,7 +55,9 @@ jobs:
           ENCODED_FDROID: ${{ secrets.WALLOS_FILE_FDROID }}
 
       - name: Restore google-services.json
-        run: echo "$ENCODED_GOOGLE_SERVICES_GPLAY" | base64 -d > androidApp/src/gplay/google-services.json
+        run: |
+          mkdir -p androidApp/src/gplay
+          echo "$ENCODED_GOOGLE_SERVICES_GPLAY" | base64 -d > androidApp/src/gplay/google-services.json
 
       - name: Build release APKs and AAB
         run: ./gradlew :androidApp:assembleGplayRelease :androidApp:assembleFdroidRelease :androidApp:bundleGplayRelease -PgplayBuild
