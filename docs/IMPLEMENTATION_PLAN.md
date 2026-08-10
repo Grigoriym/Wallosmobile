@@ -876,6 +876,20 @@ fabricating a signing identity on its own would be the wrong kind of autonomy fo
 security-sensitive and effectively irreversible (Play requires the same signing key for every
 future update once one's uploaded).
 
+**15.3, as built:** `signingConfigs` (`gplayRelease`, `fdroidRelease`) is assigned on each
+`ApplicationProductFlavor`, not on the `release` `BuildType` block. AGP's `debug` `BuildType`
+already carries its own non-null default signing config from the plugin itself, and that wins over
+a flavor-level `signingConfig` — so assigning it on the flavor affects only `release` (which sets
+none) and leaves `debug` on the ordinary debug keystore, with no separate opt-out needed. Confirmed
+by building all four variants after the change: `assembleGplayDebug`/`assembleFdroidDebug`
+unaffected, `assembleGplayRelease`/`assembleFdroidRelease` each signed with a distinct cert
+(`apksigner verify --print-certs`, `$ANDROID_HOME/build-tools/<version>/apksigner`). Env-var
+naming ended up per-flavor (`WALLOS_STORE_PASS_<FLAVOR>`, `WALLOS_ALIAS_<FLAVOR>`,
+`WALLOS_KEY_PASS_<FLAVOR>`) rather than Taiga's `_R`/`_D`, since only release needed signing here —
+there was no debug half of the pattern to port. The keystore file itself is a root-relative,
+gitignored `wallosmobile_keystore_<flavor>_release.jks`, same shape as Taiga's `file()` path plus
+`.gitignore` entry (not an env var).
+
 `ci.yml`/`guardrails.yml` (15.1), the two new workflow files (15.2, 15.4) and
 `AndroidApplicationConventionPlugin.kt` (15.3) are all tripwire paths (§3.6) — each of M15's four
 steps needs its own `Gate-change:` line when actually executed.
