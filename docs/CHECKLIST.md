@@ -8,16 +8,20 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `1/5`
-**Current step:** 16.2 — CI: split flavor builds, restore `google-services.json`. M16 was planned
-and decomposed 2026-08-10, right after M15 closed: full design in plan §3.10, ported from
-TaigaMobileNova. **Two things block full on-device verification of every `gplay`-side step (16.1,
-16.3, 16.4, 16.5) until the user acts**: the Firebase project itself doesn't exist yet (confirmed
-with the user 2026-08-10 — same "user's own call" shape as 15.3's keystores), so nothing that
-actually talks to Crashlytics can be proven live; each such step's own `Verify:` line says exactly
-what it can and can't confirm without it. Read M16's own preamble before starting 16.2 — it also
-flags a real gotcha that lands the moment 16.3 ships: a plain `installGplayDebug` with no
-`-PgplayBuild` and no real `google-services.json` starts crashing on cold start, because the gplay
+M15 `4/4` — **M15 done** · M16 `2/5`
+**Current step:** 16.3 — `CrashReporter` seam: `core:crashreporting-api`, flavor impls, consent
+storage. M16 was planned and decomposed 2026-08-10, right after M15 closed: full design in plan
+§3.10, ported from TaigaMobileNova. **Two things block full on-device verification of every
+`gplay`-side step (16.1, 16.3, 16.4, 16.5) until the user acts**: the Firebase project itself
+doesn't exist yet (confirmed with the user 2026-08-10 — same "user's own call" shape as 15.3's
+keystores), so nothing that actually talks to Crashlytics can be proven live; each such step's own
+`Verify:` line says exactly what it can and can't confirm without it. 16.2 also left the
+`WALLOS_GOOGLE_SERVICES_GPLAY` GitHub secret unset by the user's own choice (no real or placeholder
+file yet), so `ci.yml`'s `assembleGplayDebug -PgplayBuild` step is expected to fail red on
+"File google-services.json is missing" until it's set — read 16.2's `Note:` before assuming a red
+gplay CI run means something broke. Read M16's own preamble before starting 16.3 — it also flags a
+real gotcha that lands the moment 16.3 ships: a plain `installGplayDebug` with no `-PgplayBuild`
+and no real `google-services.json` starts crashing on cold start, because the gplay
 `CrashReporterImpl` is chosen by *flavor*, not by that property.
 
 ---
@@ -166,7 +170,7 @@ building gplay locally doesn't lose time to it.
   typo'd property name silently no-op'ing. No `Gate-change:` line — `androidApp/build.gradle.kts`
   and `.gitignore` aren't tripwire paths (only `build-logic/`, not app modules).
 
-- [ ] **16.2 — CI: split flavor builds, restore `google-services.json`**
+- [x] **16.2 — CI: split flavor builds, restore `google-services.json`**
   `ci.yml`'s single `./gradlew :androidApp:assembleDebug` (both flavors in one invocation) can't
   pass `-PgplayBuild` to only one — split into `assembleFdroidDebug` (no property) and a
   `Restore google-services.json` step (`echo $ENCODED | base64 -d >
@@ -182,6 +186,13 @@ building gplay locally doesn't lose time to it.
   `Verify:`); a push shows both `ci.yml`'s split steps and `release.yml`'s restore step running
   (`gh run list`), and `js-yaml` validates both files' syntax locally first. **Touches `.github/`
   — needs a `Gate-change:` line.**
+  Note: `js-yaml` validated both files locally. The user chose to hold off on setting
+  `WALLOS_GOOGLE_SERVICES_GPLAY` (no real or placeholder file yet) — the plumbing is in place but
+  unproven live: `ci.yml`'s `assembleGplayDebug -PgplayBuild` step will fail on Gradle's own "File
+  google-services.json is missing" the moment it runs, same real-but-red signal 16.1's own Verify
+  line already treats as informative rather than a failure to fix. Setting the secret (with a real
+  or placeholder file) is what turns that red into the actual proof this step's Verify line asks
+  for; not done here by the user's choice.
 
 - [ ] **16.3 — `CrashReporter` seam: `core:crashreporting-api`, flavor impls, consent storage**
   New KMP module `core/crashreporting-api` (mirrors `core:appinfo-api`'s one-file interface

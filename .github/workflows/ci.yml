@@ -26,6 +26,8 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    env:
+      ENCODED_GOOGLE_SERVICES_GPLAY: ${{ secrets.WALLOS_GOOGLE_SERVICES_GPLAY }}
 
     steps:
       - name: Check out the repo
@@ -45,8 +47,14 @@ jobs:
       - name: Set up the Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Assemble the debug APK
-        run: ./gradlew :androidApp:assembleDebug
+      - name: Restore google-services.json
+        run: echo "$ENCODED_GOOGLE_SERVICES_GPLAY" | base64 -d > androidApp/src/gplay/google-services.json
+
+      - name: Assemble the fdroid debug APK
+        run: ./gradlew :androidApp:assembleFdroidDebug
+
+      - name: Assemble the gplay debug APK
+        run: ./gradlew :androidApp:assembleGplayDebug -PgplayBuild
 
       - name: Run the unit tests
         run: ./gradlew allTests

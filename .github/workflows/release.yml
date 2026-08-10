@@ -24,6 +24,7 @@ jobs:
       WALLOS_ALIAS_FDROID: ${{ secrets.WALLOS_ALIAS_FDROID }}
       WALLOS_KEY_PASS_FDROID: ${{ secrets.WALLOS_KEY_PASS_FDROID }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      ENCODED_GOOGLE_SERVICES_GPLAY: ${{ secrets.WALLOS_GOOGLE_SERVICES_GPLAY }}
 
     steps:
       - name: Check out the repo
@@ -53,8 +54,11 @@ jobs:
         env:
           ENCODED_FDROID: ${{ secrets.WALLOS_FILE_FDROID }}
 
+      - name: Restore google-services.json
+        run: echo "$ENCODED_GOOGLE_SERVICES_GPLAY" | base64 -d > androidApp/src/gplay/google-services.json
+
       - name: Build release APKs and AAB
-        run: ./gradlew :androidApp:assembleGplayRelease :androidApp:assembleFdroidRelease :androidApp:bundleGplayRelease
+        run: ./gradlew :androidApp:assembleGplayRelease :androidApp:assembleFdroidRelease :androidApp:bundleGplayRelease -PgplayBuild
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
