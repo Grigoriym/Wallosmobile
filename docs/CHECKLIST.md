@@ -8,16 +8,16 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `1/4`
-**Current step:** 15.1 done — `dev` branch created off `master`'s tip, pushed, and set as the
-repo's default (`gh repo edit --default-branch dev`); `ci.yml` and `guardrails.yml` retargeted to
-`branches: [dev, master]` on both `push` and `pull_request`; `codecov.yml`'s `branches` allowlist
-also got `dev` added, a gap in the step's own prose (see 15.1's `Note:`); `CLAUDE.md` and
-`README.md` updated so "straight to `master`" now reads "straight to `dev`", with a new paragraph
-stating `master` only moves via 15.2–15.4's release automation and that branch protection on `dev`
-is deliberately not turned on yet. Repo is still private — that doesn't block anything 15.1 does,
-since branch protection (which does need public/paid) is out of scope here. Next session can start
-at 15.2 (`release-prepare.yml` + `release-finalize.yml`).
+M15 `2/4`
+**Current step:** 15.2 done — `release-prepare.yml` (`workflow_dispatch`, merges `dev` into
+`master` locally, cuts `release/vX`, bumps `gradle/libs.versions.toml`, opens a PR to `master`)
+and `release-finalize.yml` (fires on that PR closing merged, tags `vX`, back-merges `master` into
+`dev`) ported from TaigaMobileNova, both using plain `GITHUB_TOKEN` since `dev` carries no branch
+protection yet — `release-finalize.yml` carries a comment on its checkout step saying an admin PAT
+(`RELEASE_PAT`) becomes necessary once 15.1's deferred protection lands. Taiga's F-Droid/Play
+changelog-stub steps were dropped per the step's own text (no `fastlane/`/`playstore/` directories
+in this repo); the release PR body notes release-notes writing as a manual step instead. Next
+session can start at 15.3 (`signingConfigs` + keystore secrets).
 
 ---
 
@@ -149,7 +149,7 @@ behaves exactly like `master` does today.
   `branches` key is a separate, explicit list). Confirmed against Taiga's own `codecov.yml`, which
   already carries `[master, dev]`.
 
-- [ ] **15.2 — `release-prepare.yml` + `release-finalize.yml`: branch, version-bump and tag mechanics**
+- [x] **15.2 — `release-prepare.yml` + `release-finalize.yml`: branch, version-bump and tag mechanics**
   Port both from Taiga near-verbatim: `release-prepare` (manual `workflow_dispatch`, takes
   version + version code) merges `dev` into `master` locally, cuts a `release/vX` branch, bumps
   `gradle/libs.versions.toml`'s `version-code`/`version-name`, opens a PR `release/vX` → `master`.
@@ -164,6 +164,11 @@ behaves exactly like `master` does today.
   *Verify:* both workflow YAMLs pass GitHub's own syntax validation (a push with no `on:` errors in
   the Actions tab); a full dry run is deliberately not part of this step — see 15.4. **Touches
   `.github/` — needs a `Gate-change:` line.**
+  Note: this repo's two workflows use 2-space YAML indentation throughout (`ci.yml`,
+  `guardrails.yml`), not Taiga's 4-space/tab style — both new files follow the local convention
+  rather than the source's. Validated locally with `js-yaml` (already present system-wide, no venv
+  needed) before pushing, since neither `actionlint` nor `PyYAML` is installed; the Actions tab is
+  still the real check per this step's own `Verify:` line.
 
 - [ ] **15.3 — Release signing: `signingConfigs` + keystore secrets**
   `AndroidApplicationConventionPlugin.kt`'s `release` build type currently has **no

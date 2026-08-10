@@ -1,0 +1,50 @@
+name: Release Finalize
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - master
+
+jobs:
+  finalize:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Extract version
+        id: version
+        run: |
+          branch="${{ github.event.pull_request.head.ref }}"
+          version="${branch#release/v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check out master
+        uses: actions/checkout@v7
+        with:
+          ref: master
+          fetch-depth: 0
+          # Plain GITHUB_TOKEN is enough while dev carries no branch protection (15.1's
+          # deferred follow-up). Once that protection lands, the back-merge below needs an
+          # admin PAT (RELEASE_PAT) to push past it, same as TaigaMobileNova.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push tag
+        run: |
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Back-merge master into dev
+        run: |
+          git fetch origin dev
+          git checkout dev
+          git merge origin/master --no-ff -m "Merge master into dev after release ${{ steps.version.outputs.tag }}"
+          git push origin dev
