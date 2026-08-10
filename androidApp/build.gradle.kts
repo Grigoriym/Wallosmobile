@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.wallosmobile.android.application)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
@@ -15,6 +16,8 @@ android {
 }
 
 dependencies {
+    baselineProfile(project(":benchmark"))
+
     implementation(project(":composeApp"))
     implementation(project(":core:appinfo-api"))
     implementation(project(":core:logger"))

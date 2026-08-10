@@ -7,8 +7,9 @@ context, with no memory of previous sessions.
 **Progress:** M0 `7/7` · M1 `11/11` · M2 `7/7` — **v1 done** · M3 `12/12` — **Phase 2b done** ·
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
-**M11 done** · M12 `3/3` — **M12 done** · M13 `0/2`
-**Current step:** M13 decomposed, not started. Next: 13.1.
+**M11 done** · M12 `3/3` — **M12 done** · M13 `1/2`
+**Current step:** M13's 13.1 done (a new `:benchmark` module + cold-start-only baseline
+profile, wired end to end and verified embedded in a `gplayRelease` build). Next: 13.2.
 
 ---
 
@@ -118,7 +119,7 @@ this project's real AGP 9.3.1/Gradle 9.6.1, and a newer 1.5.0 line is still in b
 which version actually builds before any CUJ beyond cold-start is added), and the two extra CUJs
 plus the actual before/after trace comparison are real, independent scope on top of that.
 
-- [ ] **13.1 — a new `:benchmark` module: baseline profile pipeline, cold start only**
+- [x] **13.1 — a new `:benchmark` module: baseline profile pipeline, cold start only**
   A vanilla (non-KMP) macrobenchmark module — `com.android.test` + the `androidx.baselineprofile`
   producer plugin, per Android's own current template (no `wallosmobile.*` convention plugin
   applies here; this is a one-off module type this project has never had, so its `build.gradle.kts`
@@ -152,6 +153,40 @@ plus the actual before/after trace comparison are real, independent scope on top
   (the release build type this profile has to survive — minify + shrink resources both on),
   `emulator-testing` skill (device/AVD facts — profile generation needs a real or Gradle-managed
   device, not just `assemble`).
+  ·  *Note:* androidx.benchmark **1.4.1 (the documented stable) failed**: `androidx.baselineprofile`
+  applied but errored `Module :androidApp is not a supported android module` — its own detection
+  logic predates AGP 9 entirely (the doc claim of "up to AGP 9.0.0-alpha01" was accurate, not
+  conservative). **1.5.0-beta01 configures and runs cleanly against this project's real AGP
+  9.3.1/Gradle 9.6.1**; recorded here since both versions were only guesses until this session's
+  actual `:benchmark:tasks`/`generateGplayReleaseBaselineProfile` runs proved one. Two more real,
+  non-obvious gaps the plan text didn't anticipate: (1) `com.android.test` and
+  `androidx.baselineprofile` both needed `alias(...) apply false` added to the **root**
+  `build.gradle.kts`'s existing "avoid the plugins being loaded multiple times" block — the same
+  reason `com.android.application` is already there — or applying either from `:benchmark`'s own
+  `plugins {}` block errored `already on the classpath with an unknown version` (build-logic's own
+  AGP dependency puts every AGP plugin class on the shared classloader without a resolvable
+  marker version the first time a subproject's `plugins {}` block asks for one with an explicit
+  version). (2) `:benchmark` needed its own **"STORE" flavor dimension** (`gplay`/`fdroid`,
+  mirroring `AppFlavors`/`FlavorDimensions` by name rather than importing them — a plain
+  subproject script can't resolve a `com.grappim.wallosmobile.buildlogic` import the way
+  `build-logic`'s own compiled Kotlin can) — without it, `generateGplayReleaseBaselineProfile`
+  failed with a Gradle variant-attribute-ambiguity error between `:androidApp`'s two flavors'
+  `RuntimeElements`. The step's guessed task name and output path were both right:
+  `generateGplayReleaseBaselineProfile` writes
+  `androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt` (~25k rules,
+  committed as source, not gitignored — that's the whole point of the plugin copying it there),
+  and `unzip -l` on the assembled `gplayRelease` APK confirms `assets/dexopt/baseline.prof` +
+  `.profm` embedded. `Quality.kt`'s `configureLinting()` also isn't callable from `:benchmark`'s
+  plain script the same way (`import com.grappim.wallosmobile.buildlogic.*` doesn't resolve
+  there), so detekt/ktlint are wired by hand in `benchmark/build.gradle.kts` instead — including
+  the `composeRules-ktlint`/`composeRules-detekt` dependencies, needed by every module regardless
+  of Compose content because the shared `config/detekt/detekt.yml`'s `Compose:` section is invalid
+  detekt config without the plugin present (confirmed live: `:benchmark:detekt` failed
+  `Property 'Compose' is misspelled or does not exist` until added). Full gate run green:
+  `detekt ktlintCheck allTests` and `:androidApp:assembleGplayDebug :androidApp:assembleFdroidDebug`
+  all pass. The plugin's own "no startup profile rules generated" warning (needs
+  `includeInStartupProfile = true` on a `collect` call) is left as-is — out of this step's cold-
+  start-only scope, not a failure. `Gate-change:` needed in the commit for `gradle/libs.versions.toml`.
 
 - [ ] **13.2 — extend the generator to the two CUJs that are the actual point, and measure**
   Adds two more `@Test` journeys to `13.1`'s generator class: a subscriptions-list fling (matching

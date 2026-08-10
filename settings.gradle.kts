@@ -36,6 +36,7 @@ plugins {
 
 include(":androidApp")
 include(":composeApp")
+include(":benchmark")
 
 include(":core:api")
 include(":core:domain")
