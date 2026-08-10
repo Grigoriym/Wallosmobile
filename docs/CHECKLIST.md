@@ -199,19 +199,34 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
      this for real means giving these three repositories a cache the way `SubscriptionsRepository`
      already has one — Phase 5 management-screen scope, not a small change. Filed 2026-08-07; the
      next session picking this up should read this entry before re-deriving the measurement.
-  2. **The JIT warm-up tax on cold navigation — addressed by M13, and this specific complaint now
-     reads as fixed.** Re-investigated 2026-08-09 alongside the scroll-laggy item below
-     (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), which confirmed the same
+  2. **The JIT warm-up tax on cold navigation — addressed by M13, but the "fixed" verdict below
+     rested on an unapplied profile. Now corrected: real improvement, not the original
+     "indistinguishable" claim.** Re-investigated 2026-08-09 alongside the scroll-laggy item
+     below (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), which confirmed the same
      mechanism (ART JIT-compiling this process's cold code paths under a lock the main thread's
      rendering work contends on) recurs on both screens, and decomposed into **M13** (an Android
      Baseline Profile), 2026-08-10, closed the same day. 13.2's own scroll-based measurement
      (`archive/CHECKLIST-DONE.md`) left this "not confirmed" since it never directly timed FAB-open
      against a baseline — a same-day addendum did, with `dumpsys gfxinfo`/`framestats`
      (tap-to-settled-frame, cold process, `am force-stop` between runs): FAB→editor 245ms/250ms
-     across two runs, row-tap→detail 242ms/250ms — indistinguishable. Prompted by the user directly
-     asking whether this exact complaint (FAB slower than list→detail) was fixed; two runs on the
-     same software-rendered AVD is encouraging, not conclusive, but it's a direct measurement of the
-     actual complaint, not a proxy metric, and it looks fixed.
+     across two runs, row-tap→detail 242ms/250ms — indistinguishable, read as fixed at the time.
+     **A second same-day investigation found that verdict was measuring an unapplied profile**
+     (`docs/issues/2026-08-10-editor-open-stall-and-unapplied-profile.md`): `dumpsys package`
+     showed `[status=verify] [reason=install]` on the exact build variant the addendum measured —
+     `adb install` never triggered `speed-profile` dexopt, and the project had no
+     `androidx.profileinstaller` dependency to do it automatically outside Play. **Fixed**: added
+     `androidx.profileinstaller` (`gradle/libs.versions.toml`, `androidApp/build.gradle.kts`),
+     verified end-to-end on-device (fresh install → one launch → `ProfileInstaller` auto-fires →
+     `[status=speed-profile] [reason=bg-dexopt]`, no manual force needed). Re-measured:
+     editor-open worst frame **150ms → 117ms reproducibly**, a real ~22% improvement, not the
+     "indistinguishable from list→detail" the addendum originally claimed — a further ~600-class
+     first-touch load of Compose's text-field internals accounts for most of what remains (that
+     doc's Findings 3–4), unscoped, not concentrated in any one composable (pickers: only 14% of
+     the effect, tested by bisection). **The scroll-jank verdict, re-checked against the same
+     correctly-compiled build, did not change** (94.8% jank, 107.53ms worst frame — statistically
+     the same as 13.2's own 93%/101.9ms and 88%/107.3ms) — that "did not improve" result stands
+     on its own, unaffected by the profile-application gap. See the doc's "What landed" section
+     for full numbers.
 - **A tentative idea, not a decision: log on tap during emulator regression passes**, so a click's
   effect shows up in `logcat` immediately instead of needing a screenshot read every time. Filed
   2026-08-07, with the user's own caveat attached — not expected to replace screenshots, since the

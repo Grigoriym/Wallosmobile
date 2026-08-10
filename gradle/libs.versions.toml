@@ -81,6 +81,10 @@ compose-bom = "2026.06.01"
 
 material = "1.14.0"
 activity-compose = "1.13.0"
+# https://developer.android.com/topic/performance/baselineprofiles/overview — makes the
+# `:benchmark`-generated profile self-apply outside Google Play (13.1/13.2 shipped the profile
+# file itself; nothing made ART actually consume it on a sideloaded/F-Droid install until this).
+profileinstaller = "1.4.1"
 lifecycle = "2.11.0"
 paging = "3.5.0"
 room = "2.8.4"
@@ -183,6 +187,7 @@ koin-test-junit4 = { module = "io.insert-koin:koin-test-junit4" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
+androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
 androidx-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 androidx-core-splashScreen = { module = "androidx.core:core-splashscreen", version.ref = "splashScreen" }
 

@@ -736,16 +736,40 @@ user-visible smoothness improvement is not confirmed by this AVD *for the list-s
 only real hardware can settle that — mirrors `a0cf54d`'s own precedent that a confirmed root-cause
 fix and a moved aggregate jank metric are two different claims.
 
-**A same-day addendum found the opposite for the editor-open journey specifically.** The scroll
+**A same-day addendum found the opposite for the editor-open journey specifically — and a second,
+same-day investigation then found that addendum was measuring an unapplied profile.** The scroll
 measurement above never directly timed the FAB item's own original complaint (FAB→editor feels
 slower to open than list→detail) — it used a proxy (scroll-jank aggregate) that happens to share
 the same root cause. A direct `dumpsys gfxinfo`/`framestats` tap-to-settled-frame measurement,
 cold process each run, found FAB→editor and list→detail indistinguishable (245ms/250ms vs.
-242ms/250ms across two runs) — the complaint that started this milestone reads as fixed, even
-though the scroll-jank proxy metric does not. The two journeys diverging like this is plausible,
-not contradictory: opening one screen and flinging a 35-row list of network images are different
-amounts of work, and the Baseline Profile removing a fixed JIT cost matters more, proportionally,
-to the lighter one.
+242ms/250ms across two runs) — read as fixed at the time. **`docs/issues/2026-08-10-editor-open-
+stall-and-unapplied-profile.md` found that the installed `gplayNonMinifiedRelease` APK this
+addendum measured had `dumpsys package` status `[status=verify] [reason=install]`** — `adb
+install` never triggered `speed-profile` dexopt, and the project has no `androidx.profileinstaller`
+dependency to do that automatically outside Google Play (which applies profile-guided compilation
+as part of its own install regardless, but this project also ships an F-Droid flavor that gets
+none of that). Forcing it (`cmd package compile -m speed-profile -f`) dropped the editor-open worst
+frame 150ms→109ms, reproducibly — real, but a partial improvement, not the "indistinguishable"
+result above. The remainder traces mostly to a ~600-class first-touch load of Compose's
+`foundation.text`/`material3` text-field internals (selection, undo, IME, bring-into-view) the
+first time `OutlinedTextField` composes in the process — not concentrated in the picker fields
+(`ExposedDropdownMenuBox`-based), which bisection showed account for only 14% of the effect.
+
+**Both of that doc's Options 2 and 3 landed the same day.** `androidx.profileinstaller` is now a
+real `androidApp` dependency (`gradle/libs.versions.toml`, version 1.4.1) — verified end-to-end
+on-device: a fresh install still dexopts `verify`-only, but one app launch fires the bundled
+`ProfileInstallerInitializer` automatically (confirmed via `adb logcat`), and the system's
+background dexopt job (forced immediately via `adb shell cmd package bg-dexopt-job` rather than
+waiting for real device idle+charging) then compiles it to `[status=speed-profile]
+[reason=bg-dexopt]` with no manual step — this is the real mechanism a user's device runs, not a
+synthetic override. Re-measured editor-open worst frame: **150ms → 117ms reproducibly** (close
+to the 109ms the manual force found), a real ~22% win — but re-running 13.2's own scroll-jank
+comparison against the same correctly-compiled build found **no change** (94.8% jank, 107.53ms
+worst frame — statistically identical to 13.2's original 93%/101.9ms and 88%/107.3ms). So the
+profile-application gap explains and partially fixes the editor-open journey, but does not
+explain the scroll journey's non-improvement — that verdict was correct all along. Full numbers:
+`docs/issues/2026-08-10-editor-open-stall-and-unapplied-profile.md`'s "What landed" section.
+Option 4 (the remaining ~600-class first-touch cost) stays open and unscoped.
 
 ---
 

@@ -33,6 +33,14 @@ dependencies {
 
     implementation(libs.androidx.activity.compose)
 
+    // Makes the profile `:benchmark` generates (baselineProfile(...) above) self-apply on first
+    // launch outside Google Play — Play compiles a Play-distributed install with it automatically
+    // regardless, but this app also ships an F-Droid flavor, and a plain `adb install`/sideload
+    // gets none of that without this (confirmed: `dumpsys package` read `[status=verify]
+    // [reason=install]` on a profile-bundling APK installed without it — see
+    // docs/issues/2026-08-10-editor-open-stall-and-unapplied-profile.md).
+    implementation(libs.androidx.profileinstaller)
+
     implementation(libs.jetbrains.compose.ui.tooling.preview)
     debugImplementation(libs.jetbrains.compose.ui.tooling)
 }
