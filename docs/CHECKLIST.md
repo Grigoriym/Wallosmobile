@@ -8,8 +8,17 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `5/8`
-**Current step:** M17, step 17.6. 17.5 (Platform) closed 2026-08-11: IPC surface is `MainActivity`
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `6/8`
+**Current step:** M17, step 17.7. 17.6 (Code quality) closed 2026-08-11: all four MASVS-CODE
+controls Accepted, no Open findings. `minSdk = 24` ported from TaigaMobileNova's own catalogue at
+this project's first commit, no independent rationale documented (same absence Taiga's own row
+recorded). `renovate.json`'s `osvVulnerabilityAlerts` still set (since M14); GitHub's native
+Dependabot alerts confirmed OFF (`vulnerability-alerts` → 404), an optional separate lever, not
+required. `WallosEnvelopeParser` is the app's only JSON config, already tolerant
+(`ignoreUnknownKeys`/`isLenient`). Both `LocalUriHandler.openUri()` call sites (`AboutScreen.kt`)
+resolve to fixed `RString` resources, never user/server-supplied text — doesn't reproduce Taiga's
+own scheme-allowlist finding since nothing here feeds untrusted text into `openUri` today. No code
+changed. 17.5 (Platform) closed 2026-08-11: IPC surface is `MainActivity`
 alone (only component in either manifest, plain `MAIN`/`LAUNCHER`, no deep link); password field
 has a working Show/Hide toggle, hidden by default. `FLAG_SECURE` decided with the user directly
 rather than assumed: they don't want it — same reasoning as Taiga's maintainer, since it would
@@ -324,13 +333,29 @@ Resilience last, a scope decision rather than an audit.
   screenshots app-wide, not just on login, and they use their own app. Recorded as Accepted, same
   shape and same reasoning as Taiga's row for this control.
 
-- [ ] **17.6 — Code quality.** Confirm `minSdk = 24`'s rationale (or lack of one, same as Taiga's
+- [x] **17.6 — Code quality.** Confirm `minSdk = 24`'s rationale (or lack of one, same as Taiga's
   finding) is stated plainly; confirm `renovate.json`'s `osvVulnerabilityAlerts` is still set and
   check `gh api repos/<owner>/<repo>/vulnerability-alerts` for GitHub's native alert status; confirm
   `WallosEnvelopeParser`/the app's JSON config tolerates unknown/null server fields; check both
   `LocalUriHandler.openUri()` call sites in `AboutScreen.kt`.
   *Verify:* register gains a Code section; the dependabot/renovate question has a stated answer,
   not a guess.
+  Note: clean bill, all four CODE controls Accepted, no Open findings. `minSdk = 24` traced by
+  `git log --follow -p` to this project's first commit ("replace the wizard's catalog with
+  TaigaMobileNova's ... minSdk 24") — ported, no independent rationale documented, same absence
+  Taiga's own row recorded for the value it came from. `renovate.json` still sets
+  `osvVulnerabilityAlerts: true` (present since M14). GitHub's native Dependabot alerts are OFF
+  (`gh api repos/Grigoriym/Wallosmobile/vulnerability-alerts` → 404), same result Taiga's review
+  found for its own repo — an optional, separate lever, not required now that Renovate's OSV
+  coverage is on. `WallosEnvelopeParser` is the app's *only* JSON config (`NetworkModule.kt`
+  installs no Ktor `ContentNegotiation` plugin), already `ignoreUnknownKeys = true` /
+  `isLenient = true`. Both `LocalUriHandler.openUri()` call sites (`AboutScreen.kt:81,88`) resolve
+  to fixed `RString` resources, never user/server-supplied text — no markdown renderer or
+  user-editable URL field exists anywhere in the repo, so this doesn't reproduce Taiga's own
+  MASVS-CODE-4 finding (a `SafeUriHandler` allowlist has nothing to guard here today). Also
+  recorded MASVS-CODE-2 (Play `FLEXIBLE`-only update on gplay, none on fdroid — M16's existing
+  shape, Accepted) while in the category, since the skill scopes to the whole control set, not
+  just the step's named checks. No code changed, no `Gate-change:` needed.
 
 - [ ] **17.7 — Privacy.** Confirm both flavors' crash-reporting posture per M16 (Gplay real,
   fdroid no-op) is disclosed correctly in the register; confirm `ApiKeyStorage.clear()`'s
