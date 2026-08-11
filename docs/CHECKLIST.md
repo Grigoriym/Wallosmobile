@@ -8,10 +8,12 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done**
-**Current step:** none — M17 closed. The next milestone (a Compose UI test setup, per M17's own
-preamble and the "To review" entry it left behind) hasn't been decomposed yet; that's a fresh
-session's job, not a continuation of this one. 17.8 (Resilience) closed 2026-08-11: confirmed N/A,
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `0/2`
+**Current step:** M18, step 18.1. Decomposed 2026-08-11 straight from `docs/revisit.md` #1 (filed
+during 17.3's MASVS-NETWORK review): `TrustedCertStorage` has no way to list or revoke an accepted
+TOFU pin short of clearing all app data. Picked over the Compose UI test setup M17 left queued in
+"To review" because the user asked for this one directly. The Compose UI test setup is still next
+after M18. 17.8 (Resilience) closed 2026-08-11: confirmed N/A,
 even faster than Taiga's own task 7 — no OAuth flow anywhere in the app and no
 `client_secret`/`CLIENT_SECRET`/`client_id` in source, `build-logic`, or the version catalogue.
 `docs/security/masvs.md`'s header rewritten to state all eight MASVS categories were addressed
@@ -176,6 +178,59 @@ shell surface (`SnackbarHostController`, mirroring `TopBarController`) that Taig
 creating `docs/security/masvs.md`; every category came back Accepted/N/A with no Open findings, one
 real gap (no in-app way to revoke an accepted TOFU pin) filed as `docs/revisit.md` #1 rather than
 fixed inline; see `archive/CHECKLIST-DONE.md` for its eight steps.
+
+---
+
+## M18 — Trusted certificate revocation (not in plan §8's phase order)
+
+Decomposed 2026-08-11 straight from `docs/revisit.md` #1 (filed 2026-08-11 during 17.3's
+MASVS-NETWORK review). `TrustedCertStorage` (`core/storage/.../cert/TrustedCertStorage.kt`) only
+exposes `isTrusted`/`trust` — no `untrust`, and no Settings screen listing accepted pins, unlike
+TaigaMobileNova's own `feature/settings/ui/.../trustedcerts/`. Not a live security hole: the pin is
+per-`(host, sha256Fingerprint)`, so a legitimate cert rotation on an already-trusted host just fails
+the match and re-triggers TOFU rather than silently keeping the old trust — this is a hygiene/UX
+gap (no way to *proactively* clean up a mistaken accept or a decommissioned instance), not an
+escalation path. Two steps, storage then UI, the same split M12 used for its own storage-then-picker
+shape.
+
+- [ ] **18.1 — core/storage + core/domain: `untrust`/`getAllFlow` on `TrustedCertStorage`**
+  Store the full `PendingCertTrust` per pin, not just `host|fingerprint` — `PendingCertTrust`
+  (`core/domain/.../PendingCertTrust.kt`) already carries subject/issuer/validity, and
+  `SetupRepositoryImpl.trustCertificate` already has the full value in hand, currently narrowing it
+  to two strings before it reaches storage. Same shape as TaigaMobileNova's own
+  `core/storage/.../cert/TrustedCertStorage.kt`: a JSON-encoded `List<PendingCertTrust>` behind one
+  `stringPreferencesKey`, replacing the current `Set<String>` of `"$host|$fingerprint"` entries.
+  Interface gains `fun getAllFlow(): Flow<List<PendingCertTrust>>` and
+  `suspend fun untrust(host: String, sha256Fingerprint: String)`; `trust` takes a `PendingCertTrust`
+  instead of two strings. `core/domain` and `core/storage` both need
+  `alias(libs.plugins.wallosmobile.kmp.serialization)` added (neither has it yet) for
+  `@Serializable` on `PendingCertTrust` and for the `Json` instance the impl encodes with. Update
+  `FakeTrustedCertStorage` (`:testing`) and `TrustedCertStorageImplTest` to the new shape — read
+  Taiga's own `TrustedCertStorageImplTest` for what cases it covers before reinventing them.
+  *Verify:* `./gradlew :core:storage:testAndroidHostTest`
+  ·  *Ref:* `TaigaMobileNova/core/storage/src/commonMain/kotlin/com/grappim/taigamobile/core/storage/cert/TrustedCertStorage.kt`,
+  `feature/setup/data/.../SetupRepositoryImpl.kt`'s `trustCertificate`
+
+- [ ] **18.2 — feature/settings/ui: a "Trusted certificates" screen**
+  New sub-screen off Settings, same shape as `startdestination`/`about` (Route/Screen/UiState/
+  ViewModel, registered in `NavKeySerializers.kt` and wired into `SettingsEntryProvider.kt`, reached
+  via a new `SettingsRow` — a fifth callback on `SettingsScreen`, still exempt under
+  `compose:parameter-order`'s single-trailing-function rule as long as `viewModel` stays last).
+  Lists each trusted `PendingCertTrust` (host, issuer, valid-until, fingerprint) with a delete
+  action per row, confirmed via an `AlertDialog` before it calls `TrustedCertStorage.untrust`
+  (`SubscriptionDetailScreen`'s delete-confirm shape is the local precedent — this repo has no
+  shared `ConfirmActionDialog`/`EmptyStateWidget` the way Taiga does, so plain `AlertDialog` plus a
+  centered `Text` for the empty state, matching `CategoriesScreen`). `TrustedCertsViewModel` takes
+  `TrustedCertStorage` directly, no repository — single-seam case like `StartDestinationViewModel`.
+  *Verify:* `./gradlew :feature:settings:ui:testAndroidHostTest`, and on the emulator: trust a
+  certificate (or seed one via DataStore), open Settings → the new row, confirm it lists the pin
+  with correct details, delete it with the confirm dialog, and confirm the next connection attempt
+  to that host re-triggers the TOFU prompt rather than silently trusting it.
+  ·  *Ref:* `feature/settings/ui/.../startdestination/` (whole package),
+  `TaigaMobileNova/feature/settings/ui/.../trustedcerts/TrustedCertificatesScreen.kt`,
+  `feature/subscriptions/ui/.../detail/SubscriptionDetailScreen.kt`'s `DeleteConfirmDialog`
+
+Once 18.2 verifies clean on-device, delete `docs/revisit.md` #1 — the gap it filed is closed.
 
 ---
 
