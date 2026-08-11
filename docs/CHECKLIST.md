@@ -13,8 +13,9 @@ M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `0/8`
 "To review" entry (filed 2026-08-10) was investigated 2026-08-11 and decomposed into M17 — see the
 milestone's own preamble below for what that investigation found (short version: Taiga's MASVS
 register mechanics apply directly and WallosMobile starts from a better position on Storage/Crypto/
-Network than Taiga did; Taiga's *testing* overhaul does not carry over, since its whole Compose UI
-test sweep runs via a `jvmTest` source set WallosMobile doesn't have — no new testing milestone).
+Network than Taiga did; Taiga's *testing* overhaul doesn't transfer as-is — no `jvm()` target here
+for its `jvmTest`-based Compose UI test technique to attach to — so a testing-setup milestone is
+next after M17, not folded into it).
 Previous **Current step** note on 16.5 moved to `archive/CHECKLIST-DONE.md` with the rest of M16
 (M16 shipped `gplay`-only crash reporting and a Play In-App Update prompt; see the archive for all
 five steps' full detail).
@@ -175,18 +176,21 @@ before writing this milestone, not left for step 17.1 to discover:
     17.1/17.2 find something to change about the cipher scheme itself, no migration path is needed,
     just a changed-and-say-so per the standing rule.
 
-- **Testing: no new milestone — Taiga's specific technique doesn't transfer.** Taiga's entire
-  Compose UI test sweep (`docs/testing/improvement-plan.md` tasks 10–21,
-  `compose-ui-test-spike.md`) runs `runComposeUiTest` inside a **`jvmTest`** source set, backed by
+- **Testing: next after M17, not folded into it.** Taiga's entire Compose UI test sweep
+  (`docs/testing/improvement-plan.md` tasks 10–21, `compose-ui-test-spike.md`) runs
+  `runComposeUiTest` inside a **`jvmTest`** source set, backed by
   `compose.dependencies.desktop.uiTestJUnit4`/`currentOs` (Compose Desktop test artifacts).
   WallosMobile declares **no `jvm()` target** (`KmpLibraryConventionPlugin.kt`'s own comment on why
   `androidHostTest` exists instead — "There is no `jvmTest`" is already stated in `CLAUDE.md`'s
-  Build commands), so that whole mechanism has nothing to attach to. The only Compose-testing path
-  available here is the instrumented `androidDeviceTest` route the checklist's own "To review"
-  FAB/scroll-jank entries already point at (3.3 paid that setup cost) — slower per test and outside
-  CI, unlike Taiga's JVM-hosted approach. Kover-coverage-heuristics and the rest of Taiga's survey
-  don't surface any new reasoning to reopen the settled no-Kover-floor decision either. Nothing to
-  decompose here; the existing "Compose UI test setup" entry under **To review** stands as-is.
+  Build commands), so Taiga's exact mechanism has nothing to attach to today. **That is a setup
+  gap, not a reason to skip Compose UI testing** — the milestone after this one should scope
+  whatever setup WallosMobile actually needs (a `jvm()` target the way Taiga has one, so
+  `runComposeUiTest` can run in `jvmTest` the identical way, or a build-out of the
+  `androidDeviceTest` route the checklist's own "To review" FAB/scroll-jank entries already point
+  at, since 3.3 paid part of that setup cost already) rather than assuming either is already in
+  place. Kover-coverage-heuristics and the rest of Taiga's survey don't surface any new reasoning
+  to reopen the settled no-Kover-floor decision. The existing "Compose UI test setup" entry under
+  **To review** is the seed for that milestone — scope it once M17 closes.
 
 **How to run a step:** invoke the `masvs-review` skill (`~/.claude/skills/masvs-review`), scoped to
 the one MASVS v2 category the step names — don't let it default to a whole-app pass. It reads
@@ -443,9 +447,13 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   gap, decomposed into M17** (see its preamble above for the full comparison — short version:
   WallosMobile already has a Keystore-backed cipher over the API key and a ported
   `CompositeTrustManager`, both further along than Taiga's own starting point, but Network/Auth/
-  Platform/Code/Privacy/Resilience have never been reviewed at all). **Testing: no new milestone —
-  Taiga's Compose UI test sweep runs via a `jvmTest` source set (Compose Desktop test artifacts),
-  and WallosMobile declares no `jvm()` target, so the mechanism doesn't transfer**; the existing
-  "Compose UI test setup" entry above and the settled no-Kover-floor decision are both unaffected —
-  Taiga's survey/heuristics work didn't surface anything that reopens either.
+  Platform/Code/Privacy/Resilience have never been reviewed at all). **Testing: next milestone
+  after M17, not folded into it.** Taiga's Compose UI test sweep runs via a `jvmTest` source set
+  (Compose Desktop test artifacts), and WallosMobile declares no `jvm()` target, so that exact
+  mechanism doesn't transfer as-is — but that's a setup gap for the next milestone to close, not a
+  reason to drop the idea: once M17 closes, scope whether to add a `jvm()` target (so
+  `runComposeUiTest` can run in `jvmTest` the same way Taiga's does) or build out the
+  `androidDeviceTest` route instead (3.3 already paid part of that setup cost). The settled
+  no-Kover-floor decision is unaffected either way — Taiga's survey/heuristics work didn't surface
+  anything that reopens it.
 
