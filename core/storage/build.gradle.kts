@@ -1,6 +1,10 @@
 plugins {
     alias(libs.plugins.wallosmobile.kmp.library)
     alias(libs.plugins.wallosmobile.kmp.di)
+    // `TrustedCertStorageImpl` JSON-encodes `PendingCertTrust` for the DataStore-backed pin list
+    // (18.1) — the type itself lives in core:domain, and this module has no dependency the other
+    // way, same as core:api's own core.domain + core.storage pair.
+    alias(libs.plugins.wallosmobile.kmp.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.androidx.room)
 }
@@ -22,6 +26,7 @@ kotlin {
             implementation(libs.androidx.room.ktx)
         }
         commonMain.dependencies {
+            implementation(projects.core.domain)
             implementation(libs.androidx.datastore.core)
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)

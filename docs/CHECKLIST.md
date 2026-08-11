@@ -8,12 +8,15 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `0/2`
-**Current step:** M18, step 18.1. Decomposed 2026-08-11 straight from `docs/revisit.md` #1 (filed
-during 17.3's MASVS-NETWORK review): `TrustedCertStorage` has no way to list or revoke an accepted
-TOFU pin short of clearing all app data. Picked over the Compose UI test setup M17 left queued in
-"To review" because the user asked for this one directly. The Compose UI test setup is still next
-after M18. 17.8 (Resilience) closed 2026-08-11: confirmed N/A,
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `1/2`
+**Current step:** M18, step 18.2. 18.1 closed 2026-08-11: `TrustedCertStorage` now stores the full
+`PendingCertTrust` JSON-encoded (was a bare `host|fingerprint` string) and gained `getAllFlow`/
+`untrust`, matching TaigaMobileNova's own shape — see 18.1's own `Note:` for the dependency-edge
+fallout (`core:storage` → `core:domain`, `:testing` → `core:domain`). Decomposed 2026-08-11 straight
+from `docs/revisit.md` #1 (filed during 17.3's MASVS-NETWORK review): `TrustedCertStorage` had no
+way to list or revoke an accepted TOFU pin short of clearing all app data. Picked over the Compose
+UI test setup M17 left queued in "To review" because the user asked for this one directly; that
+stays next after M18. 17.8 (Resilience) closed 2026-08-11: confirmed N/A,
 even faster than Taiga's own task 7 — no OAuth flow anywhere in the app and no
 `client_secret`/`CLIENT_SECRET`/`client_id` in source, `build-logic`, or the version catalogue.
 `docs/security/masvs.md`'s header rewritten to state all eight MASVS categories were addressed
@@ -193,7 +196,7 @@ gap (no way to *proactively* clean up a mistaken accept or a decommissioned inst
 escalation path. Two steps, storage then UI, the same split M12 used for its own storage-then-picker
 shape.
 
-- [ ] **18.1 — core/storage + core/domain: `untrust`/`getAllFlow` on `TrustedCertStorage`**
+- [x] **18.1 — core/storage + core/domain: `untrust`/`getAllFlow` on `TrustedCertStorage`**
   Store the full `PendingCertTrust` per pin, not just `host|fingerprint` — `PendingCertTrust`
   (`core/domain/.../PendingCertTrust.kt`) already carries subject/issuer/validity, and
   `SetupRepositoryImpl.trustCertificate` already has the full value in hand, currently narrowing it
@@ -210,6 +213,18 @@ shape.
   *Verify:* `./gradlew :core:storage:testAndroidHostTest`
   ·  *Ref:* `TaigaMobileNova/core/storage/src/commonMain/kotlin/com/grappim/taigamobile/core/storage/cert/TrustedCertStorage.kt`,
   `feature/setup/data/.../SetupRepositoryImpl.kt`'s `trustCertificate`
+  **Note:** implemented as designed, `Json { ignoreUnknownKeys = true }` instantiated locally in
+  `TrustedCertStorageImpl` rather than injected — no `StorageJsonQualifier`-style DI exists here,
+  and the same local-`Json` pattern is already used by `WallosCrudApi`/`WallosEnvelopeParser`, so
+  adding DI infra for one class would be unrequested flexibility. `core:storage` needed a direct
+  `implementation(projects.core.domain)` (previously had none — `core:api` was the only module
+  depending on both), and `:testing` needed its own `api(projects.core.domain)` for
+  `FakeTrustedCertStorage`'s public surface, since `core:storage`'s dependency on it is
+  `implementation`, not transitive (`CLAUDE.md`'s own rule, confirmed again). `CompositeTrustManagerTest`
+  (`core:api`) was the one other caller of the old two-string `trust()` — five call sites updated to
+  build a `PendingCertTrust` via a small local test helper. Full suite green:
+  `:core:storage:testAndroidHostTest` (11 cert tests, 4 new), `:core:api:testAndroidHostTest`,
+  `:feature:setup:data:testAndroidHostTest`, `detekt ktlintCheck` across all four touched modules.
 
 - [ ] **18.2 — feature/settings/ui: a "Trusted certificates" screen**
   New sub-screen off Settings, same shape as `startdestination`/`about` (Route/Screen/UiState/

@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.core.api
 
+import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.core.domain.findPendingCertTrust
 import com.grappim.wallosmobile.testing.FakeTrustedCertStorage
 import kotlinx.coroutines.test.runTest
@@ -55,7 +56,7 @@ class CompositeTrustManagerTest {
     fun aPinnedCertificateIsAcceptedWithoutConsultingTheDeviceTrustStore() = runTest {
         val deviceStore = FakeX509TrustManager()
         val trustedCertStorage = FakeTrustedCertStorage()
-        trustedCertStorage.trust(HOST, sha256Fingerprint(certificate))
+        trustedCertStorage.trust(pendingCertTrust(HOST, sha256Fingerprint(certificate)))
         val sut = CompositeTrustManager(deviceStore, trustedCertStorage)
 
         sut.checkServerTrusted(arrayOf(certificate), AUTH_TYPE, HOST)
@@ -66,7 +67,7 @@ class CompositeTrustManagerTest {
     @Test
     fun aPinDoesNotFollowTheCertificateToAnotherHost() = runTest {
         val trustedCertStorage = FakeTrustedCertStorage()
-        trustedCertStorage.trust(HOST, sha256Fingerprint(certificate))
+        trustedCertStorage.trust(pendingCertTrust(HOST, sha256Fingerprint(certificate)))
         val sut = CompositeTrustManager(FakeX509TrustManager(), trustedCertStorage)
 
         assertFailsWith<CertificateException> {
@@ -77,7 +78,7 @@ class CompositeTrustManagerTest {
     @Test
     fun aPinDoesNotCoverASecondCertificateFromTheSameHost() = runTest {
         val trustedCertStorage = FakeTrustedCertStorage()
-        trustedCertStorage.trust(HOST, sha256Fingerprint(certificate))
+        trustedCertStorage.trust(pendingCertTrust(HOST, sha256Fingerprint(certificate)))
         val sut = CompositeTrustManager(FakeX509TrustManager(), trustedCertStorage)
 
         assertFailsWith<CertificateException> {
@@ -89,7 +90,7 @@ class CompositeTrustManagerTest {
     fun aPinnedCertificateThatHasSinceExpiredIsStillRejected() = runTest {
         val expired = FakeX509Certificate(byteArrayOf(7, 8, 9), notBefore = Date(0), notAfter = Date(1))
         val trustedCertStorage = FakeTrustedCertStorage()
-        trustedCertStorage.trust(HOST, sha256Fingerprint(expired))
+        trustedCertStorage.trust(pendingCertTrust(HOST, sha256Fingerprint(expired)))
         val sut = CompositeTrustManager(FakeX509TrustManager(), trustedCertStorage)
 
         assertFailsWith<CertificateExpiredException> {
@@ -101,7 +102,7 @@ class CompositeTrustManagerTest {
     fun withoutAHostThereIsNothingToOfferTrustFor() = runTest {
         val deviceStore = FakeX509TrustManager()
         val trustedCertStorage = FakeTrustedCertStorage()
-        trustedCertStorage.trust(HOST, sha256Fingerprint(certificate))
+        trustedCertStorage.trust(pendingCertTrust(HOST, sha256Fingerprint(certificate)))
         val sut = CompositeTrustManager(deviceStore, trustedCertStorage)
 
         val failure = assertFailsWith<CertificateException> {
@@ -164,6 +165,15 @@ class CompositeTrustManagerTest {
             sut.checkServerTrusted(emptyArray(), AUTH_TYPE, HOST)
         }
     }
+
+    private fun pendingCertTrust(host: String, sha256Fingerprint: String) = PendingCertTrust(
+        host = host,
+        subject = "CN=$host",
+        issuer = "CN=Fake Issuer",
+        notBefore = "2026-01-01",
+        notAfter = "2027-01-01",
+        sha256Fingerprint = sha256Fingerprint
+    )
 
     private companion object {
         private const val HOST = "wallos.example.com"
