@@ -1,7 +1,7 @@
 # MASVS register
 
 Profile: Android (Android-only for now, per `CLAUDE.md`) · self-hosted, user-supplied server ·
-reviewed 2026-08-11, STORAGE only so far (M17, `docs/CHECKLIST.md`).
+reviewed 2026-08-11, STORAGE and CRYPTOGRAPHY only so far (M17, `docs/CHECKLIST.md`).
 
 Out of scope: **MASVS-RESILIENCE** — scope decision deferred to 17.8, not made here.
 
@@ -21,6 +21,7 @@ Out of scope: **MASVS-RESILIENCE** — scope decision deferred to 17.8, not made
 | Control | Check | Why source can't answer it |
 |---|---|---|
 | MASVS-STORAGE-1 / MASVS-CRYPTO-2 | Whether `KeystoreSecretCipher`'s AES key is actually hardware-backed (TEE/StrongBox) as opposed to a software-only Keystore fallback, and whether a real `adb backup`/cloud backup + restore onto a second physical device produces ciphertext that genuinely fails to decrypt (confirming the Accepted-deviation bound above holds in practice, not just in the doc comment's stated intent) | Hardware enforcement and real backup/restore behaviour aren't verifiable from source; `KeyGenParameterSpec` in `KeystoreSecretCipher.kt:66-73` doesn't request `setIsStrongBoxBacked`, so whether the key ends up hardware-backed at all depends on the device |
+| MASVS-CRYPTO-2 | Confirm the AES key `KeystoreSecretCipher.getOrCreateKey()` generates is actually 256-bit — `KeyGenParameterSpec.Builder` (`KeystoreSecretCipher.kt:66-73`) never calls `.setKeySize()`, so the real size comes from the Android Keystore provider's default for `KEY_ALGORITHM_AES`, not from a value in our own code | The size the provider actually enforces isn't visible from source; `KeyInfo.getKeySize()` on the real generated key, on a real device, is the only way to confirm it rather than trust the documented default |
 
 ## Notes
 
@@ -30,3 +31,29 @@ Out of scope: **MASVS-RESILIENCE** — scope decision deferred to 17.8, not made
   valid base64", "…too short to hold an IV", "…could not be decrypted"), none interpolate the key
   value itself or the exception's message in a way that could carry ciphertext/plaintext. Verified
   statically; no call site logs the API key or the login password.
+- **Cryptography (MASVS-CRYPTO-1/2)**: `KeystoreSecretCipher.getOrCreateKey()`
+  (`KeystoreSecretCipher.kt:62-75`) generates the AES key through
+  `KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")` with
+  `PURPOSE_ENCRYPT or PURPOSE_DECRYPT`, `BLOCK_MODE_GCM`, `ENCRYPTION_PADDING_NONE` (correct — GCM
+  is unpadded) and no `.setRandomizedEncryptionRequired(false)`, so the platform *enforces* — not
+  merely defaults to — a provider-generated IV on every `ENCRYPT_MODE` init: a caller cannot supply
+  or reuse a fixed IV for this key even if the code tried to. `encrypt()` (`:24-29`) never passes an
+  `IvParameterSpec`/`GCMParameterSpec` into `init`, so `cipher.iv` is always a fresh
+  Keystore-generated 96-bit nonce, stored as the first 12 bytes (`IV_LENGTH_BYTES = 12`) of the
+  base64 payload; `decrypt()` (`:32-60`) reads that same nonce back into a `GCMParameterSpec(128,
+  ...)` — a 128-bit tag, the maximum/recommended length, not the weaker 96-bit some implementations
+  use. The key never leaves the Keystore: `getOrCreateKey()` returns the `SecretKey` handle straight
+  into `Cipher.init`, and nothing in the file calls `.getEncoded()` or otherwise exports/serializes
+  it. `grep -rniE '(SecretKeySpec|IvParameterSpec|byteArrayOf.*0x)'` across every source set found no
+  hand-rolled key/IV material anywhere else in the repo. A separate grep for embedded credentials in
+  source, build config and the version catalogue (`gradle/libs.versions.toml` has no key/secret/
+  password entries; `AndroidApplicationConventionPlugin.kt:37-54` pulls release-signing passwords
+  from `System.getenv("WALLOS_*")`, never a literal) turned up only test fixtures
+  (`WallosApiClientTest.kt`, `LoginViewModelTest.kt`, `WallosHtmlFixtures.kt`) and one Compose
+  preview default (`LoginScreen.kt:508`, `apiKey = "5c1e0b2a9f"`) — none shipped key material. No
+  `.setUserAuthenticationRequired(true)` on the key is deliberate, not an oversight: it lets
+  background API calls decrypt the stored key without a biometric prompt, and MASVS-AUTH-2/3 are
+  already N/A for this app (no biometric anywhere, confirmed again in 17.4), so there is no step-up
+  gate for this key to bind to. The one thing source can't settle — the actual generated key size,
+  since `KeyGenParameterSpec` never calls `.setKeySize()` — is in the Needs-a-device table above
+  rather than asserted here.

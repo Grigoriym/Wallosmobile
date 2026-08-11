@@ -8,8 +8,14 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `1/8`
-**Current step:** M17, step 17.2. 17.1 (Storage) closed 2026-08-11: `docs/security/masvs.md`
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `2/8`
+**Current step:** M17, step 17.3. 17.2 (Cryptography) closed 2026-08-11: `KeystoreSecretCipher`'s
+`KeyGenParameterSpec` reviewed clean — AES/GCM, no padding, 128-bit tag, IV reuse not just
+defaulted-away but platform-*enforced* against (no `setRandomizedEncryptionRequired(false)`, no
+IV ever supplied by the code), key never exported, no key/secret literal anywhere in source/
+build-logic/version catalogue. One real gap needing a device, not a source read — key size isn't
+pinned via `.setKeySize()` — added to the Needs-a-device table. No code changed. 17.1 (Storage)
+closed 2026-08-11: `docs/security/masvs.md`
 created, both leads from the milestone preamble resolved as **Accepted deviations**, not Open
 findings — the `allowBackup`/no-extraction-rules gap is bounded by the cipher already in place
 (ciphertext-only file, Keystore key doesn't travel with a backup), and `ServerUrlStorageImpl` holds
@@ -230,11 +236,21 @@ Resilience last, a scope decision rather than an audit.
   backing and real restore-onto-second-device confirmation. No code changed, no `Gate-change:`
   needed.
 
-- [ ] **17.2 — Cryptography.** Review `KeystoreSecretCipher`'s actual `KeyGenParameterSpec` (block
+- [x] **17.2 — Cryptography.** Review `KeystoreSecretCipher`'s actual `KeyGenParameterSpec` (block
   mode, IV reuse across encryptions, padding) against `kmp-checks.md`'s CRYPTO checks; confirm no
   other key material exists in source/build config/version catalogue.
   *Verify:* register gains a Cryptography section — concrete findings, or an explicit "reviewed,
   bounded, here's why" note.
+  Note: clean bill, no code changed. AES/GCM, no padding (correct for GCM), 128-bit tag, key never
+  exported. IV is not merely defaulted-fresh but platform-*enforced* fresh — `encrypt()` never
+  supplies its own IV and `setRandomizedEncryptionRequired(false)` is never called, so a fixed/reused
+  IV isn't reachable through this code even by mistake. No key/secret literal found anywhere in
+  source, `build-logic`, or `gradle/libs.versions.toml` (signing passwords come from `System.getenv`;
+  the only string-literal hits were test fixtures and one Compose preview default). One real gap
+  that needed a device rather than a source read: `KeyGenParameterSpec` never calls `.setKeySize()`,
+  so the actual generated AES key size depends on the Keystore provider's default, not a value in our
+  code — added as a second row to the existing Needs-a-device table alongside the hardware-backing
+  one from 17.1, rather than asserted as 256-bit from Android's documented default.
 
 - [ ] **17.3 — Network.** Run the three TOFU questions from `kmp-checks.md` against
   `CompositeTrustManager` as it stands today (don't assume Taiga's own review of the pre-port
