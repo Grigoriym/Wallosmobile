@@ -1,8 +1,8 @@
 # MASVS register
 
 Profile: Android (Android-only for now, per `CLAUDE.md`) · self-hosted, user-supplied server ·
-reviewed 2026-08-11, STORAGE, CRYPTOGRAPHY, NETWORK, AUTHENTICATION, PLATFORM and CODE so far (M17,
-`docs/CHECKLIST.md`).
+reviewed 2026-08-11, STORAGE, CRYPTOGRAPHY, NETWORK, AUTHENTICATION, PLATFORM, CODE and PRIVACY so
+far (M17, `docs/CHECKLIST.md`).
 
 Out of scope: **MASVS-RESILIENCE** — scope decision deferred to 17.8, not made here.
 
@@ -124,3 +124,39 @@ Out of scope: **MASVS-RESILIENCE** — scope decision deferred to 17.8, not made
   user- or server-supplied text — a materially different shape than the Taiga finding this control
   is checked against, not the same gap re-found, since there is no markdown renderer or
   user-editable URL field anywhere in this app today for a scheme allowlist to guard.
+- **Privacy (MASVS-PRIVACY-1 through -4)**: all four Accepted, no Open findings.
+  **PRIVACY-1** (permission minimization): exactly two permissions declared
+  (`androidApp/src/main/AndroidManifest.xml:4-5`), both used —  `INTERNET` by the Ktor OkHttp engine
+  that talks to the user's Wallos server (`core/api/src/androidMain/.../PlatformHttpClientEngine.kt`)
+  and, on `gplay` only, Crashlytics; `ACCESS_NETWORK_STATE` by `NetworkMonitorImpl`
+  (`core/storage/src/androidMain/.../NetworkMonitorImpl.kt:22-23`, `ConnectivityManager` +
+  `registerNetworkCallback`), which backs `LocalIsOffline`. No unused permission, no third
+  undeclared-but-needed one. **PRIVACY-2** (no user identification): no analytics/ad-ID/fingerprinting
+  dependency anywhere in the catalogue (`grep -n 'analytics\|advertising\|com.google.android.gms'
+  gradle/libs.versions.toml` empty) — the only Firebase artifact pulled in is
+  `firebase-crashlytics` (`gradle/libs.versions.toml:230-231`), not `firebase-analytics`, and it
+  ships on `gplay` only. **PRIVACY-3** (transparency): the crash-reporting posture is a real,
+  disclosed flavor split, not just a code-level `isAvailable` flag — `gplay`'s
+  `CrashReporterImpl` (`androidApp/src/gplay/kotlin/.../di/CrashReporterImpl.kt`) wraps real
+  `Firebase.crashlytics`, `fdroid`'s (`androidApp/src/fdroid/kotlin/.../di/CrashReporterImpl.kt`) is
+  a total no-op (`isAvailable = false`, every method a `Unit` body) — and `InterfaceScreen.kt:97`
+  gates the entire settings row on `uiState.isCrashReportingAvailable`, so the toggle is *absent*
+  on fdroid rather than present-and-inert, matching `CrashReportingStorage`'s own doc comment
+  (device-scoped consent, defaults to opt-in-`false`). Two privacy-policy docs mirror the same split
+  (`PRIVACY_POLICY_GPLAY.md` names Crashlytics, its data fields and the in-app opt-out;
+  `PRIVACY_POLICY.md` doesn't mention it at all) and both list exactly the same two permissions
+  confirmed above. **PRIVACY-4** (user control): `ApiKeyStorageImpl.clear()`
+  (`core/storage/.../ApiKeyStorageImpl.kt:46-53`) deletes all three Room tables the app has
+  (`subscriptionDao`/`currencyDao`/`priceConversionDao` — confirmed against `WallosDB.kt:17-21`,
+  which lists no other entity) *before* removing the DataStore `api_key` entry, so there's no
+  window where a screen's cache read shows one account's rows with no credential behind them. All
+  three call sites checked: `SettingsViewModel.onDisconnectClick`
+  (`feature/settings/ui/.../SettingsViewModel.kt:36`, the explicit "log out"),
+  `SetupRepositoryImpl.loginWithPassword` (`feature/setup/data/.../SetupRepositoryImpl.kt:66`) and
+  `.connectWithApiKey` (`:128`) — both login paths clear the stale key/cache before validating a new
+  one, so a second account never inherits the first's cached rows. Device-scoped prefs
+  (`ThemeStorage`, `StartDestinationStorage`, `CrashReportingStorage`, `TrustedCertStorage`)
+  deliberately survive `clear()` by design (each file's own doc comment states this) — none of them
+  are Wallos account data, so leaving them isn't a PRIVACY-4 gap. `PRIVACY_POLICY_GPLAY.md:124-126`
+  also documents the coarser fallback (uninstall / Android's own "Clear Data") for a user who wants
+  everything gone, not just the account.

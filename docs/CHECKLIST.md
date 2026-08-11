@@ -8,8 +8,16 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `6/8`
-**Current step:** M17, step 17.7. 17.6 (Code quality) closed 2026-08-11: all four MASVS-CODE
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `7/8`
+**Current step:** M17, step 17.8. 17.7 (Privacy) closed 2026-08-11: all four MASVS-PRIVACY
+controls Accepted, no Open findings. Both declared permissions (`INTERNET`,
+`ACCESS_NETWORK_STATE`) trace to real call sites, no analytics/ad-ID dependency anywhere in the
+catalogue. Crash-reporting disclosure confirmed structurally real (fdroid's `CrashReporterImpl`
+is a total no-op and the settings toggle is absent, not disabled, on that flavor; both
+`PRIVACY_POLICY*.md` docs mirror the split). `ApiKeyStorage.clear()` deletes all three Room tables
+the app has before removing the key, confirmed at all three call sites (disconnect, both login
+paths) — no account's cache survives into the next login. No code changed. 17.6 (Code quality)
+closed 2026-08-11: all four MASVS-CODE
 controls Accepted, no Open findings. `minSdk = 24` ported from TaigaMobileNova's own catalogue at
 this project's first commit, no independent rationale documented (same absence Taiga's own row
 recorded). `renovate.json`'s `osvVulnerabilityAlerts` still set (since M14); GitHub's native
@@ -357,12 +365,24 @@ Resilience last, a scope decision rather than an audit.
   shape, Accepted) while in the category, since the skill scopes to the whole control set, not
   just the step's named checks. No code changed, no `Gate-change:` needed.
 
-- [ ] **17.7 — Privacy.** Confirm both flavors' crash-reporting posture per M16 (Gplay real,
+- [x] **17.7 — Privacy.** Confirm both flavors' crash-reporting posture per M16 (Gplay real,
   fdroid no-op) is disclosed correctly in the register; confirm `ApiKeyStorage.clear()`'s
   cache-plus-key eviction actually satisfies MASVS-PRIVACY-4 by reading its three call sites
   (disconnect, both login paths); diff declared permissions (`INTERNET`,
   `ACCESS_NETWORK_STATE`) against actual call sites.
   *Verify:* register gains a Privacy section.
+  Note: clean bill, all four PRIVACY controls Accepted, no Open findings. Both declared
+  permissions (`INTERNET`, `ACCESS_NETWORK_STATE`) trace to real call sites (the Ktor OkHttp
+  engine; `NetworkMonitorImpl`'s `ConnectivityManager` callback), no unused or missing one. No
+  analytics/ad-ID dependency anywhere in the catalogue — only `firebase-crashlytics`, not
+  `firebase-analytics`, and it's `gplay`-only. Crash-reporting disclosure confirmed structurally
+  real, not just a flag: fdroid's `CrashReporterImpl` is a total no-op (`isAvailable = false`),
+  and `InterfaceScreen.kt` gates the whole settings row on that flag, so the toggle is *absent* on
+  fdroid rather than present-and-inert; both `PRIVACY_POLICY*.md` docs mirror the same split.
+  `ApiKeyStorage.clear()` deletes all three Room tables the app has (confirmed against
+  `WallosDB.kt`'s own entity list — no other cache exists) before removing the key, and all three
+  call sites (`SettingsViewModel` disconnect, both `SetupRepositoryImpl` login paths) confirmed —
+  no account's cache survives into the next login. No code changed, no `Gate-change:` needed.
 
 - [ ] **17.8 — Resilience (scope decision only).** Confirm the self-hosted-FOSS-client reasoning
   that makes MASVS-RESILIENCE out of scope actually holds for WallosMobile specifically — check for
