@@ -1425,11 +1425,18 @@ What 3.7 kept from that port, and what it dropped:
   there would collect a decision that can never produce a working connection. It rethrows the
   original rejection rather than earning its own exception type — the only thing riding on the
   distinction here is whether the prompt appears.
-- **Storage pins strings, not certificates.** `TrustedCertStorage` holds `"host|fingerprint"` in
-  the module's shared DataStore. Taiga widened to a JSON list of `PendingCertTrust` for a
-  settings screen that lists and revokes pins; nothing here plans one, and the full certificate
-  is still what the *prompt* shows. It also means disconnect leaves pins alone —
-  `ApiKeyStorage.clear()` removes its own key, and a pin is a statement about a server's
+- **Storage pins the full certificate, not just a string key — added in M18 (18.1), after this
+  section originally shipped without it.** `TrustedCertStorage` holds a JSON-encoded
+  `List<PendingCertTrust>` in the module's shared DataStore (`stringPreferencesKey`, decoded/
+  encoded with a locally-instantiated `Json { ignoreUnknownKeys = true }` — the same
+  no-DI-for-`Json` pattern `WallosCrudApi`/`WallosEnvelopeParser` already use, not a new
+  `StorageJsonQualifier`-style seam). `core:storage` gained a direct dependency on `core:domain`
+  for this (previously had none; `core:api` was the only module depending on both). Same shape as
+  TaigaMobileNova's own widened storage. A Settings → Trusted certificates screen
+  (`feature/settings/ui/.../trustedcerts/`, M18's 18.2) lists and revokes pins, matching Taiga's
+  screen of the same purpose — filed as a gap in `docs/revisit.md` #1 during 17.3's MASVS-NETWORK
+  review and closed the same milestone it was filed adjacent to. Disconnect still leaves pins
+  alone: `ApiKeyStorage.clear()` removes its own key, and a pin is a statement about a server's
   certificate, not about the account.
 - **The engine is now built, not autodiscovered.** `createPlatformHttpClientEngine` (`expect` in
   `core:api` `commonMain`, `actual` in its first `androidMain`) wraps the composite manager in an

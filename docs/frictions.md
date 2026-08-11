@@ -66,3 +66,9 @@ deleted — see `/finalize`.
   Compose-specific lint; the fix (hoist the `.filterIsInstance()`/`.map()` call out of the
   composable, into a `val` computed once in `onCreate` before `setContent`) needed a human/IDE
   flag, not a `Verify:` line, to surface at all.
+- `./gradlew :core:storage:compileKotlinAndroid` failed with "task 'compileKotlinAndroid' not found"
+  — this KMP setup has no such task name; `:core:storage:testAndroidHostTest` (which compiles the
+  module as a dependency) is the fast way to check a module compiles without guessing the exact
+  Android compile task name. Same guess repeated against `:testing:compileGplayDebugKotlin`, which
+  also doesn't exist — `:testing` declares no flavors, so per-flavor compile tasks aren't a thing
+  there either.
