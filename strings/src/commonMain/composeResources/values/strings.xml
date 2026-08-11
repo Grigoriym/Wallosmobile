@@ -242,6 +242,18 @@
     <string name="settings_start_destination">Startup screen</string>
     <string name="settings_start_destination_description">Which screen opens first</string>
 
+    <string name="settings_trusted_certificates">Trusted certificates</string>
+    <string name="settings_trusted_certificates_description">Manage accepted server certificates</string>
+    <string name="trusted_certs_empty">No trusted certificates yet.</string>
+    <string name="trusted_cert_issuer">Issuer: %1$s</string>
+    <string name="trusted_cert_valid_until">Valid until %1$s</string>
+    <string name="trusted_cert_fingerprint">Fingerprint: %1$s</string>
+    <string name="trusted_cert_revoke">Revoke</string>
+    <string name="trusted_cert_revoke_confirm_title">Revoke this certificate?</string>
+    <string name="trusted_cert_revoke_confirm_message">%1$s will need to be trusted again the next time you connect.</string>
+    <string name="trusted_cert_revoke_confirm">Revoke</string>
+    <string name="trusted_cert_revoke_cancel">Cancel</string>
+
     <string name="settings_about">About</string>
     <string name="settings_about_description">Version and build info</string>
     <string name="about_version">Version</string>

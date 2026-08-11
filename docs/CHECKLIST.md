@@ -8,15 +8,20 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `1/2`
-**Current step:** M18, step 18.2. 18.1 closed 2026-08-11: `TrustedCertStorage` now stores the full
-`PendingCertTrust` JSON-encoded (was a bare `host|fingerprint` string) and gained `getAllFlow`/
-`untrust`, matching TaigaMobileNova's own shape — see 18.1's own `Note:` for the dependency-edge
-fallout (`core:storage` → `core:domain`, `:testing` → `core:domain`). Decomposed 2026-08-11 straight
-from `docs/revisit.md` #1 (filed during 17.3's MASVS-NETWORK review): `TrustedCertStorage` had no
-way to list or revoke an accepted TOFU pin short of clearing all app data. Picked over the Compose
-UI test setup M17 left queued in "To review" because the user asked for this one directly; that
-stays next after M18. 17.8 (Resilience) closed 2026-08-11: confirmed N/A,
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
+**M18 done**
+**Current step:** none — M18 closed. The Compose UI test setup M17 left queued in "To review"
+hasn't been decomposed yet; that's a fresh session's job. 18.2 closed 2026-08-11: the Settings →
+Trusted certificates screen shipped, verified end-to-end on-device against a throwaway TLS front —
+see 18.2's own `Note:` for the full on-device trace (accept a real TOFU prompt, revoke it from the
+new screen, confirm the same host re-prompts on the next connection). `docs/revisit.md` #1 (filed
+during 17.3) is now deleted — the gap it filed is closed. 18.1 closed 2026-08-11: `TrustedCertStorage`
+now stores the full `PendingCertTrust` JSON-encoded (was a bare `host|fingerprint` string) and
+gained `getAllFlow`/`untrust`, matching TaigaMobileNova's own shape — see 18.1's own `Note:` for the
+dependency-edge fallout (`core:storage` → `core:domain`, `:testing` → `core:domain`). M18 decomposed
+2026-08-11 straight from `docs/revisit.md` #1: `TrustedCertStorage` had no way to list or revoke an
+accepted TOFU pin short of clearing all app data. Picked over the Compose UI test setup M17 left
+queued in "To review" because the user asked for this one directly; that stays next. 17.8 (Resilience) closed 2026-08-11: confirmed N/A,
 even faster than Taiga's own task 7 — no OAuth flow anywhere in the app and no
 `client_secret`/`CLIENT_SECRET`/`client_id` in source, `build-logic`, or the version catalogue.
 `docs/security/masvs.md`'s header rewritten to state all eight MASVS categories were addressed
@@ -135,7 +140,7 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 ---
 
 Completed steps live in [`archive/CHECKLIST-DONE.md`](./archive/CHECKLIST-DONE.md) — **all of M0
-through M8, and now M10, M9, M11, M12, M13, M14, M15, M16 and M17**, verbatim. M10 was archived once before too (2026-08-08, its first seven
+through M8, and now M10, M9, M11, M12, M13, M14, M15, M16, M17 and M18**, verbatim. M10 was archived once before too (2026-08-08, its first seven
 steps) and pulled back out the same day once two more real gaps turned up (10.8/10.9, below); once
 those two closed it, it was archived again for good, same day. On 2026-08-06 the per-step
 Deviations log that used to sit at the bottom of this file moved to
@@ -180,72 +185,11 @@ shell surface (`SnackbarHostController`, mirroring `TopBarController`) that Taig
 **M17 is done** too — its eight steps ran the `masvs-review` skill once per MASVS v2 category,
 creating `docs/security/masvs.md`; every category came back Accepted/N/A with no Open findings, one
 real gap (no in-app way to revoke an accepted TOFU pin) filed as `docs/revisit.md` #1 rather than
-fixed inline; see `archive/CHECKLIST-DONE.md` for its eight steps.
-
----
-
-## M18 — Trusted certificate revocation (not in plan §8's phase order)
-
-Decomposed 2026-08-11 straight from `docs/revisit.md` #1 (filed 2026-08-11 during 17.3's
-MASVS-NETWORK review). `TrustedCertStorage` (`core/storage/.../cert/TrustedCertStorage.kt`) only
-exposes `isTrusted`/`trust` — no `untrust`, and no Settings screen listing accepted pins, unlike
-TaigaMobileNova's own `feature/settings/ui/.../trustedcerts/`. Not a live security hole: the pin is
-per-`(host, sha256Fingerprint)`, so a legitimate cert rotation on an already-trusted host just fails
-the match and re-triggers TOFU rather than silently keeping the old trust — this is a hygiene/UX
-gap (no way to *proactively* clean up a mistaken accept or a decommissioned instance), not an
-escalation path. Two steps, storage then UI, the same split M12 used for its own storage-then-picker
-shape.
-
-- [x] **18.1 — core/storage + core/domain: `untrust`/`getAllFlow` on `TrustedCertStorage`**
-  Store the full `PendingCertTrust` per pin, not just `host|fingerprint` — `PendingCertTrust`
-  (`core/domain/.../PendingCertTrust.kt`) already carries subject/issuer/validity, and
-  `SetupRepositoryImpl.trustCertificate` already has the full value in hand, currently narrowing it
-  to two strings before it reaches storage. Same shape as TaigaMobileNova's own
-  `core/storage/.../cert/TrustedCertStorage.kt`: a JSON-encoded `List<PendingCertTrust>` behind one
-  `stringPreferencesKey`, replacing the current `Set<String>` of `"$host|$fingerprint"` entries.
-  Interface gains `fun getAllFlow(): Flow<List<PendingCertTrust>>` and
-  `suspend fun untrust(host: String, sha256Fingerprint: String)`; `trust` takes a `PendingCertTrust`
-  instead of two strings. `core/domain` and `core/storage` both need
-  `alias(libs.plugins.wallosmobile.kmp.serialization)` added (neither has it yet) for
-  `@Serializable` on `PendingCertTrust` and for the `Json` instance the impl encodes with. Update
-  `FakeTrustedCertStorage` (`:testing`) and `TrustedCertStorageImplTest` to the new shape — read
-  Taiga's own `TrustedCertStorageImplTest` for what cases it covers before reinventing them.
-  *Verify:* `./gradlew :core:storage:testAndroidHostTest`
-  ·  *Ref:* `TaigaMobileNova/core/storage/src/commonMain/kotlin/com/grappim/taigamobile/core/storage/cert/TrustedCertStorage.kt`,
-  `feature/setup/data/.../SetupRepositoryImpl.kt`'s `trustCertificate`
-  **Note:** implemented as designed, `Json { ignoreUnknownKeys = true }` instantiated locally in
-  `TrustedCertStorageImpl` rather than injected — no `StorageJsonQualifier`-style DI exists here,
-  and the same local-`Json` pattern is already used by `WallosCrudApi`/`WallosEnvelopeParser`, so
-  adding DI infra for one class would be unrequested flexibility. `core:storage` needed a direct
-  `implementation(projects.core.domain)` (previously had none — `core:api` was the only module
-  depending on both), and `:testing` needed its own `api(projects.core.domain)` for
-  `FakeTrustedCertStorage`'s public surface, since `core:storage`'s dependency on it is
-  `implementation`, not transitive (`CLAUDE.md`'s own rule, confirmed again). `CompositeTrustManagerTest`
-  (`core:api`) was the one other caller of the old two-string `trust()` — five call sites updated to
-  build a `PendingCertTrust` via a small local test helper. Full suite green:
-  `:core:storage:testAndroidHostTest` (11 cert tests, 4 new), `:core:api:testAndroidHostTest`,
-  `:feature:setup:data:testAndroidHostTest`, `detekt ktlintCheck` across all four touched modules.
-
-- [ ] **18.2 — feature/settings/ui: a "Trusted certificates" screen**
-  New sub-screen off Settings, same shape as `startdestination`/`about` (Route/Screen/UiState/
-  ViewModel, registered in `NavKeySerializers.kt` and wired into `SettingsEntryProvider.kt`, reached
-  via a new `SettingsRow` — a fifth callback on `SettingsScreen`, still exempt under
-  `compose:parameter-order`'s single-trailing-function rule as long as `viewModel` stays last).
-  Lists each trusted `PendingCertTrust` (host, issuer, valid-until, fingerprint) with a delete
-  action per row, confirmed via an `AlertDialog` before it calls `TrustedCertStorage.untrust`
-  (`SubscriptionDetailScreen`'s delete-confirm shape is the local precedent — this repo has no
-  shared `ConfirmActionDialog`/`EmptyStateWidget` the way Taiga does, so plain `AlertDialog` plus a
-  centered `Text` for the empty state, matching `CategoriesScreen`). `TrustedCertsViewModel` takes
-  `TrustedCertStorage` directly, no repository — single-seam case like `StartDestinationViewModel`.
-  *Verify:* `./gradlew :feature:settings:ui:testAndroidHostTest`, and on the emulator: trust a
-  certificate (or seed one via DataStore), open Settings → the new row, confirm it lists the pin
-  with correct details, delete it with the confirm dialog, and confirm the next connection attempt
-  to that host re-triggers the TOFU prompt rather than silently trusting it.
-  ·  *Ref:* `feature/settings/ui/.../startdestination/` (whole package),
-  `TaigaMobileNova/feature/settings/ui/.../trustedcerts/TrustedCertificatesScreen.kt`,
-  `feature/subscriptions/ui/.../detail/SubscriptionDetailScreen.kt`'s `DeleteConfirmDialog`
-
-Once 18.2 verifies clean on-device, delete `docs/revisit.md` #1 — the gap it filed is closed.
+fixed inline; see `archive/CHECKLIST-DONE.md` for its eight steps. **M18 is done** too — its two
+steps closed that gap: `TrustedCertStorage` gained `untrust`/`getAllFlow` and a Settings → Trusted
+certificates screen shipped, verified end-to-end on-device against a throwaway TLS front (accept a
+real TOFU prompt, revoke it, confirm the next connection re-prompts); `docs/revisit.md` #1 is
+deleted. See `archive/CHECKLIST-DONE.md` for both steps.
 
 ---
 
