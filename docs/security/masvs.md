@@ -1,7 +1,8 @@
 # MASVS register
 
 Profile: Android (Android-only for now, per `CLAUDE.md`) · self-hosted, user-supplied server ·
-reviewed 2026-08-11, STORAGE, CRYPTOGRAPHY and NETWORK so far (M17, `docs/CHECKLIST.md`).
+reviewed 2026-08-11, STORAGE, CRYPTOGRAPHY, NETWORK and AUTHENTICATION so far (M17,
+`docs/CHECKLIST.md`).
 
 Out of scope: **MASVS-RESILIENCE** — scope decision deferred to 17.8, not made here.
 
@@ -14,6 +15,7 @@ Out of scope: **MASVS-RESILIENCE** — scope decision deferred to 17.8, not made
 | MASVS-NETWORK-1 | Custom TOFU `X509TrustManager` on Android (`CompositeTrustManager`, `core/api/src/androidMain/kotlin/com/grappim/wallosmobile/core/api/CompositeTrustManager.kt`) | Falls through to the platform default trust manager first — TOFU is only reached from the `catch (e: CertificateException)` arm after `defaultTrustManager.checkServerTrusted` has already rejected the chain (`:73-82`). Before offering trust it requires the presented leaf's SAN (or CN fallback) to match the connecting host (`hostMatchesCertificate`, `:98-114`) — a host/cert mismatch throws the original `CertificateException` instead of offering TOFU (`:80`). The pin key is `(host, sha256Fingerprint)` (`TrustedCertStorageImpl.entry`, `core/storage/.../cert/TrustedCertStorage.kt:41`) — per-**certificate**, not per-host: a regenerated cert on an already-trusted host does not match the stored entry and re-triggers TOFU rather than being silently accepted. A pin hit still re-checks validity (`leaf.checkValidity()`, `CompositeTrustManager.kt:69`), so an accepted cert that has since expired is still rejected. All three properties are covered by dedicated host tests in `core/api/src/androidHostTest/kotlin/com/grappim/wallosmobile/core/api/CompositeTrustManagerTest.kt`: `unpinnedCertificateIsLeftToTheDeviceTrustStore` (falls through), `aPinDoesNotFollowTheCertificateToAnotherHost` + `aPinDoesNotCoverASecondCertificateFromTheSameHost` (per-cert, not per-host), `aPinnedCertificateThatHasSinceExpiredIsStillRejected` (validity still enforced). Trust is only ever granted from an explicit user action — `LoginViewModel.onCertTrustConfirm()` (`feature/setup/ui/.../LoginViewModel.kt:290-303`), wired to a modal dialog's Confirm button, is the only call site that reaches `SetupRepositoryImpl.trustCertificate` → `TrustedCertStorage.trust`; nothing calls `trust` automatically. No custom `HostnameVerifier` exists anywhere in the repo (`grep -rn 'HostnameVerifier'` empty), so platform hostname verification is untouched by this override — it replaces certificate-chain trust only, as the class's own doc comment states. One gap: the storage interface has no revoke method and there is no in-app UI to remove an accepted pin — filed as `docs/revisit.md` #1, not fixed in this review (not a live security hole, since a rotated cert on the same host fails the fingerprint match and re-triggers TOFU rather than silently keeping the old trust) | Self-hosted Wallos instances commonly run self-signed certs; this is a bounded TOFU implementation — falls through to the system store, requires a hostname match before ever offering trust, pins per-certificate, still checks expiry, and only ever activates from an explicit user confirmation — not a naive trust-everything override |
 | MASVS-NETWORK-1 | `android:usesCleartextTraffic="true"` (`androidApp/src/main/AndroidManifest.xml:15`), no `android:networkSecurityConfig` scoping it (grep across every manifest in the repo found none) | Applies to every host, not restricted to LAN/dev addresses. `WallosApiClient.post`/`postMultipart` (`core/api/.../WallosApiClient.kt:34-40,46-67`) attach the API key as a form-body parameter (`params.withApiKey(apiKeyStorage.getKey())`) on every call, regardless of scheme — so the key is sent in the clear if `baseUrlProvider.getBaseUrl()` resolves to an `http://` instance, and `BaseUrlProviderImpl` does no scheme upgrade or rewriting. Two things bound it: the key travels in the request **body**, never a URL query parameter, so it never lands in server access logs or browser-style history/referrer headers even over cleartext; and `RedactingLogger` (`core/api/.../RedactingLogger.kt:21`) strips `api_key`/`apiKey`/`password` values from Ktor's own request/response logging before it reaches logcat, so a cleartext capture is limited to the actual network hop, not also duplicated into the device's own logs. `LoginUiState.isCleartextWarningVisible` (`feature/setup/ui/.../LoginUiState.kt:81-83`) warns the user once, at login time, specifically on the password path (`!isApiKeyMode`) — the reasoning documented right there (`:69-70`) is that a POSTed *password* is worse than a pasted API key, so the warning steers toward Path B rather than blocking either. It does not re-warn for the API key itself or for ongoing post-login traffic — the same shape and the same partial-coverage gap Taiga recorded for its own bearer-token case, and not worth a new finding beyond noting the parallel | Self-hosted LAN Wallos instances commonly run plain HTTP; scoping cleartext off entirely would block the only instance this project can test against (`CLAUDE.md`'s local-instance note) |
 | MASVS-NETWORK-2 | No identity pinning for "endpoints under the developer's control" | N/A by construction — the server is user-supplied, not developer-operated (the TOFU mechanism above exists for a different reason: user-approved trust, not a developer-mandated pin) | Per the control's own qualifier |
+| MASVS-AUTH-1 | No server-side login lockout or rate limiting — `LoginThrottle` (`feature/setup/data/.../LoginThrottle.kt`) is a client-side-only exponential backoff (2 free attempts, then doubling to an 8s cap — `waitAfter`, `:58-62`) | Confirmed from the PHP that Wallos itself has neither lockout nor rate limiting on `login.php` or `totp.php` (`LoginThrottle.kt:9-13`'s own doc comment). The counter lives only as long as the `@Factory`-scoped `WebLoginApi`/`LoginThrottle` instance — one login screen (`SetupRepositoryImpl.kt:41`'s doc comment) — so it resets on process death or a fresh screen, and it is trivially bypassed by anything that calls Wallos's own `login.php`/`totp.php` directly rather than through this app. It only grows on a **refused** attempt, never a transport failure (`SetupRepositoryImpl.refused`, `:113-116`), so a flaky network is never punished | It is the only mitigation available to a client for a server that enforces none of its own, not a real access control — a courtesy against this app itself being turned into a brute-force tool against the user's own instance, not a guarantee against a brute-force attempt made any other way |
 
 ## Open
 
@@ -61,3 +63,37 @@ Out of scope: **MASVS-RESILIENCE** — scope decision deferred to 17.8, not made
   gate for this key to bind to. The one thing source can't settle — the actual generated key size,
   since `KeyGenParameterSpec` never calls `.setKeySize()` — is in the Needs-a-device table above
   rather than asserted here.
+- **Authentication (MASVS-AUTH-1)**: the login bridge's credential handling, checked file:line
+  against `WebLoginApi.kt`/`ApiKeyScraper.kt`/`LoginThrottle.kt`/`SetupRepositoryImpl.kt`. The
+  password is held only in `LoginUiState.password`, a plain in-memory `MutableStateFlow` field
+  (`LoginViewModel.kt:46-59`) — not `SavedStateHandle`-backed, since login is explicitly not a
+  route (`CLAUDE.md`'s "Not everything on screen is a route") and carries none of that mechanism's
+  JSON-string persistence. It reaches the network exactly once, as a Ktor `submitForm` body
+  parameter (`WebLoginApiImpl.login`, `WebLoginApi.kt:76-85`), over the same trust-aware
+  `HttpClient` engine the rest of the app uses (`NetworkModule.provideWebSessionHttpClient`,
+  `NetworkModule.kt:68-88`) with `RedactingLogger` stripping `password=`/`api_key=`/`apiKey=` from
+  Ktor's own request logging before it reaches logcat (`RedactingLogger.kt:21`) — confirmed by the
+  same repo-wide credential-logging grep 17.2 already ran, which found no call site interpolating
+  the password value. `password` is a local parameter throughout — `login()` never assigns it to a
+  field, and nothing in `WebLoginApiImpl`/`SetupRepositoryImpl` persists it to DataStore, Room, or
+  a log call. The UI state field is actively cleared once it's no longer needed: on a successful
+  connect (`LoginViewModel.onConnected`, `:256-258`) and the moment a TOTP challenge supersedes it
+  (`onTotpRequired`, `:242-244`, whose own comment states why — "the password has already been
+  accepted ... so it goes now"); it is deliberately *not* cleared on an `InvalidCredentials` refusal,
+  since the user is expected to see and correct what they typed — that's the field staying on
+  screen for editing, not a persistence gap. **Scrape target is always the user's own configured
+  server**: `WebLoginApiImpl`'s calls resolve through `BaseUrlProviderImpl.getBaseUrl()`
+  (`BaseUrlProviderImpl.kt:15-18`), which reads `ServerUrlStorage.serverUrl` — the exact value
+  `SetupRepositoryImpl.probePasswordLogin`/`loginWithPassword` persist via
+  `serverUrlStorage.saveServerUrl(serverUrl.trim())` *before* issuing any web call
+  (`SetupRepositoryImpl.kt:49`, `:62`), so `login.php`/`totp.php`/`profile.php` are only ever
+  requested against the host the user just typed, never a fixed or third-party one. No `WebView`
+  anywhere in the repo (re-confirmed empty, same grep as the M17 preamble), so this is a plain
+  GET/POST + regex scrape (`ApiKeyScraper.kt:14-17`), not an embedded browser — RFC 8252 (which
+  governs a third-party login rendered *inside* the app) doesn't apply to a bridge that only ever
+  talks to the user's own server. **MASVS-AUTH-2/3 are N/A** — re-confirmed
+  `grep -rln 'biometric\|Biometric\|BiometricPrompt'` empty across the whole repo (same result the
+  M17 preamble already stated); there is no local-auth gate and no "sensitive operation" surface
+  beyond the one credential this app has, checked once at connect time. No Open findings; see the
+  Accepted-deviations table above for the one real design tradeoff (`LoginThrottle`'s client-only
+  backoff).

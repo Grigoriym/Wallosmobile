@@ -8,8 +8,15 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `3/8`
-**Current step:** M17, step 17.4. 17.3 (Network) closed 2026-08-11: `CompositeTrustManager`
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `4/8`
+**Current step:** M17, step 17.5. 17.4 (Authentication) closed 2026-08-11: login bridge reviewed
+clean — password lives only in an in-memory `MutableStateFlow`, never persisted or logged, sent
+once as a form-body param over the same `RedactingLogger`-covered engine; scrape target confirmed
+always the user's own configured host (`BaseUrlProviderImpl` reads the same `ServerUrlStorage`
+value `SetupRepositoryImpl` saves before any web call); no `WebView` anywhere, so RFC 8252 doesn't
+apply; AUTH-2/3 re-confirmed N/A (no biometric anywhere). One design tradeoff recorded Accepted:
+`LoginThrottle`'s backoff is client-side only, since Wallos itself enforces no lockout. No code
+changed. 17.3 (Network) closed 2026-08-11: `CompositeTrustManager`
 reviewed against all three `kmp-checks.md` TOFU questions — falls through to the platform default,
 requires a hostname match before ever offering trust, pins per-`(host, fingerprint)` not per-host,
 still checks expiry on a pin hit, only activates from an explicit user Confirm tap — all backed by
@@ -279,13 +286,25 @@ Resilience last, a scope decision rather than an audit.
   `docs/revisit.md` #1 (new file), not fixed here since it's a new storage method plus a UI screen,
   not a small isolated change. No code changed, no `Gate-change:` needed.
 
-- [ ] **17.4 — Authentication.** Verify the login-bridge shape from this preamble with file:line
+- [x] **17.4 — Authentication.** Verify the login-bridge shape from this preamble with file:line
   (`WebLoginApi.kt`/`ApiKeyScraper.kt`/`LoginThrottle.kt`) — confirm the password never persists or
   logs beyond the POST call, and that the scrape target is always the user's own configured server.
   Confirm MASVS-AUTH-2/3 (local auth, step-up) are N/A — no biometric anywhere
   (`grep -rln 'biometric\|Biometric\|BiometricPrompt'` already confirmed empty during this
   milestone's scoping; re-confirm rather than trust the preamble).
   *Verify:* register gains an Auth section.
+  Note: clean bill, no code changed. Password lives only in `LoginUiState.password`
+  (`MutableStateFlow`, not `SavedStateHandle` — login isn't a route), reaches the network exactly
+  once as a form-body param on the same `RedactingLogger`-covered engine, and is cleared on both
+  success and the TOTP handoff (not on a refused attempt, which is the field staying visible for
+  the user to correct, not a persistence gap). Scrape target confirmed always the user's own
+  configured host: `BaseUrlProviderImpl` reads `ServerUrlStorage.serverUrl`, which
+  `SetupRepositoryImpl` saves from the typed URL *before* any web call. No `WebView` anywhere
+  (re-confirmed empty), so RFC 8252 doesn't apply. AUTH-2/3 re-confirmed N/A (biometric grep still
+  empty). One real, bounded design tradeoff recorded as Accepted rather than Open: `LoginThrottle`
+  is a client-side-only backoff — Wallos itself has no server-side lockout, and the counter resets
+  on process death and is bypassable by calling the API directly, so it's a courtesy against this
+  app being turned into a brute-force tool, not an access control. No `Gate-change:` needed.
 
 - [ ] **17.5 — Platform.** Confirm the manifest's IPC surface (only `MainActivity` exported, plain
   `MAIN`/`LAUNCHER`, no deep link); check `LoginScreen.kt`'s password field for a reveal toggle and
