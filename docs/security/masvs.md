@@ -1,10 +1,21 @@
 # MASVS register
 
 Profile: Android (Android-only for now, per `CLAUDE.md`) · self-hosted, user-supplied server ·
-reviewed 2026-08-11, STORAGE, CRYPTOGRAPHY, NETWORK, AUTHENTICATION, PLATFORM, CODE and PRIVACY so
-far (M17, `docs/CHECKLIST.md`).
+reviewed 2026-08-11, all eight MASVS categories (M17, `docs/CHECKLIST.md`) — STORAGE, CRYPTOGRAPHY,
+NETWORK, AUTHENTICATION, PLATFORM, CODE and PRIVACY reviewed in full; RESILIENCE excluded, reason
+below.
 
-Out of scope: **MASVS-RESILIENCE** — scope decision deferred to 17.8, not made here.
+Out of scope: **MASVS-RESILIENCE** — anti-tamper/anti-reverse-engineering protects a vendor's
+assets (an API key baked into the client, business logic worth obfuscating) against the device
+owner. WallosMobile is a FOSS client for a server the *same* user self-hosts and owns — there is no
+vendor asset here for the device owner to be the adversary of, and the app embeds no secret of its
+own for RESILIENCE to protect: confirmed by grep, no `client_secret`/`CLIENT_SECRET`/`client_id`
+anywhere in source, `build-logic`, or `gradle/libs.versions.toml`, and no OAuth flow exists in the
+app at all (`WebLoginApi.kt`/`ApiKeyScraper.kt` drive a plain POST/GET + regex scrape against the
+user's own server, not a third-party OAuth exchange with a registered client secret) — an even
+faster N/A than TaigaMobileNova's own task 7 found, since that app at least had an OAuth client id
+to check against. Reproducible builds are the property that would actually matter for a FOSS
+client's supply-chain trust, and MASVS does not cover them.
 
 ## Accepted deviations
 
