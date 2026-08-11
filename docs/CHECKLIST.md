@@ -8,8 +8,12 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `0/8`
-**Current step:** M17, step 17.1. M16 done; the "TaigaMobileNova recently did a security review"
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `1/8`
+**Current step:** M17, step 17.2. 17.1 (Storage) closed 2026-08-11: `docs/security/masvs.md`
+created, both leads from the milestone preamble resolved as **Accepted deviations**, not Open
+findings — the `allowBackup`/no-extraction-rules gap is bounded by the cipher already in place
+(ciphertext-only file, Keystore key doesn't travel with a backup), and `ServerUrlStorageImpl` holds
+only a bare URL. No code changed. M16 done; the "TaigaMobileNova recently did a security review"
 "To review" entry (filed 2026-08-10) was investigated 2026-08-11 and decomposed into M17 — see the
 milestone's own preamble below for what that investigation found (short version: Taiga's MASVS
 register mechanics apply directly and WallosMobile starts from a better position on Storage/Crypto/
@@ -211,13 +215,20 @@ next for the trust-manager read; Auth before Platform since the login bridge is 
 PLATFORM concern on the same code; Code and Privacy after, being smaller and more mechanical;
 Resilience last, a scope decision rather than an audit.
 
-- [ ] **17.1 — Storage.** Confirm the cipher-before-DataStore path for the API key, decide whether
+- [x] **17.1 — Storage.** Confirm the cipher-before-DataStore path for the API key, decide whether
   the `allowBackup`/no-extraction-rules gap above is an Open finding or an Accepted deviation (state
   the actual bound, don't just copy this preamble's guess), confirm `ServerUrlStorageImpl` holds
   only a bare URL (no embedded credential, matching Taiga's own MASVS-STORAGE-2 row for the same
   shape), and grep for any log call site near auth/key handling.
   *Verify:* `docs/security/masvs.md` exists with a Storage section; both leads above resolved one
   way or the other.
+  Note: both leads resolved as **Accepted**, not Open — unlike Taiga, WallosMobile's Keystore cipher
+  already existed *before* this review (17.2 confirms it, not designs it), so the `allowBackup` gap
+  never carried a plaintext credential the way Taiga's pre-fix state did; excluding the shared
+  DataStore file from backup would cost real UX (losing theme/start-destination/server URL on every
+  restore) for a property the cipher already provides. One "Needs a device" row added for hardware-
+  backing and real restore-onto-second-device confirmation. No code changed, no `Gate-change:`
+  needed.
 
 - [ ] **17.2 — Cryptography.** Review `KeystoreSecretCipher`'s actual `KeyGenParameterSpec` (block
   mode, IV reuse across encryptions, padding) against `kmp-checks.md`'s CRYPTO checks; confirm no
