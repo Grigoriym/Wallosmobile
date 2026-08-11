@@ -30,6 +30,11 @@ line, then tick the box, add a one-line `Note:` under the step if anything devia
 and update the `Progress` / `Current step` header. Don't start a step whose dependencies aren't
 ticked, and don't expand scope beyond the step.
 
+**Answering a question a not-yet-started step will ask is not the same as asking for that step to
+run.** If the user states a preference or decision a later step needs (e.g. ruling on `FLAG_SECURE`
+before 17.5 had been started), record it for when that step runs — don't treat it as the "do step
+N" trigger and launch the step immediately. Corrected 2026-08-11.
+
 **Then close the step out — every time, without being asked:**
 
 1. Run the **`/finalize` skill**. A step almost always teaches something the plan didn't know;
