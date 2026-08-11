@@ -8,26 +8,16 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done**
-**Current step:** M16 done. 16.5 added the `AppUpdateChecker` seam (interface + `UpdateState` in
-`androidApp/src/main/.../di/`, no KMP module — nothing outside `androidApp` needs it) with the same
-gplay/fdroid flavor-swap trick 16.3 used for `CrashReporter`, and a real Compose snackbar surface
-(`SnackbarHostController`, mirroring `TopBarController`) instead of Taiga's plain View `Snackbar` —
-WallosMobile had no snackbar infra before this step. Because `composeApp` cannot depend upward on
-`androidApp`, `AppUpdateChecker`/`UpdateState` never cross into `composeApp` at all: `MainActivity`
-owns `SnackbarHostController` directly (a plain field, not `remember`ed — `SnackbarHostState` has
-no composition dependency) and collects `appUpdateChecker.updateState` in `lifecycleScope`, calling
-`.show()` on it straight from there — closer to Taiga's own imperative structure than a first pass
-that tried threading a narrowed `Flow<Unit>` signal through `WallosAppContent` (reverted same
-session after review: unnecessary indirection once `SnackbarHostController` itself, a plain
-`uikit` type, can just be constructed in `androidApp` and passed down instead). So unlike
-`CrashReporter`, `AppUpdateChecker` never needed a `KoinGraphTest` `EXTERNALLY_SUPPLIED` entry —
-nothing below `androidApp` ever asks Koin for it.
-With M16 closed, `gplay` has crash reporting (opt-out toggle in Settings, verified delivering to a
-real Firebase project) and a Play In-App Update prompt, both structurally absent from `fdroid`; see
-`archive/CHECKLIST-DONE.md` for all five steps' full detail, including 16.2's CI restore-step
-`mkdir -p` fix and 16.4's `KoinGraphTest` `EXTERNALLY_SUPPLIED` gotcha.
-Next session should pick a new milestone — nothing in M16 carries forward as a dependency.
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `0/8`
+**Current step:** M17, step 17.1. M16 done; the "TaigaMobileNova recently did a security review"
+"To review" entry (filed 2026-08-10) was investigated 2026-08-11 and decomposed into M17 — see the
+milestone's own preamble below for what that investigation found (short version: Taiga's MASVS
+register mechanics apply directly and WallosMobile starts from a better position on Storage/Crypto/
+Network than Taiga did; Taiga's *testing* overhaul does not carry over, since its whole Compose UI
+test sweep runs via a `jvmTest` source set WallosMobile doesn't have — no new testing milestone).
+Previous **Current step** note on 16.5 moved to `archive/CHECKLIST-DONE.md` with the rest of M16
+(M16 shipped `gplay`-only crash reporting and a Play In-App Update prompt; see the archive for all
+five steps' full detail).
 
 ---
 
@@ -123,6 +113,157 @@ its four steps. **M16 is done** too — its five steps ported Taiga's Firebase C
 user-facing opt-out) and Play In-App Update to the `gplay` flavor only, structurally absent from
 `fdroid`; see `archive/CHECKLIST-DONE.md` for its five steps, including 16.5's Compose snackbar
 shell surface (`SnackbarHostController`, mirroring `TopBarController`) that Taiga itself never had.
+
+---
+
+## M17 — MASVS security review
+
+Decomposed 2026-08-11 from the "To review" entry filed 2026-08-10 ("TaigaMobileNova recently did a
+security review and a testing overhaul"). That entry asked two questions: does WallosMobile need a
+MASVS review of its own, and does Taiga's testing overhaul teach anything new. Both were answered
+before writing this milestone, not left for step 17.1 to discover:
+
+- **Security: yes, a real gap, worth the same eight-category shape Taiga used**
+  (`TaigaMobileNova/docs/security/masvs-review-plan.md`). `docs/security/masvs.md` doesn't exist
+  here yet, and the `masvs-review` skill (`~/.claude/skills/masvs-review`) is already available —
+  same skill, same mechanics, one MASVS v2 category per session, register-first. **WallosMobile
+  starts from a materially better position than Taiga did on the categories most likely to matter,
+  confirmed by reading the source, not assumed from the parallel:**
+  - **Storage/Crypto**: `core/storage/.../SecretCipher.kt` + `KeystoreSecretCipher.kt` already
+    encrypt the API key (AES/GCM, Keystore-resident key, fresh IV per encryption, `base64(iv ||
+    ciphertext)`) before `ApiKeyStorageImpl` writes it to DataStore — Taiga had *no*
+    application-level cryptography at all when its own task 1 started and had to design this from
+    scratch. 17.2 is mostly confirmation, not implementation.
+  - **Network**: `core/api/.../CompositeTrustManager.kt` already exists — the same TOFU
+    trust-manager pattern Taiga's own task 2 reviewed, ported per this repo's reference-project
+    convention (`CLAUDE.md`'s TaigaMobileNova row). 17.3 runs the same three TOFU questions
+    `kmp-checks.md` names against *this* copy rather than assuming Taiga's review still describes
+    it — the bound could have drifted since the port.
+  - **Auth/Platform — a different shape than Taiga's, not the same finding.** WallosMobile's
+    username/password onboarding (plan §1.1, `CLAUDE.md`'s "Wallos login bridge") drives a plain
+    Ktor POST/GET against `login.php`/`profile.php` and regex-scrapes the key out of the HTML
+    response (`feature/setup/data/.../WebLoginApi.kt`, `ApiKeyScraper.kt`) — confirmed **no
+    `WebView` anywhere in the repo** (`grep -rln 'WebView\|javaScriptEnabled\|addJavascriptInterface'`
+    is empty). Taiga's AUTH-1/PLATFORM-2 finding was specifically about an embedded WebView
+    rendering a third-party login page; that shape doesn't exist here. What *does* need checking,
+    per `kmp-checks.md`'s own "scraping a credential by driving a web login" note: is the password
+    ever stored or logged beyond the POST call, and is the scraped page fixed to the user's own
+    configured host (it structurally is — there's only one server URL in play — but 17.4 confirms
+    from source rather than asserting it).
+  - **Code**: `renovate.json` already has `"osvVulnerabilityAlerts": true` — the exact fix Taiga's
+    own task 5 had to add. 17.6 confirms it's still there and checks the other CODE controls
+    (`minSdk = 24`, JSON deserialization tolerance, `LocalUriHandler` call sites — `AboutScreen.kt`
+    has two, both fixed strings from `RString`, not user/server-supplied, unlike Taiga's
+    custom-field-URL finding).
+  - **Privacy**: crash-reporting disclosure infra already shipped in M16
+    (`PRIVACY_POLICY_GPLAY.md`, the Settings opt-out toggle), and `ApiKeyStorage.clear()` already
+    drops both the key and the cache in one place (`CLAUDE.md`'s storage Non-negotiable) — the
+    exact shape Taiga's MASVS-PRIVACY-4 asked for. 17.7 is confirming an already-stated design
+    decision holds in the register, not designing one.
+  - **What hasn't been checked at all**: `allowBackup="true"` on the main manifest with **no**
+    `dataExtractionRules`/`fullBackupContent` anywhere in the repo (confirmed by grep — unlike
+    Taiga, there's no debug-vs-release inversion here since the debug manifest only touches the
+    app label, but the release side still has no backup-exclusion XML at all). Bounded somewhat by
+    the cipher already handling "ciphertext restored onto another device" as a decrypt failure
+    (`KeystoreSecretCipher`'s doc comment), but 17.1 should confirm that bound holds rather than
+    assume it from this note. `FLAG_SECURE` is also absent (`grep -rn 'FLAG_SECURE'` empty) and
+    `LoginScreen.kt` has a password field — 17.5 checks whether it has a reveal toggle the way
+    Taiga's did.
+  - **Pre-v1 changes what CRYPTO/STORAGE fixes cost.** Taiga is live, so its task 1 had to design a
+    plaintext→ciphertext migration for already-installed users. WallosMobile isn't
+    (`CLAUDE.md`'s pre-v1 no-backcompat rule, still in force per the "To review" entry above) — if
+    17.1/17.2 find something to change about the cipher scheme itself, no migration path is needed,
+    just a changed-and-say-so per the standing rule.
+
+- **Testing: no new milestone — Taiga's specific technique doesn't transfer.** Taiga's entire
+  Compose UI test sweep (`docs/testing/improvement-plan.md` tasks 10–21,
+  `compose-ui-test-spike.md`) runs `runComposeUiTest` inside a **`jvmTest`** source set, backed by
+  `compose.dependencies.desktop.uiTestJUnit4`/`currentOs` (Compose Desktop test artifacts).
+  WallosMobile declares **no `jvm()` target** (`KmpLibraryConventionPlugin.kt`'s own comment on why
+  `androidHostTest` exists instead — "There is no `jvmTest`" is already stated in `CLAUDE.md`'s
+  Build commands), so that whole mechanism has nothing to attach to. The only Compose-testing path
+  available here is the instrumented `androidDeviceTest` route the checklist's own "To review"
+  FAB/scroll-jank entries already point at (3.3 paid that setup cost) — slower per test and outside
+  CI, unlike Taiga's JVM-hosted approach. Kover-coverage-heuristics and the rest of Taiga's survey
+  don't surface any new reasoning to reopen the settled no-Kover-floor decision either. Nothing to
+  decompose here; the existing "Compose UI test setup" entry under **To review** stands as-is.
+
+**How to run a step:** invoke the `masvs-review` skill (`~/.claude/skills/masvs-review`), scoped to
+the one MASVS v2 category the step names — don't let it default to a whole-app pass. It reads
+`docs/security/masvs.md` first (17.1 creates it from the skill's own template) and separates
+verified-statically / needs-a-device-or-APK / not-checked, per the skill's own Step 3. Any Open
+finding worth fixing now: fix it if small and isolated (per this repo's own gate rules — check
+`ktlintCheck`/`detekt` still pass, and whether the change touches a tripwire path needing a
+`Gate-change:` line); if bigger, write it into a durable place (this repo has no `docs/revisit.md`
+yet — start one, matching Taiga's shape, if a step needs to defer a finding rather than fix it).
+`Verify:` for every step below is the same shape: `docs/security/masvs.md` gained the named
+category's section (Accepted/Open/Needs-a-device rows), and any code changed passes
+`./gradlew detekt ktlintCheck`.
+
+Order follows Taiga's own rationale (`masvs-review-plan.md`'s "Order rationale"): Storage first
+since the stored credential is the asset the skill's framing centers on and scoping above already
+found where it lives; Crypto immediately after since it's the same question one layer down; Network
+next for the trust-manager read; Auth before Platform since the login bridge is both an AUTH and a
+PLATFORM concern on the same code; Code and Privacy after, being smaller and more mechanical;
+Resilience last, a scope decision rather than an audit.
+
+- [ ] **17.1 — Storage.** Confirm the cipher-before-DataStore path for the API key, decide whether
+  the `allowBackup`/no-extraction-rules gap above is an Open finding or an Accepted deviation (state
+  the actual bound, don't just copy this preamble's guess), confirm `ServerUrlStorageImpl` holds
+  only a bare URL (no embedded credential, matching Taiga's own MASVS-STORAGE-2 row for the same
+  shape), and grep for any log call site near auth/key handling.
+  *Verify:* `docs/security/masvs.md` exists with a Storage section; both leads above resolved one
+  way or the other.
+
+- [ ] **17.2 — Cryptography.** Review `KeystoreSecretCipher`'s actual `KeyGenParameterSpec` (block
+  mode, IV reuse across encryptions, padding) against `kmp-checks.md`'s CRYPTO checks; confirm no
+  other key material exists in source/build config/version catalogue.
+  *Verify:* register gains a Cryptography section — concrete findings, or an explicit "reviewed,
+  bounded, here's why" note.
+
+- [ ] **17.3 — Network.** Run the three TOFU questions from `kmp-checks.md` against
+  `CompositeTrustManager` as it stands today (don't assume Taiga's own review of the pre-port
+  version still describes it); record the `usesCleartextTraffic="true"` deviation with its actual
+  bound (is the API key ever sent in the clear — check `AuthHeaderPlugin`-equivalent call sites).
+  *Verify:* register gains a Network section covering both.
+
+- [ ] **17.4 — Authentication.** Verify the login-bridge shape from this preamble with file:line
+  (`WebLoginApi.kt`/`ApiKeyScraper.kt`/`LoginThrottle.kt`) — confirm the password never persists or
+  logs beyond the POST call, and that the scrape target is always the user's own configured server.
+  Confirm MASVS-AUTH-2/3 (local auth, step-up) are N/A — no biometric anywhere
+  (`grep -rln 'biometric\|Biometric\|BiometricPrompt'` already confirmed empty during this
+  milestone's scoping; re-confirm rather than trust the preamble).
+  *Verify:* register gains an Auth section.
+
+- [ ] **17.5 — Platform.** Confirm the manifest's IPC surface (only `MainActivity` exported, plain
+  `MAIN`/`LAUNCHER`, no deep link); check `LoginScreen.kt`'s password field for a reveal toggle and
+  decide whether the `FLAG_SECURE` absence is a finding or an accepted product tradeoff (same
+  question Taiga's maintainer answered for itself — don't assume the same answer applies here
+  without asking).
+  *Verify:* register gains a Platform section.
+
+- [ ] **17.6 — Code quality.** Confirm `minSdk = 24`'s rationale (or lack of one, same as Taiga's
+  finding) is stated plainly; confirm `renovate.json`'s `osvVulnerabilityAlerts` is still set and
+  check `gh api repos/<owner>/<repo>/vulnerability-alerts` for GitHub's native alert status; confirm
+  `WallosEnvelopeParser`/the app's JSON config tolerates unknown/null server fields; check both
+  `LocalUriHandler.openUri()` call sites in `AboutScreen.kt`.
+  *Verify:* register gains a Code section; the dependabot/renovate question has a stated answer,
+  not a guess.
+
+- [ ] **17.7 — Privacy.** Confirm both flavors' crash-reporting posture per M16 (Gplay real,
+  fdroid no-op) is disclosed correctly in the register; confirm `ApiKeyStorage.clear()`'s
+  cache-plus-key eviction actually satisfies MASVS-PRIVACY-4 by reading its three call sites
+  (disconnect, both login paths); diff declared permissions (`INTERNET`,
+  `ACCESS_NETWORK_STATE`) against actual call sites.
+  *Verify:* register gains a Privacy section.
+
+- [ ] **17.8 — Resilience (scope decision only).** Confirm the self-hosted-FOSS-client reasoning
+  that makes MASVS-RESILIENCE out of scope actually holds for WallosMobile specifically — check for
+  any embedded secret the way Taiga's task 7 did (`grep -rln 'client_secret\|CLIENT_SECRET'` and
+  equivalents; WallosMobile has no OAuth flow at all, so this should be an even faster N/A than
+  Taiga's). Write the exclusion into the register's header. No code review beyond that — this closes
+  the milestone once done.
+  *Verify:* register header states the Resilience exclusion with its reason.
 
 ---
 
@@ -294,17 +435,17 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   `AuthenticatedMainScreen.kt`) had no correct IME insets to push content against on that API
   level — API 36's own insets dispatch masks the gap, which is why the emulator never reproduced
   it. Fixed with a single `android:windowSoftInputMode="adjustResize"` on the activity.
-- **TaigaMobileNova recently did a security review and a testing overhaul — worth investigating
-  whether WallosMobile needs the same, not yet looked into.** Filed 2026-08-10 by the user, flagged
-  for a future session rather than investigated now. `/home/gregory/proj/grappim/TaigaMobileNova/docs/security/`
-  holds `masvs.md` (an OWASP MASVS compliance register) and `masvs-review-plan.md`, plus two
-  reference crypto studies (Aegis, KeePassDX) read while building it — directly relevant since this
-  repo already has the shared `masvs-review` skill but no `docs/security/masvs.md` of its own yet.
-  `/home/gregory/proj/grappim/TaigaMobileNova/docs/testing/` holds `improvement-plan.md`,
-  `integration-tests-plan.md`, `compose-ui-test-spike.md`, `kover-coverage-heuristics.md`,
-  `survey.md`, `deferred.md`, and two `kover-*.py` scripts — worth checking against this repo's own
-  **Settled decisions** table above (no Kover floor, no Robolectric) in case Taiga's overhaul found
-  new reasoning that should reopen either, and against the still-open "Compose UI test setup"
-  entry above, since `compose-ui-test-spike.md` may already be exactly that precedent. Read both
-  directories before deciding whether either becomes a WallosMobile milestone.
+- **TaigaMobileNova recently did a security review and a testing overhaul — investigated
+  2026-08-11, left this list to become M17 on the security half.** Filed 2026-08-10 by the user.
+  Read `TaigaMobileNova/docs/security/` (`masvs.md`, `masvs-review-plan.md`) and `docs/testing/`
+  (`improvement-plan.md`, `survey.md`, `compose-ui-test-spike.md`) in full, then checked both
+  against WallosMobile's actual source rather than assuming the parallel holds. **Security: real
+  gap, decomposed into M17** (see its preamble above for the full comparison — short version:
+  WallosMobile already has a Keystore-backed cipher over the API key and a ported
+  `CompositeTrustManager`, both further along than Taiga's own starting point, but Network/Auth/
+  Platform/Code/Privacy/Resilience have never been reviewed at all). **Testing: no new milestone —
+  Taiga's Compose UI test sweep runs via a `jvmTest` source set (Compose Desktop test artifacts),
+  and WallosMobile declares no `jvm()` target, so the mechanism doesn't transfer**; the existing
+  "Compose UI test setup" entry above and the settled no-Kover-floor decision are both unaffected —
+  Taiga's survey/heuristics work didn't surface anything that reopens either.
 
