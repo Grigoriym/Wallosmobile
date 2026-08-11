@@ -8,8 +8,13 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `4/8`
-**Current step:** M17, step 17.5. 17.4 (Authentication) closed 2026-08-11: login bridge reviewed
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `5/8`
+**Current step:** M17, step 17.6. 17.5 (Platform) closed 2026-08-11: IPC surface is `MainActivity`
+alone (only component in either manifest, plain `MAIN`/`LAUNCHER`, no deep link); password field
+has a working Show/Hide toggle, hidden by default. `FLAG_SECURE` decided with the user directly
+rather than assumed: they don't want it — same reasoning as Taiga's maintainer, since it would
+block screenshots app-wide on a single-`Activity` app they use themselves, not just on login —
+recorded Accepted. No code changed. 17.4 (Authentication) closed 2026-08-11: login bridge reviewed
 clean — password lives only in an in-memory `MutableStateFlow`, never persisted or logged, sent
 once as a form-body param over the same `RedactingLogger`-covered engine; scrape target confirmed
 always the user's own configured host (`BaseUrlProviderImpl` reads the same `ServerUrlStorage`
@@ -306,12 +311,18 @@ Resilience last, a scope decision rather than an audit.
   on process death and is bypassable by calling the API directly, so it's a courtesy against this
   app being turned into a brute-force tool, not an access control. No `Gate-change:` needed.
 
-- [ ] **17.5 — Platform.** Confirm the manifest's IPC surface (only `MainActivity` exported, plain
+- [x] **17.5 — Platform.** Confirm the manifest's IPC surface (only `MainActivity` exported, plain
   `MAIN`/`LAUNCHER`, no deep link); check `LoginScreen.kt`'s password field for a reveal toggle and
   decide whether the `FLAG_SECURE` absence is a finding or an accepted product tradeoff (same
   question Taiga's maintainer answered for itself — don't assume the same answer applies here
   without asking).
   *Verify:* register gains a Platform section.
+  Note: clean bill, no code changed. IPC surface is `MainActivity` alone — no other component in
+  either manifest, plain `MAIN`/`LAUNCHER`, no deep-link `<data>`. Password field has a working
+  Show/Hide toggle, hidden by default. Asked the user about `FLAG_SECURE` rather than assuming:
+  they don't want it, for the same reason Taiga's maintainer declined it — it would block
+  screenshots app-wide, not just on login, and they use their own app. Recorded as Accepted, same
+  shape and same reasoning as Taiga's row for this control.
 
 - [ ] **17.6 — Code quality.** Confirm `minSdk = 24`'s rationale (or lack of one, same as Taiga's
   finding) is stated plainly; confirm `renovate.json`'s `osvVulnerabilityAlerts` is still set and
