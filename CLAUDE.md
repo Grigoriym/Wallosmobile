@@ -677,3 +677,11 @@ Add a one-line, past-tense entry to `docs/frictions.md` before moving on — cre
 isn't there. At the end of a session, read the file back and report what was added, with a count,
 even when the count is zero. The same friction three times is a fix, not a fourth line — raise it
 in `/finalize`.
+
+### A real finding that isn't small enough to fix inline goes in `docs/revisit.md`
+
+Started 2026-08-11 (17.3, MASVS-NETWORK), matching TaigaMobileNova's `docs/revisit.md` shape:
+numbered `## N. Title` entries, deleted once actually fixed rather than accumulated. Use it when a
+review or a step turns up a genuine gap that needs more than the step's own scope to close (a new
+storage method plus a screen, not a one-line change) — write the entry, don't just mention it in a
+checklist `Note:` and let it evaporate.

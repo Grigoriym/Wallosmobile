@@ -8,8 +8,17 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `2/8`
-**Current step:** M17, step 17.3. 17.2 (Cryptography) closed 2026-08-11: `KeystoreSecretCipher`'s
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `3/8`
+**Current step:** M17, step 17.4. 17.3 (Network) closed 2026-08-11: `CompositeTrustManager`
+reviewed against all three `kmp-checks.md` TOFU questions — falls through to the platform default,
+requires a hostname match before ever offering trust, pins per-`(host, fingerprint)` not per-host,
+still checks expiry on a pin hit, only activates from an explicit user Confirm tap — all backed by
+existing `CompositeTrustManagerTest` cases, no gap. `usesCleartextTraffic="true"` recorded as
+Accepted: the API key does cross an `http://` instance in the clear (form-body, never a URL param),
+bounded by `RedactingLogger` and the existing login-screen cleartext warning. One real, non-security
+gap found: no in-app way to revoke an accepted TOFU pin — filed `docs/revisit.md` #1 (new file), not
+fixed (needs a new storage method + UI screen, not small/isolated). No code changed. 17.2
+(Cryptography) closed 2026-08-11: `KeystoreSecretCipher`'s
 `KeyGenParameterSpec` reviewed clean — AES/GCM, no padding, 128-bit tag, IV reuse not just
 defaulted-away but platform-*enforced* against (no `setRandomizedEncryptionRequired(false)`, no
 IV ever supplied by the code), key never exported, no key/secret literal anywhere in source/
@@ -252,11 +261,23 @@ Resilience last, a scope decision rather than an audit.
   code — added as a second row to the existing Needs-a-device table alongside the hardware-backing
   one from 17.1, rather than asserted as 256-bit from Android's documented default.
 
-- [ ] **17.3 — Network.** Run the three TOFU questions from `kmp-checks.md` against
+- [x] **17.3 — Network.** Run the three TOFU questions from `kmp-checks.md` against
   `CompositeTrustManager` as it stands today (don't assume Taiga's own review of the pre-port
   version still describes it); record the `usesCleartextTraffic="true"` deviation with its actual
   bound (is the API key ever sent in the clear — check `AuthHeaderPlugin`-equivalent call sites).
   *Verify:* register gains a Network section covering both.
+  Note: both Accepted, no Open findings. TOFU trust manager: falls through to the platform default
+  before ever offering trust, requires a hostname/SAN match, pins per-`(host, fingerprint)` not
+  per-host, still checks expiry on a pin hit, and only ever activates from the user's explicit
+  Confirm tap in `LoginViewModel.onCertTrustConfirm()` — all three `kmp-checks.md` TOFU questions
+  answered by existing `CompositeTrustManagerTest` cases, no gap found. Cleartext: the API key
+  (form-body, never a URL param) does travel unencrypted on an `http://` instance since there's no
+  `networkSecurityConfig` scoping it, bounded by `RedactingLogger` keeping it out of logcat and by
+  the existing `LoginUiState` cleartext warning on the password path — accepted, same reasoning as
+  the STORAGE `allowBackup` row. One real gap found, not a live security hole: no way to revoke an
+  accepted TOFU pin from inside the app (no `untrust` method, no settings screen) — filed as
+  `docs/revisit.md` #1 (new file), not fixed here since it's a new storage method plus a UI screen,
+  not a small isolated change. No code changed, no `Gate-change:` needed.
 
 - [ ] **17.4 — Authentication.** Verify the login-bridge shape from this preamble with file:line
   (`WebLoginApi.kt`/`ApiKeyScraper.kt`/`LoginThrottle.kt`) — confirm the password never persists or
