@@ -271,3 +271,66 @@ a deferred, separate milestone decision rather than something this step attempte
 **Net effect for the user**: a real, verified reduction in one confirmed cause of scroll jank,
 landed as a small, low-risk change — but not a claim that the list now scrolls smoothly, which
 this session cannot confirm from this AVD alone.
+
+## 2026-08-12 addendum — real hardware, answering the open question
+
+This doc's own open question ("whether the residual jank is a real app cost or a
+`swiftshader_indirect`-emulator artifact") and 13.2's own honest gap ("only real hardware...
+can settle whether the profile actually helps a real user's felt experience") both needed
+physical hardware this project never had connected before. The user connected one
+(`SM-A920F`, Galaxy A9 2018, Android 10/API 29 — the same device 17.x's login-scroll bug used) and
+offered it for this specific test.
+
+**Method**: fresh `gplayDebug` build off current `dev` HEAD (has the Coil fix, does **not** have
+the Baseline Profile — that's release-only), installed via `adb install`, logged into the real
+instance via `adb reverse tcp:8282 tcp:8282` (device's `localhost:8282` tunneled to the host's
+container over USB). Perfetto tracing turned out to be unusable on this device — see the friction
+below — so the comparison uses `dumpsys gfxinfo <pkg> reset` / `dumpsys gfxinfo <pkg>` instead,
+Android's own framework-level jank accounting (VSync-deadline based), the "quick look" method in
+the `emulator-testing` skill's Step 4b. Same section of the list, same three
+`input swipe 540 2000 540 300 150` gestures as this doc's original recipe. **Cold** = Coil's
+on-device disk cache (`run-as … rm -rf .../cache/coil3_disk_cache`, preserves the login) cleared
+and app force-stopped/relaunched first, so all 35 logos are unfetched; **warm** = the same rows
+immediately re-scrolled.
+
+| Metric | Cold (real device) | Warm (real device) |
+|---|---|---|
+| Frames rendered | 19 | 12 |
+| Janky frames | 17 (**89.47%**) | 10 (**83.33%**) |
+| 50th / 90th / 95th / 99th percentile | 57 / 150 / 150 / 150ms | 73 / 105 / 109 / 109ms |
+| Worst-frame histogram bucket | 150ms (3 frames) | 109ms (1 frame) |
+
+**This settles the open question: the jank is real on hardware, not a `swiftshader_indirect`
+artifact.** Both the jank-frame percentage and the worst-frame timing are in the same range as —
+and by worst-frame ms, actually *worse* than — every AVD measurement this investigation and 13.2
+took (78–93% janky, 69.74–107.3ms worst frame across the AVD's various pre/post-fix runs). Cold
+vs. warm barely moves the jank *percentage* (89% → 83%), the same falsification pattern the AVD
+found — Coil's contention isn't the dominant cause here either — while the percentile timings do
+drop somewhat (150ms → 109ms at p95/99), a real but much smaller improvement than the AVD's own
+3.4x cold-vs-warm drop in its first (pre-fix) measurement.
+
+**Caveats, so this isn't overclaimed:** one run each side, not the 2–3 repeated runs the AVD
+sessions used, against small per-capture frame counts (12–19) — noisier than the AVD's numbers.
+This is a budget, several-years-old device on Android 10; it says the phenomenon is real on
+*this* hardware, not that every real device would show the same severity. `dumpsys gfxinfo`'s
+jank heuristic (VSync-deadline miss) isn't the same metric as Perfetto's
+`actual_frame_timeline_slice` `jank_type` (VSync-*prediction*-aware) the AVD numbers used — both
+target the same underlying phenomenon but aren't a strict apples-to-apples number. And because
+Perfetto's root-cause instrumentation didn't work here (below), this can't say whether JIT
+lock contention specifically is still the dominant mechanism on this device — only that the same
+downstream symptom (missed-deadline frames) reproduces, at least as severely, off the emulator.
+
+**Friction**: `adb shell perfetto -o ... -t 8s sched freq idle am wm gfx view input dalvik hal res
+memory binder_driver` — this doc's own Step 4b recipe, previously only run against the AVD —
+accepted every category with no error on this device but only kernel-level ftrace groups
+(`sched`, `binder_driver`) actually produced slices; the app-level atrace categories (`view`,
+`gfx`, `dalvik`) that carry `Lock contention on Jit code cache`, `Choreographer#doFrame`, and
+Coil's `DiskLruCache` contention markers produced **zero** slices for the app's process, even
+though `atrace --list_categories` listed them as valid and the trace file itself was non-empty
+(148 slices, all `binder transaction`). Read as a Samsung/SELinux restriction on this OEM build
+blocking a non-root shell from toggling `debug.atrace.tags.enableflags` for app-level categories,
+not a bug in the recipe — `dumpsys gfxinfo` doesn't depend on that mechanism (it's a direct Binder
+call into the app's own `ViewRootImpl`) and worked without issue. Worth knowing before reaching
+for Perfetto's deeper categories on a real (as opposed to AVD) device again: try `dumpsys gfxinfo`
+first, and treat a trace with only kernel-category slices as a sign the device is blocking
+app-level atrace rather than a sign nothing happened.

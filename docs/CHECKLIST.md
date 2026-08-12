@@ -351,6 +351,14 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   the hunch they shared a cause — confirmed true. A static code trace ruled out all three original
   guesses (missing `key`, unstable item type, ViewModel flow re-emission during scroll — none
   survive a read of `SubscriptionsScreen.kt`/`SubscriptionCard.kt`/`SubscriptionsViewModel.kt`).
+  **2026-08-12: the doc's own open question — real hardware cost vs. `swiftshader_indirect`
+  emulator artifact — is now answered.** The user connected a real device (`SM-A920F`, Android 10)
+  and the same cold/warm scroll recipe (via `dumpsys gfxinfo`, Perfetto's app-level categories
+  didn't work on this device — see the doc's addendum) reproduced jank at least as severe as every
+  AVD measurement: 89.47% janky frames cold, 83.33% warm, worst frame ~150ms/109ms. **Not an
+  emulator artifact** — this stays open as a real, unscoped smoothness issue, now confirmed on
+  physical hardware, not just in software rendering. See the doc's 2026-08-12 addendum for the
+  full numbers and caveats (one run each side, one specific budget device).
   Two real causes turned up by trace instead:
   - **Coil loading ~20+ previously-unfetched logos at once on a fast fling, contending on a lock
     inside Coil's own disk-cache writer — fixed and verified, `a0cf54d`.**

@@ -72,3 +72,11 @@ deleted — see `/finalize`.
   Android compile task name. Same guess repeated against `:testing:compileGplayDebugKotlin`, which
   also doesn't exist — `:testing` declares no flavors, so per-flavor compile tasks aren't a thing
   there either.
+- `adb shell perfetto ... sched freq idle am wm gfx view input dalvik hal res memory
+  binder_driver` (the `emulator-testing` skill's own Step 4b recipe) silently captured only
+  kernel-level categories (`sched`, `binder_driver`) on a real Samsung device (`SM-A920F`, Android
+  10) — the app-level categories (`view`, `gfx`, `dalvik`) that carry `Choreographer#doFrame`, JIT
+  lock-contention, and Coil disk-cache markers produced zero slices, no error either from
+  `perfetto` or `atrace --list_categories`. `dumpsys gfxinfo`/`dumpsys gfxinfo ... reset`, which
+  doesn't depend on the same OS mechanism, worked fine and was the fallback (full findings in
+  `docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`'s 2026-08-12 addendum).
