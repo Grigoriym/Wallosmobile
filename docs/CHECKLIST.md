@@ -9,10 +9,10 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `2/2` — **M19 done**
-**Current step:** none — M19 is the last milestone in the checklist. The next session should pick
-something off the "To review" backlog (below) or wait for the user to name new work; nothing here
-is queued. 19.2 closed 2026-08-12: `feature:subscriptions:ui`'s list screen now has real matrix
+**M18 done** · M19 `2/2` — **M19 done** · M20 `0/2`
+**Current step:** 20.1 — wire opt-in Compose Compiler stability reports
+(`docs/compose/stability-reports-plan.md`). M20 decomposed 2026-08-12, ported from
+`TaigaMobileNova/docs/compose/`'s own same-day work; not yet started. 19.2 closed 2026-08-12: `feature:subscriptions:ui`'s list screen now has real matrix
 coverage — 8 instrumented tests across `SubscriptionsScreenTest` (loading/failed/empty/no-match/
 loaded, the four `when`-block branches plus the ordinary case) and two new files,
 `widgets/StaleBannerTest.kt`/`widgets/ConversionBannerTest.kt`, covering the two banners directly.
@@ -210,6 +210,58 @@ deleted. See `archive/CHECKLIST-DONE.md` for both steps. **M19 is done** too —
 here for TaigaMobileNova's own desktop technique to attach to) and covered the subscriptions list
 screen's four `when`-block states plus both banners, 8 tests total, all passing on-device; see
 `archive/CHECKLIST-DONE.md` for both steps.
+
+---
+
+## M20 — Compose Compiler stability reports (not in plan §8's phase order)
+
+Decomposed 2026-08-12, the same day `TaigaMobileNova` did the identical work in its own
+`docs/compose/` — ported here at the user's request rather than independently re-derived. Full
+plan, researched facts (Kotlin/Compose-compiler version match, the single-Android-target
+simplification that avoids Taiga's own report-duplication detour, the module lists) and the
+`stability-scan.py` aggregator script (copied verbatim, project-agnostic) live in
+`docs/compose/stability-reports-plan.md` — read that before starting either step rather than
+re-deriving the Gradle extension shape or the module list here.
+
+Two steps are scoped now; a third (fixing whatever the audit in 20.2 actually finds) is
+deliberately **not** — Taiga's own precedent was to only scope its equivalent step once it knew
+what the first audit turned up, and this milestone follows the same discipline rather than
+guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it goes to
+`docs/revisit.md` (empty as of 2026-08-12 — a first finding here would be entry #1) or becomes
+20.3, decided at that point, not now.
+
+- [ ] **20.1 — Gradle wiring: opt-in stability reports**
+  Add `configureComposeStabilityReports()` (new file
+  `build-logic/convention/src/main/kotlin/com/grappim/wallosmobile/buildlogic/ComposeCompilerReports.kt`),
+  gated behind `-PcomposeStabilityReport`, called from both `KmpLibraryComposeConventionPlugin.kt`
+  and `AndroidApplicationConventionPlugin.kt` right after `apply("org.jetbrains.kotlin.plugin.compose")`.
+  No `targetKotlinPlatforms` — this project has no `jvm()` target, so there's nothing to restrict
+  (see the plan doc's "Researched facts" for why Taiga needed that and this project doesn't).
+  *Verify:* the plan doc's own "Done when" block — reports appear under
+  `feature/subscriptions/ui/build/compose_reports/` with `-PcomposeStabilityReport --rerun-tasks`,
+  absent without the flag, and `androidApp:compileFdroidDebugKotlin -PcomposeStabilityReport` also
+  produces them. `:build-logic:convention:compileKotlin` clean (`build-logic` has no `ktlintCheck`
+  task).
+  ·  *Ref:* `docs/compose/stability-reports-plan.md` task 1;
+  `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 1 (the shape, not the
+  `targetKotlinPlatforms` detour — doesn't apply here).
+
+- [ ] **20.2 — Aggregator script + first repo-wide audit + doc**
+  Copy `TaigaMobileNova/docs/compose/stability-scan.py` to `docs/compose/stability-scan.py`
+  (already done as part of this decomposition — confirm it's still there and still matches the
+  real report filenames rather than re-copying blind). Run `-PcomposeStabilityReport --rerun-tasks`
+  across all 14 Compose UI modules' `compileAndroidMain` plus `androidApp:compileFdroidDebugKotlin`
+  (module list in the plan doc — re-derive via
+  `grep -rl "wallosmobile.kmp.library.compose" --include="build.gradle.kts" .` if it's gone stale).
+  Run the script, triage its output the same three ways Taiga's task 2 did (fix inline if small,
+  `docs/revisit.md` if real but bigger, say so plainly if clean), and write
+  `docs/compose/stability-reports.md` (the "run it again" reference — how to run the audit, the
+  report format, this audit's findings). One-line pointer from CLAUDE.md's Compose rules section
+  to the new doc, next to the existing `ImmutableList` bullet.
+  *Verify:* `python3 docs/compose/stability-scan.py` runs and prints its summary;
+  `./gradlew allTests detekt ktlintCheck` if any production fix landed.
+  ·  *Ref:* `docs/compose/stability-reports-plan.md` task 2;
+  `TaigaMobileNova/docs/compose/stability-reports.md` (the doc shape to match).
 
 ---
 
