@@ -455,7 +455,9 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   fails detekt (4.4's About row on `SettingsScreen`), and the fix is the order the subscriptions
   screens already use: callbacks first, `viewModel` last with its default.
 - **`ImmutableList` / `persistentListOf()`** over `List` in state classes and Composable params,
-  for stable recomposition.
+  for stable recomposition. `docs/compose/stability-reports.md` is the opt-in Compose Compiler
+  audit that verifies this convention (and catches domain types reading unstable) — how to run it,
+  the report formats, and what it's found so far.
 - **Always write previews** for screens and reusable widgets, using `@PreviewWallosDarkLight` +
   `WallosMobilePreviewTheme` (both from `uikit`). The `Surface` belongs to `WallosMobileTheme`, so
   a preview draws the same background and `LocalContentColor` as the app — don't add a `Surface`

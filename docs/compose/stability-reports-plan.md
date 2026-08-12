@@ -15,8 +15,8 @@ This is a diagnostic tool, opt-in, zero cost to a normal build — same shape as
 | # | Task | Size | Status |
 |---|------|------|--------|
 | 1 | Gradle wiring: opt-in stability reports | S | Done (2026-08-12) |
-| 2 | Aggregator script + first repo-wide audit + doc | M | Not started |
-| 3 | Fix whatever task 2's audit finds, scoped after the fact | ? | Not scoped — depends on task 2's findings |
+| 2 | Aggregator script + first repo-wide audit + doc | M | Done (2026-08-12) |
+| 3 | Fix the domain-model stability gap task 2 found | S | Scoped (2026-08-12), CHECKLIST.md 20.3 |
 
 ## Researched facts (so task 1 doesn't have to re-derive them)
 
@@ -172,18 +172,72 @@ python3 docs/compose/stability-scan.py   # prints a summary (possibly empty)
 Taiga's (`-classes.txt`/`-composables.txt`, hyphenated — Taiga's own plan initially assumed an
 underscore and had to correct it; confirm rather than assume the same here).
 
-## Task 3 — fix whatever the audit finds
+**Result (2026-08-12):** report format matched Taiga's exactly, no doc correction needed. Ran the
+14-module + `androidApp` compile with `-PcomposeStabilityReport --rerun-tasks`; all 15 targets
+produced reports (confirmed the extra `android/` subdir + `-composables.csv` from task 1's `Note:`
+on every one). `stability-scan.py` needed no changes — copied verbatim, parsed cleanly.
 
-Not scoped yet — deliberately, the same way Taiga's own task 3 wasn't written until task 2's
-findings existed to react to. Two known shapes it might take, from Taiga's precedent:
+Findings: **zero plain-`List<T>` violations** (the `ImmutableList` convention holds everywhere, no
+fix needed). **The same domain-model gap Taiga hit, smaller here**: `PendingCertTrust`
+(`core/domain`), `IconFile` (`feature/paymentmethods/domain`) and `LogoFile`
+(`feature/subscriptions/domain`) read unstable and propagate into 5 composables directly plus 4
+`*Content(uiState: …)` composables less visibly — a same-module report gap discovered here and not
+previously documented in Taiga's own doc: a parameter whose type is declared in the *same* module as
+the composable consuming it gets printed with no stability prefix at all, even when that type's own
+`-classes.txt` entry confirms it's unstable. Full findings table and the report-gap mechanism:
+`docs/compose/stability-reports.md`. Also expected-not-actionable, matching Taiga's own buckets:
+`kotlinx.datetime.LocalDate` and `androidx.savedstate.serialization.SavedStateConfiguration`
+(foreign types, no marker regardless of our code).
 
-- **If the dominant finding is the domain-model gap** (domain types read as unstable everywhere
-  because their modules apply no Compose plugin): Taiga's fix was a new minimal convention plugin
-  (Compose Kotlin compiler subplugin only, `compileOnly compose-runtime`, applied to the domain
-  modules whose types reach a composable) — full writeup and the three rejected alternatives (full
-  Compose convention on domain modules, a `stabilityConfigurationFiles` trust-list, expanding the
-  `*UI` model + mapper pattern everywhere) are in `TaigaMobileNova/docs/compose/stability-reports-plan.md`
-  task 3. Re-read it rather than re-deriving the tradeoffs, but confirm the module list against
-  this project's own 9 domain modules rather than assuming Taiga's 11 map over.
-- **If the finding is something else entirely, or nothing**: scope task 3 (or skip it) once task 2
-  actually says what's there. Don't pre-write a fix for a finding that might not exist.
+User chose to scope the domain-model gap fix as a step now (CHECKLIST.md 20.3) rather than file it
+to `docs/revisit.md`, since the fix shape is already validated by Taiga's own task 3 and this
+project's affected set (3 modules) is much smaller.
+
+## Task 3 — fix the domain-model stability gap
+
+**Size:** S (3 domain modules here vs. Taiga's 11 — same mechanism, smaller surface)
+
+**What:** the minimal-convention-plugin approach Taiga's task 3 chose, ported as-is — see
+`TaigaMobileNova/docs/compose/stability-reports-plan.md` task 3 for the three rejected alternatives
+(full Compose convention on domain modules — drags Foundation/Material3/Navigation into a layer with
+zero `@Composable`s; a `stabilityConfigurationFiles` trust-list — blind trust, no compiler
+verification if a class later gains a mutable field; expanding the `*UI` model + mapper pattern
+everywhere — architecturally cleanest but a multi-session refactor, not this task's size) rather than
+re-deriving them here.
+
+1. New convention plugin `wallosmobile.kmp.library.stability`
+   (`build-logic/convention/src/main/kotlin/KmpLibraryStabilityConventionPlugin.kt`), applying:
+   - `org.jetbrains.kotlin.plugin.compose` (the compiler subplugin only — **not**
+     `org.jetbrains.compose`, which pulls in the UI toolkit).
+   - A `compileOnly` dependency on `compose-runtime` (`ComposeStabilityMarker.kt`'s
+     `configureComposeStabilityMarker()`) — needed only so the compiler can reference the
+     `@StabilityInferred` annotation type at compile time; consuming UI modules already carry
+     `compose-runtime` themselves.
+   - Also calls the existing `configureComposeStabilityReports()`, so these modules produce their
+     own opt-in reports too, for direct verification.
+2. Registered in `gradle/libs.versions.toml` (`wallosmobile-kmp-library-stability`) and
+   `build-logic/convention/build.gradle.kts` (`kmpLibraryStability` →
+   `KmpLibraryStabilityConventionPlugin`), following the exact pattern of `kmpLibraryCompose`.
+3. Applied `alias(libs.plugins.wallosmobile.kmp.library.stability)` alongside the existing
+   `alias(libs.plugins.wallosmobile.kmp.library)` in the 3 confirmed modules: `core/domain`,
+   `feature/paymentmethods/domain`, `feature/subscriptions/domain`.
+4. **Re-run the full audit afterward and check for stragglers rather than trusting the hand-derived
+   3-module list** — Taiga's own task 3 `Result` found its hand-traced list was incomplete (missed
+   `feature/tasks/domain`) and only the empirical re-scan caught it. Same discipline here: fix the 3,
+   re-scan, and add any module the re-scan still shows as unstable rather than assuming the list
+   above is final.
+
+**Done when:**
+```bash
+./gradlew :build-logic:convention:compileKotlin
+./gradlew :core:domain:compileAndroidMain :feature:paymentmethods:domain:compileAndroidMain \
+  :feature:subscriptions:domain:compileAndroidMain
+# re-run the task 2 audit (docs/compose/stability-reports.md#running-the-audit) and confirm the
+# unstable-composable-parameter count drops to just the independently-unstable buckets
+# (kotlinx.datetime, SavedStateConfiguration)
+./gradlew allTests detekt ktlintCheck
+```
+
+**Finalize focus:** update `docs/compose/stability-reports.md`'s findings section with the
+after-fix numbers, same way Taiga's own doc records its before/after. Confirm the module list above
+was actually complete once the re-scan runs — record any straggler the same way Taiga's `Result` did.

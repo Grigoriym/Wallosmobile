@@ -9,13 +9,16 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `2/2` — **M19 done** · M20 `1/2`
-**Current step:** 20.2 — aggregator script + first repo-wide audit + doc
-(`docs/compose/stability-reports-plan.md`). 20.1 closed 2026-08-12: `configureComposeStabilityReports()`
-wired into both `KmpLibraryComposeConventionPlugin.kt` and `AndroidApplicationConventionPlugin.kt`
-right after their `org.jetbrains.kotlin.plugin.compose` apply — see 20.1's own `Note:` for the two
-extra report artifacts (`android/` subdir, `*-composables.csv`) the plan doc didn't mention. M20
-decomposed 2026-08-12, ported from
+**M18 done** · M19 `2/2` — **M19 done** · M20 `2/3`
+**Current step:** 20.3 — fix the domain-model stability gap
+(`docs/compose/stability-reports-plan.md` task 3). 20.2 closed 2026-08-12: ran the aggregator
+across all 15 targets, wrote `docs/compose/stability-reports.md`, and found the same domain-model
+gap TaigaMobileNova hit, on a smaller scale (3 domain modules, not 11) — scoped as 20.3 rather than
+filed to `docs/revisit.md`, at the user's choice. 20.1 closed 2026-08-12:
+`configureComposeStabilityReports()` wired into both `KmpLibraryComposeConventionPlugin.kt` and
+`AndroidApplicationConventionPlugin.kt` right after their `org.jetbrains.kotlin.plugin.compose`
+apply — see 20.1's own `Note:` for the two extra report artifacts (`android/` subdir,
+`*-composables.csv`) the plan doc didn't mention. M20 decomposed 2026-08-12, ported from
 `TaigaMobileNova/docs/compose/`'s own same-day work. 19.2 closed 2026-08-12: `feature:subscriptions:ui`'s list screen now has real matrix
 coverage — 8 instrumented tests across `SubscriptionsScreenTest` (loading/failed/empty/no-match/
 loaded, the four `when`-block branches plus the ordinary case) and two new files,
@@ -255,7 +258,7 @@ guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it
   `*-composables.csv` alongside the two `.txt` files in `compose_reports/` — worth noting in 20.2's
   doc rather than assuming only the two `.txt` files exist.
 
-- [ ] **20.2 — Aggregator script + first repo-wide audit + doc**
+- [x] **20.2 — Aggregator script + first repo-wide audit + doc**
   Copy `TaigaMobileNova/docs/compose/stability-scan.py` to `docs/compose/stability-scan.py`
   (already done as part of this decomposition — confirm it's still there and still matches the
   real report filenames rather than re-copying blind). Run `-PcomposeStabilityReport --rerun-tasks`
@@ -271,6 +274,42 @@ guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it
   `./gradlew allTests detekt ktlintCheck` if any production fix landed.
   ·  *Ref:* `docs/compose/stability-reports-plan.md` task 2;
   `TaigaMobileNova/docs/compose/stability-reports.md` (the doc shape to match).
+  Note: script needed no changes, report format matched Taiga's exactly. Findings: zero plain-`List`
+  violations (clean), and the same domain-model gap Taiga hit on a smaller scale (`PendingCertTrust`
+  in `core/domain`, `IconFile` in `feature/paymentmethods/domain`, `LogoFile` in
+  `feature/subscriptions/domain` — 3 modules, not Taiga's 11). Also found and documented a report
+  quirk not in Taiga's own doc: a same-module `UiState` parameter gets no stability prefix printed
+  at all, even when unstable — cross-check its own module's `-classes.txt` instead of trusting a
+  blank prefix. No production fix landed in this step (`allTests detekt ktlintCheck` not required
+  per the step's own Verify line) — user chose to scope the domain-gap fix as 20.3 rather than file
+  it to `docs/revisit.md`, since the fix shape is already validated by Taiga's task 3. Full findings:
+  `docs/compose/stability-reports.md`.
+
+- [ ] **20.3 — Fix the domain-model stability gap**
+  Port Taiga's task 3 minimal-convention-plugin fix (see
+  `docs/compose/stability-reports-plan.md` task 3 for the full write-up and the three rejected
+  alternatives, ported from `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 3 rather
+  than re-derived here): new `wallosmobile.kmp.library.stability` convention plugin
+  (`build-logic/convention/src/main/kotlin/KmpLibraryStabilityConventionPlugin.kt` +
+  `ComposeStabilityMarker.kt`) applying only the Compose Kotlin compiler subplugin
+  (`org.jetbrains.kotlin.plugin.compose`, **not** `org.jetbrains.compose`) plus a `compileOnly
+  compose-runtime` dependency — no UI toolkit reaching the domain layer. Registered in
+  `gradle/libs.versions.toml` and `build-logic/convention/build.gradle.kts` following the
+  `kmpLibraryCompose` pattern. Applied alongside the existing `wallosmobile.kmp.library` alias in
+  the 3 modules 20.2's audit confirmed: `core/domain`, `feature/paymentmethods/domain`,
+  `feature/subscriptions/domain`. Re-run the full audit afterward and add any straggler the re-scan
+  still shows as unstable — Taiga's own task 3 found its hand-traced module list was incomplete and
+  only the empirical re-scan caught it; don't assume the 3-module list above is final without that
+  check.
+  *Verify:* `./gradlew :build-logic:convention:compileKotlin`; `./gradlew
+  :core:domain:compileAndroidMain :feature:paymentmethods:domain:compileAndroidMain
+  :feature:subscriptions:domain:compileAndroidMain`; re-run the task 2 audit
+  (`docs/compose/stability-reports.md#running-the-audit`) and confirm the unstable-composable-
+  parameter count drops to just the independently-unstable buckets (`kotlinx.datetime`,
+  `SavedStateConfiguration`); `./gradlew allTests detekt ktlintCheck`.
+  ·  *Ref:* `docs/compose/stability-reports-plan.md` task 3;
+  `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 3 (the mechanism and rejected
+  alternatives); `docs/compose/stability-reports.md` (20.2's findings this step reacts to).
 
 ---
 
