@@ -11,13 +11,15 @@ import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
+private const val JDK_VERSION = 21
+
 internal fun Project.configureKotlinJvm() {
     extensions.configure<JavaPluginExtension> {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
 
         toolchain {
-            languageVersion.set(JavaLanguageVersion.of(21))
+            languageVersion.set(JavaLanguageVersion.of(JDK_VERSION))
         }
     }
     tasks.withType<KotlinJvmCompile>().configureEach {

@@ -338,9 +338,14 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   `androidComponents.onVariants(selector().withBuildType(...).withFlavor(...)) { variant ->
   variant.signingConfig.setConfig(dslSigningConfig) }` is the mechanism, and `ApplicationVariant
   .signingConfig` (variant-API type) vs. the DSL's `ApkSigningConfig` are deliberately distinct
-  types that `setConfig` bridges. `build-logic` itself has no `detekt`/`ktlintCheck` coverage
-  (confirmed via `./gradlew -p build-logic tasks --all` finding no matching task) — `compileKotlin`
-  is what a convention-plugin change needs to pass locally.
+  types that `setConfig` bridges. `build-logic/convention/build.gradle.kts` applies
+  `alias(libs.plugins.detekt)`/`alias(libs.plugins.ktlint)` directly (21.2) — the same minimal
+  shape as the root `build.gradle.kts`, with **no** `config.setFrom` pointing at
+  `config/detekt/detekt.yml`: that shared config's `Compose` section needs the
+  `io.nlopez.compose.rules:detekt` plugin on the classpath, which a Kotlin-DSL build-logic project
+  has no reason to carry. So `build-logic` lints against detekt's own default ruleset, not the
+  app's tuned one — `./gradlew -p build-logic detekt ktlintCheck` is what a convention-plugin
+  change needs to pass locally, in addition to `compileKotlin`.
 
 ## Non-negotiables
 

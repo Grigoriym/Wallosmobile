@@ -1,9 +1,9 @@
 package com.grappim.wallosmobile.buildlogic
 
-import java.io.File
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.compose.compiler.gradle.ComposeCompilerGradlePluginExtension
+import java.io.File
 
 // Opt-in Compose Compiler stability audit — see docs/compose/stability-reports-plan.md.
 // Off by default: -PcomposeStabilityReport to generate *-classes.txt / *-composables.txt.

@@ -1,7 +1,6 @@
 package com.grappim.wallosmobile.buildlogic
 
 import dev.detekt.gradle.extensions.DetektExtension
-import java.io.File
 import org.gradle.api.Project
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
@@ -13,6 +12,7 @@ import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jlleitschuh.gradle.ktlint.KtlintExtension
 import org.jlleitschuh.gradle.ktlint.reporter.ReporterType
+import java.io.File
 
 // `:testing` is fakes and fixtures only — linting it adds noise without protecting anything,
 // and `.editorconfig` already disables ktlint for `**/testing/**`.

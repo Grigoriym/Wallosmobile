@@ -108,3 +108,8 @@ deleted — see `/finalize`.
   `--no-validate-url` was the workaround, restoring `validateDistributionUrl=true` in
   `gradle-wrapper.properties` by hand afterward since it's a one-time generation-time check
   the committed file shouldn't carry disabled permanently.
+- Pointing `build-logic`'s new `detekt {}` block at the shared `config/detekt/detekt.yml` (21.2,
+  to keep its ruleset consistent with every other module) failed with `Property 'Compose' is
+  misspelled or does not exist` — that config section is only valid with the
+  `io.nlopez.compose.rules:detekt` plugin on the classpath, which a Kotlin-DSL build-logic project
+  has no reason to carry. Reverted to detekt's own default ruleset for `build-logic` instead.

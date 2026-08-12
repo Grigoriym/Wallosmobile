@@ -9,8 +9,14 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `1/3`
-**Current step:** 21.2 — lint `build-logic` itself. 21.1 closed 2026-08-12: `lintFdroidDebug` and
+**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `2/3`
+**Current step:** 21.3 — validate `.github/workflows/*.yml` syntax in guardrails. 21.2 closed
+2026-08-12: `build-logic/convention/build.gradle.kts` now applies `alias(libs.plugins.detekt)` +
+`alias(libs.plugins.ktlint)` directly, the same minimal shape as the root `build.gradle.kts` —
+`./gradlew -p build-logic detekt ktlintCheck` passes clean. See 21.2's own `Note:` for why that
+took fixing 3 pre-existing findings (a `LongMethod` and two bare-`21` `MagicNumber` hits) rather
+than pointing at the shared `config/detekt/detekt.yml`, and for the CLAUDE.md line it corrected.
+21.1 closed 2026-08-12: `lintFdroidDebug` and
 `lintGplayDebug -PgplayBuild` now run as CI steps in `.github/workflows/ci.yml` right after
 "Run detekt and ktlint"; `androidApp/build.gradle.kts` gained a `lint { disable += ... }` block
 trimming the two Renovate-redundant checks (`NewerVersionAvailable`, `GradleDependency`) — both
@@ -432,7 +438,7 @@ redundant with Renovate; 1 `ObsoleteSdkInt`; 1 `UnusedResources`), none of which
   setOf("NewerVersionAvailable", "GradleDependency") }` block alongside the new CI step, both
   re-verified clean (`BUILD SUCCESSFUL`, 0 errors) after adding it, not just before.
 
-- [ ] **21.2 — Lint `build-logic` itself**
+- [x] **21.2 — Lint `build-logic` itself**
   `build-logic/convention/build.gradle.kts` currently only gets `compileKotlin` coverage — mirror
   the root `build.gradle.kts`'s own minimal shape (`alias(libs.plugins.detekt)` +
   `alias(libs.plugins.ktlint)`, no further config) rather than reaching for `Quality.kt`'s
@@ -444,6 +450,19 @@ redundant with Renovate; 1 `ObsoleteSdkInt`; 1 `UnusedResources`), none of which
   "`build-logic` itself has no `detekt`/`ktlintCheck` coverage" line (Material3-sources-jar
   paragraph) needs updating once this lands — false after this step.
   ·  *Ref:* CLAUDE.md's Material3-sources-jar paragraph.
+  ·  *Note:* The literal minimal shape (plugins only, no config) surfaced 3 real findings on code
+  that predates any lint coverage — `AndroidApplicationConventionPlugin.apply` over detekt's
+  default `LongMethod` threshold, and two bare `21` JDK-version literals tripping `MagicNumber`
+  (both rules the project's own `config/detekt/detekt.yml` disables everywhere else, which
+  `build-logic` doesn't load — see below). Tried pointing `config.setFrom` at that shared yml
+  first, to keep `build-logic`'s policy consistent with every other module's; reverted it because
+  the yml's `Compose` section requires `io.nlopez.compose.rules:detekt` on the classpath, which a
+  Kotlin-DSL build-logic project has no real reason to carry. Fixed the 3 findings directly
+  instead: split `configureAppSigningConfigs`/`configureAppBuildTypes` out of
+  `AndroidApplicationConventionPlugin.apply`, and added a `private const val JDK_VERSION = 21` in
+  `KmpConfiguration.kt`/`KotlinConfiguration.kt`. `ktlintFormat` also reformatted 5 pre-existing
+  files that had never been through it. CLAUDE.md's Material3-sources-jar paragraph updated to
+  match.
 
 - [ ] **21.3 — Validate `.github/workflows/*.yml` syntax in guardrails**
   New step in `.github/workflows/guardrails.yml`, after "Check the gate tripwires": loop the five

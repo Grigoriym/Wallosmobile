@@ -4,6 +4,8 @@ import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 
+private const val JDK_VERSION = 21
+
 /**
  * The single edit point for platform targets.
  *
@@ -19,7 +21,7 @@ fun Project.configureKmp() {
     pluginManager.apply("org.jetbrains.kotlinx.kover")
 
     extensions.configure<KotlinMultiplatformExtension> {
-        jvmToolchain(21)
+        jvmToolchain(JDK_VERSION)
         compilerOptions {
             freeCompilerArgs.add("-Xexpect-actual-classes")
         }
