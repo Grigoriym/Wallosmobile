@@ -64,6 +64,9 @@ jobs:
       - name: Run detekt and ktlint
         run: ./gradlew detekt ktlintCheck
 
+      - name: Run Android/Compose lint
+        run: ./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug -PgplayBuild
+
       - name: Generate Kover XML report
         run: ./gradlew koverXmlReport
 

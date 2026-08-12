@@ -9,9 +9,12 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `0/3`
-**Current step:** 21.1 — run Android/Compose lint in CI. M21 decomposed 2026-08-12, an infra-only
-milestone at the user's request (no feature work); not yet started. 20.4 closed
+**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `1/3`
+**Current step:** 21.2 — lint `build-logic` itself. 21.1 closed 2026-08-12: `lintFdroidDebug` and
+`lintGplayDebug -PgplayBuild` now run as CI steps in `.github/workflows/ci.yml` right after
+"Run detekt and ktlint"; `androidApp/build.gradle.kts` gained a `lint { disable += ... }` block
+trimming the two Renovate-redundant checks (`NewerVersionAvailable`, `GradleDependency`) — both
+lint tasks re-verified clean (`BUILD SUCCESSFUL`, 0 errors) after the trim. 20.4 closed
 2026-08-12: `kotlinx.datetime.LocalDate` trust-listed via a new `config/compose/stability_config.conf`
 + `configureComposeStabilityConfig()`, called unconditionally (never gated behind
 `-PcomposeStabilityReport`) from the same three call sites `configureComposeStabilityReports()` uses
@@ -413,7 +416,7 @@ pre-existing warnings on fdroidDebug (17 `NewerVersionAvailable` + 3 `GradleDepe
 redundant with Renovate; 1 `ObsoleteSdkInt`; 1 `UnusedResources`), none of which fail the build. So
 21.1 needs no lint-baseline dance to land — the task can be wired straight into CI.
 
-- [ ] **21.1 — Run Android/Compose lint in CI**
+- [x] **21.1 — Run Android/Compose lint in CI**
   Add `lintFdroidDebug` and `lintGplayDebug -PgplayBuild` as new steps in
   `.github/workflows/ci.yml` (after "Run detekt and ktlint", matching the fdroid/gplay split the
   assemble steps already use). Confirmed today both run clean (0 errors, warnings only) — no
@@ -425,6 +428,9 @@ redundant with Renovate; 1 `ObsoleteSdkInt`; 1 `UnusedResources`), none of which
   :androidApp:lintGplayDebug -PgplayBuild` clean locally.
   ·  *Ref:* CLAUDE.md's Build commands section ("Neither of the above runs Android/Compose lint…");
   `docs/frictions.md`'s `FlowOperatorInvokedInComposition` entry.
+  ·  *Note:* Took the optional trim — `androidApp/build.gradle.kts` gained a `lint { disable +=
+  setOf("NewerVersionAvailable", "GradleDependency") }` block alongside the new CI step, both
+  re-verified clean (`BUILD SUCCESSFUL`, 0 errors) after adding it, not just before.
 
 - [ ] **21.2 — Lint `build-logic` itself**
   `build-logic/convention/build.gradle.kts` currently only gets `compileKotlin` coverage — mirror

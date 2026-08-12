@@ -25,6 +25,11 @@ android {
         versionCode = libs.versions.version.code.get().toInt()
         versionName = libs.versions.version.name.get()
     }
+
+    // Renovate already owns dependency bumps, so lint's own opinion on them is pure noise.
+    lint {
+        disable += setOf("NewerVersionAvailable", "GradleDependency")
+    }
 }
 
 dependencies {

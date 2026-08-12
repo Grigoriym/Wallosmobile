@@ -134,11 +134,12 @@ This project uses the **`emulator-testing`** and **`finalize`** skills; both are
 ./gradlew :module:path:ktlintFormat          # fix style — don't hand-format
 ./gradlew koverHtmlReport                    # coverage
 
-# Neither of the above runs Android/Compose lint (no `./gradlew lint` task in any `Verify:` line
-# or CI job) — `detekt ktlintCheck` passing does not prove a Compose file is clean. 16.5 shipped a
-# `FlowOperatorInvokedInComposition` (a Flow built inside a composable lambda, `setContent { }`
-# counts) that both gates missed; only Android Studio's own inspection caught it. Skim for
-# Compose-lint-shaped issues by eye on any `@Composable`-touching step, since nothing else will.
+# Neither `detekt` nor `ktlintCheck` runs Android/Compose lint — that's a separate task, now also
+# in CI (21.1) after `detekt ktlintCheck`. 16.5 shipped a `FlowOperatorInvokedInComposition` (a
+# Flow built inside a composable lambda, `setContent { }` counts) that both gates missed; only
+# Android Studio's own inspection caught it at the time. Still worth a by-eye skim on any
+# `@Composable`-touching step, since lint only runs at CI/push time, not while writing the step.
+./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug -PgplayBuild
 
 # The Room DAOs were the first instrumented suite (3.3); `feature:subscriptions:ui`'s Compose UI
 # tests (M19, 19.1) are the second, same `androidDeviceTest`/`withDeviceTestBuilder` shape. Neither
@@ -215,7 +216,8 @@ driving the emulator rather than re-deriving any of it.
 
 CI (`.github/workflows/ci.yml`, plan §3.5, §3.8, §3.10) runs `assembleFdroidDebug` then
 `assembleGplayDebug -PgplayBuild` (split since 16.2 — a single `assembleDebug` can't pass
-`-PgplayBuild` to only one flavor) + `allTests` + `detekt ktlintCheck` + `koverXmlReport` (uploaded
+`-PgplayBuild` to only one flavor) + `allTests` + `detekt ktlintCheck` + `lintFdroidDebug
+lintGplayDebug -PgplayBuild` (21.1) + `koverXmlReport` (uploaded
 to Codecov) on push and PR to `dev` and `master`, but `paths-ignore` skips `**.md` and `docs/**` —
 a docs-only commit produces **no CI run**, which is not a failure. The gplay assemble step restores
 `androidApp/src/gplay/google-services.json` from the `WALLOS_GOOGLE_SERVICES_GPLAY` secret first
