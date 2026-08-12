@@ -4,6 +4,7 @@ import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.grappim.wallosmobile.buildlogic.AppBuildTypes
 import com.grappim.wallosmobile.buildlogic.AppFlavors
 import com.grappim.wallosmobile.buildlogic.FlavorDimensions
+import com.grappim.wallosmobile.buildlogic.configureComposeStabilityConfig
 import com.grappim.wallosmobile.buildlogic.configureComposeStabilityReports
 import com.grappim.wallosmobile.buildlogic.configureFlavors
 import com.grappim.wallosmobile.buildlogic.configureKotlinAndroid
@@ -23,6 +24,7 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
             apply(plugin = "io.insert-koin.compiler.plugin")
 
             configureComposeStabilityReports()
+            configureComposeStabilityConfig()
 
             extensions.configure<ApplicationExtension> {
                 defaultConfig.apply {

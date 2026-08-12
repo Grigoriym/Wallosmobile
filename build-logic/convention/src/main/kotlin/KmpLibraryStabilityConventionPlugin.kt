@@ -1,3 +1,4 @@
+import com.grappim.wallosmobile.buildlogic.configureComposeStabilityConfig
 import com.grappim.wallosmobile.buildlogic.configureComposeStabilityMarker
 import com.grappim.wallosmobile.buildlogic.configureComposeStabilityReports
 import org.gradle.api.Plugin
@@ -10,6 +11,7 @@ class KmpLibraryStabilityConventionPlugin : Plugin<Project> {
         with(target) {
             configureComposeStabilityMarker()
             configureComposeStabilityReports()
+            configureComposeStabilityConfig()
         }
     }
 }

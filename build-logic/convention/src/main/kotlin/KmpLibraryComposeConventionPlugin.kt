@@ -1,4 +1,5 @@
 import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension
+import com.grappim.wallosmobile.buildlogic.configureComposeStabilityConfig
 import com.grappim.wallosmobile.buildlogic.configureComposeStabilityReports
 import com.grappim.wallosmobile.buildlogic.configureKmp
 import com.grappim.wallosmobile.buildlogic.configureKmpCompose
@@ -19,6 +20,7 @@ class KmpLibraryComposeConventionPlugin : Plugin<Project> {
                 apply("org.jetbrains.kotlin.plugin.compose")
             }
             configureComposeStabilityReports()
+            configureComposeStabilityConfig()
             configureKmp()
             configureKmpCompose()
             configureTests()

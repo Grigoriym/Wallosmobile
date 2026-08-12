@@ -9,11 +9,14 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `2/2` — **M19 done** · M20 `3/4`
-**Current step:** 20.4 — trust-list `kotlinx.datetime.LocalDate` as stable
-(`stabilityConfigurationFiles`), scoped 2026-08-12 from a post-20.3 investigation into what else the
-Compose stability space offers — see 20.4's own entry for the survey and why its other candidates
-were declined. 20.3 closed 2026-08-12: new `wallosmobile.kmp.library.stability`
+**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done**
+**Current step:** none — M20 is done and no further milestone is decomposed yet. 20.4 closed
+2026-08-12: `kotlinx.datetime.LocalDate` trust-listed via a new `config/compose/stability_config.conf`
++ `configureComposeStabilityConfig()`, called unconditionally (never gated behind
+`-PcomposeStabilityReport`) from the same three call sites `configureComposeStabilityReports()` uses
+— see 20.4's own `Note:` for the module-list reasoning and the re-scan confirmation
+(composables-with-unstable-parameters down to the single remaining `SavedStateConfiguration` entry).
+20.3 closed 2026-08-12: new `wallosmobile.kmp.library.stability`
 convention plugin (Compose Kotlin compiler subplugin only, `compileOnly compose-runtime`) applied
 to `core/domain`, `feature/paymentmethods/domain` and `feature/subscriptions/domain` — the re-scan
 confirmed no straggler beyond those 3 and the unstable-composable-parameter count dropped to just
@@ -325,7 +328,7 @@ guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it
   with an "After the fix" section recording the before/after composables-with-unstable-parameters
   numbers.
 
-- [ ] **20.4 — Trust-list `kotlinx.datetime.LocalDate` as stable**
+- [x] **20.4 — Trust-list `kotlinx.datetime.LocalDate` as stable**
   Scoped 2026-08-12, after 20.3 closed, from a follow-up investigation into what else the Compose
   Compiler stability space offers beyond the marker-plugin fix 20.1–20.3 ported from one article —
   see that investigation's findings for the full survey (strong skipping / intrinsic remember /
@@ -371,6 +374,23 @@ guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it
   `./gradlew allTests detekt ktlintCheck`.
   · *Ref:* developer.android.com/develop/ui/compose/performance/stability/fix (config file format);
   `docs/compose/stability-reports.md` (the audit this reacts to).
+  Note: new `config/compose/stability_config.conf` (one line: `kotlinx.datetime.LocalDate`), wired
+  through `configureComposeStabilityConfig()` in `ComposeCompilerReports.kt` — a plain
+  `stabilityConfigurationFiles.add(rootProject.layout.projectDirectory.file(...))`, confirmed against
+  the compose-compiler-gradle-plugin's own sources jar (the `-classes.txt`/`-composables.txt`
+  destinations use `DirectoryProperty`, `stabilityConfigurationFiles` is `ListProperty<RegularFile>`,
+  and `.add()` takes a `RegularFile` directly, matching the doc's own `.addAll(project.layout
+  .projectDirectory.file(...))` example). Called unconditionally, never gated behind
+  `-PcomposeStabilityReport`, from the same three call sites `configureComposeStabilityReports()`
+  already used (`KmpLibraryComposeConventionPlugin`, `AndroidApplicationConventionPlugin`,
+  `KmpLibraryStabilityConventionPlugin`) — resolved the step's own "decide the module list" question
+  by piggybacking on that existing set rather than picking a narrower one: every module carrying the
+  Compose compiler subplugin now trusts the type, not just the 3 hand-traced candidates, which is
+  fine since `LocalDate` is genuinely immutable everywhere. Re-scan confirmed the fix: composables-
+  with-unstable-parameters dropped to exactly 1 entry (`SavedStateConfiguration`), `DateField`'s
+  `date` parameter and `SubscriptionEditorUiState`/`AddSubscriptionParams`/`EditSubscriptionParams`'s
+  `LocalDate` members all read `stable`. All `Verify:` commands passed. **M20 is done (4/4)**.
+  `docs/compose/stability-reports.md` gets an "After the LocalDate trust-list" section.
 
 ---
 
