@@ -300,4 +300,5 @@ wallosmobile-kmp-di = { id = "wallosmobile.kmp.di" }
 wallosmobile-kmp-network = { id = "wallosmobile.kmp.network" }
 wallosmobile-kmp-library = { id = "wallosmobile.kmp.library" }
 wallosmobile-kmp-library-compose = { id = "wallosmobile.kmp.library.compose" }
+wallosmobile-kmp-library-stability = { id = "wallosmobile.kmp.library.stability" }
 wallosmobile-android-application = { id = "wallosmobile.android.application" }

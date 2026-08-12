@@ -48,6 +48,10 @@ gradlePlugin {
             id = libs.plugins.wallosmobile.kmp.library.compose.get().pluginId
             implementationClass = "KmpLibraryComposeConventionPlugin"
         }
+        register("kmpLibraryStability") {
+            id = libs.plugins.wallosmobile.kmp.library.stability.get().pluginId
+            implementationClass = "KmpLibraryStabilityConventionPlugin"
+        }
         register("kmpSerialization") {
             id = libs.plugins.wallosmobile.kmp.serialization.get().pluginId
             implementationClass = "KmpSerializationConventionPlugin"

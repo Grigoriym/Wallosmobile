@@ -9,9 +9,12 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `2/2` — **M19 done** · M20 `2/3`
-**Current step:** 20.3 — fix the domain-model stability gap
-(`docs/compose/stability-reports-plan.md` task 3). 20.2 closed 2026-08-12: ran the aggregator
+**M18 done** · M19 `2/2` — **M19 done** · M20 `3/3` — **M20 done**
+**Current step:** M20 done. 20.3 closed 2026-08-12: new `wallosmobile.kmp.library.stability`
+convention plugin (Compose Kotlin compiler subplugin only, `compileOnly compose-runtime`) applied
+to `core/domain`, `feature/paymentmethods/domain` and `feature/subscriptions/domain` — the re-scan
+confirmed no straggler beyond those 3 and the unstable-composable-parameter count dropped to just
+the 2 independently-unstable foreign-type entries. 20.2 closed 2026-08-12: ran the aggregator
 across all 15 targets, wrote `docs/compose/stability-reports.md`, and found the same domain-model
 gap TaigaMobileNova hit, on a smaller scale (3 domain modules, not 11) — scoped as 20.3 rather than
 filed to `docs/revisit.md`, at the user's choice. 20.1 closed 2026-08-12:
@@ -285,7 +288,7 @@ guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it
   it to `docs/revisit.md`, since the fix shape is already validated by Taiga's task 3. Full findings:
   `docs/compose/stability-reports.md`.
 
-- [ ] **20.3 — Fix the domain-model stability gap**
+- [x] **20.3 — Fix the domain-model stability gap**
   Port Taiga's task 3 minimal-convention-plugin fix (see
   `docs/compose/stability-reports-plan.md` task 3 for the full write-up and the three rejected
   alternatives, ported from `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 3 rather
@@ -310,6 +313,14 @@ guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it
   ·  *Ref:* `docs/compose/stability-reports-plan.md` task 3;
   `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 3 (the mechanism and rejected
   alternatives); `docs/compose/stability-reports.md` (20.2's findings this step reacts to).
+  Note: ported exactly as planned, no deviation — new `wallosmobile.kmp.library.stability`
+  convention plugin (`ComposeStabilityMarker.kt` + `KmpLibraryStabilityConventionPlugin.kt`),
+  registered in `libs.versions.toml`/`build-logic/convention/build.gradle.kts`, applied alongside
+  `wallosmobile.kmp.library` in the 3 confirmed modules. Re-scan found no straggler beyond those
+  3 — the hand-traced list held this time, unlike Taiga's own task 3. All `Verify:` commands ran
+  and passed, including `allTests detekt ktlintCheck`. `docs/compose/stability-reports.md` updated
+  with an "After the fix" section recording the before/after composables-with-unstable-parameters
+  numbers.
 
 ---
 

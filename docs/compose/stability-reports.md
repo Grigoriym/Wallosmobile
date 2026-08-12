@@ -115,11 +115,12 @@ above), which in turn makes `TrustedCertsContent`, `LoginContent`, `PaymentMetho
 parameters list because of the same-module report gap noted above, confirmed instead by cross-
 referencing each `UiState`'s own `-classes.txt` entry.
 
-**Fix scoped as CHECKLIST.md step 20.3** — same minimal-convention-plugin shape as
-TaigaMobileNova's task 3 (Compose Kotlin compiler subplugin only, `compileOnly compose-runtime`, no
-UI toolkit reaching the domain layer), applied to these 3 confirmed modules rather than Taiga's 11.
-Not run yet as of this writing; see the plan doc's task 3 for the scoped work and Taiga's own task 3
-write-up for the mechanism and the three rejected alternatives.
+**Fixed in CHECKLIST.md step 20.3** — same minimal-convention-plugin shape as TaigaMobileNova's task
+3 (Compose Kotlin compiler subplugin only, `compileOnly compose-runtime`, no UI toolkit reaching the
+domain layer): new `wallosmobile.kmp.library.stability` convention plugin, applied alongside
+`wallosmobile.kmp.library` on exactly the 3 modules confirmed above. See the plan doc's task 3 for
+the scoped work and Taiga's own task 3 write-up for the mechanism and the three rejected
+alternatives.
 
 **Expected, not actionable without a `stabilityConfigurationFiles` policy decision** (independent of
 the domain-model gap, same buckets Taiga found): `kotlinx.datetime.LocalDate` (`ProfileViewModel
@@ -135,5 +136,27 @@ regardless of our code. One data point isn't enough to justify a standing config
 ViewModel is never itself passed as a Composable parameter — `Content` composables take `uiState`
 only — so a `ViewModel`'s own class-level instability has no effect on recomposition and needs no
 fix.
+
+## After the fix (2026-08-12, task 3)
+
+Re-ran the same 15-module + `androidApp` audit after applying `wallosmobile.kmp.library.stability`
+to `core/domain`, `feature/paymentmethods/domain` and `feature/subscriptions/domain` — no straggler
+turned up beyond those 3 (unlike TaigaMobileNova's task 3, whose hand-traced list had missed a
+module and only the re-scan caught it).
+
+**Composables-with-unstable-parameters dropped to exactly the 2 pre-existing, independently-unstable
+entries** — `rememberNavigationState`'s `SavedStateConfiguration` parameter and `DateField`'s
+`LocalDate?` parameter, both foreign types untouched by this fix, as expected. `PendingCertTrust`,
+`IconFile` and `LogoFile` no longer appear anywhere in that section — the 5 composables in the table
+above (`TrustedCertRow`, `RevokeConfirmDialog`, `CertTrustDialog`, `IconFilePicker`,
+`LogoFilePicker`) are gone from the list entirely.
+
+**One expected wrinkle**: `IconFile.bytes: ByteArray` and `LogoFile.bytes: ByteArray` still show as
+`unstable` members in the classes report — Compose's stability inference treats any `Array`/
+`ByteArray` field as unstable regardless of a stability marker, since content can mutate without a
+reference change. This is Compose semantics, not a gap the marker plugin can close, and it doesn't
+matter here: neither class is consumed as a composable parameter anywhere the `bytes` field itself
+drives recomposition (the picker composables read other fields), confirmed by the
+composables-with-unstable-parameters list no longer listing either type.
 
 CLAUDE.md's Compose rules links here next to the `ImmutableList` convention bullet.
