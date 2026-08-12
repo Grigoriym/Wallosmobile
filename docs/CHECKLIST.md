@@ -9,14 +9,25 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `1/2`
-**Current step:** M19, step 19.2. 19.1 closed 2026-08-12: `feature:subscriptions:ui`'s
+**M18 done** · M19 `2/2` — **M19 done**
+**Current step:** none — M19 is the last milestone in the checklist. The next session should pick
+something off the "To review" backlog (below) or wait for the user to name new work; nothing here
+is queued. 19.2 closed 2026-08-12: `feature:subscriptions:ui`'s list screen now has real matrix
+coverage — 8 instrumented tests across `SubscriptionsScreenTest` (loading/failed/empty/no-match/
+loaded, the four `when`-block branches plus the ordinary case) and two new files,
+`widgets/StaleBannerTest.kt`/`widgets/ConversionBannerTest.kt`, covering the two banners directly.
+See 19.2's own `Note:` for a step-prose correction: the checklist text names `isStale` as one of the
+four `SubscriptionsContent`-`when`-block states, but the block's real branches are `isLoading`,
+`isFailed`, `isEmpty`, `isNoMatch` — `isStale` draws the banner alongside the rows with no branch of
+its own, and is covered by the separate `StaleBannerTest` instead, matching what the step's very
+next sentence already said. All 8 tests passing on-device (`Medium_Phone_API_36.1`). **M19 is done**
+— both steps archived to `archive/CHECKLIST-DONE.md` in this same commit. 19.1 closed 2026-08-12:
+`feature:subscriptions:ui`'s
 `androidDeviceTest` source set is wired for Compose UI tests (same `withDeviceTestBuilder
 { sourceSetTreeName = null }` shape as 3.3's Room DAO suite), one test passing on-device against
 `SubscriptionsContent` (now `internal`) rendering the empty state — see 19.1's own `Note:` for the
 two artifact-resolution gotchas (the correct `ui-test-junit4`/`ui-test-manifest` coordinates, and a
-transitively-pulled `espresso-core:3.5.0` crashing on this AVD's API 36 until forced to 3.7.0). Next:
-19.2, the real matrix — all four derived states plus both banners. 18.2 closed 2026-08-11: the Settings →
+transitively-pulled `espresso-core:3.5.0` crashing on this AVD's API 36 until forced to 3.7.0). 18.2 closed 2026-08-11: the Settings →
 Trusted certificates screen shipped, verified end-to-end on-device against a throwaway TLS front —
 see 18.2's own `Note:` for the full on-device trace (accept a real TOFU prompt, revoke it from the
 new screen, confirm the same host re-prompts on the next connection). `docs/revisit.md` #1 (filed
@@ -145,7 +156,7 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 ---
 
 Completed steps live in [`archive/CHECKLIST-DONE.md`](./archive/CHECKLIST-DONE.md) — **all of M0
-through M8, and now M10, M9, M11, M12, M13, M14, M15, M16, M17 and M18**, verbatim. M10 was archived once before too (2026-08-08, its first seven
+through M8, and now M10, M9, M11, M12, M13, M14, M15, M16, M17, M18 and M19**, verbatim. M10 was archived once before too (2026-08-08, its first seven
 steps) and pulled back out the same day once two more real gaps turned up (10.8/10.9, below); once
 those two closed it, it was archived again for good, same day. On 2026-08-06 the per-step
 Deviations log that used to sit at the bottom of this file moved to
@@ -194,95 +205,11 @@ fixed inline; see `archive/CHECKLIST-DONE.md` for its eight steps. **M18 is done
 steps closed that gap: `TrustedCertStorage` gained `untrust`/`getAllFlow` and a Settings → Trusted
 certificates screen shipped, verified end-to-end on-device against a throwaway TLS front (accept a
 real TOFU prompt, revoke it, confirm the next connection re-prompts); `docs/revisit.md` #1 is
-deleted. See `archive/CHECKLIST-DONE.md` for both steps.
-
----
-
-## M19 — Instrumented Compose UI tests, starting with the subscriptions list screen (not in plan §8's phase order)
-
-Decomposed 2026-08-12 from the "To review" backlog entry 2.7 first parked and 3.12 dated: *"A Kover
-floor and a Compose UI test setup"*. The Kover-floor half was decided 2026-08-04 (leave the
-aggregate alone — stays settled, not reopened here). This milestone decomposes only the Compose
-half, which 3.12 already gave a shape: the first instrumented Compose test should cover the
-subscriptions list screen's four derived states (`isStale`, `isFailed`, `isEmpty`, `isNoMatch`)
-plus its two banners (`StaleBanner`, `ConversionBanner`, gated on `uiState.isStale` and
-`uiState.isConversionUnavailable` respectively) — every Composable in the project sits at 0%
-coverage, and this is the screen 2.7 predicted would first outgrow a ViewModel test.
-
-Android is the only target here, so TaigaMobileNova's own Compose UI test technique doesn't
-transfer as-is: Taiga runs `runComposeUiTest` on a `jvm()` desktop target
-(`TaigaMobileNova/docs/testing/survey.md`, `docs/testing/improvement-plan.md` tasks 10–16), and
-WallosMobile declares no `jvm()` target at all (`CLAUDE.md`'s Non-negotiables — platform targets
-are `configureKmp()`'s call only). The mechanism here has to be a real Android instrumented test —
-`androidDeviceTest`, the same source set 3.3 already paid the setup cost for on `core:storage`'s
-Room DAOs, wired the identical way (`withDeviceTestBuilder { sourceSetTreeName = null }` in the
-module's own `build.gradle.kts`, not `build-logic` — this is the second module that needs one, not
-every `ui` module by default). Two steps, wiring then coverage, the same split M18 used for storage
-then screen.
-
-**CI stays out of scope, following 3.3's own precedent.** `core:storage:connectedAndroidDeviceTest`
-already isn't in `allTests` and CI has no emulator (`CLAUDE.md`'s build-commands section) — a
-second device-only suite gets the same treatment rather than being the one that finally earns an
-emulator job, which both 2.7 and 3.12 left open. Revisit only if the maintainer actually wants CI
-device coverage; nothing here forecloses it.
-
-- [x] **19.1 — feature:subscriptions:ui: wire `androidDeviceTest` for Compose, spike one render**
-  Add the Compose UI test artifacts to `gradle/libs.versions.toml` (check
-  `TaigaMobileNova/uikit/build.gradle.kts` — task 10 in its `docs/testing/improvement-plan.md` —
-  for the `compose.dependencies.uiTest`/`ui-test-manifest` wiring shape, then confirm which
-  artifact actually resolves for an `androidTarget` `androidDeviceTest` compilation rather than
-  assuming the desktop one carries over unchanged: Taiga attaches this to a `jvmTest`, this module
-  attaches it to a real device instead). Wire `feature:subscriptions:ui`'s own `androidDeviceTest`
-  source set, same shape as `core/storage/build.gradle.kts`'s
-  `withDeviceTestBuilder { sourceSetTreeName = null }`.
-  Write one test that renders something real from this module — `SubscriptionsContent` is
-  `private` in `SubscriptionsScreen.kt` today, so the first thing this step has to settle is
-  whether that becomes `internal` (a device-test compilation is a friend of the `androidMain`/
-  `commonMain` it tests, same as any AGP `androidTest`, so `internal` should cross that boundary —
-  confirm rather than assume) or whether the test goes through the public `SubscriptionsScreen`
-  entry point instead. Assert on one visible node (e.g. the empty state's text) — this step proves
-  the wiring, not the matrix.
-  *Verify:* `./gradlew :feature:subscriptions:ui:connectedAndroidDeviceTest` with an emulator up,
-  one passing test.
-  ·  *Ref:* `core/storage/build.gradle.kts`; `TaigaMobileNova/docs/testing/improvement-plan.md`
-  task 10 (`uikit/build.gradle.kts`'s one-time Compose UI test dependency addition) — read for the
-  *shape* of the wiring, not the exact artifact, since Taiga's is desktop and this one is Android.
-  **Note:** Artifacts confirmed by resolving `androidCompileClasspath`/the KMP module metadata rather
-  than guessing: `org.jetbrains.compose.ui:ui-test-junit4` (matches Taiga's `uiTest`/`uiTestJUnit4`
-  shape) is enough alone — its module metadata forces `androidx.compose.ui:ui-test-junit4:1.11.2`
-  on the android target (the whole `androidx.compose.ui` group resolves to 1.11.2 here, confirmed the
-  same way) and pulls `ui-test` transitively, so no separate `ui-test` catalog entry was needed.
-  `androidx.compose.ui:ui-test-manifest` has no JetBrains multiplatform wrapper at all (it's
-  Android-instrumentation-only) and needed its own pinned version (`androidxComposeUiTest = 1.11.2`)
-  to match. Both landed in `gradle/libs.versions.toml`, not inline, per this project's own convention.
-  A second, unplanned gotcha: the transitively-pulled `androidx.test.espresso:espresso-core:3.5.0`
-  reflects for `android.hardware.input.InputManager.getInstance()`, removed on API 34+, so
-  `connectedAndroidDeviceTest` crashed with `NoSuchMethodException` on this AVD's API 36 the first
-  run — fixed by forcing `espresso-core:3.7.0` (new `androidxEspresso` catalog entry, added as a
-  direct `androidDeviceTest` dependency). `SubscriptionsContent` went `internal`, not through the
-  public `SubscriptionsScreen`: the private function already took `SubscriptionsUiState` and a plain
-  callback, no ViewModel/Koin needed, matching this project's own no-op-default UI-state shape.
-  `SubscriptionsScreenTest` renders the default (empty) `SubscriptionsUiState` and asserts
-  `RString.subscriptions_empty`'s resolved text exists — one test, passing on-device
-  (`Medium_Phone_API_36.1`). `createComposeRule()` prints a v1→v2 deprecation warning
-  (`StandardTestDispatcher` vs `UnconfinedTestDispatcher`); left as-is, matching
-  `TaigaMobileNova/docs/testing/compose-ui-test-spike.md`'s own "known follow-up, not chased here."
-
-- [ ] **19.2 — feature:subscriptions:ui: cover the list screen's four states and two banners**
-  The real matrix 3.12 dated: `SubscriptionsContent` rendered once per derived state (`isStale`,
-  `isFailed`, `isEmpty`, `isNoMatch`, plus the ordinary loaded case) built from a
-  `SubscriptionsUiState` fixture, asserting the right content is on screen each time — the loading
-  spinner, the empty-state text, the no-match Clear button, the error state's Try again, and real
-  rows. Separately, `StaleBanner` and `ConversionBanner` each get a render assertion for their
-  visible text/actions. `SubscriptionsUiState`'s no-op-default callback shape (`CLAUDE.md`'s UI
-  state rules) means each fixture needs no real ViewModel — the same reason a `commonTest`
-  ViewModel test doesn't need one either.
-  *Verify:* `./gradlew :feature:subscriptions:ui:connectedAndroidDeviceTest` with an emulator up,
-  covering all four derived states and both banners.
-  ·  *Ref:* `feature/subscriptions/ui/.../list/SubscriptionsScreen.kt`,
-  `feature/subscriptions/ui/.../widgets/StaleBanner.kt`,
-  `feature/subscriptions/ui/.../widgets/ConversionBanner.kt`; 3.5's and 3.11's own `Note:`s for
-  what each banner is supposed to show and when.
+deleted. See `archive/CHECKLIST-DONE.md` for both steps. **M19 is done** too — its two steps wired
+`feature:subscriptions:ui`'s `androidDeviceTest` source set for Compose UI tests (no `jvm()` target
+here for TaigaMobileNova's own desktop technique to attach to) and covered the subscriptions list
+screen's four `when`-block states plus both banners, 8 tests total, all passing on-device; see
+`archive/CHECKLIST-DONE.md` for both steps.
 
 ---
 
@@ -350,9 +277,10 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   written per step anyway — which is what the 82–100% on the logic layers already shows. This is not
   a "later" item any more; it needs a reason to come *back*, such as coverage on a logic module
   visibly falling.
-  **The Compose-UI-test half left this list to become M19, 2026-08-12** — see that milestone's own
-  preamble for why Taiga's `jvm()`-based technique doesn't transfer and what shape the first test
-  takes. The Kover-floor half above stays parked on its own terms.
+  **The Compose-UI-test half left this list to become M19, 2026-08-12, now closed** — see
+  `archive/CHECKLIST-DONE.md`'s M19 preamble for why Taiga's `jvm()`-based technique doesn't
+  transfer and what shape the first tests took. The Kover-floor half above stays parked on its own
+  terms.
 - **A certificate-trust prompt anywhere a refresh can fail, not only on the login screen** (3.8) —
   **decided against, 2026-08-09.** 5.1 already closed the copy half (a rotated certificate names
   itself in the stale banner/error message and points at Disconnect); this would have added the
@@ -466,7 +394,7 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   WallosMobile already has a Keystore-backed cipher over the API key and a ported
   `CompositeTrustManager`, both further along than Taiga's own starting point, but Network/Auth/
   Platform/Code/Privacy/Resilience have never been reviewed at all). **Testing: next milestone
-  after M17, not folded into it.** Taiga's Compose UI test sweep runs via a `jvmTest` source set
+  after M17, not folded into it — became M19, now closed too.** Taiga's Compose UI test sweep runs via a `jvmTest` source set
   (Compose Desktop test artifacts), and WallosMobile declares no `jvm()` target, so that exact
   mechanism doesn't transfer as-is — but that's a setup gap for the next milestone to close, not a
   reason to drop the idea: once M17 closes, scope whether to add a `jvm()` target (so

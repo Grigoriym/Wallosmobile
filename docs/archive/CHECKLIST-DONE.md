@@ -3939,3 +3939,105 @@ shape.
 
 Once 18.2 verified clean on-device, `docs/revisit.md` #1 was deleted — the gap it filed is closed.
 **M18 is done.**
+
+## M19 — Instrumented Compose UI tests, starting with the subscriptions list screen (not in plan §8's phase order)
+
+Decomposed 2026-08-12 from the "To review" backlog entry 2.7 first parked and 3.12 dated: *"A Kover
+floor and a Compose UI test setup"*. The Kover-floor half was decided 2026-08-04 (leave the
+aggregate alone — stays settled, not reopened here). This milestone decomposes only the Compose
+half, which 3.12 already gave a shape: the first instrumented Compose test should cover the
+subscriptions list screen's four derived states (`isStale`, `isFailed`, `isEmpty`, `isNoMatch`)
+plus its two banners (`StaleBanner`, `ConversionBanner`, gated on `uiState.isStale` and
+`uiState.isConversionUnavailable` respectively) — every Composable in the project sits at 0%
+coverage, and this is the screen 2.7 predicted would first outgrow a ViewModel test.
+
+Android is the only target here, so TaigaMobileNova's own Compose UI test technique doesn't
+transfer as-is: Taiga runs `runComposeUiTest` on a `jvm()` desktop target
+(`TaigaMobileNova/docs/testing/survey.md`, `docs/testing/improvement-plan.md` tasks 10–16), and
+WallosMobile declares no `jvm()` target at all (`CLAUDE.md`'s Non-negotiables — platform targets
+are `configureKmp()`'s call only). The mechanism here has to be a real Android instrumented test —
+`androidDeviceTest`, the same source set 3.3 already paid the setup cost for on `core:storage`'s
+Room DAOs, wired the identical way (`withDeviceTestBuilder { sourceSetTreeName = null }` in the
+module's own `build.gradle.kts`, not `build-logic` — this is the second module that needs one, not
+every `ui` module by default). Two steps, wiring then coverage, the same split M18 used for storage
+then screen.
+
+**CI stays out of scope, following 3.3's own precedent.** `core:storage:connectedAndroidDeviceTest`
+already isn't in `allTests` and CI has no emulator (`CLAUDE.md`'s build-commands section) — a
+second device-only suite gets the same treatment rather than being the one that finally earns an
+emulator job, which both 2.7 and 3.12 left open. Revisit only if the maintainer actually wants CI
+device coverage; nothing here forecloses it.
+
+- [x] **19.1 — feature:subscriptions:ui: wire `androidDeviceTest` for Compose, spike one render**
+  Add the Compose UI test artifacts to `gradle/libs.versions.toml` (check
+  `TaigaMobileNova/uikit/build.gradle.kts` — task 10 in its `docs/testing/improvement-plan.md` —
+  for the `compose.dependencies.uiTest`/`ui-test-manifest` wiring shape, then confirm which
+  artifact actually resolves for an `androidTarget` `androidDeviceTest` compilation rather than
+  assuming the desktop one carries over unchanged: Taiga attaches this to a `jvmTest`, this module
+  attaches it to a real device instead). Wire `feature:subscriptions:ui`'s own `androidDeviceTest`
+  source set, same shape as `core/storage/build.gradle.kts`'s
+  `withDeviceTestBuilder { sourceSetTreeName = null }`.
+  Write one test that renders something real from this module — `SubscriptionsContent` is
+  `private` in `SubscriptionsScreen.kt` today, so the first thing this step has to settle is
+  whether that becomes `internal` (a device-test compilation is a friend of the `androidMain`/
+  `commonMain` it tests, same as any AGP `androidTest`, so `internal` should cross that boundary —
+  confirm rather than assume) or whether the test goes through the public `SubscriptionsScreen`
+  entry point instead. Assert on one visible node (e.g. the empty state's text) — this step proves
+  the wiring, not the matrix.
+  *Verify:* `./gradlew :feature:subscriptions:ui:connectedAndroidDeviceTest` with an emulator up,
+  one passing test.
+  ·  *Ref:* `core/storage/build.gradle.kts`; `TaigaMobileNova/docs/testing/improvement-plan.md`
+  task 10 (`uikit/build.gradle.kts`'s one-time Compose UI test dependency addition) — read for the
+  *shape* of the wiring, not the exact artifact, since Taiga's is desktop and this one is Android.
+  **Note:** Artifacts confirmed by resolving `androidCompileClasspath`/the KMP module metadata rather
+  than guessing: `org.jetbrains.compose.ui:ui-test-junit4` (matches Taiga's `uiTest`/`uiTestJUnit4`
+  shape) is enough alone — its module metadata forces `androidx.compose.ui:ui-test-junit4:1.11.2`
+  on the android target (the whole `androidx.compose.ui` group resolves to 1.11.2 here, confirmed the
+  same way) and pulls `ui-test` transitively, so no separate `ui-test` catalog entry was needed.
+  `androidx.compose.ui:ui-test-manifest` has no JetBrains multiplatform wrapper at all (it's
+  Android-instrumentation-only) and needed its own pinned version (`androidxComposeUiTest = 1.11.2`)
+  to match. Both landed in `gradle/libs.versions.toml`, not inline, per this project's own convention.
+  A second, unplanned gotcha: the transitively-pulled `androidx.test.espresso:espresso-core:3.5.0`
+  reflects for `android.hardware.input.InputManager.getInstance()`, removed on API 34+, so
+  `connectedAndroidDeviceTest` crashed with `NoSuchMethodException` on this AVD's API 36 the first
+  run — fixed by forcing `espresso-core:3.7.0` (new `androidxEspresso` catalog entry, added as a
+  direct `androidDeviceTest` dependency). `SubscriptionsContent` went `internal`, not through the
+  public `SubscriptionsScreen`: the private function already took `SubscriptionsUiState` and a plain
+  callback, no ViewModel/Koin needed, matching this project's own no-op-default UI-state shape.
+  `SubscriptionsScreenTest` renders the default (empty) `SubscriptionsUiState` and asserts
+  `RString.subscriptions_empty`'s resolved text exists — one test, passing on-device
+  (`Medium_Phone_API_36.1`). `createComposeRule()` prints a v1→v2 deprecation warning
+  (`StandardTestDispatcher` vs `UnconfinedTestDispatcher`); left as-is, matching
+  `TaigaMobileNova/docs/testing/compose-ui-test-spike.md`'s own "known follow-up, not chased here."
+
+- [x] **19.2 — feature:subscriptions:ui: cover the list screen's four states and two banners**
+  The real matrix 3.12 dated: `SubscriptionsContent` rendered once per derived state (`isStale`,
+  `isFailed`, `isEmpty`, `isNoMatch`, plus the ordinary loaded case) built from a
+  `SubscriptionsUiState` fixture, asserting the right content is on screen each time — the loading
+  spinner, the empty-state text, the no-match Clear button, the error state's Try again, and real
+  rows. Separately, `StaleBanner` and `ConversionBanner` each get a render assertion for their
+  visible text/actions. `SubscriptionsUiState`'s no-op-default callback shape (`CLAUDE.md`'s UI
+  state rules) means each fixture needs no real ViewModel — the same reason a `commonTest`
+  ViewModel test doesn't need one either.
+  *Verify:* `./gradlew :feature:subscriptions:ui:connectedAndroidDeviceTest` with an emulator up,
+  covering all four derived states and both banners.
+  ·  *Ref:* `feature/subscriptions/ui/.../list/SubscriptionsScreen.kt`,
+  `feature/subscriptions/ui/.../widgets/StaleBanner.kt`,
+  `feature/subscriptions/ui/.../widgets/ConversionBanner.kt`; 3.5's and 3.11's own `Note:`s for
+  what each banner is supposed to show and when.
+  **Note:** The step's own parenthetical list names `isStale` as one of the four states
+  `SubscriptionsContent`'s `when` block renders — it doesn't; the block's four branches are
+  `isLoading`, `isFailed`, `isEmpty`, `isNoMatch` (confirmed against `SubscriptionsScreen.kt`
+  directly, not assumed from the prose — `isStale` draws the banner *and* the rows together, no
+  branch of its own). Read as a slip rather than a real instruction, since the very next sentence
+  already assigns `isStale` to the banner half ("Separately, `StaleBanner` and `ConversionBanner`
+  each get a render assertion"); `CLAUDE.md`'s "a step's prose is a sketch" rule applies. Five
+  `SubscriptionsScreenTest` cases now cover the actual branches plus the ordinary loaded row
+  (loading spinner via `hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)`, since
+  `CircularProgressIndicator()` here takes no `progress` arg; failed/no-match also assert their
+  button's callback actually fires, not just that the button renders). Two new files,
+  `widgets/StaleBannerTest.kt` and `widgets/ConversionBannerTest.kt`, cover the banners directly
+  rather than only through `SubscriptionsContent`'s `isStale`/`isConversionUnavailable` flags —
+  `StaleBanner` needs `WallosMobilePreviewTheme` wrapping (it reads `LocalIsOffline`, which has no
+  default and `error()`s without a provider) for both its online and offline copy variants.
+  8 tests total, all passing on-device (`Medium_Phone_API_36.1`). **M19 is done.**

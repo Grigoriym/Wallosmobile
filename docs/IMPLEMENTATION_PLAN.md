@@ -2089,7 +2089,9 @@ produces, so consumers construct or inject the real one.
 **What gets tested.** Pure logic earns real coverage — `WallosEnvelopeParser`, error mapping,
 `FormParams`, mappers, the formatters, `Navigator`, the login response interpreter and key regex.
 ViewModels are tested through their `StateFlow` with fakes injected. Composables were untested
-through M18; M19 (19.1) started closing that, screen by screen, through the mechanism below —
+through M18; M19 closed that for the subscriptions list screen, screen by screen, through the
+mechanism below — every other screen's Composables are still untested, M19 having scoped itself to
+one screen rather than a project-wide sweep —
 `uikit` widgets, screens, DI modules and DTOs still stay excluded from Kover (§ the root build's
 `excludes` block) regardless, since the instrumented suite can't report into it (below).
 
@@ -2148,14 +2150,31 @@ outside `allTests`, and CI therefore doesn't run it (§3.5). `:testing` is *not*
 `configureTests()` wires `commonTest` only — so a device test either declares what it needs or
 does without.
 
-**The second one was named as of 3.12: the subscriptions list screen — M19 (19.1) started building
-it, still verified only by manual emulator runs for the states not yet covered.** The four derived
-states 3.5/3.6 built (stale, failed, empty, no-match) plus 3.11's conversion banner and 3.8's trust
-dialog were the ones without any automated coverage — the "logic outgrows its ViewModel test" bar
-2.7 set for reaching here — and 19.2 is where the rest of that matrix lands (§6.1 has the wiring
-19.1 proved). The CI question is settled, not open: it stays out of scope, following 3.3's own
-precedent (M19's own preamble in `docs/CHECKLIST.md`) — a second device-only suite gets the same
-treatment as the first rather than being the one that finally earns an emulator job.
+**The second one was named as of 3.12: the subscriptions list screen — M19 built it, done as of
+19.2.** The four derived states 3.5/3.6 built (stale, failed, empty, no-match) plus 3.11's
+conversion banner were the ones without any automated coverage — the "logic outgrows its ViewModel
+test" bar 2.7 set for reaching here. `SubscriptionsScreenTest` covers `SubscriptionsContent`'s
+actual `when`-block branches (`isLoading`, `isFailed`, `isEmpty`, `isNoMatch`, plus the ordinary
+loaded case with real rows); `StaleBanner`/`ConversionBanner` each get their own test file instead
+of only being reached through the content composable's `isStale`/`isConversionUnavailable` flags.
+3.8's trust dialog is a separate screen (`feature:setup:ui`'s login flow), not part of this matrix,
+and stays uncovered by this milestone. The CI question is settled, not open: it stays out of scope,
+following 3.3's own precedent (M19's own preamble, `archive/CHECKLIST-DONE.md`) — a second
+device-only suite gets the same treatment as the first rather than being the one that finally earns
+an emulator job.
+
+**Two fixture-level techniques 19.2 needed, worth reusing for the next screen:**
+
+- **Asserting an indeterminate `CircularProgressIndicator()` (no `progress` argument) is a
+  semantics match, not a text lookup**: `composeTestRule.onNode(hasProgressBarRangeInfo(
+  ProgressBarRangeInfo.Indeterminate))`, from `androidx.compose.ui.test`/
+  `androidx.compose.ui.semantics` — there is no visible string to key off.
+- **An `internal` widget that reads a `CompositionLocal` with no default** (`LocalIsOffline`,
+  `error()`s rather than falling back) **needs `WallosMobilePreviewTheme` wrapping in its own test**,
+  not just in the screen that normally hosts it — `StaleBannerTest` wraps `StaleBanner` directly in
+  `WallosMobilePreviewTheme { … }` (or an inner `CompositionLocalProvider(LocalIsOffline provides
+  true) { … }` for the offline copy variant) rather than trying to construct the composition local
+  by hand, the same shape every `@PreviewWallosDarkLight` in this codebase already uses.
 
 **A `@Dao` is faked by hand like anything else** — it is an interface, so a `commonTest` fake needs
 no Room runtime, and `replaceAll` is a `@Transaction` method *with a body*, so only the abstract
