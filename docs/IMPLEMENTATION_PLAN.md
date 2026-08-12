@@ -1502,7 +1502,8 @@ The prompt itself is 3.8, and it lives on the **login screen only**:
   names the certificate, pointing at Disconnect. `LoginViewModel.onFailure` asks the same question
   *first* and raises the dialog, which is why the branch is invisible there: the copy is for screens
   with no trust surface. A prompt on those screens would put a pin write outside `SetupRepository`
-  and is still open.
+  — **decided against, 2026-08-09** (`docs/CHECKLIST.md`'s "To review": not worth ~13 extra call
+  sites for a rare event that already has a working, if clunkier, fallback message).
 
 ### 4.6 Version gating
 
