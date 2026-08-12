@@ -2099,7 +2099,7 @@ one screen rather than a project-wide sweep —
 **Compose UI tests are instrumented (`androidDeviceTest`), not host tests, and have to be — this
 project declares no `jvm()` target for TaigaMobileNova's own `runComposeUiTest`/`jvmTest` technique
 to attach to (M19's own preamble in `docs/CHECKLIST.md` has the full comparison).** Wiring, per
-module that needs it (`kotlin { androidLibrary { withDeviceTestBuilder { sourceSetTreeName = null }
+module that needs it (`kotlin { android { withDeviceTestBuilder { sourceSetTreeName = null }
 .configure { instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" } } } }`, same shape
 3.3 used for Room's DAO suite) plus three `androidDeviceTest`-only dependencies, all pinned in
 `gradle/libs.versions.toml`:

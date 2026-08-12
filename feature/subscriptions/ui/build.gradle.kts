@@ -13,7 +13,7 @@ kotlin {
     // Same shape as `core/storage/build.gradle.kts`'s Room DAO wiring: `sourceSetTreeName = null`
     // keeps `androidDeviceTest` out of the `test` source-set tree, so `commonTest` is not also
     // compiled onto the device.
-    androidLibrary {
+    android {
         withDeviceTestBuilder { sourceSetTreeName = null }
             .configure { instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     }
