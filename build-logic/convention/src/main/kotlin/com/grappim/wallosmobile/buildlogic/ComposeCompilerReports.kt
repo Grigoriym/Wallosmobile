@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.buildlogic
 
+import java.io.File
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.compose.compiler.gradle.ComposeCompilerGradlePluginExtension
@@ -21,8 +22,10 @@ fun Project.configureComposeStabilityReports() {
 // behind -PcomposeStabilityReport.
 fun Project.configureComposeStabilityConfig() {
     extensions.configure<ComposeCompilerGradlePluginExtension> {
+        // `rootDir` wrapped through `layout.file(Provider<File>)`, not `rootProject.layout...` —
+        // the latter reads another project's (":") mutable state, which Isolated Projects forbids.
         stabilityConfigurationFiles.add(
-            rootProject.layout.projectDirectory.file("config/compose/stability_config.conf")
+            layout.file(provider { File(rootDir, "config/compose/stability_config.conf") })
         )
     }
 }

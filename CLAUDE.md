@@ -177,6 +177,16 @@ ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private sta
 # The real check is still GitHub's own parse — `gh workflow list` after pushing shows `active` for
 # a file with no syntax error, `disabled_yaml_error` (or absence from the list) for one that fails.
 
+# `gradle.properties` sets `org.gradle.unsafe.isolated-projects=true` (Gradle 9.6.1's pre-9.7
+# name for what's now called Isolated Projects — `org.gradle.isolated-projects=true` and
+# `--isolated-projects` are 9.7.0+ only and silently/loudly do nothing on this wrapper version).
+# Consequence for any `build-logic` convention plugin or per-module `build.gradle.kts`: reaching
+# for `rootProject.file(...)`/`rootProject.files(...)`/`rootProject.layout...` from a subproject
+# now fails the build outright (not silently) — use the current project's own `rootDir` (a plain,
+# already-known-at-Settings-time `File`, never a live reference to another project's mutable
+# state) instead. Full trial process, the violations this actually found, before/after numbers,
+# and why this was judged safe to enable despite being incubating: `docs/GRADLE_ISOLATED_PROJECTS.md`.
+
 # Regenerate the Android Baseline Profile (M13, plan §3.7) — needs a connected device/AVD, same
 # one `emulator-testing` already boots for on-device Verify: lines. Writes straight into
 # androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt, committed as source.

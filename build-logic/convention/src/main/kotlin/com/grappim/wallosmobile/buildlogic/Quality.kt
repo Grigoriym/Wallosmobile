@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.buildlogic
 
 import dev.detekt.gradle.extensions.DetektExtension
+import java.io.File
 import org.gradle.api.Project
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
@@ -65,7 +66,11 @@ fun Project.configureLinting() {
     configure<DetektExtension> {
         buildUponDefaultConfig.set(true)
         parallel.set(true)
-        config.setFrom(rootProject.files("config/detekt/detekt.yml"))
+        // `rootDir` (not `rootProject.files(...)`) — every Project already carries its build's
+        // root directory as a plain, non-cross-project value, so this doesn't need `rootProject`
+        // itself (a live Project reference to another project, which Isolated Projects forbids
+        // reading from a subproject).
+        config.setFrom(File(rootDir, "config/detekt/detekt.yml"))
         allRules.set(false)
 
         // detekt's default source set is `src/main/{java,kotlin}`, which no KMP module has —

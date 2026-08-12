@@ -94,3 +94,11 @@ deleted — see `/finalize`.
   build — there's no way to reach a release app's own data dir this way to clear just its Coil
   cache. `adb shell pm clear <pkg>` (wipes everything, including login) followed by re-login was
   the only working substitute for repeating a cold-cache measurement on a release build.
+- `docs.gradle.org/current/...` resolves to the *latest* Gradle version's docs, not the installed
+  9.6.1's — its Isolated Projects flag names (`--isolated-projects` CLI flag,
+  `-Dorg.gradle.isolated-projects=true`) are 9.7.0+ only. On 9.6.1 the CLI flag fails outright with
+  `Unknown command-line option`, but the system property silently no-ops with zero error or output
+  difference — only `org.gradle.unsafe.isolated-projects=true` (the pre-9.7 experimental name)
+  actually enables it. Confirm a flag/property against the *installed* version's own docs
+  (`docs.gradle.org/9.6.1/...`) before trusting the "current" page, especially when it fails silent
+  rather than loud.

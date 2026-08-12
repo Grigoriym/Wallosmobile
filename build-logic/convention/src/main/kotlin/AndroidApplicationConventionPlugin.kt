@@ -11,6 +11,7 @@ import com.grappim.wallosmobile.buildlogic.configureKotlinAndroid
 import com.grappim.wallosmobile.buildlogic.configureLinting
 import com.grappim.wallosmobile.buildlogic.configureTests
 import com.grappim.wallosmobile.buildlogic.libs
+import java.io.File
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.apply
@@ -38,7 +39,7 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     AppFlavors.entries.forEach { flavor ->
                         create("${flavor.title}Release") {
                             val envSuffix = flavor.title.uppercase()
-                            storeFile = rootProject.file("wallos_mobile_${flavor.title}.jks")
+                            storeFile = File(rootDir, "wallos_mobile_${flavor.title}.jks")
                             storePassword = System.getenv("WALLOS_STORE_PASS_$envSuffix")
                             keyAlias = System.getenv("WALLOS_ALIAS_$envSuffix")
                             keyPassword = System.getenv("WALLOS_KEY_PASS_$envSuffix")
@@ -53,7 +54,7 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     // below, not the flavor, because a flavor-level signingConfig would apply to
                     // both its build types and this one must not touch `fdroidRelease`.
                     create("fdroidDebug") {
-                        storeFile = rootProject.file("wallos_mobile_fdroid_debug.jks")
+                        storeFile = File(rootDir, "wallos_mobile_fdroid_debug.jks")
                         storePassword = System.getenv("WALLOS_STORE_PASS_FDROID_DEBUG")
                         keyAlias = System.getenv("WALLOS_ALIAS_FDROID_DEBUG")
                         keyPassword = System.getenv("WALLOS_KEY_PASS_FDROID_DEBUG")
