@@ -1,10 +1,14 @@
 # Android perf profiling — Perfetto, gfxinfo, Baseline Profile
 
-Portable reference: the on-device profiling technique and the `:benchmark` Baseline Profile
-module, written so both can be copied into another Android/KMP project rather than re-derived.
-Generic adb/uiautomator technique that isn't perf-specific (screenshot coordinate scaling,
-`uiautomator dump`, form filling, network toggling) lives in the shared `emulator-testing` skill
-instead — this file only covers frame timing, tracing, and the Baseline Profile pipeline.
+Portable reference: the on-device profiling technique, written so it can be copied into another
+Android/KMP project rather than re-derived. Generic adb/uiautomator technique that isn't
+perf-specific (screenshot coordinate scaling, `uiautomator dump`, form filling, network toggling)
+lives in the shared `emulator-testing` skill instead — this file covers frame timing and tracing.
+**The `:benchmark` Baseline Profile module's own setup — the Gradle wiring, `BaselineProfileRule`
+journey gotchas, and the "generated but never applied" `profileinstaller` gap — is now the shared
+`android-baseline-profile` skill** (`agentic-grappim`, symlinked at
+`~/.claude/skills/android-baseline-profile`); this file keeps only what's confirmed true for
+*this* project's own module.
 
 Everything below was exercised for real on this project (`docs/issues/2026-08-09-fab-open-and-
 list-scroll-jank.md`, `docs/issues/2026-08-10-editor-open-stall-and-unapplied-profile.md`, M13 —
@@ -133,210 +137,30 @@ select count(*), sum(dur) from slice where name like 'monitor contention%<ClassN
 
 ## Baseline Profile / Macrobenchmark (`:benchmark` module)
 
-A `com.android.test` macrobenchmark producer module that generates a Baseline Profile — a list
-of hot classes/methods AOT-compiled at install time instead of waiting for the JIT to warm up
-cold-navigation and scroll paths. This is the fix for a "first scroll/first navigation is janky,
-the second one isn't" finding from the tracing above (JIT lock-contention slices in the trace are
-the tell).
+Generic setup technique lives in the `android-baseline-profile` skill now — read it for the
+Gradle-wiring gotchas (AGP-compat version pinning, the `apply false` classloader trap, flavor
+mirroring), the `BaselineProfileRule` journey gotchas (encrypted login gate, no data clear
+between test iterations), and the "generated but never applied" `profileinstaller` step. What
+follows is only what's confirmed true for *this* project's own module.
 
-### Why it's wired by hand, not through this project's own convention plugins
-
-It's the one module type that is neither KMP nor a shared-convention-plugin consumer — a plain
-Gradle Android Test module. Concrete version pin and gotchas (confirmed live, not from docs):
-
-- **`androidx.benchmark`/`androidx.baselineprofile` 1.4.1 (documented-stable at the time) does
-  not work against AGP 9.3.1** — fails to apply with `Module :app is not a supported android
-  module`. Its module-detection logic predates AGP 9; the docs' own claim of support "up to AGP
-  9.0.0-alpha01" was accurate, not conservative. **`1.5.0-beta01` configures and runs cleanly.**
-  Re-check this pin whenever AGP is bumped.
-- **`com.android.test` and `androidx.baselineprofile` both need `alias(...) apply false` in the
-  root `build.gradle.kts`'s plugin-dedup block**, next to `com.android.application`. Without it,
-  applying either from the module's own `plugins {}` block with an explicit version fails
-  `already on the classpath with an unknown version` — any subproject that applies
-  `com.android.application` already puts every AGP plugin class (including `com.android.test`'s)
-  on the shared classloader, and a second, versioned request for an already-loaded class can't
-  be compatibility-checked.
-- **If the target app has product flavors, the benchmark module needs a matching flavor
-  dimension of its own**, by name (a plain subproject script can't import the target app's
-  Kotlin flavor-declaration objects the way an in-repo convention plugin can). Left unflavored,
-  the target app's flavor-qualified release variants become ambiguous to this module's own
-  unflavored one — `generateXBaselineProfile` fails with a Gradle variant-attribute-ambiguity
-  error between the flavors' `RuntimeElements`.
-- **A convention plugin's `configureLinting()`-style helper isn't callable from a plain
-  subproject script** — the import that resolves inside a compiled `build-logic` doesn't resolve
-  from a bare module's `build.gradle.kts`. detekt/ktlint need to be configured by hand there
-  instead, including any Compose-lint ruleset dependency the shared detekt config requires — if
-  the shared config has a `Compose:` section, it's invalid without that plugin present in *every*
-  module that runs detekt against it, regardless of whether the module has any Compose code.
-- **Generation runs against a real connected device** (`baselineProfile { useConnectedDevices =
-  true }`) — reuse whatever AVD/device is already used for other on-device verification rather
-  than provisioning a separate Gradle Managed Device.
-
-### Gradle shape (`benchmark/build.gradle.kts`)
-
-```kotlin
-plugins {
-    alias(libs.plugins.android.test)
-    alias(libs.plugins.androidx.baselineprofile)
-    alias(libs.plugins.detekt)
-    alias(libs.plugins.ktlint)
-}
-
-android {
-    namespace = "com.example.app.benchmark"
-    compileSdk = /* … */
-
-    defaultConfig {
-        minSdk = /* … */
-        targetSdk = /* … */
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    targetProjectPath = ":app"   // the module under benchmark
-
-    // Only needed if the target app has flavors — mirror its dimension/flavor names.
-    flavorDimensions += "STORE"
-    productFlavors {
-        create("gplay") { dimension = "STORE" }
-        create("fdroid") { dimension = "STORE" }
-    }
-}
-
-baselineProfile {
-    useConnectedDevices = true
-}
-
-dependencies {
-    implementation(libs.androidx.test.ext.junit)
-    implementation(libs.androidx.test.uiautomator)
-    implementation(libs.androidx.benchmark.macro.junit4)
-}
-```
-
-`gradle/libs.versions.toml`:
-
-```toml
-androidxBenchmark = "1.5.0-beta01"   # also versions the androidx.baselineprofile plugin
-androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "androidxBenchmark" }
-androidx-baselineprofile = { id = "androidx.baselineprofile", version.ref = "androidxBenchmark" }
-android-test = { id = "com.android.test", version.ref = "agp" }
-```
-
-### The generator itself
-
-`BaselineProfileRule` drives real UI journeys through `MacrobenchmarkScope` (uiautomator
-under the hood) and records which classes/methods get touched. One `@Test` per journey worth
-its own profile coverage — cold start plus whatever screen the tracing pointed at as JIT-cold:
-
-```kotlin
-class BaselineProfileGenerator {
-    @get:Rule
-    val baselineProfileRule = BaselineProfileRule()
-
-    @Test
-    fun coldStart() = baselineProfileRule.collect(packageName = TARGET_PACKAGE) {
-        pressHome()
-        startActivityAndWait()
-    }
-
-    @Test
-    fun listFling() = baselineProfileRule.collect(packageName = TARGET_PACKAGE) {
-        pressHome()
-        startActivityAndWait()
-        openList()
-        repeat(3) { device.swipe(540, 2000, 540, 300, 150) }
-    }
-}
-```
-
-Gotchas found writing this project's own version:
-
-- **If a login/auth screen gates the journey and the stored credential is encrypted
-  (Android Keystore or similar), a DataStore/SharedPreferences-planting trick to seed it won't
-  work** — a planted value that doesn't decrypt just reads as "nothing stored," not a crash.
-  Log in once by hand on the same device before running the generator instead.
-- **`BaselineProfileRule` kills the process between iterations but does not clear app data** —
-  a manually seeded login survives every `@Test` within one Gradle invocation, but the target
-  app is uninstalled at the end of every `connectedXInstrumentedTest` run, pass or fail. Re-login
-  is needed before every fresh generator invocation, not just once ever.
-- **A journey that depends on a view appearing (e.g. clicking a button whose text/icon only
-  renders once some async state resolves) needs an explicit `device.wait(Until.hasObject(...))`
-  before interacting with it** — `startActivityAndWait()` only waits for the window to go idle,
-  not for the app's own first-frame async state. A journey that happens to always land on a fast
-  frame will pass without this wait; a slower cold-JIT frame will make `findObject` return null
-  and the test flaky, not reliably failing.
-
-### Running it, and where the output lands
-
-```bash
-./gradlew :app:generateXReleaseBaselineProfile
-```
-
-writes `app/src/xRelease/generated/baselineProfiles/baseline-prof.txt`, committed as source (not
-gitignored — a release build reads it from there without regenerating). The assembled release
-APK embeds the compiled form at `assets/dexopt/baseline.prof` + `.profm` (confirmed via
-`unzip -l`).
-
-**This task is a real `connectedAndroidTest` run** — it boots instrumentation, installs both the
-target app and the test APK, and drives the device. It can take several minutes; run it under a
-background task rather than a short foreground timeout, or a slow run gets silently cancelled
-with no result printed.
-
-## Making sure the profile is actually applied
-
-Generating the file is necessary but **not sufficient** — a plain `adb install` (or a
-non-Play-Store install path, e.g. an F-Droid-style flavor) does not automatically apply Baseline
-Profile compilation. This bit a real measurement here: a same-day "is it fixed" re-check found
-FAB-open and list-open journeys indistinguishable, but the installed APK's own dexopt status
-(`adb shell dumpsys package <package-id> | grep status`) read `[status=verify] [reason=install]`
-— the profile was compiled into the APK but never applied to the installed copy, and the earlier
-"fixed" result was actually measuring an unoptimized install.
-
-**Fix: add `androidx.profileinstaller` as a runtime dependency of the app module.**
-
-```toml
-profileinstaller = "1.4.1"
-androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
-```
-
-```kotlin
-// app/build.gradle.kts
-dependencies {
-    implementation(libs.androidx.profileinstaller)
-}
-```
-
-Its bundled `ProfileInstallerInitializer` (an `androidx.startup` initializer, no manual wiring)
-fires automatically on first launch after install, and the system's background dexopt job then
-compiles the profile in — confirmed via `adb logcat` for the initializer firing, and
-`dumpsys package` moving to `[status=speed-profile] [reason=bg-dexopt]`. Real devices run that
-job on idle+charging; force it immediately for verification instead of waiting:
-
-```bash
-adb shell cmd package bg-dexopt-job
-adb shell dumpsys package <package-id> | grep status   # re-check after this
-```
-
-Measured effect on this project (real device, editor-open journey): worst frame 150ms → 117ms,
-a ~22% reduction, matching the ~109ms a manual `adb shell cmd package compile -m speed-profile -f`
-override found — confirming the mechanism, not just the forced override. A *different* journey's
-aggregate frame-jank number (scroll) did **not** improve from the same fix — the profile-
-application gap explains and fixes the mechanism it targets, not every perceived-slowness finding
-in the same investigation. Don't assume one fix explains every symptom just because both were
-found in the same trace session.
-
-## Summary checklist for porting this to a new project
-
-1. `dumpsys gfxinfo`/`framestats` — works immediately, no Gradle changes. Use first.
-2. Perfetto capture + `TraceProcessor` — needs a venv (`pip install perfetto`), no Gradle
-   changes. Use when gfxinfo says "slow" but not "why."
-3. If tracing finds JIT lock-contention on cold navigation: add a `:benchmark`-style
-   `com.android.test` module, pin `androidx.benchmark`/`androidx.baselineprofile` against
-   whatever AGP version the project runs (check the module actually applies before trusting a
-   "stable" version number against a recent AGP), write one `@Test` per cold journey the trace
-   flagged.
-4. Add `androidx.profileinstaller` to the app module regardless of Play Store distribution —
-   without it, a non-Play install path never applies the profile at all, and a Play-only install
-   path applies it later than a cold-launch initializer would.
-5. Re-verify with `dumpsys package | grep status` before trusting any "is it fixed" re-measurement
-   — an unapplied profile silently produces the same install as no profile at all.
+- **Version pin: `androidx.benchmark`/`androidx.baselineprofile` `1.5.0-beta01`.** `1.4.1`
+  (documented-stable at the time) fails to apply against this project's AGP (`Module :app is not
+  a supported android module`) — re-check this pin before assuming it still holds whenever
+  `gradle/libs.versions.toml`'s `agp` entry is bumped.
+- **Module**: `benchmark/build.gradle.kts`, `targetProjectPath = ":androidApp"`, mirroring
+  `androidApp`'s `gplay`/`fdroid` `STORE` flavor dimension.
+- **Generate**: `./gradlew :androidApp:generateGplayReleaseBaselineProfile` — writes
+  `androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt`, committed as
+  source (see CLAUDE.md's Build commands). The assembled release APK embeds the compiled form at
+  `assets/dexopt/baseline.prof`/`.profm` (confirmed via `unzip -l`).
+- **`androidx.profileinstaller` `1.4.1`** is a runtime dependency of `androidApp` (all flavors)
+  — without it, `fdroid`'s direct-APK distribution never applies the generated profile at all.
+  `debug` builds never carry one regardless: the file only exists in the `gplayRelease` source
+  set.
+- **Measured effect (real device, editor-open journey)**: worst frame 150ms → 117ms (~22%) once
+  the unapplied-profile gap was fixed — matching the ~109ms a manual
+  `adb shell cmd package compile -m speed-profile -f` override found, confirming the mechanism
+  rather than just the forced override. The same fix did **not** move the separate scroll-jank
+  number traced in the same investigation — full before/after numbers in M13
+  (`docs/archive/CHECKLIST-DONE.md`) and `docs/issues/2026-08-09-fab-open-and-list-scroll-
+  jank.md` / `docs/issues/2026-08-10-editor-open-stall-and-unapplied-profile.md`.
