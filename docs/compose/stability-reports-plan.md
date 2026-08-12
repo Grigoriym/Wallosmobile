@@ -14,7 +14,7 @@ This is a diagnostic tool, opt-in, zero cost to a normal build — same shape as
 
 | # | Task | Size | Status |
 |---|------|------|--------|
-| 1 | Gradle wiring: opt-in stability reports | S | Not started |
+| 1 | Gradle wiring: opt-in stability reports | S | Done (2026-08-12) |
 | 2 | Aggregator script + first repo-wide audit + doc | M | Not started |
 | 3 | Fix whatever task 2's audit finds, scoped after the fact | ? | Not scoped — depends on task 2's findings |
 
@@ -129,6 +129,13 @@ env vars), so an already-`UP-TO-DATE` compile task silently skips regenerating t
 **Finalize focus:** if the extension's real member names differ from what's assumed above
 (shouldn't happen — same Kotlin version as the already-confirmed Taiga jar — but confirm rather
 than trust), record the actual signature here.
+
+**Result (2026-08-12):** extension member names matched as assumed, no deviation. One thing not
+predicted above: `-PcomposeStabilityReport` also emits an `android/` subdirectory and a
+`*-composables.csv` file alongside the two `.txt` files in `compose_reports/` — worth accounting
+for in task 2's aggregator (it already only globs `*-classes.txt`/`*-composables.txt` by pattern,
+so the extra files shouldn't confuse it, but confirm rather than assume once task 2 runs it for
+real) and in task 2's own doc.
 
 ## Task 2 — Aggregator script + first repo-wide audit + doc
 

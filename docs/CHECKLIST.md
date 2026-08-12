@@ -9,10 +9,14 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `2/2` — **M19 done** · M20 `0/2`
-**Current step:** 20.1 — wire opt-in Compose Compiler stability reports
-(`docs/compose/stability-reports-plan.md`). M20 decomposed 2026-08-12, ported from
-`TaigaMobileNova/docs/compose/`'s own same-day work; not yet started. 19.2 closed 2026-08-12: `feature:subscriptions:ui`'s list screen now has real matrix
+**M18 done** · M19 `2/2` — **M19 done** · M20 `1/2`
+**Current step:** 20.2 — aggregator script + first repo-wide audit + doc
+(`docs/compose/stability-reports-plan.md`). 20.1 closed 2026-08-12: `configureComposeStabilityReports()`
+wired into both `KmpLibraryComposeConventionPlugin.kt` and `AndroidApplicationConventionPlugin.kt`
+right after their `org.jetbrains.kotlin.plugin.compose` apply — see 20.1's own `Note:` for the two
+extra report artifacts (`android/` subdir, `*-composables.csv`) the plan doc didn't mention. M20
+decomposed 2026-08-12, ported from
+`TaigaMobileNova/docs/compose/`'s own same-day work. 19.2 closed 2026-08-12: `feature:subscriptions:ui`'s list screen now has real matrix
 coverage — 8 instrumented tests across `SubscriptionsScreenTest` (loading/failed/empty/no-match/
 loaded, the four `when`-block branches plus the ordinary case) and two new files,
 `widgets/StaleBannerTest.kt`/`widgets/ConversionBannerTest.kt`, covering the two banners directly.
@@ -230,7 +234,7 @@ guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it
 `docs/revisit.md` (empty as of 2026-08-12 — a first finding here would be entry #1) or becomes
 20.3, decided at that point, not now.
 
-- [ ] **20.1 — Gradle wiring: opt-in stability reports**
+- [x] **20.1 — Gradle wiring: opt-in stability reports**
   Add `configureComposeStabilityReports()` (new file
   `build-logic/convention/src/main/kotlin/com/grappim/wallosmobile/buildlogic/ComposeCompilerReports.kt`),
   gated behind `-PcomposeStabilityReport`, called from both `KmpLibraryComposeConventionPlugin.kt`
@@ -245,6 +249,11 @@ guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it
   ·  *Ref:* `docs/compose/stability-reports-plan.md` task 1;
   `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 1 (the shape, not the
   `targetKotlinPlatforms` detour — doesn't apply here).
+  Note: exactly the plan's snippet, no deviation — `ComposeCompilerGradlePluginExtension`'s member
+  names matched as assumed. All four `Done when` commands ran and passed as written. One thing the
+  plan didn't call out: `-PcomposeStabilityReport` also emits an `android/` subdirectory and a
+  `*-composables.csv` alongside the two `.txt` files in `compose_reports/` — worth noting in 20.2's
+  doc rather than assuming only the two `.txt` files exist.
 
 - [ ] **20.2 — Aggregator script + first repo-wide audit + doc**
   Copy `TaigaMobileNova/docs/compose/stability-scan.py` to `docs/compose/stability-scan.py`

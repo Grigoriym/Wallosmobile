@@ -4,6 +4,7 @@ import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.grappim.wallosmobile.buildlogic.AppBuildTypes
 import com.grappim.wallosmobile.buildlogic.AppFlavors
 import com.grappim.wallosmobile.buildlogic.FlavorDimensions
+import com.grappim.wallosmobile.buildlogic.configureComposeStabilityReports
 import com.grappim.wallosmobile.buildlogic.configureFlavors
 import com.grappim.wallosmobile.buildlogic.configureKotlinAndroid
 import com.grappim.wallosmobile.buildlogic.configureLinting
@@ -20,6 +21,8 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
             apply(plugin = "com.android.application")
             apply(plugin = "org.jetbrains.kotlin.plugin.compose")
             apply(plugin = "io.insert-koin.compiler.plugin")
+
+            configureComposeStabilityReports()
 
             extensions.configure<ApplicationExtension> {
                 defaultConfig.apply {
