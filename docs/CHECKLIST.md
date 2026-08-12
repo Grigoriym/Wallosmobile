@@ -299,16 +299,25 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   sitting silently empty while `loadCategories`/`loadPayers`/`loadPaymentMethods` are in flight — but
   the user still sees the screen itself take a while to open, which that fix never addressed. Two
   separate, real costs, only one still unscoped:
-  1. **The network wait — still open, unscoped.** 2 of the 3 picker calls land together ~500–700ms
-     after the request (the third, `get_household`, is fast — under 15ms) against the local
-     instance, with no retries or exceptions logged. Confirmed server-side, not client:
-     `LoginThrottle` only gates `login.php`/`totp.php`, `NetworkModule.kt` sets no connection-pool
-     limit, and a bare `curl` to the same three endpoints from the host resolved in ~7ms each — so
-     whatever serializes two of the three only shows up through the app's own request pattern
-     (PHP-FPM worker count or session-file locking are the live guesses, still unconfirmed). Fixing
-     this for real means giving these three repositories a cache the way `SubscriptionsRepository`
-     already has one — Phase 5 management-screen scope, not a small change. Filed 2026-08-07; the
-     next session picking this up should read this entry before re-deriving the measurement.
+  1. **The network wait — declined 2026-08-12, not worth it.** 2 of the 3 picker calls land
+     together ~500–700ms after the request (the third, `get_household`, is fast — under 15ms)
+     against the local instance, with no retries or exceptions logged. Confirmed server-side, not
+     client: `LoginThrottle` only gates `login.php`/`totp.php`, `NetworkModule.kt` sets no
+     connection-pool limit, and a bare `curl` to the same three endpoints from the host resolved in
+     ~7ms each — so whatever serializes two of the three only shows up through the app's own
+     request pattern (PHP-FPM worker count or session-file locking are the live guesses, still
+     unconfirmed and now staying that way). Filed 2026-08-07. Scoped 2026-08-12: a real fix means
+     giving `CategoriesRepository`/`HouseholdRepository`/`PaymentMethodsRepository` a cache the way
+     `SubscriptionsRepository` has one — new Room entities/DAOs in `core:storage`, a `Cache` class
+     per feature `data` module, a breaking `get*` → `observe*`/`refresh*` interface change reaching
+     three management-screen list ViewModels plus `SubscriptionEditorViewModel`, and ~9 test fakes
+     updated to match — reversing the explicit "reference data, no cache" call written into all
+     three repos' own KDoc. That's out of proportion to the payoff: it only pays off from the
+     *second* editor open onward (first open, or any open after an edit elsewhere invalidates the
+     cache, still round-trips), and doesn't touch the actual unconfirmed root cause either way.
+     User declined to pursue; **don't re-open this per step; it needs a reason to come back**, such
+     as the stagger getting materially worse or a real Phase 5 management-screen cache landing for
+     other reasons and picking these three up for free.
   2. **The JIT warm-up tax on cold navigation — addressed by M13, but the "fixed" verdict below
      rested on an unapplied profile. Now corrected: real improvement, not the original
      "indistinguishable" claim.** Re-investigated 2026-08-09 alongside the scroll-laggy item
