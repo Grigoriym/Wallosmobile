@@ -27,7 +27,8 @@ graduation. On 9.6.1:
   into `gradle.properties` now.
 
 No wrapper bump was needed — the feature itself has existed since Gradle 9.0.0, just under this
-older flag name pre-9.7.
+older flag name pre-9.7. (The wrapper *was* bumped to 9.7.0 later the same day, for the flag's
+graduated name — see "9.7.0 update and regression" below for what that actually found.)
 
 ## Process
 
@@ -107,18 +108,57 @@ The five commands CI actually runs (`assembleFdroidDebug`, `assembleGplayDebug -
 default alone — confirming CI (which reads the committed properties file, no separate override)
 will pick this up without any workflow YAML change.
 
-## Decision: enabled by default
+## Decision (9.6.1): enabled by default — later reversed, see below
 
-`gradle.properties` now carries `org.gradle.unsafe.isolated-projects=true` permanently. Accepted
-risk, going in with eyes open: this is still an **incubating** feature even at its 9.7.0+ name (the
-blog post's own words: "not recommended for production builds yet," "more constraints may be added
-in the future, including in minor releases"). On 9.6.1 it's one rung further out — the *pre*-incubating
-experimental name. A future Gradle upgrade could tighten a constraint this build currently satisfies
-and break configuration with no warning beyond a changelog entry. If that happens: rerun the
-diagnostics-pass step above against the new version before assuming the fix is complicated — it may
-just be another `rootProject.*` call introduced since, fixable the same `rootDir` way.
+`gradle.properties` initially carried `org.gradle.unsafe.isolated-projects=true` permanently, on
+9.6.1, with eyes open about the accepted risk: this is still an **incubating** feature even at its
+9.7.0+ name (the blog post's own words: "not recommended for production builds yet," "more
+constraints may be added in the future, including in minor releases"). The predicted failure mode
+— "a future Gradle upgrade could tighten a constraint this build currently satisfies and break
+configuration with no warning beyond a changelog entry" — happened the same day, on the very next
+Gradle release. See below.
+
+## 9.7.0 update and regression
+
+Bumped the wrapper 9.6.1 → 9.7.0 the same day (`update-gradle-wrapper` skill; 9.7.0 was also
+`services.gradle.org/versions/current` at the time, i.e. current latest stable, not a specific
+target picked for this alone), specifically to drop the `unsafe.` flag name for the graduated
+`org.gradle.isolated-projects=true`. Re-ran the same safety net that passed clean on 9.6.1:
+
+```
+Plugin 'org.jetbrains.kotlin.multiplatform': Project ':core:storage' cannot access task
+dependencies directly
+
+Could not determine the dependencies of task ':core:storage:compileAndroidMain'.
+> Could not create task ':core:storage:kspAndroidMain'.
+   > Project ':core:storage' cannot access task dependencies directly
+```
+
+This is inside the **Kotlin Multiplatform Gradle plugin's own KSP task-wiring code** for an Android
+target (`:core:storage` is the Room module — the only one with real KSP codegen) — not a
+`rootProject.*` call in this repo's own `build-logic` or module scripts. 9.6.1's Isolated Projects
+implementation didn't catch this; 9.7.0's tightened checks do. This is exactly the category the
+plan for the original trial called a stop condition going in: *"if a third-party plugin itself is
+the source of a violation — not something fixable in our own build-logic — that's a stop condition,
+not a workaround."* There is nothing in this repo to edit to fix it; it needs an upstream Kotlin
+Gradle Plugin release with better Isolated Projects support for Android-target KSP task creation.
+
+Confirmed 9.7.0 itself has no other regression: the same five-command safety net (assemble ×2,
+`allTests`, `detekt ktlintCheck`, `koverXmlReport`) all passed clean on 9.7.0 with Isolated Projects
+turned **off**.
+
+## Decision (final): Gradle 9.7.0, Isolated Projects off
+
+`gradle.properties` keeps the wrapper at 9.7.0 (worth having on its own — current latest stable,
+verified clean otherwise) but the `org.gradle.isolated-projects=true` line is commented out with
+the reason inline, not deleted — this was a real, measured win (§ Results above), just blocked by
+someone else's plugin catching up. **Re-check on every future Gradle and/or Kotlin Gradle Plugin
+version bump**: rerun the diagnostics-pass step from Process above; if `:core:storage`'s
+`kspAndroidMain` violation is gone, the rest of this doc's fix set and measured numbers should still
+apply unchanged, since nothing about this repo's own code caused it.
 
 ## Frictions logged
 
 See `docs/frictions.md` for the one-line, past-tense entries from this session (the flag-name
-mismatch between the blog/docs page and the installed 9.6.1 was the main one).
+mismatch between the blog/docs page and the installed 9.6.1 was the main one; the wrapper task's
+own `--validate-url` HEAD-request failing in this sandbox despite `curl` succeeding was the other).

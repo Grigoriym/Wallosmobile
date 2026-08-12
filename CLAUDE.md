@@ -177,15 +177,26 @@ ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private sta
 # The real check is still GitHub's own parse — `gh workflow list` after pushing shows `active` for
 # a file with no syntax error, `disabled_yaml_error` (or absence from the list) for one that fails.
 
-# `gradle.properties` sets `org.gradle.unsafe.isolated-projects=true` (Gradle 9.6.1's pre-9.7
-# name for what's now called Isolated Projects — `org.gradle.isolated-projects=true` and
-# `--isolated-projects` are 9.7.0+ only and silently/loudly do nothing on this wrapper version).
-# Consequence for any `build-logic` convention plugin or per-module `build.gradle.kts`: reaching
-# for `rootProject.file(...)`/`rootProject.files(...)`/`rootProject.layout...` from a subproject
-# now fails the build outright (not silently) — use the current project's own `rootDir` (a plain,
-# already-known-at-Settings-time `File`, never a live reference to another project's mutable
-# state) instead. Full trial process, the violations this actually found, before/after numbers,
-# and why this was judged safe to enable despite being incubating: `docs/GRADLE_ISOLATED_PROJECTS.md`.
+# Gradle Isolated Projects was trialled and measured a real ~2.7x config-time win (2026-08-12),
+# but is currently **off** — `gradle.properties` has `org.gradle.isolated-projects=true` commented
+# out. Turning it on hits a real violation inside the Kotlin Multiplatform Gradle plugin's own KSP
+# task wiring for `:core:storage` (the Room module) on Gradle 9.7.0's tightened checks — third-party
+# plugin code, nothing in this repo to fix. Still worth knowing regardless of on/off: any
+# `build-logic` convention plugin or per-module `build.gradle.kts` reaching for a build-root-relative
+# path must use the current project's own `rootDir` (a plain, already-known-at-Settings-time `File`),
+# never `rootProject.file(...)`/`rootProject.files(...)`/`rootProject.layout...` (a live reference to
+# another project's mutable state) — the fix already applied throughout `build-logic` and worth
+# keeping even with the flag off. Full trial process, the violations found and fixed, the 9.7.0
+# regression, and re-check instructions for the next Gradle/KGP bump: `docs/GRADLE_ISOLATED_PROJECTS.md`.
+
+# Gradle wrapper is 9.7.0 (bumped from 9.6.1, 2026-08-12, via the `update-gradle-wrapper` skill).
+# `./gradlew wrapper --gradle-version ... --gradle-distribution-sha256-sum ...` needs
+# `--no-validate-url` in this environment — the wrapper task's own HEAD-request pre-check
+# (`validateDistributionUrl=true`) fails here (`Unexpected end of file from server`) even though a
+# plain `curl -I` against the same URL succeeds; restore `validateDistributionUrl=true` in
+# `gradle-wrapper.properties` by hand afterward; it's a one-time generation-time check, not
+# needed again once the distribution is cached locally, and this looks like a quirk of this
+# sandboxed environment's networking rather than a real problem for CI or other machines.
 
 # Regenerate the Android Baseline Profile (M13, plan §3.7) — needs a connected device/AVD, same
 # one `emulator-testing` already boots for on-device Verify: lines. Writes straight into

@@ -102,3 +102,9 @@ deleted — see `/finalize`.
   actually enables it. Confirm a flag/property against the *installed* version's own docs
   (`docs.gradle.org/9.6.1/...`) before trusting the "current" page, especially when it fails silent
   rather than loud.
+- `./gradlew wrapper --gradle-version 9.7.0 ...` failed with `Test of distribution url ... failed`
+  / `HEAD request ... failed: response code (-1)` / `Unexpected end of file from server` in this
+  sandboxed environment, even though `curl -I` against the exact same URL succeeded fine —
+  `--no-validate-url` was the workaround, restoring `validateDistributionUrl=true` in
+  `gradle-wrapper.properties` by hand afterward since it's a one-time generation-time check
+  the committed file shouldn't carry disabled permanently.
