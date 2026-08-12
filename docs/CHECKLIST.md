@@ -9,12 +9,14 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `0/2`
-**Current step:** M19, step 19.1. Decomposed 2026-08-12 straight from the "To review" backlog
-entry M17 left queued (the Compose-UI-test half of 2.7's second deferred item, dated by 3.12):
-instrumented Compose coverage for the subscriptions list screen's four derived states and two
-banners, wired through `androidDeviceTest` the way 3.3 wired Room's — see the milestone's own
-preamble below for why Taiga's own `jvm()`-based technique doesn't transfer. 18.2 closed 2026-08-11: the Settings →
+**M18 done** · M19 `1/2`
+**Current step:** M19, step 19.2. 19.1 closed 2026-08-12: `feature:subscriptions:ui`'s
+`androidDeviceTest` source set is wired for Compose UI tests (same `withDeviceTestBuilder
+{ sourceSetTreeName = null }` shape as 3.3's Room DAO suite), one test passing on-device against
+`SubscriptionsContent` (now `internal`) rendering the empty state — see 19.1's own `Note:` for the
+two artifact-resolution gotchas (the correct `ui-test-junit4`/`ui-test-manifest` coordinates, and a
+transitively-pulled `espresso-core:3.5.0` crashing on this AVD's API 36 until forced to 3.7.0). Next:
+19.2, the real matrix — all four derived states plus both banners. 18.2 closed 2026-08-11: the Settings →
 Trusted certificates screen shipped, verified end-to-end on-device against a throwaway TLS front —
 see 18.2's own `Note:` for the full on-device trace (accept a real TOFU prompt, revoke it from the
 new screen, confirm the same host re-prompts on the next connection). `docs/revisit.md` #1 (filed
@@ -224,7 +226,7 @@ second device-only suite gets the same treatment rather than being the one that 
 emulator job, which both 2.7 and 3.12 left open. Revisit only if the maintainer actually wants CI
 device coverage; nothing here forecloses it.
 
-- [ ] **19.1 — feature:subscriptions:ui: wire `androidDeviceTest` for Compose, spike one render**
+- [x] **19.1 — feature:subscriptions:ui: wire `androidDeviceTest` for Compose, spike one render**
   Add the Compose UI test artifacts to `gradle/libs.versions.toml` (check
   `TaigaMobileNova/uikit/build.gradle.kts` — task 10 in its `docs/testing/improvement-plan.md` —
   for the `compose.dependencies.uiTest`/`ui-test-manifest` wiring shape, then confirm which
@@ -245,6 +247,26 @@ device coverage; nothing here forecloses it.
   ·  *Ref:* `core/storage/build.gradle.kts`; `TaigaMobileNova/docs/testing/improvement-plan.md`
   task 10 (`uikit/build.gradle.kts`'s one-time Compose UI test dependency addition) — read for the
   *shape* of the wiring, not the exact artifact, since Taiga's is desktop and this one is Android.
+  **Note:** Artifacts confirmed by resolving `androidCompileClasspath`/the KMP module metadata rather
+  than guessing: `org.jetbrains.compose.ui:ui-test-junit4` (matches Taiga's `uiTest`/`uiTestJUnit4`
+  shape) is enough alone — its module metadata forces `androidx.compose.ui:ui-test-junit4:1.11.2`
+  on the android target (the whole `androidx.compose.ui` group resolves to 1.11.2 here, confirmed the
+  same way) and pulls `ui-test` transitively, so no separate `ui-test` catalog entry was needed.
+  `androidx.compose.ui:ui-test-manifest` has no JetBrains multiplatform wrapper at all (it's
+  Android-instrumentation-only) and needed its own pinned version (`androidxComposeUiTest = 1.11.2`)
+  to match. Both landed in `gradle/libs.versions.toml`, not inline, per this project's own convention.
+  A second, unplanned gotcha: the transitively-pulled `androidx.test.espresso:espresso-core:3.5.0`
+  reflects for `android.hardware.input.InputManager.getInstance()`, removed on API 34+, so
+  `connectedAndroidDeviceTest` crashed with `NoSuchMethodException` on this AVD's API 36 the first
+  run — fixed by forcing `espresso-core:3.7.0` (new `androidxEspresso` catalog entry, added as a
+  direct `androidDeviceTest` dependency). `SubscriptionsContent` went `internal`, not through the
+  public `SubscriptionsScreen`: the private function already took `SubscriptionsUiState` and a plain
+  callback, no ViewModel/Koin needed, matching this project's own no-op-default UI-state shape.
+  `SubscriptionsScreenTest` renders the default (empty) `SubscriptionsUiState` and asserts
+  `RString.subscriptions_empty`'s resolved text exists — one test, passing on-device
+  (`Medium_Phone_API_36.1`). `createComposeRule()` prints a v1→v2 deprecation warning
+  (`StandardTestDispatcher` vs `UnconfinedTestDispatcher`); left as-is, matching
+  `TaigaMobileNova/docs/testing/compose-ui-test-spike.md`'s own "known follow-up, not chased here."
 
 - [ ] **19.2 — feature:subscriptions:ui: cover the list screen's four states and two banners**
   The real matrix 3.12 dated: `SubscriptionsContent` rendered once per derived state (`isStale`,

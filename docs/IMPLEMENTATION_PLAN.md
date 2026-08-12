@@ -2088,9 +2088,40 @@ produces, so consumers construct or inject the real one.
 
 **What gets tested.** Pure logic earns real coverage — `WallosEnvelopeParser`, error mapping,
 `FormParams`, mappers, the formatters, `Navigator`, the login response interpreter and key regex.
-ViewModels are tested through their `StateFlow` with fakes injected. Composables are not unit
-tested; `uikit` widgets, screens, DI modules and DTOs are excluded from Kover (§ the root build's
-`excludes` block).
+ViewModels are tested through their `StateFlow` with fakes injected. Composables were untested
+through M18; M19 (19.1) started closing that, screen by screen, through the mechanism below —
+`uikit` widgets, screens, DI modules and DTOs still stay excluded from Kover (§ the root build's
+`excludes` block) regardless, since the instrumented suite can't report into it (below).
+
+**Compose UI tests are instrumented (`androidDeviceTest`), not host tests, and have to be — this
+project declares no `jvm()` target for TaigaMobileNova's own `runComposeUiTest`/`jvmTest` technique
+to attach to (M19's own preamble in `docs/CHECKLIST.md` has the full comparison).** Wiring, per
+module that needs it (`kotlin { androidLibrary { withDeviceTestBuilder { sourceSetTreeName = null }
+.configure { instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" } } } }`, same shape
+3.3 used for Room's DAO suite) plus three `androidDeviceTest`-only dependencies, all pinned in
+`gradle/libs.versions.toml`:
+
+- `org.jetbrains.compose.ui:ui-test-junit4` — its KMP module metadata forces
+  `androidx.compose.ui:ui-test-junit4` on the android target (the whole `androidx.compose.ui`
+  group resolves as one unit here) and pulls `ui-test` transitively, so no separate `ui-test`
+  catalog entry is needed alongside it.
+- `androidx.compose.ui:ui-test-manifest` — no JetBrains multiplatform wrapper exists for this one
+  (Android-instrumentation-only), so it needs its own pinned version, matched to what the line
+  above resolves to. It supplies the placeholder `ComponentActivity` `createComposeRule()` hosts
+  content in, via manifest merge.
+- `androidx.test.espresso:espresso-core`, forced to a newer version than the `ui-test-junit4`
+  chain would otherwise pull in transitively — that older version reflects for
+  `android.hardware.input.InputManager.getInstance()`, removed on API 34+, and crashes
+  `connectedAndroidDeviceTest` with `NoSuchMethodException` on a modern AVD otherwise (found on
+  `Medium_Phone_API_36.1`, 19.1).
+
+A screen's own `private fun XxxContent(uiState: XxxUiState, …)` — the piece 19.1 confirmed is
+already worth testing in isolation, no ViewModel/Koin needed thanks to the no-op-default UI-state
+shape (CLAUDE.md) — becomes `internal`, not public: `androidDeviceTest` is a friend compilation of
+`commonMain`/`androidMain`, the same as any AGP `androidTest`, and crosses that boundary. `compileAndroidDeviceTest` is the fast local compile check that needs no device;
+`connectedAndroidDeviceTest` is the one that actually runs the suite and needs one up. Neither is
+in `allTests`, and CI has no emulator (same as `core:storage:connectedAndroidDeviceTest`) — this
+suite is local/emulator-verified only, same as the Room one.
 
 `:testing` is added to every module's `commonTest` automatically by the convention plugin, so no
 module declares it by hand. That makes it the home for test-only *libraries* as well as doubles:
@@ -2117,12 +2148,14 @@ outside `allTests`, and CI therefore doesn't run it (§3.5). `:testing` is *not*
 `configureTests()` wires `commonTest` only — so a device test either declares what it needs or
 does without.
 
-**The second one is named, as of 3.12: the subscriptions list screen.** Every Composable in the
-project is at 0% coverage, so the four derived states 3.5/3.6 built (stale, failed, empty, no-match)
-plus 3.11's conversion banner and 3.8's trust dialog are verified only by manual emulator runs like
-3.12's — which is precisely the "logic outgrows its ViewModel test" bar 2.7 set for reaching here.
-What still has to be decided when it lands is whether it earns an emulator job in CI, since a second
-device-only suite doubles the surface no other session's commit can feel.
+**The second one was named as of 3.12: the subscriptions list screen — M19 (19.1) started building
+it, still verified only by manual emulator runs for the states not yet covered.** The four derived
+states 3.5/3.6 built (stale, failed, empty, no-match) plus 3.11's conversion banner and 3.8's trust
+dialog were the ones without any automated coverage — the "logic outgrows its ViewModel test" bar
+2.7 set for reaching here — and 19.2 is where the rest of that matrix lands (§6.1 has the wiring
+19.1 proved). The CI question is settled, not open: it stays out of scope, following 3.3's own
+precedent (M19's own preamble in `docs/CHECKLIST.md`) — a second device-only suite gets the same
+treatment as the first rather than being the one that finally earns an emulator job.
 
 **A `@Dao` is faked by hand like anything else** — it is an interface, so a `commonTest` fake needs
 no Room runtime, and `replaceAll` is a `@Transaction` method *with a body*, so only the abstract

@@ -140,9 +140,13 @@ This project uses the **`emulator-testing`** and **`finalize`** skills; both are
 # counts) that both gates missed; only Android Studio's own inspection caught it. Skim for
 # Compose-lint-shaped issues by eye on any `@Composable`-touching step, since nothing else will.
 
-# The Room DAOs are the one instrumented suite (3.3) — an emulator must be up, and neither
-# `allTests` nor CI runs it. Nothing else in the repo has a device-test source set.
+# The Room DAOs were the first instrumented suite (3.3); `feature:subscriptions:ui`'s Compose UI
+# tests (M19, 19.1) are the second, same `androidDeviceTest`/`withDeviceTestBuilder` shape. Neither
+# `allTests` nor CI runs either — an emulator must be up locally. See plan §6.1 for what a Compose
+# `androidDeviceTest` needs beyond Room's (the `ui-test-junit4`/`ui-test-manifest`/`espresso-core`
+# artifact pins).
 ./gradlew :core:storage:connectedAndroidDeviceTest
+./gradlew :feature:subscriptions:ui:connectedAndroidDeviceTest
 
 # ktlint's `standard:function-signature` rule collapses any signature that fits in 120 chars back
 # onto one line, so hand-wrapping a parameter list "for readability" fails `ktlintCheck`. Write it
