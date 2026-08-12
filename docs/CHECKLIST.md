@@ -9,8 +9,9 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done**
-**Current step:** none — M20 is done and no further milestone is decomposed yet. 20.4 closed
+**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `0/3`
+**Current step:** 21.1 — run Android/Compose lint in CI. M21 decomposed 2026-08-12, an infra-only
+milestone at the user's request (no feature work); not yet started. 20.4 closed
 2026-08-12: `kotlinx.datetime.LocalDate` trust-listed via a new `config/compose/stability_config.conf`
 + `configureComposeStabilityConfig()`, called unconditionally (never gated behind
 `-PcomposeStabilityReport`) from the same three call sites `configureComposeStabilityReports()` uses
@@ -391,6 +392,65 @@ guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it
   `date` parameter and `SubscriptionEditorUiState`/`AddSubscriptionParams`/`EditSubscriptionParams`'s
   `LocalDate` members all read `stable`. All `Verify:` commands passed. **M20 is done (4/4)**.
   `docs/compose/stability-reports.md` gets an "After the LocalDate trust-list" section.
+
+---
+
+## M21 — Infra hardening: Compose lint, build-logic linting, workflow YAML validation (not in plan §8's phase order)
+
+Decomposed 2026-08-12, at the user's request — an infra-only milestone (no feature/screen work),
+scoping three gaps CLAUDE.md and `docs/frictions.md` had already self-diagnosed but never turned
+into an actual fix: no Android/Compose lint task runs anywhere (16.5's own
+`FlowOperatorInvokedInComposition` slipped past both `detekt`/`ktlintCheck` and was only caught by
+Android Studio's own IDE inspection — `docs/frictions.md`'s matching entry), `build-logic` compiles
+clean but has no `detekt`/`ktlintCheck` coverage of its own convention-plugin source (CLAUDE.md's
+Material3-sources-jar paragraph says so directly), and `.github/workflows/*.yml` has no automated
+syntax check beyond GitHub's own parse after a push — only the CLAUDE.md build-commands section's
+manual `node -e "require('js-yaml')..."` one-liner.
+
+Researched ahead of scoping: `./gradlew :androidApp:lintFdroidDebug` and
+`:androidApp:lintGplayDebug -PgplayBuild` both run clean today — `BUILD SUCCESSFUL`, 0 errors, 22
+pre-existing warnings on fdroidDebug (17 `NewerVersionAvailable` + 3 `GradleDependency`, both
+redundant with Renovate; 1 `ObsoleteSdkInt`; 1 `UnusedResources`), none of which fail the build. So
+21.1 needs no lint-baseline dance to land — the task can be wired straight into CI.
+
+- [ ] **21.1 — Run Android/Compose lint in CI**
+  Add `lintFdroidDebug` and `lintGplayDebug -PgplayBuild` as new steps in
+  `.github/workflows/ci.yml` (after "Run detekt and ktlint", matching the fdroid/gplay split the
+  assemble steps already use). Confirmed today both run clean (0 errors, warnings only) — no
+  baseline file needed. Optionally trim the `NewerVersionAvailable`/`GradleDependency` checks from
+  the report via `lint { disable += ... }` in the `androidApp` module, since Renovate already owns
+  dependency bumps and they're pure noise here — a judgment call for the step, not required for
+  the gate to pass.
+  *Verify:* CI green with the new steps present; `./gradlew :androidApp:lintFdroidDebug
+  :androidApp:lintGplayDebug -PgplayBuild` clean locally.
+  ·  *Ref:* CLAUDE.md's Build commands section ("Neither of the above runs Android/Compose lint…");
+  `docs/frictions.md`'s `FlowOperatorInvokedInComposition` entry.
+
+- [ ] **21.2 — Lint `build-logic` itself**
+  `build-logic/convention/build.gradle.kts` currently only gets `compileKotlin` coverage — mirror
+  the root `build.gradle.kts`'s own minimal shape (`alias(libs.plugins.detekt)` +
+  `alias(libs.plugins.ktlint)`, no further config) rather than reaching for `Quality.kt`'s
+  `configureLinting()` (that function is defined *inside* `build-logic`, so `build-logic` can't
+  apply it to itself — chicken-and-egg). `build-logic/settings.gradle.kts` already wires the same
+  version catalog (`../gradle/libs.versions.toml`), so the plugin versions resolve the same way
+  the root project's do.
+  *Verify:* `./gradlew -p build-logic detekt ktlintCheck` runs and passes. CLAUDE.md's own
+  "`build-logic` itself has no `detekt`/`ktlintCheck` coverage" line (Material3-sources-jar
+  paragraph) needs updating once this lands — false after this step.
+  ·  *Ref:* CLAUDE.md's Material3-sources-jar paragraph.
+
+- [ ] **21.3 — Validate `.github/workflows/*.yml` syntax in guardrails**
+  New step in `.github/workflows/guardrails.yml`, after "Check the gate tripwires": loop the five
+  workflow files (`ci.yml`, `guardrails.yml`, `release-finalize.yml`, `release-prepare.yml`,
+  `release.yml`) through the same `js-yaml` parse CLAUDE.md already documents as a manual check
+  (`NODE_PATH=/usr/share/nodejs node -e "require('js-yaml').load(...)"`), failing the job on a
+  parse error instead of only finding out via `gh workflow list` after the push.
+  `guardrails.yml` runs on `ubuntu-latest`, which already carries system `node` with `js-yaml` at
+  the same path — confirmed locally.
+  *Verify:* a deliberately-broken YAML (bad indentation, scratch copy) fails the new step's parse
+  locally; the five real workflow files pass. `guardrails.yml` is itself a `.github/` tripwire path,
+  so this step's own commit needs a `Gate-change:` line (widening, not reducing — an added check).
+  ·  *Ref:* CLAUDE.md's Build commands section, the `js-yaml` one-liner.
 
 ---
 
