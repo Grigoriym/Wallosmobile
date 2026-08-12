@@ -423,6 +423,12 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
 - **A `commonTest` fixture is a Kotlin constant, not a file.** There is no portable way to read a
   resource or a path from `commonTest`, so recorded HTML/JSON lives in a `*Fixtures.kt` and
   anything filesystem-backed needs an in-memory fake.
+- **Production code is never shaped by testing needs.** If a code path is flaky or can't be
+  observed deterministically as written, fix or simplify the *test* — don't add a seam,
+  injectable parameter, or abstraction to production code purely so a test can control it. This
+  holds even for a small, additive, provably-safe change (e.g. a defaulted constructor parameter
+  confirmed not to affect the DI graph): the question is whether it belongs in production code at
+  all, not whether it's safe. Ask before adding any such seam.
 
 ## Settled decisions
 
@@ -649,6 +655,16 @@ Read these rather than guessing — the conventions here are ported from them.
 Two known drifts in those repos: `MealieMobile/docs/kmp-nav3.md` disagrees with its own code
 (plan §5.5), and Mealie's `CLAUDE.md` Tech Stack line says Koin uses KSP — its `build-logic` shows
 the compiler plugin.
+
+## Chat replies
+
+Answer in chat as a tl;dr: short, plain, human, straightforward. Give the result and the
+next step, not the reasoning that got there.
+
+- This is about chat only. Docs, code, comments, commit messages: write them however
+  the artifact and this file's other rules call for.
+- If something genuinely doesn't compress — a real tradeoff, a caveat that changes the
+  answer — explain it in full. Don't let that become the default excuse for length.
 
 ## Coding guidelines
 
