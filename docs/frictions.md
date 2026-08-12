@@ -80,3 +80,17 @@ deleted — see `/finalize`.
   `perfetto` or `atrace --list_categories`. `dumpsys gfxinfo`/`dumpsys gfxinfo ... reset`, which
   doesn't depend on the same OS mechanism, worked fine and was the fallback (full findings in
   `docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`'s 2026-08-12 addendum).
+- `adb reverse tcp:8282 tcp:8282` silently stopped forwarding partway through a session (`adb
+  reverse --list` came back empty with no error or disconnect event) — the app's own "Couldn't
+  reach that server" screen was the first symptom. Re-running the same `adb reverse` command fixed
+  it instantly; worth checking `adb reverse --list` before assuming a sudden network error is the
+  app's fault mid-session.
+- `dumpsys gfxinfo <pkg> reset` prints the *previous* window's accumulated stats before clearing
+  them, not silence — running `reset` then `framestats` in the same shell session produces two
+  visually similar "Stats since" blocks (one from each command), and it's easy to read the `reset`
+  call's own stdout as the just-captured measurement instead of the real one in the `framestats`
+  file. The authoritative numbers are always in the `framestats` output, never the `reset` echo.
+- `adb shell run-as <pkg> ...` fails with `run-as: package not debuggable` against a signed release
+  build — there's no way to reach a release app's own data dir this way to clear just its Coil
+  cache. `adb shell pm clear <pkg>` (wipes everything, including login) followed by re-login was
+  the only working substitute for repeating a cold-cache measurement on a release build.

@@ -527,36 +527,30 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
      the same as 13.2's own 93%/101.9ms and 88%/107.3ms) — that "did not improve" result stands
      on its own, unaffected by the profile-application gap. See the doc's "What landed" section
      for full numbers.
-- **The subscriptions list scrolls laggy.** Filed 2026-08-08 by the user; investigated 2026-08-09
-  (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), together with the FAB item above on
-  the hunch they shared a cause — confirmed true. A static code trace ruled out all three original
-  guesses (missing `key`, unstable item type, ViewModel flow re-emission during scroll — none
-  survive a read of `SubscriptionsScreen.kt`/`SubscriptionCard.kt`/`SubscriptionsViewModel.kt`).
-  **2026-08-12: the doc's own open question — real hardware cost vs. `swiftshader_indirect`
-  emulator artifact — is now answered.** The user connected a real device (`SM-A920F`, Android 10)
-  and the same cold/warm scroll recipe (via `dumpsys gfxinfo`, Perfetto's app-level categories
-  didn't work on this device — see the doc's addendum) reproduced jank at least as severe as every
-  AVD measurement: 89.47% janky frames cold, 83.33% warm, worst frame ~150ms/109ms. **Not an
-  emulator artifact** — this stays open as a real, unscoped smoothness issue, now confirmed on
-  physical hardware, not just in software rendering. See the doc's 2026-08-12 addendum for the
-  full numbers and caveats (one run each side, one specific budget device).
-  Two real causes turned up by trace instead:
+- **The subscriptions list scrolls laggy — resolved, 2026-08-12.** Filed 2026-08-08 by the user;
+  investigated 2026-08-09 (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), together
+  with the FAB item above on the hunch they shared a cause — confirmed true. A static code trace
+  ruled out all three original guesses (missing `key`, unstable item type, ViewModel flow
+  re-emission during scroll — none survive a read of
+  `SubscriptionsScreen.kt`/`SubscriptionCard.kt`/`SubscriptionsViewModel.kt`). Two real causes
+  turned up by trace instead:
   - **Coil loading ~20+ previously-unfetched logos at once on a fast fling, contending on a lock
     inside Coil's own disk-cache writer — fixed and verified, `a0cf54d`.**
     `AppModule.provideImageLoader`'s fetcher concurrency is now capped at 4
     (`fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(4))`); on-device contention dropped
     from 18 events/50.6ms to 0 across two follow-up cold-scroll runs.
-  - **The same JIT-compilation floor as the FAB item above — addressed by M13, still open as a
-    user-visible complaint.** The Coil fix alone didn't move it: overall frame-jank numbers stayed
-    flat even with Coil contention at zero, confirming Coil was never the dominant cause of the
-    *aggregate* jank this AVD measures. Folded into **M13** (an Android Baseline Profile) alongside
-    the FAB item's JIT half, 2026-08-10, closed the same day: the profile eliminates JIT-code-cache
-    lock contention on the list-scroll path too (confirmed, reproduced across two runs), but the
-    doc's own frame-jank/worst-frame numbers — the metric closest to "does it feel laggy" — did not
-    improve and read worse in both post-profile runs on this AVD (`archive/CHECKLIST-DONE.md`'s
-    13.2 has the full numbers and the caveats around them). **The user's original complaint is not
-    confirmed fixed** — real hardware, not this software-rendered AVD, is the only way to settle
-    whether the profile actually helps a real user's felt experience.
+  - **The same JIT-compilation floor as the FAB item above — addressed by M13, now confirmed fixed
+    on real hardware.** M13's Baseline Profile eliminates JIT-code-cache lock contention on the
+    list-scroll path (confirmed on the AVD, 13.2), but 13.2's own AVD frame-jank measurement read
+    flat-to-worse, leaving the user's real complaint unconfirmed either way. The 2026-08-12
+    real-device addendum first confirmed the jank itself was real hardware, not an AVD artifact
+    (`SM-A920F`, 89% janky cold, `gplayDebug` — a build variant that structurally cannot carry the
+    profile). A same-day follow-up caught that gap and closed it: a signed `gplayRelease` build
+    (which does carry the profile, and is what Play/F-Droid actually distribute) on that exact same
+    device dropped janky frames from 83–90% to 3–11% and worst-case frame time from 150ms to
+    44–57ms, reproduced across two cold runs. **The original complaint is confirmed fixed** — every
+    real user already has this fix, since `androidx.profileinstaller` applies the bundled profile
+    automatically outside Play too. Full numbers: the doc's three 2026-08-12 addenda.
 - **The Subscriptions list flashed its empty-state text on every login — fixed and verified,
   2026-08-10, outside the checklist step process, same shape as `a0cf54d`.**
   Two compounding causes in `SubscriptionsViewModel`: (1) `_uiState`'s initial value defaulted
