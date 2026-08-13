@@ -4315,3 +4315,53 @@ from a user ask).
   `ActivityTaskManager`'s logcat line truncates a long `dat=` value with `...` rather than the
   `emulator-testing` skill's own precedent of full URLs on other apps' links). **M22 is done** —
   archived to `archive/CHECKLIST-DONE.md` in this same commit.
+
+## M23 — Scrub the raw response body out of Crashlytics on a malformed Wallos response (not in plan §8's phase order)
+
+Decomposed 2026-08-13, at the user's request — a small, single-step fix, not a phase from
+`IMPLEMENTATION_PLAN.md` §8. Same shape as M11/M22 (a one-step, out-of-phase-order milestone
+straight from a "To review" finding). See the "To review" entry below (now removed) for the full
+investigation: `WallosEnvelopeParser.kt`'s two `LogPriority.ERROR` + `throwable =` catch blocks
+(decode-shape mismatch and not-a-JSON-object) are the only two `ERROR`-with-throwable log sites in
+the app, and `CrashlyticsTree.log()` forwards exactly those (its `priority != Log.ERROR` gate
+already keeps every other `WARN` catch off Crashlytics) — but the thrown `IllegalArgumentException`
+itself embeds the full offending JSON in `.message`, confirmed by a throwaway host-test run, so
+`recordException(e)` on a `gplay` build ships raw subscription data whenever a self-hosted
+instance returns something this parser doesn't expect.
+
+- [x] **23.1 — Log a scrubbed exception to Crashlytics, keep the real one in local Logcat**
+  `core/api/src/commonMain/kotlin/com/grappim/wallosmobile/core/api/WallosEnvelopeParser.kt`, both
+  `catch (e: IllegalArgumentException)` blocks (`decodeEnvelope`, lines ~76-81, and `parse`, lines
+  ~50-57): each currently does one `logcat(priority = LogPriority.ERROR, throwable = e) { ... }`,
+  where `e`'s own `.message` carries the raw body. Split each into two calls — a `WARN` one passing
+  the real `e` (full detail in local Logcat, never forwarded since `CrashlyticsTree` only acts on
+  `Log.ERROR`) and an `ERROR` one passing a scrubbed exception with a fixed message (e.g.
+  `IllegalArgumentException("Envelope shape mismatch: ${e::class.simpleName}")`, no body, no
+  `cause`) — same message text each catch block already uses (`"response did not match the
+  expected shape"` / `"response body was not a JSON object"`). `throw WallosError.Malformed(body)`
+  stays exactly as is in both blocks — the UI's stale-banner/error-message path is untouched, this
+  is only about what rides in the `throwable` Crashlytics receives. A small private helper avoids
+  duplicating the scrub logic between the two catch blocks.
+  Add a regression test to `core/api/src/commonTest/kotlin/.../WallosEnvelopeParserTest.kt`, one
+  per catch block, following `core/logger`'s own `LogcatTest.kt` pattern (`WallosLogger.install`/
+  `.uninstall`, a small test-local `RecordingLogger` fake implementing `WallosLogger`, `core:logger`
+  already a transitive dependency of `core:api`'s `commonMain` via the `kmp.library` convention
+  plugin): plant a body containing a marker string, call `parse`, then assert the `ERROR`-priority
+  entry's `throwable.message` does **not** contain the marker while the `WARN`-priority entry's
+  does.
+  *Verify:* `./gradlew :core:api:testAndroidHostTest` passes (new tests included);
+  `./gradlew detekt ktlintCheck` passes.
+  ·  *Ref:* `core/logger/src/commonTest/kotlin/.../LogcatTest.kt` for the `WallosLogger.install` +
+  fake-logger test shape; `CrashlyticsTree.kt` (`androidApp/src/main/kotlin/.../CrashlyticsTree.kt`)
+  for exactly which priority/throwable combination actually reaches Crashlytics.
+  ·  *Note:* Landed as planned. Both catch blocks now call a shared private
+  `logShapeMismatch(e, message)` (line numbers shifted slightly from the step's `~50-57`/`~76-81`
+  estimate once the helper was added, but both original catch sites are the ones changed) that logs
+  the real `e` at `WARN` and a fresh `IllegalArgumentException("Envelope shape mismatch:
+  ${e::class.simpleName}")` at `ERROR`. Two new tests in `WallosEnvelopeParserTest.kt` plant a
+  `MARKER_SECRET_VALUE_XYZ` string in the body (a decode-shape mismatch and a truncated-JSON case,
+  covering both catch blocks) and assert it's present in the `WARN` entry's `throwable.message` but
+  absent from the `ERROR` one's, using a test-local `RecordingLogger` — same shape as
+  `core:logger`'s own `LogcatTest.kt`. `./gradlew :core:api:testAndroidHostTest` (18 tests, all
+  passing) and full-project `./gradlew detekt ktlintCheck` both green. **M23 is done** — archived
+  to `archive/CHECKLIST-DONE.md` in this same commit.

@@ -557,6 +557,19 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   `Throwable.findPendingCertTrust()` (`core:domain`) walks the chain for it. Any "everything else"
   arm has to *ask* it ahead of falling back to a generic unreachable-server message, because a
   rotated certificate is the one transport failure the user can fix. Full mechanism: plan §4.5.
+- **`CrashlyticsTree.log()` forwards exactly one thing: `LogPriority.ERROR` with a non-null
+  `throwable`** (`androidApp/.../CrashlyticsTree.kt`) — a `WARN` catch, or an `ERROR` one with no
+  `throwable =`, never reaches Crashlytics. That makes the *throwable itself* the thing to audit,
+  not the fixed string passed as the log message: a caught exception's own `.message` can carry
+  more than the surrounding text admits (`kotlinx.serialization`'s decode-failure messages embed
+  the full offending JSON verbatim, confirmed 2026-08-13 in `WallosEnvelopeParser` — M23). Passing
+  `e` straight through as `throwable =` at `ERROR` ships whatever's in `e.message` to Google on a
+  `gplay` build. Fix shape when a caught exception's message might carry response/user data: log
+  the real `e` at `WARN` (local Logcat only) and a fresh exception with a fixed, data-free message
+  at `ERROR`, mirroring `WallosEnvelopeParser`'s `logShapeMismatch`. `WallosLogger.install()` /
+  `.uninstall()` (`core:logger`) is public, so any module's `commonTest` can install a fake and
+  assert on exactly what a given catch block would send to Crashlytics — same shape as
+  `core:logger`'s own `LogcatTest.kt`.
 
 ## Strings and resources
 

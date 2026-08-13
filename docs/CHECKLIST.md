@@ -10,8 +10,13 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
-M22 `1/1` — **M22 done** · M23 `0/1`
-**Current step:** M23 decomposed, not yet started — next is 23.1. 22.1 closed 2026-08-13: a third
+M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done**
+**Current step:** M23 done, next milestone not yet decomposed. 23.1 closed 2026-08-13:
+`WallosEnvelopeParser`'s two `ERROR`-with-throwable catch blocks now log the real exception at
+`WARN` (local Logcat only) and a scrubbed, body-free exception at `ERROR` (the one
+`CrashlyticsTree` forwards) — closes the raw-response-body-to-Crashlytics leak found while
+reviewing `docs/security/`-adjacent DDG infra. Two new regression tests confirm a planted marker
+string reaches the `WARN` entry but not the `ERROR` one. 22.1 closed 2026-08-13: a third
 button on the About screen ("Report an issue / suggestion") opens
 `https://github.com/Grigoriym/Wallosmobile/issues`, same `LocalUriHandler` pattern as the existing
 Project/Privacy Policy buttons. Verified on-device. 21.3 closed 2026-08-13:
@@ -185,7 +190,7 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 ---
 
 Completed steps live in [`archive/CHECKLIST-DONE.md`](./archive/CHECKLIST-DONE.md) — **all of M0
-through M8, and now M10, M9, M11, M12, M13, M14, M15, M16, M17, M18, M19, M20, M21 and M22**,
+through M8, and now M10, M9, M11, M12, M13, M14, M15, M16, M17, M18, M19, M20, M21, M22 and M23**,
 verbatim. M20 and M21 both closed 2026-08-12/13 but sat un-archived in this file for two sessions
 before being moved on 2026-08-13, alongside M22 — the "same commit as the closing step" rule
 (above) was skipped twice in a row; caught and backfilled, not a recurring problem to watch for
@@ -243,47 +248,6 @@ deleted. See `archive/CHECKLIST-DONE.md` for both steps. **M19 is done** too —
 here for TaigaMobileNova's own desktop technique to attach to) and covered the subscriptions list
 screen's four `when`-block states plus both banners, 8 tests total, all passing on-device; see
 `archive/CHECKLIST-DONE.md` for both steps.
-
----
-
-## M23 — Scrub the raw response body out of Crashlytics on a malformed Wallos response (not in plan §8's phase order)
-
-Decomposed 2026-08-13, at the user's request — a small, single-step fix, not a phase from
-`IMPLEMENTATION_PLAN.md` §8. Same shape as M11/M22 (a one-step, out-of-phase-order milestone
-straight from a "To review" finding). See the "To review" entry below (now removed) for the full
-investigation: `WallosEnvelopeParser.kt`'s two `LogPriority.ERROR` + `throwable =` catch blocks
-(decode-shape mismatch and not-a-JSON-object) are the only two `ERROR`-with-throwable log sites in
-the app, and `CrashlyticsTree.log()` forwards exactly those (its `priority != Log.ERROR` gate
-already keeps every other `WARN` catch off Crashlytics) — but the thrown `IllegalArgumentException`
-itself embeds the full offending JSON in `.message`, confirmed by a throwaway host-test run, so
-`recordException(e)` on a `gplay` build ships raw subscription data whenever a self-hosted
-instance returns something this parser doesn't expect.
-
-- [ ] **23.1 — Log a scrubbed exception to Crashlytics, keep the real one in local Logcat**
-  `core/api/src/commonMain/kotlin/com/grappim/wallosmobile/core/api/WallosEnvelopeParser.kt`, both
-  `catch (e: IllegalArgumentException)` blocks (`decodeEnvelope`, lines ~76-81, and `parse`, lines
-  ~50-57): each currently does one `logcat(priority = LogPriority.ERROR, throwable = e) { ... }`,
-  where `e`'s own `.message` carries the raw body. Split each into two calls — a `WARN` one passing
-  the real `e` (full detail in local Logcat, never forwarded since `CrashlyticsTree` only acts on
-  `Log.ERROR`) and an `ERROR` one passing a scrubbed exception with a fixed message (e.g.
-  `IllegalArgumentException("Envelope shape mismatch: ${e::class.simpleName}")`, no body, no
-  `cause`) — same message text each catch block already uses (`"response did not match the
-  expected shape"` / `"response body was not a JSON object"`). `throw WallosError.Malformed(body)`
-  stays exactly as is in both blocks — the UI's stale-banner/error-message path is untouched, this
-  is only about what rides in the `throwable` Crashlytics receives. A small private helper avoids
-  duplicating the scrub logic between the two catch blocks.
-  Add a regression test to `core/api/src/commonTest/kotlin/.../WallosEnvelopeParserTest.kt`, one
-  per catch block, following `core/logger`'s own `LogcatTest.kt` pattern (`WallosLogger.install`/
-  `.uninstall`, a small test-local `RecordingLogger` fake implementing `WallosLogger`, `core:logger`
-  already a transitive dependency of `core:api`'s `commonMain` via the `kmp.library` convention
-  plugin): plant a body containing a marker string, call `parse`, then assert the `ERROR`-priority
-  entry's `throwable.message` does **not** contain the marker while the `WARN`-priority entry's
-  does.
-  *Verify:* `./gradlew :core:api:testAndroidHostTest` passes (new tests included);
-  `./gradlew detekt ktlintCheck` passes.
-  ·  *Ref:* `core/logger/src/commonTest/kotlin/.../LogcatTest.kt` for the `WallosLogger.install` +
-  fake-logger test shape; `CrashlyticsTree.kt` (`androidApp/src/main/kotlin/.../CrashlyticsTree.kt`)
-  for exactly which priority/throwable combination actually reaches Crashlytics.
 
 ---
 

@@ -50,9 +50,7 @@ class WallosEnvelopeParser {
         return try {
             json.decodeFromJsonElement(deserializer, envelope)
         } catch (e: IllegalArgumentException) {
-            logcat(priority = LogPriority.ERROR, throwable = e) {
-                "response did not match the expected shape"
-            }
+            logShapeMismatch(e, "response did not match the expected shape")
             throw WallosError.Malformed(body)
         }
     }
@@ -74,11 +72,21 @@ class WallosEnvelopeParser {
         return try {
             json.parseToJsonElement(body.substring(start)).jsonObject
         } catch (e: IllegalArgumentException) {
-            logcat(priority = LogPriority.ERROR, throwable = e) {
-                "response body was not a JSON object"
-            }
+            logShapeMismatch(e, "response body was not a JSON object")
             throw WallosError.Malformed(body)
         }
+    }
+
+    /**
+     * The real [e] (message, stack) is logged at [LogPriority.WARN] for local Logcat only —
+     * `CrashlyticsTree` only forwards `ERROR`. A `kotlinx.serialization` decode failure embeds the
+     * full offending JSON body in [e]'s own message, so what actually goes to [LogPriority.ERROR]
+     * (and therefore Crashlytics) is a scrubbed exception with a fixed message instead.
+     */
+    private fun logShapeMismatch(e: IllegalArgumentException, message: String) {
+        logcat(priority = LogPriority.WARN, throwable = e) { message }
+        val scrubbed = IllegalArgumentException("Envelope shape mismatch: ${e::class.simpleName}")
+        logcat(priority = LogPriority.ERROR, throwable = scrubbed) { message }
     }
 
     private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
