@@ -9,13 +9,12 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `2/3`
-**Current step:** 21.3 — validate `.github/workflows/*.yml` syntax in guardrails. 21.2 closed
-2026-08-12: `build-logic/convention/build.gradle.kts` now applies `alias(libs.plugins.detekt)` +
-`alias(libs.plugins.ktlint)` directly, the same minimal shape as the root `build.gradle.kts` —
-`./gradlew -p build-logic detekt ktlintCheck` passes clean. See 21.2's own `Note:` for why that
-took fixing 3 pre-existing findings (a `LongMethod` and two bare-`21` `MagicNumber` hits) rather
-than pointing at the shared `config/detekt/detekt.yml`, and for the CLAUDE.md line it corrected.
+**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done**
+**Current step:** M21 done, next milestone not yet decomposed. 21.3 closed 2026-08-13:
+`.github/workflows/guardrails.yml` now loops the five workflow YAML files through the same
+`js-yaml` parse CLAUDE.md documents as a manual check, failing the job on a parse error. Verified
+locally: all five real files parse clean, a deliberately-broken scratch copy fails with a non-zero
+exit. See 21.3's own `Note:` for the `Gate-change:` line this step's commit carries.
 21.1 closed 2026-08-12: `lintFdroidDebug` and
 `lintGplayDebug -PgplayBuild` now run as CI steps in `.github/workflows/ci.yml` right after
 "Run detekt and ktlint"; `androidApp/build.gradle.kts` gained a `lint { disable += ... }` block
@@ -464,7 +463,7 @@ redundant with Renovate; 1 `ObsoleteSdkInt`; 1 `UnusedResources`), none of which
   files that had never been through it. CLAUDE.md's Material3-sources-jar paragraph updated to
   match.
 
-- [ ] **21.3 — Validate `.github/workflows/*.yml` syntax in guardrails**
+- [x] **21.3 — Validate `.github/workflows/*.yml` syntax in guardrails**
   New step in `.github/workflows/guardrails.yml`, after "Check the gate tripwires": loop the five
   workflow files (`ci.yml`, `guardrails.yml`, `release-finalize.yml`, `release-prepare.yml`,
   `release.yml`) through the same `js-yaml` parse CLAUDE.md already documents as a manual check
@@ -476,6 +475,10 @@ redundant with Renovate; 1 `ObsoleteSdkInt`; 1 `UnusedResources`), none of which
   locally; the five real workflow files pass. `guardrails.yml` is itself a `.github/` tripwire path,
   so this step's own commit needs a `Gate-change:` line (widening, not reducing — an added check).
   ·  *Ref:* CLAUDE.md's Build commands section, the `js-yaml` one-liner.
+  Note: `guardrails.yml` loops `.github/workflows/*.yml` with a `for` loop rather than naming the
+  five files individually — simpler and self-extending if a sixth workflow is ever added. Verified
+  exactly as planned: all five real files parsed clean; a scratch copy of `ci.yml` with bad
+  indentation appended failed the same one-liner with a non-zero exit.
 
 ---
 

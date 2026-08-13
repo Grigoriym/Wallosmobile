@@ -48,3 +48,10 @@ jobs:
 
       - name: Check the gate tripwires
         run: .github/scripts/check-guardrails.sh '${{ steps.range.outputs.range }}'
+
+      - name: Validate workflow YAML syntax
+        run: |
+          for f in .github/workflows/*.yml; do
+            echo "Checking ${f}"
+            NODE_PATH=/usr/share/nodejs node -e "require('js-yaml').load(require('fs').readFileSync('${f}', 'utf8'))"
+          done

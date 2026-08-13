@@ -175,8 +175,10 @@ ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private sta
 # `actionlint` nor Python's `PyYAML` is installed on this machine): system `node` already carries
 # `js-yaml` at /usr/share/nodejs, no install needed.
 # NODE_PATH=/usr/share/nodejs node -e "require('js-yaml').load(require('fs').readFileSync('path/to.yml','utf8'))"
-# The real check is still GitHub's own parse — `gh workflow list` after pushing shows `active` for
-# a file with no syntax error, `disabled_yaml_error` (or absence from the list) for one that fails.
+# `guardrails.yml` runs this same check on all five workflow files in CI (21.3), so a syntax error
+# now fails the push instead of only surfacing via GitHub's own parse afterward — `gh workflow
+# list` (`active` vs. `disabled_yaml_error`) is a fallback for something guardrails can't catch
+# (a semantic error `js-yaml` accepts as valid YAML but the Actions schema rejects).
 
 # Gradle Isolated Projects was trialled and measured a real ~2.7x config-time win (2026-08-12),
 # but is currently **off** — `gradle.properties` has `org.gradle.isolated-projects=true` commented
