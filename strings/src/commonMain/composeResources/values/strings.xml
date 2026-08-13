@@ -266,6 +266,8 @@
     <string name="about_privacy_policy">Privacy Policy</string>
     <string name="privacy_policy_url" translatable="false">https://github.com/Grigoriym/Wallosmobile/blob/dev/PRIVACY_POLICY.md</string>
     <string name="privacy_policy_url_gplay" translatable="false">https://github.com/Grigoriym/Wallosmobile/blob/dev/PRIVACY_POLICY_GPLAY.md</string>
+    <string name="about_report_issue">Report an issue / suggestion</string>
+    <string name="about_report_issue_url" translatable="false">https://github.com/Grigoriym/Wallosmobile/issues</string>
 
     <string name="app_update_downloaded">An update has just been downloaded</string>
     <string name="app_update_restart">Restart</string>

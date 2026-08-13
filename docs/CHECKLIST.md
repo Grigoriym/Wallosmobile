@@ -10,8 +10,11 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
-M22 `0/1`
-**Current step:** M22 decomposed, not yet started — next is 22.1. 21.3 closed 2026-08-13:
+M22 `1/1` — **M22 done**
+**Current step:** M22 done, next milestone not yet decomposed. 22.1 closed 2026-08-13: a third
+button on the About screen ("Report an issue / suggestion") opens
+`https://github.com/Grigoriym/Wallosmobile/issues`, same `LocalUriHandler` pattern as the existing
+Project/Privacy Policy buttons. Verified on-device. 21.3 closed 2026-08-13:
 `.github/workflows/guardrails.yml` now loops the five workflow YAML files through the same
 `js-yaml` parse CLAUDE.md documents as a manual check, failing the job on a parse error. Verified
 locally: all five real files parse clean, a deliberately-broken scratch copy fails with a non-zero
@@ -480,30 +483,6 @@ redundant with Renovate; 1 `ObsoleteSdkInt`; 1 `UnusedResources`), none of which
   five files individually — simpler and self-extending if a sixth workflow is ever added. Verified
   exactly as planned: all five real files parsed clean; a scratch copy of `ci.yml` with bad
   indentation appended failed the same one-liner with a non-zero exit.
-
----
-
-## M22 — Report an issue link on the About screen (not in plan §8's phase order)
-
-Decomposed 2026-08-13, at the user's request — a small, single-step addition, not a phase from
-`IMPLEMENTATION_PLAN.md` §8. Same shape as M11 (a one-step, out-of-phase-order milestone straight
-from a user ask).
-
-- [ ] **22.1 — Add a "Report an issue / suggestion" button to the About screen**
-  `AboutContent` (`feature/settings/ui/.../about/AboutScreen.kt`) already has this exact pattern
-  twice — `about_project`/`about_project_url` and `about_privacy_policy`/`privacy_policy_url`, each
-  a `Button` calling `LocalUriHandler.current.openUri(stringResource(...))`. Add a third button the
-  same way: a new string pair in `strings/src/commonMain/composeResources/values/strings.xml`
-  (label, e.g. `about_report_issue` = "Report an issue / suggestion"; URL, e.g.
-  `about_report_issue_url`, `translatable="false"`, value
-  `https://github.com/Grigoriym/Wallosmobile/issues`) and a third `Button` in `AboutContent` below
-  the existing two, reading the URL with `stringResource` at the top of the composable exactly like
-  `projectUrl`/`privacyPolicyUrl` do. No new nav route, no ViewModel change — this is a link, not a
-  screen, so it needs no `NavKeySerializers` entry.
-  *Verify:* `./gradlew detekt ktlintCheck` passes; on-device, Settings → About → the new button
-  opens `https://github.com/Grigoriym/Wallosmobile/issues` in the browser.
-  ·  *Ref:* `AboutScreen.kt`'s existing `about_project`/`about_privacy_policy` buttons for the
-  pattern; `strings.xml`'s `about_project_url`/`privacy_policy_url` rows for the string shape.
 
 ---
 

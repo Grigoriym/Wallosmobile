@@ -4041,3 +4041,33 @@ device coverage; nothing here forecloses it.
   `StaleBanner` needs `WallosMobilePreviewTheme` wrapping (it reads `LocalIsOffline`, which has no
   default and `error()`s without a provider) for both its online and offline copy variants.
   8 tests total, all passing on-device (`Medium_Phone_API_36.1`). **M19 is done.**
+
+---
+
+## M22 — Report an issue link on the About screen (not in plan §8's phase order)
+
+Decomposed 2026-08-13, at the user's request — a small, single-step addition, not a phase from
+`IMPLEMENTATION_PLAN.md` §8. Same shape as M11 (a one-step, out-of-phase-order milestone straight
+from a user ask).
+
+- [x] **22.1 — Add a "Report an issue / suggestion" button to the About screen**
+  `AboutContent` (`feature/settings/ui/.../about/AboutScreen.kt`) already has this exact pattern
+  twice — `about_project`/`about_project_url` and `about_privacy_policy`/`privacy_policy_url`, each
+  a `Button` calling `LocalUriHandler.current.openUri(stringResource(...))`. Add a third button the
+  same way: a new string pair in `strings/src/commonMain/composeResources/values/strings.xml`
+  (label, e.g. `about_report_issue` = "Report an issue / suggestion"; URL, e.g.
+  `about_report_issue_url`, `translatable="false"`, value
+  `https://github.com/Grigoriym/Wallosmobile/issues`) and a third `Button` in `AboutContent` below
+  the existing two, reading the URL with `stringResource` at the top of the composable exactly like
+  `projectUrl`/`privacyPolicyUrl` do. No new nav route, no ViewModel change — this is a link, not a
+  screen, so it needs no `NavKeySerializers` entry.
+  *Verify:* `./gradlew detekt ktlintCheck` passes; on-device, Settings → About → the new button
+  opens `https://github.com/Grigoriym/Wallosmobile/issues` in the browser.
+  ·  *Ref:* `AboutScreen.kt`'s existing `about_project`/`about_privacy_policy` buttons for the
+  pattern; `strings.xml`'s `about_project_url`/`privacy_policy_url` rows for the string shape.
+  ·  *Note:* Landed exactly as planned, string names and URL unchanged. Verified on-device
+  (`Medium_Phone_API_36.1`, gplayDebug): Settings → About → "Report an issue / suggestion" opens
+  Chrome to `github.com/Grigoriym/Wallosmobile/issues` (address bar confirmed the full URL, since
+  `ActivityTaskManager`'s logcat line truncates a long `dat=` value with `...` rather than the
+  `emulator-testing` skill's own precedent of full URLs on other apps' links). **M22 is done** —
+  archived to `archive/CHECKLIST-DONE.md` in this same commit.
