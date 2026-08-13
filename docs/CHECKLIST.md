@@ -10,8 +10,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
-M22 `1/1` — **M22 done**
-**Current step:** M22 done, next milestone not yet decomposed. 22.1 closed 2026-08-13: a third
+M22 `1/1` — **M22 done** · M23 `0/1`
+**Current step:** M23 decomposed, not yet started — next is 23.1. 22.1 closed 2026-08-13: a third
 button on the About screen ("Report an issue / suggestion") opens
 `https://github.com/Grigoriym/Wallosmobile/issues`, same `LocalUriHandler` pattern as the existing
 Project/Privacy Policy buttons. Verified on-device. 21.3 closed 2026-08-13:
@@ -246,6 +246,47 @@ screen's four `when`-block states plus both banners, 8 tests total, all passing 
 
 ---
 
+## M23 — Scrub the raw response body out of Crashlytics on a malformed Wallos response (not in plan §8's phase order)
+
+Decomposed 2026-08-13, at the user's request — a small, single-step fix, not a phase from
+`IMPLEMENTATION_PLAN.md` §8. Same shape as M11/M22 (a one-step, out-of-phase-order milestone
+straight from a "To review" finding). See the "To review" entry below (now removed) for the full
+investigation: `WallosEnvelopeParser.kt`'s two `LogPriority.ERROR` + `throwable =` catch blocks
+(decode-shape mismatch and not-a-JSON-object) are the only two `ERROR`-with-throwable log sites in
+the app, and `CrashlyticsTree.log()` forwards exactly those (its `priority != Log.ERROR` gate
+already keeps every other `WARN` catch off Crashlytics) — but the thrown `IllegalArgumentException`
+itself embeds the full offending JSON in `.message`, confirmed by a throwaway host-test run, so
+`recordException(e)` on a `gplay` build ships raw subscription data whenever a self-hosted
+instance returns something this parser doesn't expect.
+
+- [ ] **23.1 — Log a scrubbed exception to Crashlytics, keep the real one in local Logcat**
+  `core/api/src/commonMain/kotlin/com/grappim/wallosmobile/core/api/WallosEnvelopeParser.kt`, both
+  `catch (e: IllegalArgumentException)` blocks (`decodeEnvelope`, lines ~76-81, and `parse`, lines
+  ~50-57): each currently does one `logcat(priority = LogPriority.ERROR, throwable = e) { ... }`,
+  where `e`'s own `.message` carries the raw body. Split each into two calls — a `WARN` one passing
+  the real `e` (full detail in local Logcat, never forwarded since `CrashlyticsTree` only acts on
+  `Log.ERROR`) and an `ERROR` one passing a scrubbed exception with a fixed message (e.g.
+  `IllegalArgumentException("Envelope shape mismatch: ${e::class.simpleName}")`, no body, no
+  `cause`) — same message text each catch block already uses (`"response did not match the
+  expected shape"` / `"response body was not a JSON object"`). `throw WallosError.Malformed(body)`
+  stays exactly as is in both blocks — the UI's stale-banner/error-message path is untouched, this
+  is only about what rides in the `throwable` Crashlytics receives. A small private helper avoids
+  duplicating the scrub logic between the two catch blocks.
+  Add a regression test to `core/api/src/commonTest/kotlin/.../WallosEnvelopeParserTest.kt`, one
+  per catch block, following `core/logger`'s own `LogcatTest.kt` pattern (`WallosLogger.install`/
+  `.uninstall`, a small test-local `RecordingLogger` fake implementing `WallosLogger`, `core:logger`
+  already a transitive dependency of `core:api`'s `commonMain` via the `kmp.library` convention
+  plugin): plant a body containing a marker string, call `parse`, then assert the `ERROR`-priority
+  entry's `throwable.message` does **not** contain the marker while the `WARN`-priority entry's
+  does.
+  *Verify:* `./gradlew :core:api:testAndroidHostTest` passes (new tests included);
+  `./gradlew detekt ktlintCheck` passes.
+  ·  *Ref:* `core/logger/src/commonTest/kotlin/.../LogcatTest.kt` for the `WallosLogger.install` +
+  fake-logger test shape; `CrashlyticsTree.kt` (`androidApp/src/main/kotlin/.../CrashlyticsTree.kt`)
+  for exactly which priority/throwable combination actually reaches Crashlytics.
+
+---
+
 ## To review
 
 Written when M2 closed, as the place a verification step files a defect it finds rather than
@@ -446,4 +487,39 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   `androidDeviceTest` route instead (3.3 already paid part of that setup cost). The settled
   no-Kover-floor decision is unaffected either way — Taiga's survey/heuristics work didn't surface
   anything that reopens it.
+- **Enforce module-boundary rules at Gradle configuration time, not just by convention +
+  `check-guardrails.sh` at commit time.** Filed 2026-08-13, from reading
+  `/home/gregory/proj/other/duckduckgo-Android` for transplantable infra. Its root `build.gradle`
+  (`subprojects { configurations.configureEach { incoming.beforeResolve { ... } } }`, ~line 120)
+  walks each configuration's resolved dependencies and throws `GradleException` on a violation of
+  its own module rules (an `-api` module depending on another `-api` module or on Dagger, an
+  `-impl` module reaching another `-impl` module, `strings.xml` outside `:app`, etc.) — a real
+  build failure, not a lint warning or a script that only runs against a diff. WallosMobile's own
+  Architecture section states comparable rules (no `androidMain` in feature modules outside
+  `configureKmp()`, a feature `ui` module depending on `uikit` never `composeApp`, `core:storage`'s
+  Room layer taking no dependency on any `feature:*:domain`, offline-write-disable via
+  `LocalIsOffline` rather than a per-call check) that nothing currently fails the build on — a
+  violation would only surface via code review or a `KoinGraphTest`-style test that happens to
+  reach it. Worth scoping as its own milestone: read DDG's block in full (it also encodes
+  `internal`-module rules and a `no module depends on :app` check that don't map onto this repo's
+  shape), decide which of WallosMobile's *own* documented rules are worth an equivalent
+  `subprojects { ... }` check in the root `build.gradle.kts`, and confirm it actually fails a
+  deliberately-broken scratch dependency before trusting it. Not decomposed yet.
+- **A custom Android Lint detector for repo-specific conventions, not just detekt/ktlint +
+  Compose's own bundled lint checks.** Filed 2026-08-13, same DDG read as the entry above. Its
+  `lint-rules` module (`~50` custom `com.android.tools.lint.detector.api.Detector` classes plus a
+  `DuckDuckGoIssueRegistry`, applied to every module via `lintChecks`) enforces project-specific
+  rules — no raw platform widgets, no hardcoded coroutine dispatcher, no `@Singleton` — as a real
+  build failure. The detectors themselves are irrelevant here (XML views, Dagger scopes, none of
+  which this repo has), but the technique answers a gap CLAUDE.md's Build commands section already
+  names: "Neither `detekt` nor `ktlintCheck` runs Android/Compose lint," and 16.5's
+  `FlowOperatorInvokedInComposition` slipped past both gates, caught only by Android Studio's own
+  inspection at the time — 21.1 wired the *built-in* `lintFdroidDebug`/`lintGplayDebug` into CI
+  since, but that only catches what Compose's own bundled lint checks look for, not a
+  WallosMobile-specific footgun. Worth scoping small (one or two detectors, not fifty): read
+  Android Lint's `Detector`/`IssueRegistry` API and how `lintChecks` wires a checks-only module
+  into `androidApp`'s lint run, then pick a real repeat mistake from this project's own history
+  (there's a case list forming already: 16.5's `FlowOperatorInvokedInComposition`, or something
+  from the Compose-rules/architecture conventions this file's own CLAUDE.md states but nothing
+  currently fails a build on) rather than inventing rules speculatively. Not decomposed yet.
 
