@@ -28,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ENCODED_GOOGLE_SERVICES_GPLAY: ${{ secrets.WALLOS_GOOGLE_SERVICES_GPLAY }}
+      WALLOS_STORE_PASS_FDROID_DEBUG: ${{ secrets.WALLOS_STORE_PASS_FDROID_DEBUG }}
+      WALLOS_ALIAS_FDROID_DEBUG: ${{ secrets.WALLOS_ALIAS_FDROID_DEBUG }}
+      WALLOS_KEY_PASS_FDROID_DEBUG: ${{ secrets.WALLOS_KEY_PASS_FDROID_DEBUG }}
 
     steps:
       - name: Check out the repo
@@ -51,6 +54,11 @@ jobs:
         run: |
           mkdir -p androidApp/src/gplay
           echo "$ENCODED_GOOGLE_SERVICES_GPLAY" | base64 -d > androidApp/src/gplay/google-services.json
+
+      - name: Restore wallos_mobile_fdroid_debug.jks
+        run: echo "$ENCODED_FDROID_DEBUG" | base64 -d > ./wallos_mobile_fdroid_debug.jks
+        env:
+          ENCODED_FDROID_DEBUG: ${{ secrets.WALLOS_FILE_FDROID_DEBUG }}
 
       - name: Assemble the fdroid debug APK
         run: ./gradlew :androidApp:assembleFdroidDebug
