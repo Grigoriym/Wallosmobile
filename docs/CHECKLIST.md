@@ -11,8 +11,10 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done**
-**Current step:** M25 done, next milestone not yet decomposed. 25.1 closed 2026-08-14: a new
+**M25 done** · M26 `0/1`
+**Current step:** M26 decomposed 2026-08-14, not yet started — next is 26.1, porting the
+`List`/`MutableList`-in-`*UiState` check to a real detekt `Rule` so it actually reaches
+`feature:*:ui`/`composeApp`/`uikit` code, closing `docs/revisit.md` #1. 25.1 closed 2026-08-14: a new
 `lint-rules` module adds one custom Android Lint detector (`UnstableCollectionInUiState`,
 `List`/`MutableList` in a `*UiState` class or a public `@Composable` param), wired into every
 module via `configureLinting()`. Landed alongside two unrelated pre-existing bugs it exposed and
@@ -268,6 +270,113 @@ deleted. See `archive/CHECKLIST-DONE.md` for both steps. **M19 is done** too —
 here for TaigaMobileNova's own desktop technique to attach to) and covered the subscriptions list
 screen's four `when`-block states plus both banners, 8 tests total, all passing on-device; see
 `archive/CHECKLIST-DONE.md` for both steps.
+
+---
+
+## M26 — Port `UnstableCollectionInUiState` to detekt, closing `docs/revisit.md` #1 (not in plan §8's phase order)
+
+Decomposed 2026-08-14, from `docs/revisit.md` #1 (filed the same day, during 25.1): the Lint
+detector 25.1 shipped only ever sees a violation written directly in `androidApp`'s own source —
+`lintChecks` from a dependency module never reaches a consuming app's report under AGP 9.3.1's
+`com.android.kotlin.multiplatform.library` plugin, so the `feature:*:ui`/`composeApp`/`uikit`
+code the rule actually exists for is unguarded. Investigated the same day (chat, not a separate
+doc): confirmed via `javap` against the real `dev.detekt:detekt-api-2.0.0-alpha.5.jar` (no
+sources jar published for this version — same technique CLAUDE.md documents for AGP/Gradle APIs)
+that `dev.detekt.api.Rule extends DetektVisitor extends org.jetbrains.kotlin.psi.KtTreeVisitorVoid`
+— plain Kotlin PSI, no UAST, no `BindingContext`/type resolution needed, unlike the Lint version.
+`RuleSetProvider` registration mirrors `lint-rules`' own `IssueRegistry` shape
+(`META-INF/services/dev.detekt.api.RuleSetProvider`, confirmed against the exact file name shipped
+inside `io.nlopez.compose.rules:detekt`'s own jar — already a `detektPlugins` dependency of every
+module via `configureLinting()`). Both `dev.detekt:detekt-test` and `detekt-test-utils` publish at
+`2.0.0-alpha.5` on Maven Central, confirmed directly rather than assumed. `:lint-rules` is
+deliberately absent from the root `kover {}` list (build tooling, not production code, same as
+`:testing`) — `:detekt-rules` follows the same precedent.
+
+Why this closes the gap 25.1 couldn't: detekt already runs correctly against every module's own
+`commonMain`/`commonTest` via `configureLinting()`'s
+`source.setFrom(layout.projectDirectory.dir("src"))` — the exact mechanism
+`io.nlopez.compose.rules:detekt` already relies on today to catch a `feature:*:ui` violation.
+There is no cross-module propagation gap to work around the way there is for Android Lint's
+`lintChecks` under the KMP-library plugin.
+
+- [ ] **26.1 — A `detekt-rules` module porting `UnstableCollectionInUiState` to a real detekt
+  `Rule`, closing `docs/revisit.md` #1**
+  New top-level module `detekt-rules/` — plain `java-library` + Kotlin JVM plugin, no AGP, same
+  shape as `lint-rules/build.gradle.kts`: explicit `config.setFrom(File(rootDir,
+  "config/detekt/detekt.yml"))` + `source.setFrom(layout.projectDirectory.dir("src"))` +
+  `detektPlugins(libs.composeRules.detekt)`/`ktlintRuleset(libs.composeRules.ktlint)` — needed for
+  the same reason `lint-rules` needed it (25.1's `Note:` point 3): detekt auto-discovers the
+  shared config regardless of `config.setFrom`, and its `Compose:` section fails at configuration
+  time without compose-rules on the classpath. `compileOnly("dev.detekt:detekt-api")` as a new
+  `gradle/libs.versions.toml` library alias under the existing `detekt` version key (no version
+  bump). `testImplementation("dev.detekt:detekt-test")` + `testImplementation("dev.detekt:detekt-test-utils")`
+  (both confirmed published at `2.0.0-alpha.5` on Maven Central, 2026-08-14). Add
+  `include(":detekt-rules")` to `settings.gradle.kts`.
+
+  One rule class, `UnstableCollectionInUiStateRule : Rule(config, description, url)`, overriding
+  `visitParameter(parameter: KtParameter)`: match `parameter.typeReference`'s simple type name text
+  against `List`/`MutableList` — a **text** check, not the Lint version's PSI-*resolved*-class
+  check, and safe here for a reason that doesn't apply to Lint's UAST layer: `ImmutableList` is
+  never spelled `List` in source, so there is no erasure collision to guard against the way
+  `resolve()`-to-`java.util.List` was needed for (25.1's `Note:` point 1). Then the same two
+  containment checks as the Lint detector: constructor param of a class whose simple name ends
+  `UiState` (via `parameter.ownerFunction` as a `KtPrimaryConstructor`, its
+  `containingClassOrObject`), or a parameter of a function carrying `@Composable` and not
+  explicitly `private` (mirroring 25.1's `Note:` point 2 — no public/internal distinction,
+  `internal` has no real JVM modifier to check). Activation and severity are config-driven in this
+  detekt version, not an `Issue.create(..., Severity.ERROR)` call the way Lint has — see the
+  `config/detekt/detekt.yml` block below.
+
+  Registration: a `RuleSetProvider` implementation (`RuleSetId("WallosMobile")`, one entry in its
+  `RuleSet`'s rule map) plus `detekt-rules/src/main/resources/META-INF/services/dev.detekt.api.RuleSetProvider`.
+
+  Wiring: one line in `Quality.kt`'s `configureLinting()`, next to the existing
+  `"detektPlugins"(libs.findLibrary("composeRules-detekt").get())` line:
+  `"detektPlugins"(project(":detekt-rules"))`. New activation block in
+  `config/detekt/detekt.yml`, mirroring the existing `Compose:` block:
+  ```
+  WallosMobile:
+      UnstableCollectionInUiState:
+          active: true
+  ```
+  (a new ruleset id — `buildUponDefaultConfig: true` doesn't know about it otherwise).
+
+  Tests: `detekt-rules/src/test/`, mirroring `UnstableCollectionInUiStateDetectorTest.kt`'s four
+  cases (`*UiState` + `List<T>` fails, `*UiState` + `ImmutableList<T>` clean, public `@Composable`
+  + `List<T>` fails, `private` `@Composable` + `List<T>` clean) via `detekt-test`/
+  `detekt-test-utils`'s harness — read `io.nlopez.compose.rules:detekt`'s own compiled classes for
+  the harness shape if it isn't self-evident from the artifact alone (no sources jar for either;
+  `javap` is the fallback, same as this milestone's own investigation used).
+
+  Decide `:lint-rules`' fate as part of this step, not left open: once `:detekt-rules` is
+  confirmed catching the violation in `androidApp` too (verify below), `:lint-rules`'s real-world
+  catch surface is fully subsumed — its `lintChecks` wiring only ever exposed a violation written
+  directly in `androidApp`'s own source (`docs/revisit.md` #1), which `:detekt-rules` also covers
+  via `configureLinting()`. Recommendation: drop `:lint-rules` (module, `settings.gradle.kts`
+  entry, the `lintChecks(project(":lint-rules"))` line in `Quality.kt`, its `libs.versions.toml`
+  `lint-api`/`lint-checks`/`lint-tests` entries) rather than keep two tools flagging the same
+  thing — but this is a real call about deleting working infra, not a mechanical step; if it reads
+  differently once both are in hand, say so in the `Note:` and keep both.
+
+  *Verify:* `./gradlew -p detekt-rules test` passes. Re-run `docs/revisit.md` #1's own prescribed
+  check: temporarily add a `List<String>` to a real `*UiState` class in `feature:subscriptions:ui`,
+  run `./gradlew :feature:subscriptions:ui:detekt --rerun-tasks`, confirm the report shows
+  `UnstableCollectionInUiState` — this is the actual close of the gap, since
+  `feature:subscriptions:ui` is exactly the module the Lint version couldn't reach. Also add the
+  same violation directly in `androidApp`'s own source, run `./gradlew :androidApp:detekt --rerun-tasks`,
+  confirm it fires there too (the overlap that justifies the `:lint-rules` call above). Revert both
+  scratch changes, confirm `./gradlew detekt ktlintCheck` (root) passes clean against the real
+  codebase. Delete `docs/revisit.md` #1.
+
+  This step touches `config/detekt/detekt.yml` and `gradle/libs.versions.toml` — both
+  `TRIPWIRE_PATHS`; the commit needs a `Gate-change:` line (widening: a new active rule that can
+  fail real builds, plus new dependencies).
+
+  ·  *Ref:* `lint-rules/build.gradle.kts` and `Quality.kt`'s `configureLinting()` for the parallel
+  wiring shape; `io.nlopez.compose.rules:detekt`'s own jar
+  (`~/.gradle/caches/modules-2/files-2.1/io.nlopez.compose.rules/detekt/0.6.3/`) for a real
+  `RuleSetProvider` registration and rule-writing precedent already on this project's own
+  classpath.
 
 ---
 
