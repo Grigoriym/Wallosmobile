@@ -27,6 +27,20 @@ TRIPWIRE_PATHS=(
   'gradle/libs.versions.toml'
 )
 
+# gradle/libs.versions.toml is on the list above, but Renovate touches it constantly for
+# ordinary dependency bumps (filekit, ktor, coroutines, ...) that don't decide whether anything
+# passes, and a bot-authored commit can never carry a Gate-change line. Only these version keys
+# actually govern a gate — detekt/ktlint/composeRules run the lint checks, agp/androidToolsLint
+# govern Android Lint (lint.abortOnError, :lint-rules' own API) — so the wire below only fires
+# when one of them is what changed, not on every version bump in the file.
+GATE_VERSION_KEYS='^[+-](detekt|ktlint|composeRules|agp|androidToolsLint)[[:space:]]*='
+
+# True if the diff for gradle/libs.versions.toml between $1 and $2 touches a gate-relevant key.
+libs_versions_touches_gate() {
+  git diff "$1" "$2" -- gradle/libs.versions.toml |
+    grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -qE "$GATE_VERSION_KEYS"
+}
+
 # Counts a rule document's rules. A reworded or reflowed bullet leaves these alone; a deleted
 # one does not — which is the difference between editing the rules and dropping them.
 # A rev that predates the file counts as zero rules, so adding it can't read as a drop.
@@ -58,6 +72,11 @@ for sha in $(git rev-list --reverse "$RANGE"); do
     [ -n "$file" ] || continue
     for wire in "${TRIPWIRE_PATHS[@]}"; do
       case "$wire" in
+        gradle/libs.versions.toml)
+          if [ "$file" = "$wire" ] && libs_versions_touches_gate "$base" "$sha"; then
+            reasons+=("touches $file (a gate-relevant version: detekt/ktlint/composeRules/agp/androidToolsLint)")
+          fi
+          ;;
         */) [ "${file##"$wire"}" != "$file" ] && reasons+=("touches $file") ;;
         *)  [ "$file" = "$wire" ] && reasons+=("touches $file") ;;
       esac

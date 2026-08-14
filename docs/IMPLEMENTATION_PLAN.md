@@ -303,11 +303,25 @@ have a `jvm()` target):
   `:module:detekt` reports `NO-SOURCE` and lints nothing. `configureLinting()` sets
   `source.setFrom(layout.projectDirectory.dir("src"))` to cover `commonMain`, `commonTest` and any
   platform source set.
+- **A `com.android.kotlin.multiplatform.library` module has no Lint task for its own
+  `androidMain`/`commonMain` *production* source at all** — only `lintAnalyzeAndroidHostTest`
+  (test source). A custom `lintChecks(project(":lint-rules"))` dependency (M25) therefore never
+  reaches a violation written in `feature:*:ui`/`composeApp`/`uikit`'s own commonMain, regardless
+  of whether it's declared on that module or propagated from `androidApp`'s own `checkDependencies`
+  — confirmed with `checkDependencies` both `true` and `false`. `androidApp:lintFdroidDebug`/
+  `lintGplayDebug` only ever see `androidApp`'s own `src/main`. Bundled checks shipped inside a
+  dependency AAR's own `lint.jar` (e.g. Compose runtime's `FlowOperatorInvokedInComposition`) are a
+  different mechanism and unaffected by this gap. Open, tracked in `docs/revisit.md` #1 — not
+  something `configureLinting()` can currently paper over the way it does for the host-test and
+  detekt-source-set gaps above.
 
-**Discipline that makes this cheap:** no `androidMain` source set in feature modules. If a feature
-needs a platform capability, it declares an `expect` in `commonMain` and the `actual` lives in
-`androidMain` of that module — so adding a target surfaces as compile errors listing exactly what
-is missing, rather than silently-Android code that has to be untangled.
+**Discipline that makes this cheap:** a feature module reaches `androidMain` only through
+`expect`/`actual`, never for arbitrary platform code dropped in directly. It declares an `expect`
+in `commonMain` and the `actual` lives in `androidMain` of that module — so adding a target
+surfaces as compile errors listing exactly what is missing, rather than silently-Android code that
+has to be untangled. (Not "an `androidMain` source set must never exist" — `feature/paymentmethods
+/ui/src/androidMain/` and `feature/subscriptions/ui/src/androidMain/` both legitimately have one;
+confirmed while scoping M24, see `CLAUDE.md`'s own Non-negotiables entry.)
 
 ### 3.2 Versions
 
@@ -1502,7 +1516,8 @@ The prompt itself is 3.8, and it lives on the **login screen only**:
   names the certificate, pointing at Disconnect. `LoginViewModel.onFailure` asks the same question
   *first* and raises the dialog, which is why the branch is invisible there: the copy is for screens
   with no trust surface. A prompt on those screens would put a pin write outside `SetupRepository`
-  and is still open.
+  — **decided against, 2026-08-09** (`docs/CHECKLIST.md`'s "To review": not worth ~13 extra call
+  sites for a rare event that already has a working, if clunkier, fallback message).
 
 ### 4.6 Version gating
 
@@ -2088,9 +2103,42 @@ produces, so consumers construct or inject the real one.
 
 **What gets tested.** Pure logic earns real coverage — `WallosEnvelopeParser`, error mapping,
 `FormParams`, mappers, the formatters, `Navigator`, the login response interpreter and key regex.
-ViewModels are tested through their `StateFlow` with fakes injected. Composables are not unit
-tested; `uikit` widgets, screens, DI modules and DTOs are excluded from Kover (§ the root build's
-`excludes` block).
+ViewModels are tested through their `StateFlow` with fakes injected. Composables were untested
+through M18; M19 closed that for the subscriptions list screen, screen by screen, through the
+mechanism below — every other screen's Composables are still untested, M19 having scoped itself to
+one screen rather than a project-wide sweep —
+`uikit` widgets, screens, DI modules and DTOs still stay excluded from Kover (§ the root build's
+`excludes` block) regardless, since the instrumented suite can't report into it (below).
+
+**Compose UI tests are instrumented (`androidDeviceTest`), not host tests, and have to be — this
+project declares no `jvm()` target for TaigaMobileNova's own `runComposeUiTest`/`jvmTest` technique
+to attach to (M19's own preamble in `docs/CHECKLIST.md` has the full comparison).** Wiring, per
+module that needs it (`kotlin { android { withDeviceTestBuilder { sourceSetTreeName = null }
+.configure { instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" } } } }`, same shape
+3.3 used for Room's DAO suite) plus three `androidDeviceTest`-only dependencies, all pinned in
+`gradle/libs.versions.toml`:
+
+- `org.jetbrains.compose.ui:ui-test-junit4` — its KMP module metadata forces
+  `androidx.compose.ui:ui-test-junit4` on the android target (the whole `androidx.compose.ui`
+  group resolves as one unit here) and pulls `ui-test` transitively, so no separate `ui-test`
+  catalog entry is needed alongside it.
+- `androidx.compose.ui:ui-test-manifest` — no JetBrains multiplatform wrapper exists for this one
+  (Android-instrumentation-only), so it needs its own pinned version, matched to what the line
+  above resolves to. It supplies the placeholder `ComponentActivity` `createComposeRule()` hosts
+  content in, via manifest merge.
+- `androidx.test.espresso:espresso-core`, forced to a newer version than the `ui-test-junit4`
+  chain would otherwise pull in transitively — that older version reflects for
+  `android.hardware.input.InputManager.getInstance()`, removed on API 34+, and crashes
+  `connectedAndroidDeviceTest` with `NoSuchMethodException` on a modern AVD otherwise (found on
+  `Medium_Phone_API_36.1`, 19.1).
+
+A screen's own `private fun XxxContent(uiState: XxxUiState, …)` — the piece 19.1 confirmed is
+already worth testing in isolation, no ViewModel/Koin needed thanks to the no-op-default UI-state
+shape (CLAUDE.md) — becomes `internal`, not public: `androidDeviceTest` is a friend compilation of
+`commonMain`/`androidMain`, the same as any AGP `androidTest`, and crosses that boundary. `compileAndroidDeviceTest` is the fast local compile check that needs no device;
+`connectedAndroidDeviceTest` is the one that actually runs the suite and needs one up. Neither is
+in `allTests`, and CI has no emulator (same as `core:storage:connectedAndroidDeviceTest`) — this
+suite is local/emulator-verified only, same as the Room one.
 
 `:testing` is added to every module's `commonTest` automatically by the convention plugin, so no
 module declares it by hand. That makes it the home for test-only *libraries* as well as doubles:
@@ -2117,12 +2165,31 @@ outside `allTests`, and CI therefore doesn't run it (§3.5). `:testing` is *not*
 `configureTests()` wires `commonTest` only — so a device test either declares what it needs or
 does without.
 
-**The second one is named, as of 3.12: the subscriptions list screen.** Every Composable in the
-project is at 0% coverage, so the four derived states 3.5/3.6 built (stale, failed, empty, no-match)
-plus 3.11's conversion banner and 3.8's trust dialog are verified only by manual emulator runs like
-3.12's — which is precisely the "logic outgrows its ViewModel test" bar 2.7 set for reaching here.
-What still has to be decided when it lands is whether it earns an emulator job in CI, since a second
-device-only suite doubles the surface no other session's commit can feel.
+**The second one was named as of 3.12: the subscriptions list screen — M19 built it, done as of
+19.2.** The four derived states 3.5/3.6 built (stale, failed, empty, no-match) plus 3.11's
+conversion banner were the ones without any automated coverage — the "logic outgrows its ViewModel
+test" bar 2.7 set for reaching here. `SubscriptionsScreenTest` covers `SubscriptionsContent`'s
+actual `when`-block branches (`isLoading`, `isFailed`, `isEmpty`, `isNoMatch`, plus the ordinary
+loaded case with real rows); `StaleBanner`/`ConversionBanner` each get their own test file instead
+of only being reached through the content composable's `isStale`/`isConversionUnavailable` flags.
+3.8's trust dialog is a separate screen (`feature:setup:ui`'s login flow), not part of this matrix,
+and stays uncovered by this milestone. The CI question is settled, not open: it stays out of scope,
+following 3.3's own precedent (M19's own preamble, `archive/CHECKLIST-DONE.md`) — a second
+device-only suite gets the same treatment as the first rather than being the one that finally earns
+an emulator job.
+
+**Two fixture-level techniques 19.2 needed, worth reusing for the next screen:**
+
+- **Asserting an indeterminate `CircularProgressIndicator()` (no `progress` argument) is a
+  semantics match, not a text lookup**: `composeTestRule.onNode(hasProgressBarRangeInfo(
+  ProgressBarRangeInfo.Indeterminate))`, from `androidx.compose.ui.test`/
+  `androidx.compose.ui.semantics` — there is no visible string to key off.
+- **An `internal` widget that reads a `CompositionLocal` with no default** (`LocalIsOffline`,
+  `error()`s rather than falling back) **needs `WallosMobilePreviewTheme` wrapping in its own test**,
+  not just in the screen that normally hosts it — `StaleBannerTest` wraps `StaleBanner` directly in
+  `WallosMobilePreviewTheme { … }` (or an inner `CompositionLocalProvider(LocalIsOffline provides
+  true) { … }` for the offline copy variant) rather than trying to construct the composition local
+  by hand, the same shape every `@PreviewWallosDarkLight` in this codebase already uses.
 
 **A `@Dao` is faked by hand like anything else** — it is an interface, so a `commonTest` fake needs
 no Room runtime, and `replaceAll` is a `@Transaction` method *with a body*, so only the abstract

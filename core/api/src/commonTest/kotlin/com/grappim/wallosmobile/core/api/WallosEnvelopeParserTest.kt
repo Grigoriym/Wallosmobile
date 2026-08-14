@@ -1,10 +1,16 @@
 package com.grappim.wallosmobile.core.api
 
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.core.logger.LogPriority
+import com.grappim.wallosmobile.core.logger.WallosLogger
 import kotlinx.serialization.Serializable
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @Serializable
 private data class SubscriptionsEnvelope(
@@ -19,6 +25,17 @@ private data class SubscriptionRow(val id: Int, val name: String)
 class WallosEnvelopeParserTest {
 
     private val sut = WallosEnvelopeParser()
+    private val logger = RecordingLogger()
+
+    @BeforeTest
+    fun setUp() {
+        WallosLogger.install(logger)
+    }
+
+    @AfterTest
+    fun tearDown() {
+        WallosLogger.uninstall()
+    }
 
     private fun parse(body: String, statusCode: Int = HTTP_OK): SubscriptionsEnvelope =
         sut.parse(statusCode, body, SubscriptionsEnvelope.serializer())
@@ -119,6 +136,32 @@ class WallosEnvelopeParserTest {
     }
 
     @Test
+    fun `a payload that does not match the model does not leak the body to the ERROR-priority throwable`() {
+        val marker = "MARKER_SECRET_VALUE_XYZ"
+        val body = """{"success":true,"subscriptions":[{"id":"$marker"}]}"""
+
+        assertFailsWith<WallosError.Malformed> { parse(body) }
+
+        val errorEntry = logger.entries.single { it.priority == LogPriority.ERROR }
+        val warnEntry = logger.entries.single { it.priority == LogPriority.WARN }
+        assertFalse(errorEntry.throwable?.message.orEmpty().contains(marker))
+        assertTrue(warnEntry.throwable?.message.orEmpty().contains(marker))
+    }
+
+    @Test
+    fun `truncated JSON does not leak the body to the ERROR-priority throwable`() {
+        val marker = "MARKER_SECRET_VALUE_XYZ"
+        val body = """{"success":true,"subscriptions":["$marker"""
+
+        assertFailsWith<WallosError.Malformed> { parse(body) }
+
+        val errorEntry = logger.entries.single { it.priority == LogPriority.ERROR }
+        val warnEntry = logger.entries.single { it.priority == LogPriority.WARN }
+        assertFalse(errorEntry.throwable?.message.orEmpty().contains(marker))
+        assertTrue(warnEntry.throwable?.message.orEmpty().contains(marker))
+    }
+
+    @Test
     fun `success false is an error even though the status is 200`() {
         val error = assertFailsWith<WallosError.Validation> {
             parse("""{"success":false,"title":"Invalid date","message":"next_payment is invalid."}""")
@@ -175,6 +218,17 @@ class WallosEnvelopeParserTest {
             sut.parse(HTTP_OK, """{"success":true,"subscriptions":[{"id":3,"name":"Sonarr"}]}""")
 
         assertEquals(listOf(SubscriptionRow(id = 3, name = "Sonarr")), result.subscriptions)
+    }
+
+    // Same shape as core:logger's own LogcatTest.kt fake.
+    private class RecordingLogger : WallosLogger {
+        val entries = mutableListOf<Entry>()
+
+        override fun log(priority: LogPriority, tag: String?, throwable: Throwable?, message: () -> String) {
+            entries += Entry(priority, throwable)
+        }
+
+        data class Entry(val priority: LogPriority, val throwable: Throwable?)
     }
 
     private companion object {
