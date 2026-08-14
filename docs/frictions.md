@@ -161,3 +161,10 @@ deleted — see `/finalize`.
   from `git diff`, so it never matched. A check that confidently returns "nothing tripped" reads
   identical to a check that's broken; caught only by testing the case it's supposed to catch
   (a synthetic gate-relevant bump), not just the case it's supposed to let through.
+- After PR #15 (the libs.versions.toml narrowing) merged, Renovate's own `renovate/filekit`
+  branch failed guardrails again — a *third* flavor of the same root problem, this time a real
+  (not synthetic) merge commit: Renovate merges the base branch into its own branch to catch up
+  rather than rebasing, and `git merge dev`'s resulting commit, diffed against its first parent
+  only (the script's per-commit model), shows the *entirety* of what dev gained since the branch
+  point as "touched" — nine unrelated files here. Fixed with `git rev-list --no-merges`, so only
+  commits that actually introduce content are walked.
