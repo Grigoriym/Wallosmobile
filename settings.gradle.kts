@@ -37,7 +37,7 @@ plugins {
 include(":androidApp")
 include(":composeApp")
 include(":benchmark")
-include(":lint-rules")
+include(":detekt-rules")
 
 include(":core:api")
 include(":core:domain")

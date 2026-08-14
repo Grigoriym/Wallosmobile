@@ -81,4 +81,6 @@ dependencies {
     // adds both unconditionally rather than only to Compose modules.
     ktlintRuleset(libs.composeRules.ktlint)
     detektPlugins(libs.composeRules.detekt)
+    // M26: same reason as above, for the shared config's `WallosMobile:` section.
+    detektPlugins(project(":detekt-rules"))
 }

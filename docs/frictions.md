@@ -168,3 +168,19 @@ deleted — see `/finalize`.
   only (the script's per-commit model), shows the *entirety* of what dev gained since the branch
   point as "touched" — nine unrelated files here. Fixed with `git rev-list --no-merges`, so only
   commits that actually introduce content are walked.
+- `testImplementation("dev.detekt:detekt-test:2.0.0-alpha.5")` in a new `detekt-rules` module
+  (26.1) failed dependency resolution outright ("No matching variant ... with capability
+  'dev.detekt:detekt-api-test-fixtures' was found") — `detekt-test`'s `runtimeElements` variant
+  requests that capability from `detekt-api`, but `detekt-api` only ever publishes a *sources* jar
+  under it, confirmed by fetching and reading both `2.0.0-alpha.5`'s and `2.0.0-alpha.6`'s
+  `.module` metadata directly from Maven Central — a real upstream publishing gap, not something a
+  version bump fixes. `testImplementation(libs.detekt.test) { isTransitive = false }` plus the
+  module's own real transitive needs declared by hand (`detekt-api`, `detekt-test-utils`,
+  `kotlin-compiler:2.4.0`, `kotlin-reflect:2.4.0`) worked around it.
+- `ownerFunction.containingClassOrObject` (a new detekt `Rule`, 26.1, `ownerFunction` smart-cast to
+  `KtPrimaryConstructor`) failed as "Unresolved reference" despite `KtConstructor.kt`'s own source
+  (fetched from `kotlin-compiler:2.4.0`'s `-sources.jar`) clearly declaring
+  `abstract fun getContainingClassOrObject(): KtClassOrObject` on that type — Kotlin's
+  Java-interop synthetic-property sugar for a `getFoo()` method only applies when the declaring
+  class originates from Java bytecode, not when calling from Kotlin into another Kotlin class.
+  `ownerFunction.getContainingClassOrObject()` (explicit method call) is what actually compiles.
