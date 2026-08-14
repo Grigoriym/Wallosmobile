@@ -25,10 +25,19 @@ android {
         versionCode = libs.versions.version.code.get().toInt()
         versionName = libs.versions.version.name.get()
     }
+
+    // Renovate already owns dependency bumps, so lint's own opinion on them is pure noise.
+    lint {
+        disable += setOf("NewerVersionAvailable", "GradleDependency")
+    }
 }
 
 dependencies {
     baselineProfile(project(":benchmark"))
+
+    // M25's `lintChecks(":lint-rules")` line lives in `configureLinting()` (build-logic's
+    // `Quality.kt`), applied here via `configureLinting()` in `AndroidApplicationConventionPlugin`
+    // — no separate line needed in this file.
 
     implementation(project(":composeApp"))
     implementation(project(":core:appinfo-api"))
