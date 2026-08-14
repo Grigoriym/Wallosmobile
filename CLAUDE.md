@@ -46,10 +46,11 @@ N" trigger and launch the step immediately. Corrected 2026-08-11.
    a "the repo is still…" line). Grep for what changed rather than trusting a read-through.
 4. Commit, push to a branch, and open a PR into `dev` — subject `0.N — short title`, body listing
    the deltas that aren't obvious from the diff (same content a direct-push commit message would
-   have carried). Wait for CI (skipped on a docs-only diff) and Guardrails to go green, then
-   squash-merge it and delete the branch. **Merge it yourself once checks pass — don't leave it
-   open waiting for review**, confirmed with the user 2026-08-14. One commit still lands on `dev`
-   per step; the PR is a checkpoint before it lands, not a batching or review-gating mechanism.
+   have carried). **Then stop — the user merges it and reports back if something broke.** Don't
+   background-watch CI/Guardrails for it (`gh pr checks --watch` or otherwise): asked and declined
+   2026-08-14, in the same breath as asking for PRs at all — the user merges, watching costs
+   usage for no benefit. One commit still lands on `dev` per step; the PR is a checkpoint before it
+   lands, not a batching mechanism.
 
 **Decomposing a new milestone is its own commit, made the moment it happens — not left
 for the session that does step 1 to discover via `git status`.** Every milestone from M3
