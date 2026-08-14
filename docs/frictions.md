@@ -151,3 +151,7 @@ deleted — see `/finalize`.
   `com.android.kotlin.multiplatform.library` module exposes only a `lintAnalyzeAndroidHostTest`
   task, no task that lints its own `androidMain`/`commonMain` production source at all — there is
   currently nothing to propagate. `docs/revisit.md` #1 tracks a real fix.
+- `gh pr edit 14 --body ...` failed with `GraphQL: Projects (classic) is being deprecated ...
+  (repository.pullRequest.projectCards)` on this repo (gh 2.45.0) — the mutation path it uses
+  queries a deprecated Projects-classic field unrelated to the edit itself. `gh api
+  repos/<owner>/<repo>/pulls/<n> -X PATCH -f body=...` (plain REST) worked around it.
