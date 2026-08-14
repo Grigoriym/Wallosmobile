@@ -16,7 +16,7 @@ plugins {
 configure<DetektExtension> {
     buildUponDefaultConfig.set(true)
     parallel.set(true)
-    config.setFrom(rootProject.files("config/detekt/detekt.yml"))
+    config.setFrom(File(rootDir, "config/detekt/detekt.yml"))
     allRules.set(false)
     source.setFrom(layout.projectDirectory.dir("src"))
 }

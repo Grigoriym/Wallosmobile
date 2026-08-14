@@ -80,8 +80,11 @@ fun SubscriptionsScreen(
     SubscriptionsContent(uiState = uiState, onSubscriptionClick = onSubscriptionClick)
 }
 
+// `internal`, not `private`: `androidDeviceTest` is a friend compilation of `commonMain`/
+// `androidMain`, same as any AGP `androidTest`, and 19.1 renders this directly rather than
+// going through the full `SubscriptionsScreen` (which needs a Koin-injected ViewModel).
 @Composable
-private fun SubscriptionsContent(
+internal fun SubscriptionsContent(
     uiState: SubscriptionsUiState,
     onSubscriptionClick: (id: Int) -> Unit,
     modifier: Modifier = Modifier

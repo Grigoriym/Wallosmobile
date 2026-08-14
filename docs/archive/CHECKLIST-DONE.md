@@ -3939,3 +3939,654 @@ shape.
 
 Once 18.2 verified clean on-device, `docs/revisit.md` #1 was deleted — the gap it filed is closed.
 **M18 is done.**
+
+## M19 — Instrumented Compose UI tests, starting with the subscriptions list screen (not in plan §8's phase order)
+
+Decomposed 2026-08-12 from the "To review" backlog entry 2.7 first parked and 3.12 dated: *"A Kover
+floor and a Compose UI test setup"*. The Kover-floor half was decided 2026-08-04 (leave the
+aggregate alone — stays settled, not reopened here). This milestone decomposes only the Compose
+half, which 3.12 already gave a shape: the first instrumented Compose test should cover the
+subscriptions list screen's four derived states (`isStale`, `isFailed`, `isEmpty`, `isNoMatch`)
+plus its two banners (`StaleBanner`, `ConversionBanner`, gated on `uiState.isStale` and
+`uiState.isConversionUnavailable` respectively) — every Composable in the project sits at 0%
+coverage, and this is the screen 2.7 predicted would first outgrow a ViewModel test.
+
+Android is the only target here, so TaigaMobileNova's own Compose UI test technique doesn't
+transfer as-is: Taiga runs `runComposeUiTest` on a `jvm()` desktop target
+(`TaigaMobileNova/docs/testing/survey.md`, `docs/testing/improvement-plan.md` tasks 10–16), and
+WallosMobile declares no `jvm()` target at all (`CLAUDE.md`'s Non-negotiables — platform targets
+are `configureKmp()`'s call only). The mechanism here has to be a real Android instrumented test —
+`androidDeviceTest`, the same source set 3.3 already paid the setup cost for on `core:storage`'s
+Room DAOs, wired the identical way (`withDeviceTestBuilder { sourceSetTreeName = null }` in the
+module's own `build.gradle.kts`, not `build-logic` — this is the second module that needs one, not
+every `ui` module by default). Two steps, wiring then coverage, the same split M18 used for storage
+then screen.
+
+**CI stays out of scope, following 3.3's own precedent.** `core:storage:connectedAndroidDeviceTest`
+already isn't in `allTests` and CI has no emulator (`CLAUDE.md`'s build-commands section) — a
+second device-only suite gets the same treatment rather than being the one that finally earns an
+emulator job, which both 2.7 and 3.12 left open. Revisit only if the maintainer actually wants CI
+device coverage; nothing here forecloses it.
+
+- [x] **19.1 — feature:subscriptions:ui: wire `androidDeviceTest` for Compose, spike one render**
+  Add the Compose UI test artifacts to `gradle/libs.versions.toml` (check
+  `TaigaMobileNova/uikit/build.gradle.kts` — task 10 in its `docs/testing/improvement-plan.md` —
+  for the `compose.dependencies.uiTest`/`ui-test-manifest` wiring shape, then confirm which
+  artifact actually resolves for an `androidTarget` `androidDeviceTest` compilation rather than
+  assuming the desktop one carries over unchanged: Taiga attaches this to a `jvmTest`, this module
+  attaches it to a real device instead). Wire `feature:subscriptions:ui`'s own `androidDeviceTest`
+  source set, same shape as `core/storage/build.gradle.kts`'s
+  `withDeviceTestBuilder { sourceSetTreeName = null }`.
+  Write one test that renders something real from this module — `SubscriptionsContent` is
+  `private` in `SubscriptionsScreen.kt` today, so the first thing this step has to settle is
+  whether that becomes `internal` (a device-test compilation is a friend of the `androidMain`/
+  `commonMain` it tests, same as any AGP `androidTest`, so `internal` should cross that boundary —
+  confirm rather than assume) or whether the test goes through the public `SubscriptionsScreen`
+  entry point instead. Assert on one visible node (e.g. the empty state's text) — this step proves
+  the wiring, not the matrix.
+  *Verify:* `./gradlew :feature:subscriptions:ui:connectedAndroidDeviceTest` with an emulator up,
+  one passing test.
+  ·  *Ref:* `core/storage/build.gradle.kts`; `TaigaMobileNova/docs/testing/improvement-plan.md`
+  task 10 (`uikit/build.gradle.kts`'s one-time Compose UI test dependency addition) — read for the
+  *shape* of the wiring, not the exact artifact, since Taiga's is desktop and this one is Android.
+  **Note:** Artifacts confirmed by resolving `androidCompileClasspath`/the KMP module metadata rather
+  than guessing: `org.jetbrains.compose.ui:ui-test-junit4` (matches Taiga's `uiTest`/`uiTestJUnit4`
+  shape) is enough alone — its module metadata forces `androidx.compose.ui:ui-test-junit4:1.11.2`
+  on the android target (the whole `androidx.compose.ui` group resolves to 1.11.2 here, confirmed the
+  same way) and pulls `ui-test` transitively, so no separate `ui-test` catalog entry was needed.
+  `androidx.compose.ui:ui-test-manifest` has no JetBrains multiplatform wrapper at all (it's
+  Android-instrumentation-only) and needed its own pinned version (`androidxComposeUiTest = 1.11.2`)
+  to match. Both landed in `gradle/libs.versions.toml`, not inline, per this project's own convention.
+  A second, unplanned gotcha: the transitively-pulled `androidx.test.espresso:espresso-core:3.5.0`
+  reflects for `android.hardware.input.InputManager.getInstance()`, removed on API 34+, so
+  `connectedAndroidDeviceTest` crashed with `NoSuchMethodException` on this AVD's API 36 the first
+  run — fixed by forcing `espresso-core:3.7.0` (new `androidxEspresso` catalog entry, added as a
+  direct `androidDeviceTest` dependency). `SubscriptionsContent` went `internal`, not through the
+  public `SubscriptionsScreen`: the private function already took `SubscriptionsUiState` and a plain
+  callback, no ViewModel/Koin needed, matching this project's own no-op-default UI-state shape.
+  `SubscriptionsScreenTest` renders the default (empty) `SubscriptionsUiState` and asserts
+  `RString.subscriptions_empty`'s resolved text exists — one test, passing on-device
+  (`Medium_Phone_API_36.1`). `createComposeRule()` prints a v1→v2 deprecation warning
+  (`StandardTestDispatcher` vs `UnconfinedTestDispatcher`); left as-is, matching
+  `TaigaMobileNova/docs/testing/compose-ui-test-spike.md`'s own "known follow-up, not chased here."
+
+- [x] **19.2 — feature:subscriptions:ui: cover the list screen's four states and two banners**
+  The real matrix 3.12 dated: `SubscriptionsContent` rendered once per derived state (`isStale`,
+  `isFailed`, `isEmpty`, `isNoMatch`, plus the ordinary loaded case) built from a
+  `SubscriptionsUiState` fixture, asserting the right content is on screen each time — the loading
+  spinner, the empty-state text, the no-match Clear button, the error state's Try again, and real
+  rows. Separately, `StaleBanner` and `ConversionBanner` each get a render assertion for their
+  visible text/actions. `SubscriptionsUiState`'s no-op-default callback shape (`CLAUDE.md`'s UI
+  state rules) means each fixture needs no real ViewModel — the same reason a `commonTest`
+  ViewModel test doesn't need one either.
+  *Verify:* `./gradlew :feature:subscriptions:ui:connectedAndroidDeviceTest` with an emulator up,
+  covering all four derived states and both banners.
+  ·  *Ref:* `feature/subscriptions/ui/.../list/SubscriptionsScreen.kt`,
+  `feature/subscriptions/ui/.../widgets/StaleBanner.kt`,
+  `feature/subscriptions/ui/.../widgets/ConversionBanner.kt`; 3.5's and 3.11's own `Note:`s for
+  what each banner is supposed to show and when.
+  **Note:** The step's own parenthetical list names `isStale` as one of the four states
+  `SubscriptionsContent`'s `when` block renders — it doesn't; the block's four branches are
+  `isLoading`, `isFailed`, `isEmpty`, `isNoMatch` (confirmed against `SubscriptionsScreen.kt`
+  directly, not assumed from the prose — `isStale` draws the banner *and* the rows together, no
+  branch of its own). Read as a slip rather than a real instruction, since the very next sentence
+  already assigns `isStale` to the banner half ("Separately, `StaleBanner` and `ConversionBanner`
+  each get a render assertion"); `CLAUDE.md`'s "a step's prose is a sketch" rule applies. Five
+  `SubscriptionsScreenTest` cases now cover the actual branches plus the ordinary loaded row
+  (loading spinner via `hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)`, since
+  `CircularProgressIndicator()` here takes no `progress` arg; failed/no-match also assert their
+  button's callback actually fires, not just that the button renders). Two new files,
+  `widgets/StaleBannerTest.kt` and `widgets/ConversionBannerTest.kt`, cover the banners directly
+  rather than only through `SubscriptionsContent`'s `isStale`/`isConversionUnavailable` flags —
+  `StaleBanner` needs `WallosMobilePreviewTheme` wrapping (it reads `LocalIsOffline`, which has no
+  default and `error()`s without a provider) for both its online and offline copy variants.
+  8 tests total, all passing on-device (`Medium_Phone_API_36.1`). **M19 is done.**
+
+---
+
+## M20 — Compose Compiler stability reports (not in plan §8's phase order)
+
+Decomposed 2026-08-12, the same day `TaigaMobileNova` did the identical work in its own
+`docs/compose/` — ported here at the user's request rather than independently re-derived. Full
+plan, researched facts (Kotlin/Compose-compiler version match, the single-Android-target
+simplification that avoids Taiga's own report-duplication detour, the module lists) and the
+`stability-scan.py` aggregator script (copied verbatim, project-agnostic) live in
+`docs/compose/stability-reports-plan.md` — read that before starting either step rather than
+re-deriving the Gradle extension shape or the module list here.
+
+Two steps are scoped now; a third (fixing whatever the audit in 20.2 actually finds) is
+deliberately **not** — Taiga's own precedent was to only scope its equivalent step once it knew
+what the first audit turned up, and this milestone follows the same discipline rather than
+guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it goes to
+`docs/revisit.md` (empty as of 2026-08-12 — a first finding here would be entry #1) or becomes
+20.3, decided at that point, not now.
+
+- [x] **20.1 — Gradle wiring: opt-in stability reports**
+  Add `configureComposeStabilityReports()` (new file
+  `build-logic/convention/src/main/kotlin/com/grappim/wallosmobile/buildlogic/ComposeCompilerReports.kt`),
+  gated behind `-PcomposeStabilityReport`, called from both `KmpLibraryComposeConventionPlugin.kt`
+  and `AndroidApplicationConventionPlugin.kt` right after `apply("org.jetbrains.kotlin.plugin.compose")`.
+  No `targetKotlinPlatforms` — this project has no `jvm()` target, so there's nothing to restrict
+  (see the plan doc's "Researched facts" for why Taiga needed that and this project doesn't).
+  *Verify:* the plan doc's own "Done when" block — reports appear under
+  `feature/subscriptions/ui/build/compose_reports/` with `-PcomposeStabilityReport --rerun-tasks`,
+  absent without the flag, and `androidApp:compileFdroidDebugKotlin -PcomposeStabilityReport` also
+  produces them. `:build-logic:convention:compileKotlin` clean (`build-logic` has no `ktlintCheck`
+  task).
+  ·  *Ref:* `docs/compose/stability-reports-plan.md` task 1;
+  `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 1 (the shape, not the
+  `targetKotlinPlatforms` detour — doesn't apply here).
+  Note: exactly the plan's snippet, no deviation — `ComposeCompilerGradlePluginExtension`'s member
+  names matched as assumed. All four `Done when` commands ran and passed as written. One thing the
+  plan didn't call out: `-PcomposeStabilityReport` also emits an `android/` subdirectory and a
+  `*-composables.csv` alongside the two `.txt` files in `compose_reports/` — worth noting in 20.2's
+  doc rather than assuming only the two `.txt` files exist.
+
+- [x] **20.2 — Aggregator script + first repo-wide audit + doc**
+  Copy `TaigaMobileNova/docs/compose/stability-scan.py` to `docs/compose/stability-scan.py`
+  (already done as part of this decomposition — confirm it's still there and still matches the
+  real report filenames rather than re-copying blind). Run `-PcomposeStabilityReport --rerun-tasks`
+  across all 14 Compose UI modules' `compileAndroidMain` plus `androidApp:compileFdroidDebugKotlin`
+  (module list in the plan doc — re-derive via
+  `grep -rl "wallosmobile.kmp.library.compose" --include="build.gradle.kts" .` if it's gone stale).
+  Run the script, triage its output the same three ways Taiga's task 2 did (fix inline if small,
+  `docs/revisit.md` if real but bigger, say so plainly if clean), and write
+  `docs/compose/stability-reports.md` (the "run it again" reference — how to run the audit, the
+  report format, this audit's findings). One-line pointer from CLAUDE.md's Compose rules section
+  to the new doc, next to the existing `ImmutableList` bullet.
+  *Verify:* `python3 docs/compose/stability-scan.py` runs and prints its summary;
+  `./gradlew allTests detekt ktlintCheck` if any production fix landed.
+  ·  *Ref:* `docs/compose/stability-reports-plan.md` task 2;
+  `TaigaMobileNova/docs/compose/stability-reports.md` (the doc shape to match).
+  Note: script needed no changes, report format matched Taiga's exactly. Findings: zero plain-`List`
+  violations (clean), and the same domain-model gap Taiga hit on a smaller scale (`PendingCertTrust`
+  in `core/domain`, `IconFile` in `feature/paymentmethods/domain`, `LogoFile` in
+  `feature/subscriptions/domain` — 3 modules, not Taiga's 11). Also found and documented a report
+  quirk not in Taiga's own doc: a same-module `UiState` parameter gets no stability prefix printed
+  at all, even when unstable — cross-check its own module's `-classes.txt` instead of trusting a
+  blank prefix. No production fix landed in this step (`allTests detekt ktlintCheck` not required
+  per the step's own Verify line) — user chose to scope the domain-gap fix as 20.3 rather than file
+  it to `docs/revisit.md`, since the fix shape is already validated by Taiga's task 3. Full findings:
+  `docs/compose/stability-reports.md`.
+
+- [x] **20.3 — Fix the domain-model stability gap**
+  Port Taiga's task 3 minimal-convention-plugin fix (see
+  `docs/compose/stability-reports-plan.md` task 3 for the full write-up and the three rejected
+  alternatives, ported from `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 3 rather
+  than re-derived here): new `wallosmobile.kmp.library.stability` convention plugin
+  (`build-logic/convention/src/main/kotlin/KmpLibraryStabilityConventionPlugin.kt` +
+  `ComposeStabilityMarker.kt`) applying only the Compose Kotlin compiler subplugin
+  (`org.jetbrains.kotlin.plugin.compose`, **not** `org.jetbrains.compose`) plus a `compileOnly
+  compose-runtime` dependency — no UI toolkit reaching the domain layer. Registered in
+  `gradle/libs.versions.toml` and `build-logic/convention/build.gradle.kts` following the
+  `kmpLibraryCompose` pattern. Applied alongside the existing `wallosmobile.kmp.library` alias in
+  the 3 modules 20.2's audit confirmed: `core/domain`, `feature/paymentmethods/domain`,
+  `feature/subscriptions/domain`. Re-run the full audit afterward and add any straggler the re-scan
+  still shows as unstable — Taiga's own task 3 found its hand-traced module list was incomplete and
+  only the empirical re-scan caught it; don't assume the 3-module list above is final without that
+  check.
+  *Verify:* `./gradlew :build-logic:convention:compileKotlin`; `./gradlew
+  :core:domain:compileAndroidMain :feature:paymentmethods:domain:compileAndroidMain
+  :feature:subscriptions:domain:compileAndroidMain`; re-run the task 2 audit
+  (`docs/compose/stability-reports.md#running-the-audit`) and confirm the unstable-composable-
+  parameter count drops to just the independently-unstable buckets (`kotlinx.datetime`,
+  `SavedStateConfiguration`); `./gradlew allTests detekt ktlintCheck`.
+  ·  *Ref:* `docs/compose/stability-reports-plan.md` task 3;
+  `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 3 (the mechanism and rejected
+  alternatives); `docs/compose/stability-reports.md` (20.2's findings this step reacts to).
+  Note: ported exactly as planned, no deviation — new `wallosmobile.kmp.library.stability`
+  convention plugin (`ComposeStabilityMarker.kt` + `KmpLibraryStabilityConventionPlugin.kt`),
+  registered in `libs.versions.toml`/`build-logic/convention/build.gradle.kts`, applied alongside
+  `wallosmobile.kmp.library` in the 3 confirmed modules. Re-scan found no straggler beyond those
+  3 — the hand-traced list held this time, unlike Taiga's own task 3. All `Verify:` commands ran
+  and passed, including `allTests detekt ktlintCheck`. `docs/compose/stability-reports.md` updated
+  with an "After the fix" section recording the before/after composables-with-unstable-parameters
+  numbers.
+
+- [x] **20.4 — Trust-list `kotlinx.datetime.LocalDate` as stable**
+  Scoped 2026-08-12, after 20.3 closed, from a follow-up investigation into what else the Compose
+  Compiler stability space offers beyond the marker-plugin fix 20.1–20.3 ported from one article —
+  see that investigation's findings for the full survey (strong skipping / intrinsic remember /
+  `OptimizeNonSkippingGroups` / `PausableComposition` are all **already default-on** in this
+  project's exact `2.4.10` compose-compiler-gradle-plugin jar, confirmed by decompiling it, so
+  nothing to configure there) and for why the other candidates it turned up — `@Immutable`-annotating
+  `Subscription`/`AddSubscriptionParams`/`EditSubscriptionParams` (never passed directly as a
+  Composable parameter, would only be cosmetic), trust-listing `SavedStateConfiguration` (its one
+  consumer, `rememberNavigationState`, runs once at the shell root, not a recomposition hot path —
+  real risk per Android's own doc warning, zero real benefit), and wiring `androidApp:lintFdroidDebug`
+  into CI to close the "Compose lint never runs" gap CLAUDE.md's build-commands section already
+  documents (confirmed empirically: AGP's `com.android.kotlin.multiplatform.library` plugin produces
+  no lint model for its own Android source at all — `androidApp`'s aggregated lint report found zero
+  findings from any feature module when actually run, only from `androidApp`'s own thin files; a
+  known, currently-open AGP gap, not something a Gradle wiring fixes) — were investigated and
+  declined rather than scoped as steps.
+  `kotlinx.datetime.LocalDate` is different: it's the one "expected, not actionable" bucket from
+  20.2's audit that 20.3's marker-plugin approach structurally can't reach (`kotlinx-datetime` is a
+  third-party artifact — there's no module of ours to apply the Compose compiler subplugin to), it's
+  a genuinely immutable value type (all `val`s) so trusting it is well-founded rather than blind, and
+  it's a live parameter on a real interactive screen (`DateField` in the subscription editor) rather
+  than a once-at-root call site — fixing it would make `SubscriptionEditorUiState`,
+  `Subscription`, `AddSubscriptionParams` and `EditSubscriptionParams` genuinely stable, not just
+  report-quiet.
+  What the step needs to work out (not pre-solved here): a `.conf` file (format confirmed via
+  developer.android.com/develop/ui/compose/performance/stability/fix — one class per line, e.g.
+  `kotlinx.datetime.LocalDate`) wired through `composeCompiler { stabilityConfigurationFiles.set(...) }`
+  (the current, non-deprecated plural API — confirmed against the decompiled
+  `ComposeCompilerGradlePluginExtension`; the singular `stabilityConfigurationFile` the official doc's
+  own example still shows is `DeprecationLevel.ERROR` in this project's compiler version). **This
+  must not be gated behind `-PcomposeStabilityReport`** the way `configureComposeStabilityReports()`
+  is — that flag exists for the opt-in diagnostic dump, but a stability config file changes real
+  generated bytecode on every build, debug and release alike, so it needs its own unconditional
+  function (e.g. `configureComposeStabilityConfig()`) called alongside, not gated by, the reports
+  call. Decide the module list the same empirical way 20.3 did — hand-trace from the audit
+  (`feature/subscriptions/domain`, `feature/subscriptions/ui`, `feature/profile/ui` are the modules
+  20.2/20.3's findings show `LocalDate` reads unstable in) but confirm with a re-scan rather than
+  trusting the hand-traced list, same discipline as 20.3.
+  *Verify:* `./gradlew :build-logic:convention:compileKotlin`; re-run the task 2 audit
+  (`docs/compose/stability-reports.md#running-the-audit`) and confirm `DateField`'s `date` parameter
+  and `SubscriptionEditorUiState`'s `LocalDate` members no longer read unstable, with
+  `SavedStateConfiguration` the only entry left in "composables with unstable parameters";
+  `./gradlew allTests detekt ktlintCheck`.
+  · *Ref:* developer.android.com/develop/ui/compose/performance/stability/fix (config file format);
+  `docs/compose/stability-reports.md` (the audit this reacts to).
+  Note: new `config/compose/stability_config.conf` (one line: `kotlinx.datetime.LocalDate`), wired
+  through `configureComposeStabilityConfig()` in `ComposeCompilerReports.kt` — a plain
+  `stabilityConfigurationFiles.add(rootProject.layout.projectDirectory.file(...))`, confirmed against
+  the compose-compiler-gradle-plugin's own sources jar (the `-classes.txt`/`-composables.txt`
+  destinations use `DirectoryProperty`, `stabilityConfigurationFiles` is `ListProperty<RegularFile>`,
+  and `.add()` takes a `RegularFile` directly, matching the doc's own `.addAll(project.layout
+  .projectDirectory.file(...))` example). Called unconditionally, never gated behind
+  `-PcomposeStabilityReport`, from the same three call sites `configureComposeStabilityReports()`
+  already used (`KmpLibraryComposeConventionPlugin`, `AndroidApplicationConventionPlugin`,
+  `KmpLibraryStabilityConventionPlugin`) — resolved the step's own "decide the module list" question
+  by piggybacking on that existing set rather than picking a narrower one: every module carrying the
+  Compose compiler subplugin now trusts the type, not just the 3 hand-traced candidates, which is
+  fine since `LocalDate` is genuinely immutable everywhere. Re-scan confirmed the fix: composables-
+  with-unstable-parameters dropped to exactly 1 entry (`SavedStateConfiguration`), `DateField`'s
+  `date` parameter and `SubscriptionEditorUiState`/`AddSubscriptionParams`/`EditSubscriptionParams`'s
+  `LocalDate` members all read `stable`. All `Verify:` commands passed. **M20 is done (4/4)**.
+  `docs/compose/stability-reports.md` gets an "After the LocalDate trust-list" section.
+
+---
+
+## M21 — Infra hardening: Compose lint, build-logic linting, workflow YAML validation (not in plan §8's phase order)
+
+Decomposed 2026-08-12, at the user's request — an infra-only milestone (no feature/screen work),
+scoping three gaps CLAUDE.md and `docs/frictions.md` had already self-diagnosed but never turned
+into an actual fix: no Android/Compose lint task runs anywhere (16.5's own
+`FlowOperatorInvokedInComposition` slipped past both `detekt`/`ktlintCheck` and was only caught by
+Android Studio's own IDE inspection — `docs/frictions.md`'s matching entry), `build-logic` compiles
+clean but has no `detekt`/`ktlintCheck` coverage of its own convention-plugin source (CLAUDE.md's
+Material3-sources-jar paragraph says so directly), and `.github/workflows/*.yml` has no automated
+syntax check beyond GitHub's own parse after a push — only the CLAUDE.md build-commands section's
+manual `node -e "require('js-yaml')..."` one-liner.
+
+Researched ahead of scoping: `./gradlew :androidApp:lintFdroidDebug` and
+`:androidApp:lintGplayDebug -PgplayBuild` both run clean today — `BUILD SUCCESSFUL`, 0 errors, 22
+pre-existing warnings on fdroidDebug (17 `NewerVersionAvailable` + 3 `GradleDependency`, both
+redundant with Renovate; 1 `ObsoleteSdkInt`; 1 `UnusedResources`), none of which fail the build. So
+21.1 needs no lint-baseline dance to land — the task can be wired straight into CI.
+
+- [x] **21.1 — Run Android/Compose lint in CI**
+  Add `lintFdroidDebug` and `lintGplayDebug -PgplayBuild` as new steps in
+  `.github/workflows/ci.yml` (after "Run detekt and ktlint", matching the fdroid/gplay split the
+  assemble steps already use). Confirmed today both run clean (0 errors, warnings only) — no
+  baseline file needed. Optionally trim the `NewerVersionAvailable`/`GradleDependency` checks from
+  the report via `lint { disable += ... }` in the `androidApp` module, since Renovate already owns
+  dependency bumps and they're pure noise here — a judgment call for the step, not required for
+  the gate to pass.
+  *Verify:* CI green with the new steps present; `./gradlew :androidApp:lintFdroidDebug
+  :androidApp:lintGplayDebug -PgplayBuild` clean locally.
+  ·  *Ref:* CLAUDE.md's Build commands section ("Neither of the above runs Android/Compose lint…");
+  `docs/frictions.md`'s `FlowOperatorInvokedInComposition` entry.
+  ·  *Note:* Took the optional trim — `androidApp/build.gradle.kts` gained a `lint { disable +=
+  setOf("NewerVersionAvailable", "GradleDependency") }` block alongside the new CI step, both
+  re-verified clean (`BUILD SUCCESSFUL`, 0 errors) after adding it, not just before.
+
+- [x] **21.2 — Lint `build-logic` itself**
+  `build-logic/convention/build.gradle.kts` currently only gets `compileKotlin` coverage — mirror
+  the root `build.gradle.kts`'s own minimal shape (`alias(libs.plugins.detekt)` +
+  `alias(libs.plugins.ktlint)`, no further config) rather than reaching for `Quality.kt`'s
+  `configureLinting()` (that function is defined *inside* `build-logic`, so `build-logic` can't
+  apply it to itself — chicken-and-egg). `build-logic/settings.gradle.kts` already wires the same
+  version catalog (`../gradle/libs.versions.toml`), so the plugin versions resolve the same way
+  the root project's do.
+  *Verify:* `./gradlew -p build-logic detekt ktlintCheck` runs and passes. CLAUDE.md's own
+  "`build-logic` itself has no `detekt`/`ktlintCheck` coverage" line (Material3-sources-jar
+  paragraph) needs updating once this lands — false after this step.
+  ·  *Ref:* CLAUDE.md's Material3-sources-jar paragraph.
+  ·  *Note:* The literal minimal shape (plugins only, no config) surfaced 3 real findings on code
+  that predates any lint coverage — `AndroidApplicationConventionPlugin.apply` over detekt's
+  default `LongMethod` threshold, and two bare `21` JDK-version literals tripping `MagicNumber`
+  (both rules the project's own `config/detekt/detekt.yml` disables everywhere else, which
+  `build-logic` doesn't load — see below). Tried pointing `config.setFrom` at that shared yml
+  first, to keep `build-logic`'s policy consistent with every other module's; reverted it because
+  the yml's `Compose` section requires `io.nlopez.compose.rules:detekt` on the classpath, which a
+  Kotlin-DSL build-logic project has no real reason to carry. Fixed the 3 findings directly
+  instead: split `configureAppSigningConfigs`/`configureAppBuildTypes` out of
+  `AndroidApplicationConventionPlugin.apply`, and added a `private const val JDK_VERSION = 21` in
+  `KmpConfiguration.kt`/`KotlinConfiguration.kt`. `ktlintFormat` also reformatted 5 pre-existing
+  files that had never been through it. CLAUDE.md's Material3-sources-jar paragraph updated to
+  match.
+
+- [x] **21.3 — Validate `.github/workflows/*.yml` syntax in guardrails**
+  New step in `.github/workflows/guardrails.yml`, after "Check the gate tripwires": loop the five
+  workflow files (`ci.yml`, `guardrails.yml`, `release-finalize.yml`, `release-prepare.yml`,
+  `release.yml`) through the same `js-yaml` parse CLAUDE.md already documents as a manual check
+  (`NODE_PATH=/usr/share/nodejs node -e "require('js-yaml').load(...)"`), failing the job on a
+  parse error instead of only finding out via `gh workflow list` after the push.
+  `guardrails.yml` runs on `ubuntu-latest`, which already carries system `node` with `js-yaml` at
+  the same path — confirmed locally.
+  *Verify:* a deliberately-broken YAML (bad indentation, scratch copy) fails the new step's parse
+  locally; the five real workflow files pass. `guardrails.yml` is itself a `.github/` tripwire path,
+  so this step's own commit needs a `Gate-change:` line (widening, not reducing — an added check).
+  ·  *Ref:* CLAUDE.md's Build commands section, the `js-yaml` one-liner.
+  Note: `guardrails.yml` loops `.github/workflows/*.yml` with a `for` loop rather than naming the
+  five files individually — simpler and self-extending if a sixth workflow is ever added. Verified
+  exactly as planned: all five real files parsed clean; a scratch copy of `ci.yml` with bad
+  indentation appended failed the same one-liner with a non-zero exit.
+
+---
+
+## M22 — Report an issue link on the About screen (not in plan §8's phase order)
+
+Decomposed 2026-08-13, at the user's request — a small, single-step addition, not a phase from
+`IMPLEMENTATION_PLAN.md` §8. Same shape as M11 (a one-step, out-of-phase-order milestone straight
+from a user ask).
+
+- [x] **22.1 — Add a "Report an issue / suggestion" button to the About screen**
+  `AboutContent` (`feature/settings/ui/.../about/AboutScreen.kt`) already has this exact pattern
+  twice — `about_project`/`about_project_url` and `about_privacy_policy`/`privacy_policy_url`, each
+  a `Button` calling `LocalUriHandler.current.openUri(stringResource(...))`. Add a third button the
+  same way: a new string pair in `strings/src/commonMain/composeResources/values/strings.xml`
+  (label, e.g. `about_report_issue` = "Report an issue / suggestion"; URL, e.g.
+  `about_report_issue_url`, `translatable="false"`, value
+  `https://github.com/Grigoriym/Wallosmobile/issues`) and a third `Button` in `AboutContent` below
+  the existing two, reading the URL with `stringResource` at the top of the composable exactly like
+  `projectUrl`/`privacyPolicyUrl` do. No new nav route, no ViewModel change — this is a link, not a
+  screen, so it needs no `NavKeySerializers` entry.
+  *Verify:* `./gradlew detekt ktlintCheck` passes; on-device, Settings → About → the new button
+  opens `https://github.com/Grigoriym/Wallosmobile/issues` in the browser.
+  ·  *Ref:* `AboutScreen.kt`'s existing `about_project`/`about_privacy_policy` buttons for the
+  pattern; `strings.xml`'s `about_project_url`/`privacy_policy_url` rows for the string shape.
+  ·  *Note:* Landed exactly as planned, string names and URL unchanged. Verified on-device
+  (`Medium_Phone_API_36.1`, gplayDebug): Settings → About → "Report an issue / suggestion" opens
+  Chrome to `github.com/Grigoriym/Wallosmobile/issues` (address bar confirmed the full URL, since
+  `ActivityTaskManager`'s logcat line truncates a long `dat=` value with `...` rather than the
+  `emulator-testing` skill's own precedent of full URLs on other apps' links). **M22 is done** —
+  archived to `archive/CHECKLIST-DONE.md` in this same commit.
+
+## M23 — Scrub the raw response body out of Crashlytics on a malformed Wallos response (not in plan §8's phase order)
+
+Decomposed 2026-08-13, at the user's request — a small, single-step fix, not a phase from
+`IMPLEMENTATION_PLAN.md` §8. Same shape as M11/M22 (a one-step, out-of-phase-order milestone
+straight from a "To review" finding). See the "To review" entry below (now removed) for the full
+investigation: `WallosEnvelopeParser.kt`'s two `LogPriority.ERROR` + `throwable =` catch blocks
+(decode-shape mismatch and not-a-JSON-object) are the only two `ERROR`-with-throwable log sites in
+the app, and `CrashlyticsTree.log()` forwards exactly those (its `priority != Log.ERROR` gate
+already keeps every other `WARN` catch off Crashlytics) — but the thrown `IllegalArgumentException`
+itself embeds the full offending JSON in `.message`, confirmed by a throwaway host-test run, so
+`recordException(e)` on a `gplay` build ships raw subscription data whenever a self-hosted
+instance returns something this parser doesn't expect.
+
+- [x] **23.1 — Log a scrubbed exception to Crashlytics, keep the real one in local Logcat**
+  `core/api/src/commonMain/kotlin/com/grappim/wallosmobile/core/api/WallosEnvelopeParser.kt`, both
+  `catch (e: IllegalArgumentException)` blocks (`decodeEnvelope`, lines ~76-81, and `parse`, lines
+  ~50-57): each currently does one `logcat(priority = LogPriority.ERROR, throwable = e) { ... }`,
+  where `e`'s own `.message` carries the raw body. Split each into two calls — a `WARN` one passing
+  the real `e` (full detail in local Logcat, never forwarded since `CrashlyticsTree` only acts on
+  `Log.ERROR`) and an `ERROR` one passing a scrubbed exception with a fixed message (e.g.
+  `IllegalArgumentException("Envelope shape mismatch: ${e::class.simpleName}")`, no body, no
+  `cause`) — same message text each catch block already uses (`"response did not match the
+  expected shape"` / `"response body was not a JSON object"`). `throw WallosError.Malformed(body)`
+  stays exactly as is in both blocks — the UI's stale-banner/error-message path is untouched, this
+  is only about what rides in the `throwable` Crashlytics receives. A small private helper avoids
+  duplicating the scrub logic between the two catch blocks.
+  Add a regression test to `core/api/src/commonTest/kotlin/.../WallosEnvelopeParserTest.kt`, one
+  per catch block, following `core/logger`'s own `LogcatTest.kt` pattern (`WallosLogger.install`/
+  `.uninstall`, a small test-local `RecordingLogger` fake implementing `WallosLogger`, `core:logger`
+  already a transitive dependency of `core:api`'s `commonMain` via the `kmp.library` convention
+  plugin): plant a body containing a marker string, call `parse`, then assert the `ERROR`-priority
+  entry's `throwable.message` does **not** contain the marker while the `WARN`-priority entry's
+  does.
+  *Verify:* `./gradlew :core:api:testAndroidHostTest` passes (new tests included);
+  `./gradlew detekt ktlintCheck` passes.
+  ·  *Ref:* `core/logger/src/commonTest/kotlin/.../LogcatTest.kt` for the `WallosLogger.install` +
+  fake-logger test shape; `CrashlyticsTree.kt` (`androidApp/src/main/kotlin/.../CrashlyticsTree.kt`)
+  for exactly which priority/throwable combination actually reaches Crashlytics.
+  ·  *Note:* Landed as planned. Both catch blocks now call a shared private
+  `logShapeMismatch(e, message)` (line numbers shifted slightly from the step's `~50-57`/`~76-81`
+  estimate once the helper was added, but both original catch sites are the ones changed) that logs
+  the real `e` at `WARN` and a fresh `IllegalArgumentException("Envelope shape mismatch:
+  ${e::class.simpleName}")` at `ERROR`. Two new tests in `WallosEnvelopeParserTest.kt` plant a
+  `MARKER_SECRET_VALUE_XYZ` string in the body (a decode-shape mismatch and a truncated-JSON case,
+  covering both catch blocks) and assert it's present in the `WARN` entry's `throwable.message` but
+  absent from the `ERROR` one's, using a test-local `RecordingLogger` — same shape as
+  `core:logger`'s own `LogcatTest.kt`. `./gradlew :core:api:testAndroidHostTest` (18 tests, all
+  passing) and full-project `./gradlew detekt ktlintCheck` both green. **M23 is done** — archived
+  to `archive/CHECKLIST-DONE.md` in this same commit.
+
+## M24 — Enforce module-boundary rules at Gradle configuration time (not in plan §8's phase order)
+
+Decomposed 2026-08-14, from the "To review" entry filed 2026-08-13 (now removed — see the DDG read
+below for what it found). Investigated: `/home/gregory/proj/other/duckduckgo-Android`'s root
+`build.gradle` (`subprojects { configurations.configureEach { incoming.beforeResolve { ... } } }`,
+~line 120) enforces its own module rules as a real `GradleException` at configuration time, not a
+lint warning or a diff-scoped script. Its actual checks are Dagger/Anvil-specific (`-api`/`-impl`/
+`-internal` module-suffix rules that don't exist in this repo's `data`/`domain`/`dto`/`mapper`/`ui`
+shape), but the mechanism transfers. Three of WallosMobile's own documented Architecture rules
+currently hold only by convention, with nothing failing a build if one is violated: nothing depends
+on `:androidApp`; only `:androidApp` depends on `:composeApp` (a feature `ui` module depends on
+`uikit`, never `composeApp`); `:core:storage` never depends on any `feature:*:domain`. Audited
+every module's `build.gradle.kts` project dependency 2026-08-14: all three currently hold, so this
+is a gate against future drift, not a fire drill against an existing violation.
+`LocalIsOffline`-vs-per-call-check (also named in the original finding) is a code-pattern rule, not
+a dependency-graph one — no `configurations`-level check can express it, so it's out of scope here.
+
+**The original fourth candidate — "no `androidMain` in feature modules" — does not hold and isn't a
+real rule to enforce.** `feature/paymentmethods/ui/src/androidMain/` and
+`feature/subscriptions/ui/src/androidMain/` both exist today, holding real `actual` implementations
+(`IconFilePicker.android.kt`, `LogoPicker.android.kt`) of an `expect` declared in `commonMain`.
+Re-read `CLAUDE.md`'s Architecture section and `IMPLEMENTATION_PLAN.md` §3.1 closely: "no
+`androidMain` in feature modules" is immediately followed by "the `actual` lives in `androidMain`
+of that module" — the discipline is *only reach for `androidMain` through `expect`/`actual`*, not
+*an `androidMain` directory must never exist*. A literal directory-existence check would fail the
+real, correct build. `IMPLEMENTATION_PLAN.md`'s own prose already carries this contradiction
+in writing; not fixed here since it's a pre-existing doc issue outside this step's scope, but worth
+a future editing pass.
+
+One thing to confirm while implementing, not assume: DDG's check reads
+`dependency.dependencyProject.path`, deprecated on newer Gradle and exactly the kind of
+cross-project state access that broke `:core:storage`'s KSP wiring under Isolated Projects
+(`docs/GRADLE_ISOLATED_PROJECTS.md` — trialled, currently off, not something to casually reintroduce
+a violation of). `ProjectDependency.path` (no `.dependencyProject` hop) is the Isolated-Projects-safe
+replacement — confirm it resolves on Gradle 9.7.0 before using it rather than porting DDG's Groovy
+call verbatim.
+
+- [x] **24.1 — Add the three-rule module-boundary check to the root `build.gradle.kts`**
+  A `subprojects { }` block (Kotlin DSL, not DDG's Groovy) with `configurations.configureEach {
+  incoming.beforeResolve { ... } }` on the `compileClasspath`/`*CompileClasspath` configurations,
+  walking each configuration's `ProjectDependency` entries (via `.path`, not `.dependencyProject`)
+  and throwing `GradleException` on: (1) any dependency path equal to `:androidApp`; (2) a
+  dependency path equal to `:composeApp` from a project whose own path isn't `:androidApp`; (3) a
+  dependency path starting with `:feature:` and ending with `:domain` from `:core:storage`.
+  *Verify:* add a deliberately-broken scratch dependency (e.g. a throwaway
+  `implementation(projects.composeApp)` line added temporarily to a `feature:*:ui` module's
+  `build.gradle.kts`) and confirm the relevant compile task fails with the new `GradleException`,
+  not a normal resolution error; revert it and confirm a clean
+  `./gradlew :androidApp:assembleGplayDebug :androidApp:assembleFdroidDebug` still passes.
+  ·  *Ref:* `/home/gregory/proj/other/duckduckgo-Android/build.gradle` lines ~93-214 for the
+  mechanism; this milestone's own preamble for which rules apply here and the
+  `ProjectDependency.path` substitution.
+  ·  *Note:* Confirmed via `javap` on `gradle-core-api-9.7.0.jar`: `ProjectDependency.getPath()` is
+  a first-class method on 9.7.0 (no `.dependencyProject` hop needed at all — DDG's own accessor
+  isn't even present in this jar). Dropped the fourth rule (`androidMain` directory check) from
+  scope per the preamble finding above — implementing it as originally scoped would have broken the
+  real build. `:benchmark` needed a one-line carve-out from the `:androidApp` rule
+  (`projectPath != ":benchmark"`) since it structurally targets `:androidApp` via
+  `targetProjectPath` (`benchmark/build.gradle.kts`). Verified all three remaining rules fire with
+  their own message, each via a temporary scratch dependency reverted immediately after: rule 2
+  (`:benchmark` → `:composeApp`) and rule 3 (`:core:storage` → `:feature:subscriptions:domain`)
+  both hit the new `GradleException` directly. Rule 1 (`:androidApp`) did not reach the custom
+  `GradleException` in testing — `:core:domain` → `:androidApp` failed first with AGP's own
+  variant-ambiguity error (an application module isn't cleanly consumable as a compile dependency
+  once it has product flavors), which already blocks the violation on its own; the custom check is
+  real defense-in-depth for that rule rather than something proven to fire directly here. Clean
+  `assembleGplayDebug`/`assembleFdroidDebug`, `detekt`, and `ktlintCheck` (including
+  `ktlintKotlinScriptCheck`, which lints `build.gradle.kts` itself) all pass on the real tree.
+  The step's own plan assumed the root `build.gradle.kts` was a `Gate-change:` tripwire path —
+  checked `.github/scripts/check-guardrails.sh`'s `TRIPWIRE_PATHS` directly and it isn't (only
+  `.github/`, `build-logic/`, `config/detekt/`, `.editorconfig`, `gradle/libs.versions.toml` are);
+  no `Gate-change:` line needed in this step's commit. **M24 is done** — archived to
+  `archive/CHECKLIST-DONE.md` in this same commit.
+
+## M25 — A custom Android Lint detector for a WallosMobile-specific convention (not in plan §8's phase order)
+
+Decomposed 2026-08-14, from the "To review" entry filed 2026-08-13 (now removed) — the second of
+two entries filed the same day from reading `/home/gregory/proj/other/duckduckgo-Android` for
+transplantable infra; the first became **M24**. Read `duckduckgo-Android/lint-rules` in full
+(`~50` `com.android.tools.lint.detector.api.Detector` classes plus a `DuckDuckGoIssueRegistry`
+implementing `IssueRegistry`, wired into `app/build.gradle` via `lintChecks project(":lint-rules")`)
+for the *mechanism*, not its rules — Dagger/Anvil scoping and XML-view checks, none of which this
+repo has.
+
+**Picking a real target, not inventing one:** the backlog entry's own suggested case,
+`FlowOperatorInvokedInComposition` (16.5), turns out to already be closed — it's part of Compose
+runtime's own bundled lint checks, shipped inside the AAR and picked up automatically by the
+standard `Lint` task, so 21.1 wiring `lintFdroidDebug`/`lintGplayDebug` into CI already catches a
+repeat of it; a custom detector for it would be redundant. Checked the rest of CLAUDE.md's stated
+conventions against what's *already* gated before picking a replacement: bare `try/catch
+(Exception)` is detekt's `TooGenericExceptionCaught`/`SwallowedException`/
+`SuspendFunSwallowedCancellation` (all `active: true` in `config/detekt/detekt.yml`); the
+`CompositionLocal` allowlist is ktlint's `compose:compositionlocal-allowlist`; present-tense lambda
+naming is `compose:parameter-naming`. One real, explicitly-stated, mechanically-checkable
+convention has no gate anywhere: **"`ImmutableList` / `persistentListOf()` over `List` in state
+classes and Composable params, for stable recomposition"** (CLAUDE.md, Compose rules). M20's
+stability-report tooling (`docs/compose/stability-reports.md`) can *surface* a `List`-typed
+parameter making a class unstable, but it's an opt-in report a session has to remember to run, not
+a build failure — nothing today stops a plain `List<T>` from landing in a new `*UiState` class or a
+public `@Composable` parameter. Scoped to exactly this one detector, matching the backlog entry's
+own "one or two, not fifty": no second candidate in this project's actual history cleared the same
+bar (a real, repeated, currently-ungated mistake) without inventing one speculatively — a second
+detector is future backlog, not this milestone's job.
+
+- [x] **25.1 — A `lint-rules` module with one detector: `List`/`MutableList` in a `*UiState` class
+  or a public `@Composable` parameter**
+  New top-level module `lint-rules/` — plain `id("java-library")` + Kotlin JVM plugin, no AGP, same
+  shape as `duckduckgo-Android`'s own module and as this repo's own `build-logic` project (lints
+  against detekt's/ktlint's *default* ruleset via its own `detekt`/`ktlintCheck` run applied
+  directly in its `build.gradle.kts`, same as 21.2 set up for `build-logic` — no
+  `config.setFrom(config/detekt/detekt.yml)`, since that shared config's `Compose:` section needs
+  `io.nlopez.compose.rules:detekt` on the classpath for no reason here). `dependencies {
+  compileOnly(libs.lint.api); compileOnly(libs.lint.checks); testImplementation(libs.lint.tests) }`
+  — new `gradle/libs.versions.toml` entries at `com.android.tools.lint:lint-api`/`lint-checks`/
+  `lint-tests`, version **32.3.1**, confirmed against this project's own Gradle cache
+  (`~/.gradle/caches/modules-2/files-2.1/com.android.tools.lint/lint-api/32.3.1/`) as the version
+  AGP 9.3.1 (`agp` in the catalog) already resolves transitively — not guessed from the
+  AGP-major-plus-23 rule of thumb alone. Add `include(":lint-rules")` to `settings.gradle.kts`.
+  Add `lintChecks(project(":lint-rules"))` to `androidApp/build.gradle.kts`'s `dependencies {}` —
+  a plain AGP dependency configuration, needs no `build-logic` change.
+  One detector class, `UnstableCollectionInUiStateDetector : Detector(), SourceCodeScanner`,
+  UAST-based (same technique as DDG's `NoHardcodedCoroutineDispatcherDetector`): visits
+  `UParameter`s and flags one whose declared type's qualified name is exactly
+  `kotlin.collections.List` or `kotlin.collections.MutableList` (a qualified-name equality check,
+  not an assignability check — `kotlinx.collections.immutable.ImmutableList` implements `List` at
+  the type-system level, so a naive `is-a List` check would false-positive on the very type the
+  rule wants to encourage) when either: (a) the containing declaration is a class/constructor whose
+  simple name ends in `UiState`, or (b) the containing function carries `@Composable` and is
+  `public`/has no explicit `internal`/`private` modifier. `Issue.create(..., Category.CORRECTNESS,
+  priority = 6, Severity.ERROR, ...)` — must be `ERROR`, not `WARNING`: Android Lint only fails a
+  build (and therefore `lintFdroidDebug`/`lintGplayDebug`, and therefore CI) on `ERROR`/`FATAL`
+  severity by default, so a `WARNING` detector would compile clean and never actually gate anything,
+  the same silent-no-op failure mode this milestone exists to close.
+  Register it in a `WallosMobileIssueRegistry : IssueRegistry()` (one entry — no need for DDG's
+  50-entry list shape yet).
+  Tests: `lint-rules/src/test/` using `lint-tests`' `LintDetectorTest`/`TestFiles.kotlin(...)`
+  harness (DDG's own `*DetectorTest.kt` files are the reference for the harness shape) — one case
+  each for a `*UiState` class with a `List<T>` param (fails), a `*UiState` class with an
+  `ImmutableList<T>` param (clean), a public `@Composable` with a `List<T>` param (fails), and a
+  `private` `@Composable` with a `List<T>` param (clean, matching the rule's own "params" scope
+  reading as "the public signature" — narrow the detector rather than the test if this reads
+  differently once real UAST types are in hand).
+  *Verify:* `./gradlew -p lint-rules test` passes. Temporarily add a `List<String>` param to a real
+  `*UiState` class (or a public `@Composable`) in the app, run
+  `./gradlew :androidApp:lintFdroidDebug`, confirm it fails on the new issue ID — not a generic
+  resolution error; revert the scratch change and confirm
+  `./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug -PgplayBuild` both pass clean
+  against the real codebase (there is no known existing violation — this is a gate against future
+  drift, same framing as 24.1). `./gradlew detekt ktlintCheck` (root) unaffected since `lint-rules`
+  isn't in that aggregate. This commit touches `gradle/libs.versions.toml`, a `Gate-change:`
+  tripwire path — the commit needs the line (widening: a new dependency, nothing removed).
+  ·  *Ref:* `/home/gregory/proj/other/duckduckgo-Android/lint-rules/src/main/java/com/duckduckgo/lint/NoHardcodedCoroutineDispatcherDetector.kt`
+  for the UAST-reference-check shape and `registry/DuckDuckGoIssueRegistry.kt` for the registry;
+  `build-logic/convention/build.gradle.kts` for the "apply detekt/ktlint directly, no shared config"
+  precedent (21.2).
+  ·  *Note:* Landed, but with four real corrections the step's own text got wrong, plus two
+  pre-existing bugs found and fixed along the way — this is the milestone that turned out to be
+  mostly about the gate, not the detector.
+  1. **Type check is `resolve()?.qualifiedName == "java.util.List"` on the *resolved* PSI class,
+     not a `kotlin.collections.List`/`MutableList` text check.** Confirmed empirically (a
+     `System.err.println` planted in the detector, run against real compiled code): Kotlin's
+     `List`/`MutableList` both erase to the same `java.util.List` PSI-resolved class at this layer
+     regardless of which one is written in source, so one check covers both and a
+     `kotlinx.collections.immutable.ImmutableList` param (a real `List` subtype at the Kotlin
+     type-system level) correctly does *not* match, since `resolve()` returns the *declared*
+     type's own class, not a supertype.
+  2. **Visibility is `!hasModifierProperty(PsiModifier.PRIVATE)`, not a public-vs-internal
+     distinction** — Kotlin's `internal` has no distinct JVM access modifier (it's implemented via
+     name-mangling), so `PsiModifierListOwner` can't tell it apart from `public` reliably; "not
+     explicitly private" is the only distinction worth checking here.
+  3. **`lint-rules` needed the real `config.setFrom(config/detekt/detekt.yml)` +
+     `composeRules-detekt`/`composeRules-ktlint` dependencies after all** — the "same shape as
+     `build-logic`, no shared config" plan in this step's own text was wrong. `build-logic` gets
+     away with bare `alias(libs.plugins.detekt)`/`alias(libs.plugins.ktlint)` only because it's a
+     *separate included build* with its own `rootDir`; `lint-rules` is a normal subproject of
+     *this* build, so detekt's config auto-discovery finds the shared `config/detekt/detekt.yml`
+     regardless, and failed on its `Compose:` section (needs `io.nlopez.compose.rules:detekt` on
+     the classpath) until wired the same way every KMP module's own `configureLinting()` already
+     is. Also needed `alias(libs.plugins.jetbrains.kotlin.jvm) apply false` added to the *root*
+     `build.gradle.kts`'s `plugins {}` block (the existing "avoid loading a plugin twice" comment
+     there applied to this, the project's first non-KMP, non-`build-logic` Kotlin/JVM module, not
+     only to the plugins already listed).
+  4. **A `UParameter`'s `report`/`getLocation` calls need an explicit `as UElement` cast** — it
+     implements both `PsiElement` and `UElement`, and the overload set is ambiguous without one.
+     `UElementHandler` itself is `com.android.tools.lint.client.api.UElementHandler`, not
+     `org.jetbrains.uast.UElementHandler` as guessed. `TestLintTask` needs `.allowMissingSdk()` for
+     these plain-Kotlin fixtures, or every test fails before running with "This test requires an
+     Android SDK."
+
+  Two pre-existing bugs, unrelated to this step's own scope but blocking its own `Verify:` line,
+  fixed as part of landing it:
+  - **24.1's module-boundary check false-positived on `:composeApp -> :composeApp`**, thrown by
+    AGP/KGP's own android-host-test and lint-model machinery (`compileAndroidHostTest`,
+    `generateAndroidHostTestLintModel` — real Gradle tasks, not a real cross-module edge) resolving
+    a self-referential `ProjectDependency`. This has been failing `allTests`/`lintFdroidDebug` in
+    CI since 24.1 landed (`gh run list` showed the `24.1` commit's own CI run red, unnoticed —
+    `docs-only` commits don't trigger CI, so nothing after it re-ran the check until this step did).
+    Fixed with a `dependencyPath == projectPath` guard in root `build.gradle.kts`'s `subprojects {
+    }` block, before the three real rules.
+  - **`lint.abortOnError` has been `false` since 0.2/0.3 (build-logic's very first commit)** —
+    `lintFdroidDebug`/`lintGplayDebug` have never once failed a build on a real lint `ERROR`,
+    confirmed by planting a violation, watching it appear in the HTML/SARIF report at `ERROR`
+    severity, and watching the Gradle task still exit 0 regardless. 21.1 wired these tasks into CI
+    believing they were a real gate; they weren't, for anything — not this milestone's own check,
+    not a bundled Compose check like `FlowOperatorInvokedInComposition` — the whole time. Flipped
+    to `true` in `KotlinConfiguration.kt`'s `configureKotlinAndroid()`, confirmed clean against the
+    real codebase on both flavors before committing.
+
+  One real gap found and *not* closed, filed as `docs/revisit.md` #1 instead: **a dependency
+  module's own `lintChecks` findings don't reach a consuming app's Lint report.** Wiring
+  `lintChecks(project(":lint-rules"))` into every module via `configureLinting()` (not just
+  `androidApp`, where it first landed) was necessary but not sufficient — a violation planted
+  directly in `feature:subscriptions:ui`'s own `commonMain` `SubscriptionsUiState` never appeared
+  in `androidApp:lintFdroidDebug`'s report, with `checkDependencies` either `true` or `false`.
+  AGP 9.3.1's `com.android.kotlin.multiplatform.library` module type exposes only a
+  `lintAnalyzeAndroidHostTest` task per module — no task lints that module's own `androidMain`/
+  `commonMain` *production* source at all, so there is currently nothing to propagate. Net effect:
+  the detector only guards code written directly in `androidApp` (essentially none of which is
+  `*UiState`/`@Composable`), not the `feature:*:ui`/`composeApp`/`uikit` code it exists for. Bundled
+  checks shipped inside an AAR's own `lint.jar` (Compose runtime's `FlowOperatorInvokedInComposition`
+  among them) are unaffected by this — a different mechanism, confirmed still reachable via
+  `lintFdroidDebug` now that `abortOnError` is real again.
+
+**M25 is done** — archived to `archive/CHECKLIST-DONE.md` in this same commit.
