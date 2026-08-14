@@ -4365,3 +4365,77 @@ instance returns something this parser doesn't expect.
   `core:logger`'s own `LogcatTest.kt`. `./gradlew :core:api:testAndroidHostTest` (18 tests, all
   passing) and full-project `./gradlew detekt ktlintCheck` both green. **M23 is done** — archived
   to `archive/CHECKLIST-DONE.md` in this same commit.
+
+## M24 — Enforce module-boundary rules at Gradle configuration time (not in plan §8's phase order)
+
+Decomposed 2026-08-14, from the "To review" entry filed 2026-08-13 (now removed — see the DDG read
+below for what it found). Investigated: `/home/gregory/proj/other/duckduckgo-Android`'s root
+`build.gradle` (`subprojects { configurations.configureEach { incoming.beforeResolve { ... } } }`,
+~line 120) enforces its own module rules as a real `GradleException` at configuration time, not a
+lint warning or a diff-scoped script. Its actual checks are Dagger/Anvil-specific (`-api`/`-impl`/
+`-internal` module-suffix rules that don't exist in this repo's `data`/`domain`/`dto`/`mapper`/`ui`
+shape), but the mechanism transfers. Three of WallosMobile's own documented Architecture rules
+currently hold only by convention, with nothing failing a build if one is violated: nothing depends
+on `:androidApp`; only `:androidApp` depends on `:composeApp` (a feature `ui` module depends on
+`uikit`, never `composeApp`); `:core:storage` never depends on any `feature:*:domain`. Audited
+every module's `build.gradle.kts` project dependency 2026-08-14: all three currently hold, so this
+is a gate against future drift, not a fire drill against an existing violation.
+`LocalIsOffline`-vs-per-call-check (also named in the original finding) is a code-pattern rule, not
+a dependency-graph one — no `configurations`-level check can express it, so it's out of scope here.
+
+**The original fourth candidate — "no `androidMain` in feature modules" — does not hold and isn't a
+real rule to enforce.** `feature/paymentmethods/ui/src/androidMain/` and
+`feature/subscriptions/ui/src/androidMain/` both exist today, holding real `actual` implementations
+(`IconFilePicker.android.kt`, `LogoPicker.android.kt`) of an `expect` declared in `commonMain`.
+Re-read `CLAUDE.md`'s Architecture section and `IMPLEMENTATION_PLAN.md` §3.1 closely: "no
+`androidMain` in feature modules" is immediately followed by "the `actual` lives in `androidMain`
+of that module" — the discipline is *only reach for `androidMain` through `expect`/`actual`*, not
+*an `androidMain` directory must never exist*. A literal directory-existence check would fail the
+real, correct build. `IMPLEMENTATION_PLAN.md`'s own prose already carries this contradiction
+in writing; not fixed here since it's a pre-existing doc issue outside this step's scope, but worth
+a future editing pass.
+
+One thing to confirm while implementing, not assume: DDG's check reads
+`dependency.dependencyProject.path`, deprecated on newer Gradle and exactly the kind of
+cross-project state access that broke `:core:storage`'s KSP wiring under Isolated Projects
+(`docs/GRADLE_ISOLATED_PROJECTS.md` — trialled, currently off, not something to casually reintroduce
+a violation of). `ProjectDependency.path` (no `.dependencyProject` hop) is the Isolated-Projects-safe
+replacement — confirm it resolves on Gradle 9.7.0 before using it rather than porting DDG's Groovy
+call verbatim.
+
+- [x] **24.1 — Add the three-rule module-boundary check to the root `build.gradle.kts`**
+  A `subprojects { }` block (Kotlin DSL, not DDG's Groovy) with `configurations.configureEach {
+  incoming.beforeResolve { ... } }` on the `compileClasspath`/`*CompileClasspath` configurations,
+  walking each configuration's `ProjectDependency` entries (via `.path`, not `.dependencyProject`)
+  and throwing `GradleException` on: (1) any dependency path equal to `:androidApp`; (2) a
+  dependency path equal to `:composeApp` from a project whose own path isn't `:androidApp`; (3) a
+  dependency path starting with `:feature:` and ending with `:domain` from `:core:storage`.
+  *Verify:* add a deliberately-broken scratch dependency (e.g. a throwaway
+  `implementation(projects.composeApp)` line added temporarily to a `feature:*:ui` module's
+  `build.gradle.kts`) and confirm the relevant compile task fails with the new `GradleException`,
+  not a normal resolution error; revert it and confirm a clean
+  `./gradlew :androidApp:assembleGplayDebug :androidApp:assembleFdroidDebug` still passes.
+  ·  *Ref:* `/home/gregory/proj/other/duckduckgo-Android/build.gradle` lines ~93-214 for the
+  mechanism; this milestone's own preamble for which rules apply here and the
+  `ProjectDependency.path` substitution.
+  ·  *Note:* Confirmed via `javap` on `gradle-core-api-9.7.0.jar`: `ProjectDependency.getPath()` is
+  a first-class method on 9.7.0 (no `.dependencyProject` hop needed at all — DDG's own accessor
+  isn't even present in this jar). Dropped the fourth rule (`androidMain` directory check) from
+  scope per the preamble finding above — implementing it as originally scoped would have broken the
+  real build. `:benchmark` needed a one-line carve-out from the `:androidApp` rule
+  (`projectPath != ":benchmark"`) since it structurally targets `:androidApp` via
+  `targetProjectPath` (`benchmark/build.gradle.kts`). Verified all three remaining rules fire with
+  their own message, each via a temporary scratch dependency reverted immediately after: rule 2
+  (`:benchmark` → `:composeApp`) and rule 3 (`:core:storage` → `:feature:subscriptions:domain`)
+  both hit the new `GradleException` directly. Rule 1 (`:androidApp`) did not reach the custom
+  `GradleException` in testing — `:core:domain` → `:androidApp` failed first with AGP's own
+  variant-ambiguity error (an application module isn't cleanly consumable as a compile dependency
+  once it has product flavors), which already blocks the violation on its own; the custom check is
+  real defense-in-depth for that rule rather than something proven to fire directly here. Clean
+  `assembleGplayDebug`/`assembleFdroidDebug`, `detekt`, and `ktlintCheck` (including
+  `ktlintKotlinScriptCheck`, which lints `build.gradle.kts` itself) all pass on the real tree.
+  The step's own plan assumed the root `build.gradle.kts` was a `Gate-change:` tripwire path —
+  checked `.github/scripts/check-guardrails.sh`'s `TRIPWIRE_PATHS` directly and it isn't (only
+  `.github/`, `build-logic/`, `config/detekt/`, `.editorconfig`, `gradle/libs.versions.toml` are);
+  no `Gate-change:` line needed in this step's commit. **M24 is done** — archived to
+  `archive/CHECKLIST-DONE.md` in this same commit.

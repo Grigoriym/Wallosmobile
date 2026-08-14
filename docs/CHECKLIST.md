@@ -10,10 +10,15 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
-M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `0/1`
-**Current step:** M24 decomposed 2026-08-14, not yet started — one step (24.1) adding a
-Gradle-configuration-time module-boundary check, ported from `duckduckgo-Android`'s own
-`subprojects { incoming.beforeResolve { ... } }` mechanism. 23.1 closed 2026-08-13:
+M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done**
+**Current step:** M24 done, next milestone not yet decomposed. 24.1 closed 2026-08-14: the root
+`build.gradle.kts` now enforces three module-boundary rules from `CLAUDE.md`'s Architecture section
+as a real `GradleException` at configuration time (nothing depends on `:androidApp`, only
+`:androidApp` depends on `:composeApp`, `:core:storage` never depends on any `feature:*:domain`),
+ported from `duckduckgo-Android`'s own `subprojects { incoming.beforeResolve { ... } }` mechanism.
+A fourth candidate rule ("no `androidMain` in feature modules") turned out not to hold — two
+feature modules legitimately have one for real `expect`/`actual` implementations — and was dropped
+from scope; see 24.1's own `Note:` for the full correction. 23.1 closed 2026-08-13:
 `WallosEnvelopeParser`'s two `ERROR`-with-throwable catch blocks now log the real exception at
 `WARN` (local Logcat only) and a scrubbed, body-free exception at `ERROR` (the one
 `CrashlyticsTree` forwards) — closes the raw-response-body-to-Crashlytics leak found while
@@ -250,56 +255,6 @@ deleted. See `archive/CHECKLIST-DONE.md` for both steps. **M19 is done** too —
 here for TaigaMobileNova's own desktop technique to attach to) and covered the subscriptions list
 screen's four `when`-block states plus both banners, 8 tests total, all passing on-device; see
 `archive/CHECKLIST-DONE.md` for both steps.
-
----
-
-## M24 — Enforce module-boundary rules at Gradle configuration time (not in plan §8's phase order)
-
-Decomposed 2026-08-14, from the "To review" entry filed 2026-08-13 (now removed — see the DDG read
-below for what it found). Investigated: `/home/gregory/proj/other/duckduckgo-Android`'s root
-`build.gradle` (`subprojects { configurations.configureEach { incoming.beforeResolve { ... } } }`,
-~line 120) enforces its own module rules as a real `GradleException` at configuration time, not a
-lint warning or a diff-scoped script. Its actual checks are Dagger/Anvil-specific (`-api`/`-impl`/
-`-internal` module-suffix rules that don't exist in this repo's `data`/`domain`/`dto`/`mapper`/`ui`
-shape), but the mechanism transfers. Four of WallosMobile's own documented Architecture rules
-currently hold only by convention, with nothing failing a build if one is violated: nothing depends
-on `:androidApp`; only `:androidApp` depends on `:composeApp` (a feature `ui` module depends on
-`uikit`, never `composeApp`); `:core:storage` never depends on any `feature:*:domain`; and no
-feature module has an `androidMain` source set (platform targets only via `configureKmp()`).
-Audited every module's `build.gradle.kts` project dependency 2026-08-14: all four currently hold,
-so this is a gate against future drift, not a fire drill against an existing violation.
-`LocalIsOffline`-vs-per-call-check (also named in the original finding) is a code-pattern rule, not
-a dependency-graph one — no `configurations`-level check can express it, so it's out of scope here.
-
-One thing to confirm while implementing, not assume: DDG's check reads
-`dependency.dependencyProject.path`, deprecated on newer Gradle and exactly the kind of
-cross-project state access that broke `:core:storage`'s KSP wiring under Isolated Projects
-(`docs/GRADLE_ISOLATED_PROJECTS.md` — trialled, currently off, not something to casually reintroduce
-a violation of). `ProjectDependency.path` (no `.dependencyProject` hop) is the Isolated-Projects-safe
-replacement — confirm it resolves on Gradle 9.7.0 before using it rather than porting DDG's Groovy
-call verbatim.
-
-- [ ] **24.1 — Add the four-rule module-boundary check to the root `build.gradle.kts`**
-  A `subprojects { }` block (Kotlin DSL, not DDG's Groovy) with `configurations.configureEach {
-  incoming.beforeResolve { ... } }` on the `compileClasspath`/`*CompileClasspath` configurations,
-  walking each configuration's `ProjectDependency` entries (via `.path`, not `.dependencyProject`)
-  and throwing `GradleException` on: (1) any dependency path equal to `:androidApp`; (2) a
-  dependency path equal to `:composeApp` from a project whose own path isn't `:androidApp`; (3) a
-  dependency path starting with `:feature:` from `:core:storage`. Add a directory walk alongside it
-  (same shape as DDG's own `androidTest`/`strings.xml` checks, not a `configurations` hook) failing
-  the build on any `src/androidMain` directory found under `feature/`.
-  *Verify:* add a deliberately-broken scratch dependency (e.g. a throwaway
-  `implementation(projects.composeApp)` line added temporarily to a `feature:*:ui` module's
-  `build.gradle.kts`) and confirm the relevant compile task fails with the new `GradleException`,
-  not a normal resolution error; revert it and confirm a clean
-  `./gradlew :androidApp:assembleGplayDebug :androidApp:assembleFdroidDebug` still passes. Repeat
-  for at least one more of the three dependency rules and for the `androidMain`-directory check
-  (a scratch empty directory is enough to trip the walk). This touches the root
-  `build.gradle.kts`, a `Gate-change:` tripwire path — the commit needs the line (widening, not
-  reducing: a new check, not a removed one).
-  ·  *Ref:* `/home/gregory/proj/other/duckduckgo-Android/build.gradle` lines ~93-214 for the
-  mechanism; this milestone's own preamble for which rules apply here and the
-  `ProjectDependency.path` substitution.
 
 ---
 

@@ -1,3 +1,5 @@
+import org.gradle.api.artifacts.ProjectDependency
+
 plugins {
     // this is necessary to avoid the plugins to be loaded multiple times
     // in each subproject's classloader
@@ -131,6 +133,54 @@ dependencies {
     kover(project(":feature:profile:domain"))
     kover(project(":feature:profile:dto"))
     kover(project(":feature:profile:ui"))
+}
+
+// Enforces, as a real configuration-time failure, three of CLAUDE.md's Architecture rules that
+// otherwise hold only by convention — ported from duckduckgo-Android's own
+// `subprojects { configurations.configureEach { incoming.beforeResolve { ... } } }` mechanism
+// (its own checks are Dagger/Anvil module-suffix rules that don't apply to this repo's
+// data/domain/dto/mapper/ui shape). Reads `ProjectDependency.path` directly rather than the
+// deprecated `.dependencyProject` hop, which reaches into another project's mutable state and is
+// exactly what broke `:core:storage`'s KSP wiring under Isolated Projects (see
+// `docs/GRADLE_ISOLATED_PROJECTS.md`) — this stays safe for that even with the flag off.
+subprojects {
+    val subproject = this
+    configurations.configureEach {
+        val isCompileClasspath = name == "compileClasspath" || name.endsWith("CompileClasspath")
+        if (isCompileClasspath) {
+            incoming.beforeResolve {
+                dependencies.withType<ProjectDependency>().forEach { dependency ->
+                    val dependencyPath = dependency.path
+                    val projectPath = subproject.path
+
+                    // :benchmark is a com.android.test module and structurally must target
+                    // :androidApp (`targetProjectPath`, benchmark/build.gradle.kts) — the one
+                    // legitimate exception to "nothing depends on :androidApp".
+                    if (dependencyPath == ":androidApp" && projectPath != ":benchmark") {
+                        throw GradleException(
+                            "Invalid dependency $projectPath -> $dependencyPath: " +
+                                "no module may depend on :androidApp"
+                        )
+                    }
+                    if (dependencyPath == ":composeApp" && projectPath != ":androidApp") {
+                        throw GradleException(
+                            "Invalid dependency $projectPath -> $dependencyPath: " +
+                                "only :androidApp may depend on :composeApp"
+                        )
+                    }
+                    if (projectPath == ":core:storage" &&
+                        dependencyPath.startsWith(":feature:") &&
+                        dependencyPath.endsWith(":domain")
+                    ) {
+                        throw GradleException(
+                            "Invalid dependency $projectPath -> $dependencyPath: " +
+                                ":core:storage must not depend on any feature:*:domain module"
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

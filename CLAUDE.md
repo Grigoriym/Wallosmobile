@@ -348,6 +348,32 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   has no reason to carry. So `build-logic` lints against detekt's own default ruleset, not the
   app's tuned one — `./gradlew -p build-logic detekt ktlintCheck` is what a convention-plugin
   change needs to pass locally, in addition to `compileKotlin`.
+- **Same technique again for Gradle's own API**, when a root-level check needs to know an exact
+  interface shape rather than guessing or porting a reference project's call verbatim —
+  `gradle-core-api-<version>.jar` sits in the Gradle wrapper distribution itself
+  (`~/.gradle/wrapper/dists/gradle-<version>-bin/<hash>/gradle-<version>/lib/`), no Maven
+  coordinate needed; `javap` a `.class` extracted from it directly (no `-sources.jar` exists for
+  Gradle's own API the way it does for Material 3/AGP above). 24.1 confirmed
+  `ProjectDependency.getPath()` this way — a first-class method on 9.7.0, no
+  `.dependencyProject.path` hop needed at all, unlike `duckduckgo-Android`'s own (older-Gradle,
+  Groovy) version of the same check.
+- **The root `build.gradle.kts` enforces three module-boundary rules from this file's own
+  Architecture/Non-negotiables sections as a real `GradleException` at Gradle configuration time**
+  (M24, ported from `duckduckgo-Android`'s `subprojects { incoming.beforeResolve { ... } }`):
+  nothing depends on `:androidApp` (except `:benchmark`, which structurally must via
+  `targetProjectPath`); only `:androidApp` depends on `:composeApp`; `:core:storage` never depends
+  on any `feature:*:domain`. Two things worth knowing before extending this check with a new rule:
+  a genuinely **cyclic** scratch violation never reaches it — Gradle's own static task-graph cycle
+  detector fires first, during task-graph calculation, before `incoming.beforeResolve` is ever
+  invoked — so proving a new rule fires needs a scratch dependency that is real but *not* already
+  cyclic with the target project's existing graph. And an AGP **application** module with product
+  flavors (`:androidApp` itself) isn't cleanly consumable as a project compile dependency from a
+  non-flavor-matching module at all — resolving one from a plain KMP library module hits Gradle's
+  own variant-ambiguity error before this check's `GradleException` would; that rule is real
+  defense-in-depth, not something provably reachable from every possible violator. Root
+  `build.gradle.kts` is **not** one of `check-guardrails.sh`'s `TRIPWIRE_PATHS` (only `.github/`,
+  `build-logic/`, `config/detekt/`, `.editorconfig`, `gradle/libs.versions.toml` are) — a change
+  here needs no `Gate-change:` line on its own.
 
 ## Non-negotiables
 
@@ -359,8 +385,13 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   a DataStore migration, a deprecated overload, or a compatibility shim — change the thing and
   say in the commit that stored state is discarded. This expires the day the app ships: the
   stored API key and the back stack are then the two things that need real care.
-- **No `androidMain` in feature modules** — use `expect`/`actual`. Platform targets are declared
-  **only** in `configureKmp()` in `build-logic`.
+- **A feature module reaches `androidMain` only through `expect`/`actual`, never for arbitrary
+  Android-only code.** This is not "an `androidMain` source set must never exist" — real ones do
+  (`feature/paymentmethods/ui/src/androidMain/`, `feature/subscriptions/ui/src/androidMain/`, each
+  holding one `actual` for a `commonMain` `expect`, confirmed 2026-08-14 while scoping M24: a
+  literal directory-existence check would have failed the real, correct build). Platform *targets*
+  are declared **only** in `configureKmp()` in `build-logic` — no feature module calls
+  `androidTarget()` itself.
 - **`commonMain` is not enforced platform-neutral here.** Android being the only target,
   `commonMain` compiles against the JVM variants: `java.io.File` and `kotlinx.coroutines.runBlocking`
   both resolve there and *nothing* fails. Keeping common code common is a discipline, not a

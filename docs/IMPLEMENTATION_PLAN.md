@@ -304,10 +304,13 @@ have a `jvm()` target):
   `source.setFrom(layout.projectDirectory.dir("src"))` to cover `commonMain`, `commonTest` and any
   platform source set.
 
-**Discipline that makes this cheap:** no `androidMain` source set in feature modules. If a feature
-needs a platform capability, it declares an `expect` in `commonMain` and the `actual` lives in
-`androidMain` of that module — so adding a target surfaces as compile errors listing exactly what
-is missing, rather than silently-Android code that has to be untangled.
+**Discipline that makes this cheap:** a feature module reaches `androidMain` only through
+`expect`/`actual`, never for arbitrary platform code dropped in directly. It declares an `expect`
+in `commonMain` and the `actual` lives in `androidMain` of that module — so adding a target
+surfaces as compile errors listing exactly what is missing, rather than silently-Android code that
+has to be untangled. (Not "an `androidMain` source set must never exist" — `feature/paymentmethods
+/ui/src/androidMain/` and `feature/subscriptions/ui/src/androidMain/` both legitimately have one;
+confirmed while scoping M24, see `CLAUDE.md`'s own Non-negotiables entry.)
 
 ### 3.2 Versions
 
