@@ -10,8 +10,10 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
-M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done**
-**Current step:** M23 done, next milestone not yet decomposed. 23.1 closed 2026-08-13:
+M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `0/1`
+**Current step:** M24 decomposed 2026-08-14, not yet started — one step (24.1) adding a
+Gradle-configuration-time module-boundary check, ported from `duckduckgo-Android`'s own
+`subprojects { incoming.beforeResolve { ... } }` mechanism. 23.1 closed 2026-08-13:
 `WallosEnvelopeParser`'s two `ERROR`-with-throwable catch blocks now log the real exception at
 `WARN` (local Logcat only) and a scrubbed, body-free exception at `ERROR` (the one
 `CrashlyticsTree` forwards) — closes the raw-response-body-to-Crashlytics leak found while
@@ -251,6 +253,56 @@ screen's four `when`-block states plus both banners, 8 tests total, all passing 
 
 ---
 
+## M24 — Enforce module-boundary rules at Gradle configuration time (not in plan §8's phase order)
+
+Decomposed 2026-08-14, from the "To review" entry filed 2026-08-13 (now removed — see the DDG read
+below for what it found). Investigated: `/home/gregory/proj/other/duckduckgo-Android`'s root
+`build.gradle` (`subprojects { configurations.configureEach { incoming.beforeResolve { ... } } }`,
+~line 120) enforces its own module rules as a real `GradleException` at configuration time, not a
+lint warning or a diff-scoped script. Its actual checks are Dagger/Anvil-specific (`-api`/`-impl`/
+`-internal` module-suffix rules that don't exist in this repo's `data`/`domain`/`dto`/`mapper`/`ui`
+shape), but the mechanism transfers. Four of WallosMobile's own documented Architecture rules
+currently hold only by convention, with nothing failing a build if one is violated: nothing depends
+on `:androidApp`; only `:androidApp` depends on `:composeApp` (a feature `ui` module depends on
+`uikit`, never `composeApp`); `:core:storage` never depends on any `feature:*:domain`; and no
+feature module has an `androidMain` source set (platform targets only via `configureKmp()`).
+Audited every module's `build.gradle.kts` project dependency 2026-08-14: all four currently hold,
+so this is a gate against future drift, not a fire drill against an existing violation.
+`LocalIsOffline`-vs-per-call-check (also named in the original finding) is a code-pattern rule, not
+a dependency-graph one — no `configurations`-level check can express it, so it's out of scope here.
+
+One thing to confirm while implementing, not assume: DDG's check reads
+`dependency.dependencyProject.path`, deprecated on newer Gradle and exactly the kind of
+cross-project state access that broke `:core:storage`'s KSP wiring under Isolated Projects
+(`docs/GRADLE_ISOLATED_PROJECTS.md` — trialled, currently off, not something to casually reintroduce
+a violation of). `ProjectDependency.path` (no `.dependencyProject` hop) is the Isolated-Projects-safe
+replacement — confirm it resolves on Gradle 9.7.0 before using it rather than porting DDG's Groovy
+call verbatim.
+
+- [ ] **24.1 — Add the four-rule module-boundary check to the root `build.gradle.kts`**
+  A `subprojects { }` block (Kotlin DSL, not DDG's Groovy) with `configurations.configureEach {
+  incoming.beforeResolve { ... } }` on the `compileClasspath`/`*CompileClasspath` configurations,
+  walking each configuration's `ProjectDependency` entries (via `.path`, not `.dependencyProject`)
+  and throwing `GradleException` on: (1) any dependency path equal to `:androidApp`; (2) a
+  dependency path equal to `:composeApp` from a project whose own path isn't `:androidApp`; (3) a
+  dependency path starting with `:feature:` from `:core:storage`. Add a directory walk alongside it
+  (same shape as DDG's own `androidTest`/`strings.xml` checks, not a `configurations` hook) failing
+  the build on any `src/androidMain` directory found under `feature/`.
+  *Verify:* add a deliberately-broken scratch dependency (e.g. a throwaway
+  `implementation(projects.composeApp)` line added temporarily to a `feature:*:ui` module's
+  `build.gradle.kts`) and confirm the relevant compile task fails with the new `GradleException`,
+  not a normal resolution error; revert it and confirm a clean
+  `./gradlew :androidApp:assembleGplayDebug :androidApp:assembleFdroidDebug` still passes. Repeat
+  for at least one more of the three dependency rules and for the `androidMain`-directory check
+  (a scratch empty directory is enough to trip the walk). This touches the root
+  `build.gradle.kts`, a `Gate-change:` tripwire path — the commit needs the line (widening, not
+  reducing: a new check, not a removed one).
+  ·  *Ref:* `/home/gregory/proj/other/duckduckgo-Android/build.gradle` lines ~93-214 for the
+  mechanism; this milestone's own preamble for which rules apply here and the
+  `ProjectDependency.path` substitution.
+
+---
+
 ## To review
 
 Written when M2 closed, as the place a verification step files a defect it finds rather than
@@ -451,24 +503,6 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   `androidDeviceTest` route instead (3.3 already paid part of that setup cost). The settled
   no-Kover-floor decision is unaffected either way — Taiga's survey/heuristics work didn't surface
   anything that reopens it.
-- **Enforce module-boundary rules at Gradle configuration time, not just by convention +
-  `check-guardrails.sh` at commit time.** Filed 2026-08-13, from reading
-  `/home/gregory/proj/other/duckduckgo-Android` for transplantable infra. Its root `build.gradle`
-  (`subprojects { configurations.configureEach { incoming.beforeResolve { ... } } }`, ~line 120)
-  walks each configuration's resolved dependencies and throws `GradleException` on a violation of
-  its own module rules (an `-api` module depending on another `-api` module or on Dagger, an
-  `-impl` module reaching another `-impl` module, `strings.xml` outside `:app`, etc.) — a real
-  build failure, not a lint warning or a script that only runs against a diff. WallosMobile's own
-  Architecture section states comparable rules (no `androidMain` in feature modules outside
-  `configureKmp()`, a feature `ui` module depending on `uikit` never `composeApp`, `core:storage`'s
-  Room layer taking no dependency on any `feature:*:domain`, offline-write-disable via
-  `LocalIsOffline` rather than a per-call check) that nothing currently fails the build on — a
-  violation would only surface via code review or a `KoinGraphTest`-style test that happens to
-  reach it. Worth scoping as its own milestone: read DDG's block in full (it also encodes
-  `internal`-module rules and a `no module depends on :app` check that don't map onto this repo's
-  shape), decide which of WallosMobile's *own* documented rules are worth an equivalent
-  `subprojects { ... }` check in the root `build.gradle.kts`, and confirm it actually fails a
-  deliberately-broken scratch dependency before trusting it. Not decomposed yet.
 - **A custom Android Lint detector for repo-specific conventions, not just detekt/ktlint +
   Compose's own bundled lint checks.** Filed 2026-08-13, same DDG read as the entry above. Its
   `lint-rules` module (`~50` custom `com.android.tools.lint.detector.api.Detector` classes plus a
