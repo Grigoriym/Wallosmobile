@@ -44,8 +44,13 @@ N" trigger and launch the step immediately. Corrected 2026-08-11.
 3. **Check the docs for claims the step just made false** — `IMPLEMENTATION_PLAN.md` and this
    file both accumulate stale present-tense statements (a build command that no longer exists,
    a "the repo is still…" line). Grep for what changed rather than trusting a read-through.
-4. Commit and push. One commit per step, straight to `dev` — subject `0.N — short title`,
-   body listing the deltas that aren't obvious from the diff.
+4. Commit, push to a branch, and open a PR into `dev` — subject `0.N — short title`, body listing
+   the deltas that aren't obvious from the diff (same content a direct-push commit message would
+   have carried). **Then stop — the user merges it and reports back if something broke.** Don't
+   background-watch CI/Guardrails for it (`gh pr checks --watch` or otherwise): asked and declined
+   2026-08-14, in the same breath as asking for PRs at all — the user merges, watching costs
+   usage for no benefit. One commit still lands on `dev` per step; the PR is a checkpoint before it
+   lands, not a batching mechanism.
 
 **Decomposing a new milestone is its own commit, made the moment it happens — not left
 for the session that does step 1 to discover via `git status`.** Every milestone from M3
@@ -55,14 +60,20 @@ onward has one (`git log --oneline | grep decompos`), subject `docs: plan M<N> �
 next session only caught it by noticing the initial `git status` still showed those two
 files modified before it had touched anything. Recovered by splitting the pending diff
 into the missing planning commit plus the step's own — but don't rely on that recovery
-path; commit the decomposition before ending the planning session.
+path; commit the decomposition before ending the planning session. Same PR flow as any other
+`dev` commit since 2026-08-14 (below) — a milestone-decomposition commit is docs-only, so it
+skips CI but still needs Guardrails green before merging.
 
-**`master` only moves via release automation, not ordinary steps.** `dev` is the default branch
-and behaves exactly like `master` did before M15 — direct pushes, no PR required. `master`
-advances only through 15.2–15.4's `release-prepare` → PR → `release-finalize` → tag → `release`
-workflows (plan §3.9). Branch protection on `dev` is deliberately **not** turned on yet — that's
-a follow-up for once the repo nears its first real release, not something M15 itself does — so
-don't assume a push to `dev` is gated by anything beyond CI and Guardrails passing.
+**Every push to `dev` goes through a PR now, not a direct push — changed 2026-08-14 at the
+user's request.** Before that date, `dev` behaved exactly like `master` did pre-M15: direct
+pushes, no PR. The mechanics are in "Then close the step out" step 4 above; this applies to
+*any* commit landing on `dev` — a checklist step, a milestone decomposition, an ad-hoc fix —
+not only checklist steps. Branch protection on `dev` is still **not** turned on (that's a
+follow-up for once the repo nears its first real release), so nothing technically stops a direct
+push — this is a process discipline to follow regardless, not something the repo enforces.
+**`master` only moves via release automation, not ordinary steps** — it advances only through
+15.2–15.4's `release-prepare` → PR → `release-finalize` → tag → `release` workflows (plan §3.9),
+unaffected by the `dev`-side change above.
 
 ### Changing a gate means saying so
 

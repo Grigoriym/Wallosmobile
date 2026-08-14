@@ -166,7 +166,7 @@ five steps' full detail).
 2. Say: **"Read `docs/CHECKLIST.md` and do step N."**
 3. When it passes its *Verify* line: tick the box, update **Current step** above, add a one-line
    note under the step if anything deviated from the plan.
-4. Commit. Clear context. Repeat.
+4. Commit, PR into `dev`, merge once checks pass (Ground rules below). Clear context. Repeat.
 
 **Rules:**
 - Never start a step whose dependencies aren't ticked.
