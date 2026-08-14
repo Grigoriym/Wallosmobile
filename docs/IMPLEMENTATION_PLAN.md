@@ -306,14 +306,21 @@ have a `jvm()` target):
 - **A `com.android.kotlin.multiplatform.library` module has no Lint task for its own
   `androidMain`/`commonMain` *production* source at all** — only `lintAnalyzeAndroidHostTest`
   (test source). A custom `lintChecks(project(":lint-rules"))` dependency (M25) therefore never
-  reaches a violation written in `feature:*:ui`/`composeApp`/`uikit`'s own commonMain, regardless
-  of whether it's declared on that module or propagated from `androidApp`'s own `checkDependencies`
-  — confirmed with `checkDependencies` both `true` and `false`. `androidApp:lintFdroidDebug`/
-  `lintGplayDebug` only ever see `androidApp`'s own `src/main`. Bundled checks shipped inside a
-  dependency AAR's own `lint.jar` (e.g. Compose runtime's `FlowOperatorInvokedInComposition`) are a
-  different mechanism and unaffected by this gap. Open, tracked in `docs/revisit.md` #1 — not
-  something `configureLinting()` can currently paper over the way it does for the host-test and
-  detekt-source-set gaps above.
+  reached a violation written in `feature:*:ui`/`composeApp`/`uikit`'s own commonMain, regardless
+  of whether it was declared on that module or propagated from `androidApp`'s own
+  `checkDependencies` — confirmed with `checkDependencies` both `true` and `false`.
+  `androidApp:lintFdroidDebug`/`lintGplayDebug` only ever saw `androidApp`'s own `src/main`.
+  Bundled checks shipped inside a dependency AAR's own `lint.jar` (e.g. Compose runtime's
+  `FlowOperatorInvokedInComposition`) are a different mechanism and unaffected by this gap. This is
+  a Lint-specific limitation, not a general one: **detekt has no such gap**, since
+  `configureLinting()`'s own `source.setFrom(layout.projectDirectory.dir("src"))` already runs
+  every module's `detekt` task against its own `commonMain`/`commonTest` directly — the same
+  mechanism `compose-rules`' detekt ruleset already relies on. M26 (26.1) ported the check to a
+  real detekt `Rule` (`:detekt-rules`, `UnstableCollectionInUiStateRule`, wired the same way
+  `composeRules-detekt` is) for exactly this reason and dropped `:lint-rules` once the port was
+  confirmed to also catch a violation written directly in `androidApp`, closing `docs/revisit.md`
+  #1. The AGP-level gap above is unaffected — Lint itself is simply no longer relied on for this
+  check.
 
 **Discipline that makes this cheap:** a feature module reaches `androidMain` only through
 `expect`/`actual`, never for arbitrary platform code dropped in directly. It declares an `expect`

@@ -158,17 +158,20 @@ This project uses the **`emulator-testing`** and **`finalize`** skills; both are
 # (2026-08-14) — 21.1's CI wiring below ran this task on every push but it could never fail,
 # on a custom check or a bundled one (FlowOperatorInvokedInComposition included), the whole time.
 # Now `true` (`KotlinConfiguration.kt`'s `configureKotlinAndroid()`), confirmed clean against the
-# real codebase before flipping it. M25's own custom check (`:lint-rules`,
-# `UnstableCollectionInUiState`) is real and unit-tested, but only ever fires against `androidApp`'s
+# real codebase before flipping it. M25's own custom Lint check (`:lint-rules`,
+# `UnstableCollectionInUiState`) was real and unit-tested, but only ever fired against `androidApp`'s
 # own `src/main` — a *dependency* module's `lintChecks` declaration (wired into every module via
 # `configureLinting()`) does not propagate that module's own `commonMain`/`androidMain` findings
 # into a consuming app's report under AGP 9.3.1's `com.android.kotlin.multiplatform.library` plugin,
 # confirmed empirically (a planted violation in `feature:subscriptions:ui` never appeared in
 # `androidApp:lintFdroidDebug`'s report, on or off, with `checkDependencies` either `true` or
 # `false`) — each such module exposes only a `lintAnalyzeAndroidHostTest` task, no
-# production-source-facing lint task, so there is currently nothing to wire this into for the
+# production-source-facing lint task, so there was nothing to wire this into for the
 # `feature:*:ui`/`composeApp`/`uikit` modules that actually hold `*UiState`/`@Composable` code.
-# `docs/revisit.md` #1 tracks closing this gap.
+# M26 (26.1, 2026-08-14) ported the check to a real detekt `Rule` (`:detekt-rules`) instead, which
+# has no such gap — `configureLinting()` already runs `detekt` against every module's own
+# `commonMain`/`commonTest` directly — and dropped `:lint-rules` once the port was confirmed to
+# also catch a violation planted straight in `androidApp`.
 ./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug -PgplayBuild
 
 # The Room DAOs were the first instrumented suite (3.3); `feature:subscriptions:ui`'s Compose UI

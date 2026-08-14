@@ -101,13 +101,10 @@ fun Project.configureLinting() {
         "ktlintRuleset"(libs.findLibrary("composeRules-ktlint").get())
         "detektPlugins"(libs.findLibrary("composeRules-detekt").get())
 
-        // M25: a WallosMobile-specific Android Lint check (List/MutableList in a *UiState class
-        // or a public @Composable param). `lintChecks` only applies to the module that declares
-        // it — a consumer's own `lintChecks` does not reach into a dependency module's source
-        // (confirmed empirically: declaring it only in `androidApp` never surfaced a deliberately
-        // planted violation in `feature:subscriptions:ui`'s own `commonMain`), so every module
-        // needs its own line, same as `duckduckgo-Android`'s own per-module
-        // `gradle/android-library.gradle` convention script.
-        "lintChecks"(project(":lint-rules"))
+        // M26: the detekt port of :lint-rules' UnstableCollectionInUiState check — unlike
+        // `lintChecks` above, a `detektPlugins` rule runs as part of the *consuming* module's own
+        // `detekt` task, so this one real reaches every module's own `feature:*:ui`/`composeApp`/
+        // `uikit` source, closing docs/revisit.md #1.
+        "detektPlugins"(project(":detekt-rules"))
     }
 }

@@ -11,10 +11,19 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `0/1`
-**Current step:** M26 decomposed 2026-08-14, not yet started — next is 26.1, porting the
-`List`/`MutableList`-in-`*UiState` check to a real detekt `Rule` so it actually reaches
-`feature:*:ui`/`composeApp`/`uikit` code, closing `docs/revisit.md` #1. 25.1 closed 2026-08-14: a new
+**M25 done** · M26 `1/1` — **M26 done**
+**Current step:** none — M26 closed 2026-08-14. 26.1 closed 2026-08-14: a new `detekt-rules`
+module ports `UnstableCollectionInUiState` to a real detekt `Rule` (`UnstableCollectionInUiStateRule`,
+registered under a new `WallosMobile` ruleset id), wired into every module via `configureLinting()`
+the same way `composeRules-detekt` is — closing `docs/revisit.md` #1, since a `detektPlugins` rule
+runs against the *consuming* module's own source, unlike the `:lint-rules` `lintChecks` version it
+replaces. Verified live: a scratch `List<String>` planted in a real `feature:subscriptions:ui`
+`*UiState` class was caught by `:feature:subscriptions:ui:detekt` (the module the old check
+couldn't reach), and the same violation planted directly in `androidApp` was caught by
+`:androidApp:detekt` too. `:lint-rules` is deleted (module, `settings.gradle.kts` entry, its
+`android-tools-lint-*`/`androidToolsLint` `libs.versions.toml` entries, and its `lintChecks` line
+in `Quality.kt`) — the recommendation in this step's own text, confirmed rather than assumed via
+the verify above. 25.1 closed 2026-08-14: a new
 `lint-rules` module adds one custom Android Lint detector (`UnstableCollectionInUiState`,
 `List`/`MutableList` in a `*UiState` class or a public `@Composable` param), wired into every
 module via `configureLinting()`. Landed alongside two unrelated pre-existing bugs it exposed and
@@ -299,7 +308,7 @@ Why this closes the gap 25.1 couldn't: detekt already runs correctly against eve
 There is no cross-module propagation gap to work around the way there is for Android Lint's
 `lintChecks` under the KMP-library plugin.
 
-- [ ] **26.1 — A `detekt-rules` module porting `UnstableCollectionInUiState` to a real detekt
+- [x] **26.1 — A `detekt-rules` module porting `UnstableCollectionInUiState` to a real detekt
   `Rule`, closing `docs/revisit.md` #1**
   New top-level module `detekt-rules/` — plain `java-library` + Kotlin JVM plugin, no AGP, same
   shape as `lint-rules/build.gradle.kts`: explicit `config.setFrom(File(rootDir,
@@ -377,6 +386,41 @@ There is no cross-module propagation gap to work around the way there is for And
   (`~/.gradle/caches/modules-2/files-2.1/io.nlopez.compose.rules/detekt/0.6.3/`) for a real
   `RuleSetProvider` registration and rule-writing precedent already on this project's own
   classpath.
+
+  Note: two real deviations from the plan text above, both confirmed by digging into the actual
+  jars rather than assumed from the plan's "confirmed published" line. (1) `detekt-test`'s
+  `runtimeElements` variant requests the `detekt-api-test-fixtures` Gradle capability from
+  `detekt-api`, but `detekt-api` only ever publishes a **sources** jar under that capability —
+  confirmed on both `2.0.0-alpha.5` and the newer `2.0.0-alpha.6` on Maven Central by fetching and
+  reading each one's `.module` metadata directly, so a plain `testImplementation(detekt-test)`
+  fails resolution outright ("No matching variant ... with capability
+  'dev.detekt:detekt-api-test-fixtures' was found") on every currently-published `2.0.0-alpha.x`.
+  This is a real upstream publishing gap, not a version problem a bump would fix. Worked around in
+  `detekt-rules/build.gradle.kts` by declaring `testImplementation(libs.detekt.test) { isTransitive
+  = false }` plus the module's own real transitive needs by hand (`detekt-api`,
+  `detekt-test-utils`, `kotlin-compiler:2.4.0`, `kotlin-reflect:2.4.0`) — the two things this
+  module's tests actually reach into `detekt-test` for (`TestConfig`, the `Rule.lint(String)`
+  extension) need nothing from the missing artifact. Tests use the plain `rule.lint(code: String)`
+  overload directly rather than `detekt-test-utils`' `compileContentForTest` + the `KtFile`-typed
+  overload — simpler, and confirmed to catch all four cases without needing a compiled
+  `KotlinEnvironmentContainer`. (2) `KtConstructor.getContainingClassOrObject()` (and several other
+  `KtElement` accessors) is declared as a plain Kotlin `fun`, not a `val`/property, in its own
+  `.kt` source (confirmed by fetching `kotlin-compiler:2.4.0`'s `-sources.jar` and reading
+  `KtConstructor.kt` directly) — Kotlin's Java-interop synthetic-property sugar (`.foo` for a
+  Java-style `getFoo()`) only applies when the declaring class originates from Java bytecode
+  without Kotlin metadata, not when calling from Kotlin into another Kotlin class. Property-style
+  `ownerFunction.containingClassOrObject` fails as "Unresolved reference"; the working call is
+  `ownerFunction.getContainingClassOrObject()`. Worth remembering for any future PSI-walking detekt
+  rule written against `org.jetbrains.kotlin.psi.*` — a `get`-prefixed name on a PSI class is not
+  automatically a Kotlin property. `:benchmark` and `:detekt-rules` itself both needed their own
+  `detektPlugins(project(":detekt-rules"))` line (`:detekt-rules`' own is a real, non-cyclic
+  self-dependency — `detektPlugins` only consumes the project's `jar` output, which its own
+  `detekt` task doesn't feed into) for the same reason `:benchmark` already needed
+  `detektPlugins(libs.composeRules.detekt)` for `Compose:` (25.1/pre-existing): a module's own
+  `detekt` task validates the shared config's every top-level ruleset key against only the
+  providers actually on *that module's* `detektPlugins` classpath, not against what
+  `configureLinting()` wires into other modules. `:lint-rules` dropped as recommended, confirmed
+  rather than assumed — see the header `Note:` above for the verify.
 
 ---
 

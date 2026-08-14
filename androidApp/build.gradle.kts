@@ -35,10 +35,6 @@ android {
 dependencies {
     baselineProfile(project(":benchmark"))
 
-    // M25's `lintChecks(":lint-rules")` line lives in `configureLinting()` (build-logic's
-    // `Quality.kt`), applied here via `configureLinting()` in `AndroidApplicationConventionPlugin`
-    // — no separate line needed in this file.
-
     implementation(project(":composeApp"))
     implementation(project(":core:appinfo-api"))
     implementation(project(":core:crashreporting-api"))
