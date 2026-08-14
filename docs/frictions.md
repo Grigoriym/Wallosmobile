@@ -155,3 +155,9 @@ deleted — see `/finalize`.
   (repository.pullRequest.projectCards)` on this repo (gh 2.45.0) — the mutation path it uses
   queries a deprecated Projects-classic field unrelated to the edit itself. `gh api
   repos/<owner>/<repo>/pulls/<n> -X PATCH -f body=...` (plain REST) worked around it.
+- First pass at narrowing `check-guardrails.sh`'s `gradle/libs.versions.toml` wire to
+  gate-relevant keys silently passed on a synthetic `detekt` version bump it should have caught —
+  the diff-line regex anchored `^detekt` against a line that still carried its leading `+`/`-`
+  from `git diff`, so it never matched. A check that confidently returns "nothing tripped" reads
+  identical to a check that's broken; caught only by testing the case it's supposed to catch
+  (a synthetic gate-relevant bump), not just the case it's supposed to let through.
