@@ -10,8 +10,10 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
-M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done**
-**Current step:** M24 done, next milestone not yet decomposed. 24.1 closed 2026-08-14: the root
+M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `0/1`
+**Current step:** M25 decomposed 2026-08-14, not yet started — next is 25.1, a custom Android
+Lint detector for `List`/`MutableList` sneaking into a `*UiState` class or a public `@Composable`
+parameter, wired through a new `lint-rules` module. 24.1 closed 2026-08-14: the root
 `build.gradle.kts` now enforces three module-boundary rules from `CLAUDE.md`'s Architecture section
 as a real `GradleException` at configuration time (nothing depends on `:androidApp`, only
 `:androidApp` depends on `:composeApp`, `:core:storage` never depends on any `feature:*:domain`),
@@ -258,6 +260,90 @@ screen's four `when`-block states plus both banners, 8 tests total, all passing 
 
 ---
 
+## M25 — A custom Android Lint detector for a WallosMobile-specific convention (not in plan §8's phase order)
+
+Decomposed 2026-08-14, from the "To review" entry filed 2026-08-13 (now removed) — the second of
+two entries filed the same day from reading `/home/gregory/proj/other/duckduckgo-Android` for
+transplantable infra; the first became **M24**. Read `duckduckgo-Android/lint-rules` in full
+(`~50` `com.android.tools.lint.detector.api.Detector` classes plus a `DuckDuckGoIssueRegistry`
+implementing `IssueRegistry`, wired into `app/build.gradle` via `lintChecks project(":lint-rules")`)
+for the *mechanism*, not its rules — Dagger/Anvil scoping and XML-view checks, none of which this
+repo has.
+
+**Picking a real target, not inventing one:** the backlog entry's own suggested case,
+`FlowOperatorInvokedInComposition` (16.5), turns out to already be closed — it's part of Compose
+runtime's own bundled lint checks, shipped inside the AAR and picked up automatically by the
+standard `Lint` task, so 21.1 wiring `lintFdroidDebug`/`lintGplayDebug` into CI already catches a
+repeat of it; a custom detector for it would be redundant. Checked the rest of CLAUDE.md's stated
+conventions against what's *already* gated before picking a replacement: bare `try/catch
+(Exception)` is detekt's `TooGenericExceptionCaught`/`SwallowedException`/
+`SuspendFunSwallowedCancellation` (all `active: true` in `config/detekt/detekt.yml`); the
+`CompositionLocal` allowlist is ktlint's `compose:compositionlocal-allowlist`; present-tense lambda
+naming is `compose:parameter-naming`. One real, explicitly-stated, mechanically-checkable
+convention has no gate anywhere: **"`ImmutableList` / `persistentListOf()` over `List` in state
+classes and Composable params, for stable recomposition"** (CLAUDE.md, Compose rules). M20's
+stability-report tooling (`docs/compose/stability-reports.md`) can *surface* a `List`-typed
+parameter making a class unstable, but it's an opt-in report a session has to remember to run, not
+a build failure — nothing today stops a plain `List<T>` from landing in a new `*UiState` class or a
+public `@Composable` parameter. Scoped to exactly this one detector, matching the backlog entry's
+own "one or two, not fifty": no second candidate in this project's actual history cleared the same
+bar (a real, repeated, currently-ungated mistake) without inventing one speculatively — a second
+detector is future backlog, not this milestone's job.
+
+- [ ] **25.1 — A `lint-rules` module with one detector: `List`/`MutableList` in a `*UiState` class
+  or a public `@Composable` parameter**
+  New top-level module `lint-rules/` — plain `id("java-library")` + Kotlin JVM plugin, no AGP, same
+  shape as `duckduckgo-Android`'s own module and as this repo's own `build-logic` project (lints
+  against detekt's/ktlint's *default* ruleset via its own `detekt`/`ktlintCheck` run applied
+  directly in its `build.gradle.kts`, same as 21.2 set up for `build-logic` — no
+  `config.setFrom(config/detekt/detekt.yml)`, since that shared config's `Compose:` section needs
+  `io.nlopez.compose.rules:detekt` on the classpath for no reason here). `dependencies {
+  compileOnly(libs.lint.api); compileOnly(libs.lint.checks); testImplementation(libs.lint.tests) }`
+  — new `gradle/libs.versions.toml` entries at `com.android.tools.lint:lint-api`/`lint-checks`/
+  `lint-tests`, version **32.3.1**, confirmed against this project's own Gradle cache
+  (`~/.gradle/caches/modules-2/files-2.1/com.android.tools.lint/lint-api/32.3.1/`) as the version
+  AGP 9.3.1 (`agp` in the catalog) already resolves transitively — not guessed from the
+  AGP-major-plus-23 rule of thumb alone. Add `include(":lint-rules")` to `settings.gradle.kts`.
+  Add `lintChecks(project(":lint-rules"))` to `androidApp/build.gradle.kts`'s `dependencies {}` —
+  a plain AGP dependency configuration, needs no `build-logic` change.
+  One detector class, `UnstableCollectionInUiStateDetector : Detector(), SourceCodeScanner`,
+  UAST-based (same technique as DDG's `NoHardcodedCoroutineDispatcherDetector`): visits
+  `UParameter`s and flags one whose declared type's qualified name is exactly
+  `kotlin.collections.List` or `kotlin.collections.MutableList` (a qualified-name equality check,
+  not an assignability check — `kotlinx.collections.immutable.ImmutableList` implements `List` at
+  the type-system level, so a naive `is-a List` check would false-positive on the very type the
+  rule wants to encourage) when either: (a) the containing declaration is a class/constructor whose
+  simple name ends in `UiState`, or (b) the containing function carries `@Composable` and is
+  `public`/has no explicit `internal`/`private` modifier. `Issue.create(..., Category.CORRECTNESS,
+  priority = 6, Severity.ERROR, ...)` — must be `ERROR`, not `WARNING`: Android Lint only fails a
+  build (and therefore `lintFdroidDebug`/`lintGplayDebug`, and therefore CI) on `ERROR`/`FATAL`
+  severity by default, so a `WARNING` detector would compile clean and never actually gate anything,
+  the same silent-no-op failure mode this milestone exists to close.
+  Register it in a `WallosMobileIssueRegistry : IssueRegistry()` (one entry — no need for DDG's
+  50-entry list shape yet).
+  Tests: `lint-rules/src/test/` using `lint-tests`' `LintDetectorTest`/`TestFiles.kotlin(...)`
+  harness (DDG's own `*DetectorTest.kt` files are the reference for the harness shape) — one case
+  each for a `*UiState` class with a `List<T>` param (fails), a `*UiState` class with an
+  `ImmutableList<T>` param (clean), a public `@Composable` with a `List<T>` param (fails), and a
+  `private` `@Composable` with a `List<T>` param (clean, matching the rule's own "params" scope
+  reading as "the public signature" — narrow the detector rather than the test if this reads
+  differently once real UAST types are in hand).
+  *Verify:* `./gradlew -p lint-rules test` passes. Temporarily add a `List<String>` param to a real
+  `*UiState` class (or a public `@Composable`) in the app, run
+  `./gradlew :androidApp:lintFdroidDebug`, confirm it fails on the new issue ID — not a generic
+  resolution error; revert the scratch change and confirm
+  `./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug -PgplayBuild` both pass clean
+  against the real codebase (there is no known existing violation — this is a gate against future
+  drift, same framing as 24.1). `./gradlew detekt ktlintCheck` (root) unaffected since `lint-rules`
+  isn't in that aggregate. This commit touches `gradle/libs.versions.toml`, a `Gate-change:`
+  tripwire path — the commit needs the line (widening: a new dependency, nothing removed).
+  ·  *Ref:* `/home/gregory/proj/other/duckduckgo-Android/lint-rules/src/main/java/com/duckduckgo/lint/NoHardcodedCoroutineDispatcherDetector.kt`
+  for the UAST-reference-check shape and `registry/DuckDuckGoIssueRegistry.kt` for the registry;
+  `build-logic/convention/build.gradle.kts` for the "apply detekt/ktlint directly, no shared config"
+  precedent (21.2).
+
+---
+
 ## To review
 
 Written when M2 closed, as the place a verification step files a defect it finds rather than
@@ -458,21 +544,4 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   `androidDeviceTest` route instead (3.3 already paid part of that setup cost). The settled
   no-Kover-floor decision is unaffected either way — Taiga's survey/heuristics work didn't surface
   anything that reopens it.
-- **A custom Android Lint detector for repo-specific conventions, not just detekt/ktlint +
-  Compose's own bundled lint checks.** Filed 2026-08-13, same DDG read as the entry above. Its
-  `lint-rules` module (`~50` custom `com.android.tools.lint.detector.api.Detector` classes plus a
-  `DuckDuckGoIssueRegistry`, applied to every module via `lintChecks`) enforces project-specific
-  rules — no raw platform widgets, no hardcoded coroutine dispatcher, no `@Singleton` — as a real
-  build failure. The detectors themselves are irrelevant here (XML views, Dagger scopes, none of
-  which this repo has), but the technique answers a gap CLAUDE.md's Build commands section already
-  names: "Neither `detekt` nor `ktlintCheck` runs Android/Compose lint," and 16.5's
-  `FlowOperatorInvokedInComposition` slipped past both gates, caught only by Android Studio's own
-  inspection at the time — 21.1 wired the *built-in* `lintFdroidDebug`/`lintGplayDebug` into CI
-  since, but that only catches what Compose's own bundled lint checks look for, not a
-  WallosMobile-specific footgun. Worth scoping small (one or two detectors, not fifty): read
-  Android Lint's `Detector`/`IssueRegistry` API and how `lintChecks` wires a checks-only module
-  into `androidApp`'s lint run, then pick a real repeat mistake from this project's own history
-  (there's a case list forming already: 16.5's `FlowOperatorInvokedInComposition`, or something
-  from the Compose-rules/architecture conventions this file's own CLAUDE.md states but nothing
-  currently fails a build on) rather than inventing rules speculatively. Not decomposed yet.
 
