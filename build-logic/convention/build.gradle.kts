@@ -2,6 +2,11 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     `kotlin-dsl`
+
+    // Mirrors the root `build.gradle.kts`'s own minimal shape — `configureLinting()` is defined
+    // inside this project, so `build-logic` can't apply it to itself.
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.ktlint)
 }
 
 group = "com.grappim.wallosmobile.buildlogic"

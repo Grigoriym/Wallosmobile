@@ -34,6 +34,11 @@ composeRules = "0.6.3"
 
 # https://developer.android.com/reference/tools/gradle-api
 agp = "9.3.1"
+# com.android.tools.lint:lint-api/lint-checks/lint-tests, used only by :lint-rules. 32.3.1 is the
+# version AGP 9.3.1 already resolves transitively — confirmed against this machine's own Gradle
+# cache (~/.gradle/caches/modules-2/files-2.1/com.android.tools.lint/lint-api/32.3.1/), not taken
+# from the AGP-major-plus-23 rule of thumb alone.
+androidToolsLint = "32.3.1"
 # https://github.com/google/desugar_jdk_libs/blob/master/CHANGELOG.md
 androidDesugarJdkLibs = "2.1.5"
 
@@ -226,6 +231,11 @@ androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "a
 androidx-test-uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "androidxTestUiautomator" }
 
 android-desugarJdkLibs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "androidDesugarJdkLibs" }
+
+# Dependencies of :lint-rules (a custom Android Lint detector module, M25)
+android-tools-lint-api = { module = "com.android.tools.lint:lint-api", version.ref = "androidToolsLint" }
+android-tools-lint-checks = { module = "com.android.tools.lint:lint-checks", version.ref = "androidToolsLint" }
+android-tools-lint-tests = { module = "com.android.tools.lint:lint-tests", version.ref = "androidToolsLint" }
 
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
 androidx-compose-ui = { module = "androidx.compose.ui:ui" }

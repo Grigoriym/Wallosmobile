@@ -44,8 +44,13 @@ N" trigger and launch the step immediately. Corrected 2026-08-11.
 3. **Check the docs for claims the step just made false** — `IMPLEMENTATION_PLAN.md` and this
    file both accumulate stale present-tense statements (a build command that no longer exists,
    a "the repo is still…" line). Grep for what changed rather than trusting a read-through.
-4. Commit and push. One commit per step, straight to `dev` — subject `0.N — short title`,
-   body listing the deltas that aren't obvious from the diff.
+4. Commit, push to a branch, and open a PR into `dev` — subject `0.N — short title`, body listing
+   the deltas that aren't obvious from the diff (same content a direct-push commit message would
+   have carried). **Then stop — the user merges it and reports back if something broke.** Don't
+   background-watch CI/Guardrails for it (`gh pr checks --watch` or otherwise): asked and declined
+   2026-08-14, in the same breath as asking for PRs at all — the user merges, watching costs
+   usage for no benefit. One commit still lands on `dev` per step; the PR is a checkpoint before it
+   lands, not a batching mechanism.
 
 **Decomposing a new milestone is its own commit, made the moment it happens — not left
 for the session that does step 1 to discover via `git status`.** Every milestone from M3
@@ -55,21 +60,30 @@ onward has one (`git log --oneline | grep decompos`), subject `docs: plan M<N> �
 next session only caught it by noticing the initial `git status` still showed those two
 files modified before it had touched anything. Recovered by splitting the pending diff
 into the missing planning commit plus the step's own — but don't rely on that recovery
-path; commit the decomposition before ending the planning session.
+path; commit the decomposition before ending the planning session. Same PR flow as any other
+`dev` commit since 2026-08-14 (below) — a milestone-decomposition commit is docs-only, so it
+skips CI but still needs Guardrails green before merging.
 
-**`master` only moves via release automation, not ordinary steps.** `dev` is the default branch
-and behaves exactly like `master` did before M15 — direct pushes, no PR required. `master`
-advances only through 15.2–15.4's `release-prepare` → PR → `release-finalize` → tag → `release`
-workflows (plan §3.9). Branch protection on `dev` is deliberately **not** turned on yet — that's
-a follow-up for once the repo nears its first real release, not something M15 itself does — so
-don't assume a push to `dev` is gated by anything beyond CI and Guardrails passing.
+**Every push to `dev` goes through a PR now, not a direct push — changed 2026-08-14 at the
+user's request.** Before that date, `dev` behaved exactly like `master` did pre-M15: direct
+pushes, no PR. The mechanics are in "Then close the step out" step 4 above; this applies to
+*any* commit landing on `dev` — a checklist step, a milestone decomposition, an ad-hoc fix —
+not only checklist steps. Branch protection on `dev` is still **not** turned on (that's a
+follow-up for once the repo nears its first real release), so nothing technically stops a direct
+push — this is a process discipline to follow regardless, not something the repo enforces.
+**`master` only moves via release automation, not ordinary steps** — it advances only through
+15.2–15.4's `release-prepare` → PR → `release-finalize` → tag → `release` workflows (plan §3.9),
+unaffected by the `dev`-side change above.
 
 ### Changing a gate means saying so
 
 The gates constrain the code a session writes; nothing constrains a session from widening a gate
 so its own step passes. `.github/workflows/guardrails.yml` doesn't prevent that — it makes it
 impossible to do quietly. A commit trips it by touching `.github/`, `build-logic/`,
-`config/detekt/`, `.editorconfig` or `gradle/libs.versions.toml`; by adding an `@Ignore` or a
+`config/detekt/`, or `.editorconfig`; by touching `gradle/libs.versions.toml`'s `detekt`, `ktlint`,
+`composeRules`, `agp` or `androidToolsLint` version keys specifically (a plain dependency bump —
+Renovate's usual PR — doesn't trip it, added 2026-08-14 after Renovate's own commits, which can
+never carry a `Gate-change:` line, failed guardrails on every PR); by adding an `@Ignore` or a
 `@Suppress`; or by **reducing** the number of Non-negotiables below or of steps in
 `docs/CHECKLIST.md` **plus `docs/archive/CHECKLIST-DONE.md`** — the two are summed, so moving a
 step between them is free and dropping one from either is not. Any of those needs a line in the
@@ -134,11 +148,28 @@ This project uses the **`emulator-testing`** and **`finalize`** skills; both are
 ./gradlew :module:path:ktlintFormat          # fix style — don't hand-format
 ./gradlew koverHtmlReport                    # coverage
 
-# Neither of the above runs Android/Compose lint (no `./gradlew lint` task in any `Verify:` line
-# or CI job) — `detekt ktlintCheck` passing does not prove a Compose file is clean. 16.5 shipped a
-# `FlowOperatorInvokedInComposition` (a Flow built inside a composable lambda, `setContent { }`
-# counts) that both gates missed; only Android Studio's own inspection caught it. Skim for
-# Compose-lint-shaped issues by eye on any `@Composable`-touching step, since nothing else will.
+# Neither `detekt` nor `ktlintCheck` runs Android/Compose lint — that's a separate task, now also
+# in CI (21.1) after `detekt ktlintCheck`. 16.5 shipped a `FlowOperatorInvokedInComposition` (a
+# Flow built inside a composable lambda, `setContent { }` counts) that both gates missed; only
+# Android Studio's own inspection caught it at the time. Still worth a by-eye skim on any
+# `@Composable`-touching step, since lint only runs at CI/push time, not while writing the step.
+#
+# `lint.abortOnError` was `false` from 0.2/0.3 (build-logic's very first commit) until M25
+# (2026-08-14) — 21.1's CI wiring below ran this task on every push but it could never fail,
+# on a custom check or a bundled one (FlowOperatorInvokedInComposition included), the whole time.
+# Now `true` (`KotlinConfiguration.kt`'s `configureKotlinAndroid()`), confirmed clean against the
+# real codebase before flipping it. M25's own custom check (`:lint-rules`,
+# `UnstableCollectionInUiState`) is real and unit-tested, but only ever fires against `androidApp`'s
+# own `src/main` — a *dependency* module's `lintChecks` declaration (wired into every module via
+# `configureLinting()`) does not propagate that module's own `commonMain`/`androidMain` findings
+# into a consuming app's report under AGP 9.3.1's `com.android.kotlin.multiplatform.library` plugin,
+# confirmed empirically (a planted violation in `feature:subscriptions:ui` never appeared in
+# `androidApp:lintFdroidDebug`'s report, on or off, with `checkDependencies` either `true` or
+# `false`) — each such module exposes only a `lintAnalyzeAndroidHostTest` task, no
+# production-source-facing lint task, so there is currently nothing to wire this into for the
+# `feature:*:ui`/`composeApp`/`uikit` modules that actually hold `*UiState`/`@Composable` code.
+# `docs/revisit.md` #1 tracks closing this gap.
+./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug -PgplayBuild
 
 # The Room DAOs were the first instrumented suite (3.3); `feature:subscriptions:ui`'s Compose UI
 # tests (M19, 19.1) are the second, same `androidDeviceTest`/`withDeviceTestBuilder` shape. Neither
@@ -174,8 +205,10 @@ ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private sta
 # `actionlint` nor Python's `PyYAML` is installed on this machine): system `node` already carries
 # `js-yaml` at /usr/share/nodejs, no install needed.
 # NODE_PATH=/usr/share/nodejs node -e "require('js-yaml').load(require('fs').readFileSync('path/to.yml','utf8'))"
-# The real check is still GitHub's own parse — `gh workflow list` after pushing shows `active` for
-# a file with no syntax error, `disabled_yaml_error` (or absence from the list) for one that fails.
+# `guardrails.yml` runs this same check on all five workflow files in CI (21.3), so a syntax error
+# now fails the push instead of only surfacing via GitHub's own parse afterward — `gh workflow
+# list` (`active` vs. `disabled_yaml_error`) is a fallback for something guardrails can't catch
+# (a semantic error `js-yaml` accepts as valid YAML but the Actions schema rejects).
 
 # Gradle Isolated Projects was trialled and measured a real ~2.7x config-time win (2026-08-12),
 # but is currently **off** — `gradle.properties` has `org.gradle.isolated-projects=true` commented
@@ -215,7 +248,8 @@ driving the emulator rather than re-deriving any of it.
 
 CI (`.github/workflows/ci.yml`, plan §3.5, §3.8, §3.10) runs `assembleFdroidDebug` then
 `assembleGplayDebug -PgplayBuild` (split since 16.2 — a single `assembleDebug` can't pass
-`-PgplayBuild` to only one flavor) + `allTests` + `detekt ktlintCheck` + `koverXmlReport` (uploaded
+`-PgplayBuild` to only one flavor) + `allTests` + `detekt ktlintCheck` + `lintFdroidDebug
+lintGplayDebug -PgplayBuild` (21.1) + `koverXmlReport` (uploaded
 to Codecov) on push and PR to `dev` and `master`, but `paths-ignore` skips `**.md` and `docs/**` —
 a docs-only commit produces **no CI run**, which is not a failure. The gplay assemble step restores
 `androidApp/src/gplay/google-services.json` from the `WALLOS_GOOGLE_SERVICES_GPLAY` secret first
@@ -336,9 +370,48 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   `androidComponents.onVariants(selector().withBuildType(...).withFlavor(...)) { variant ->
   variant.signingConfig.setConfig(dslSigningConfig) }` is the mechanism, and `ApplicationVariant
   .signingConfig` (variant-API type) vs. the DSL's `ApkSigningConfig` are deliberately distinct
-  types that `setConfig` bridges. `build-logic` itself has no `detekt`/`ktlintCheck` coverage
-  (confirmed via `./gradlew -p build-logic tasks --all` finding no matching task) — `compileKotlin`
-  is what a convention-plugin change needs to pass locally.
+  types that `setConfig` bridges. `build-logic/convention/build.gradle.kts` applies
+  `alias(libs.plugins.detekt)`/`alias(libs.plugins.ktlint)` directly (21.2) — the same minimal
+  shape as the root `build.gradle.kts`, with **no** `config.setFrom` pointing at
+  `config/detekt/detekt.yml`: that shared config's `Compose` section needs the
+  `io.nlopez.compose.rules:detekt` plugin on the classpath, which a Kotlin-DSL build-logic project
+  has no reason to carry. So `build-logic` lints against detekt's own default ruleset, not the
+  app's tuned one — `./gradlew -p build-logic detekt ktlintCheck` is what a convention-plugin
+  change needs to pass locally, in addition to `compileKotlin`.
+- **Same technique again for Gradle's own API**, when a root-level check needs to know an exact
+  interface shape rather than guessing or porting a reference project's call verbatim —
+  `gradle-core-api-<version>.jar` sits in the Gradle wrapper distribution itself
+  (`~/.gradle/wrapper/dists/gradle-<version>-bin/<hash>/gradle-<version>/lib/`), no Maven
+  coordinate needed; `javap` a `.class` extracted from it directly (no `-sources.jar` exists for
+  Gradle's own API the way it does for Material 3/AGP above). 24.1 confirmed
+  `ProjectDependency.getPath()` this way — a first-class method on 9.7.0, no
+  `.dependencyProject.path` hop needed at all, unlike `duckduckgo-Android`'s own (older-Gradle,
+  Groovy) version of the same check.
+- **The root `build.gradle.kts` enforces three module-boundary rules from this file's own
+  Architecture/Non-negotiables sections as a real `GradleException` at Gradle configuration time**
+  (M24, ported from `duckduckgo-Android`'s `subprojects { incoming.beforeResolve { ... } }`):
+  nothing depends on `:androidApp` (except `:benchmark`, which structurally must via
+  `targetProjectPath`); only `:androidApp` depends on `:composeApp`; `:core:storage` never depends
+  on any `feature:*:domain`. Two things worth knowing before extending this check with a new rule:
+  a genuinely **cyclic** scratch violation never reaches it — Gradle's own static task-graph cycle
+  detector fires first, during task-graph calculation, before `incoming.beforeResolve` is ever
+  invoked — so proving a new rule fires needs a scratch dependency that is real but *not* already
+  cyclic with the target project's existing graph. And an AGP **application** module with product
+  flavors (`:androidApp` itself) isn't cleanly consumable as a project compile dependency from a
+  non-flavor-matching module at all — resolving one from a plain KMP library module hits Gradle's
+  own variant-ambiguity error before this check's `GradleException` would; that rule is real
+  defense-in-depth, not something provably reachable from every possible violator. Root
+  `build.gradle.kts` is **not** one of `check-guardrails.sh`'s `TRIPWIRE_PATHS` (only `.github/`,
+  `build-logic/`, `config/detekt/`, `.editorconfig`, `gradle/libs.versions.toml` are) — a change
+  here needs no `Gate-change:` line on its own. **A self-referential `ProjectDependency` (path ==
+  path) has to be excluded before the three checks run**, added in M25 after it broke
+  `allTests`/`lintFdroidDebug` outright: AGP/KGP's own android-host-test and lint-model machinery
+  resolves a module's test/lint classpath against a `ProjectDependency` pointing at the module
+  itself (`:composeApp:compileAndroidHostTest`, `:composeApp:generateAndroidHostTestLintModel` —
+  real Gradle tasks, not a real cross-module edge), which the `:composeApp`-depends-on-`:composeApp`
+  reading trips otherwise. This had been failing 24.1's own CI run unnoticed since 2026-08-14 — a
+  reminder that this check's own `GradleException` needs to be watched for in CI output after any
+  change near it, not just trusted to have passed because the commit that added it did.
 
 ## Non-negotiables
 
@@ -350,8 +423,13 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   a DataStore migration, a deprecated overload, or a compatibility shim — change the thing and
   say in the commit that stored state is discarded. This expires the day the app ships: the
   stored API key and the back stack are then the two things that need real care.
-- **No `androidMain` in feature modules** — use `expect`/`actual`. Platform targets are declared
-  **only** in `configureKmp()` in `build-logic`.
+- **A feature module reaches `androidMain` only through `expect`/`actual`, never for arbitrary
+  Android-only code.** This is not "an `androidMain` source set must never exist" — real ones do
+  (`feature/paymentmethods/ui/src/androidMain/`, `feature/subscriptions/ui/src/androidMain/`, each
+  holding one `actual` for a `commonMain` `expect`, confirmed 2026-08-14 while scoping M24: a
+  literal directory-existence check would have failed the real, correct build). Platform *targets*
+  are declared **only** in `configureKmp()` in `build-logic` — no feature module calls
+  `androidTarget()` itself.
 - **`commonMain` is not enforced platform-neutral here.** Android being the only target,
   `commonMain` compiles against the JVM variants: `java.io.File` and `kotlinx.coroutines.runBlocking`
   both resolve there and *nothing* fails. Keeping common code common is a discipline, not a
@@ -423,6 +501,12 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
 - **A `commonTest` fixture is a Kotlin constant, not a file.** There is no portable way to read a
   resource or a path from `commonTest`, so recorded HTML/JSON lives in a `*Fixtures.kt` and
   anything filesystem-backed needs an in-memory fake.
+- **Production code is never shaped by testing needs.** If a code path is flaky or can't be
+  observed deterministically as written, fix or simplify the *test* — don't add a seam,
+  injectable parameter, or abstraction to production code purely so a test can control it. This
+  holds even for a small, additive, provably-safe change (e.g. a defaulted constructor parameter
+  confirmed not to affect the DI graph): the question is whether it belongs in production code at
+  all, not whether it's safe. Ask before adding any such seam.
 
 ## Settled decisions
 
@@ -542,6 +626,19 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   `Throwable.findPendingCertTrust()` (`core:domain`) walks the chain for it. Any "everything else"
   arm has to *ask* it ahead of falling back to a generic unreachable-server message, because a
   rotated certificate is the one transport failure the user can fix. Full mechanism: plan §4.5.
+- **`CrashlyticsTree.log()` forwards exactly one thing: `LogPriority.ERROR` with a non-null
+  `throwable`** (`androidApp/.../CrashlyticsTree.kt`) — a `WARN` catch, or an `ERROR` one with no
+  `throwable =`, never reaches Crashlytics. That makes the *throwable itself* the thing to audit,
+  not the fixed string passed as the log message: a caught exception's own `.message` can carry
+  more than the surrounding text admits (`kotlinx.serialization`'s decode-failure messages embed
+  the full offending JSON verbatim, confirmed 2026-08-13 in `WallosEnvelopeParser` — M23). Passing
+  `e` straight through as `throwable =` at `ERROR` ships whatever's in `e.message` to Google on a
+  `gplay` build. Fix shape when a caught exception's message might carry response/user data: log
+  the real `e` at `WARN` (local Logcat only) and a fresh exception with a fixed, data-free message
+  at `ERROR`, mirroring `WallosEnvelopeParser`'s `logShapeMismatch`. `WallosLogger.install()` /
+  `.uninstall()` (`core:logger`) is public, so any module's `commonTest` can install a fake and
+  assert on exactly what a given catch block would send to Crashlytics — same shape as
+  `core:logger`'s own `LogcatTest.kt`.
 
 ## Strings and resources
 
@@ -649,6 +746,16 @@ Read these rather than guessing — the conventions here are ported from them.
 Two known drifts in those repos: `MealieMobile/docs/kmp-nav3.md` disagrees with its own code
 (plan §5.5), and Mealie's `CLAUDE.md` Tech Stack line says Koin uses KSP — its `build-logic` shows
 the compiler plugin.
+
+## Chat replies
+
+Answer in chat as a tl;dr: short, plain, human, straightforward. Give the result and the
+next step, not the reasoning that got there.
+
+- This is about chat only. Docs, code, comments, commit messages: write them however
+  the artifact and this file's other rules call for.
+- If something genuinely doesn't compress — a real tradeoff, a caveat that changes the
+  answer — explain it in full. Don't let that become the default excuse for length.
 
 ## Coding guidelines
 

@@ -9,8 +9,46 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done**
-**Current step:** none — M20 is done and no further milestone is decomposed yet. 20.4 closed
+**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
+M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
+**M25 done**
+**Current step:** M25 done, next milestone not yet decomposed. 25.1 closed 2026-08-14: a new
+`lint-rules` module adds one custom Android Lint detector (`UnstableCollectionInUiState`,
+`List`/`MutableList` in a `*UiState` class or a public `@Composable` param), wired into every
+module via `configureLinting()`. Landed alongside two unrelated pre-existing bugs it exposed and
+fixed — `lint.abortOnError` had been `false` since the project's first commit, so
+`lintFdroidDebug`/`lintGplayDebug` had never once failed a build on any real lint error despite
+21.1 wiring them into CI; and 24.1's module-boundary check false-positived on AGP's own
+`:composeApp -> :composeApp` self-dependency, which had been failing CI unnoticed since 24.1
+itself. One real gap found and not closed: a dependency module's own `lintChecks` findings don't
+reach a consuming app's report under AGP 9.3.1's KMP-library plugin, so the new detector currently
+only guards `androidApp`'s own source, not the `feature:*:ui`/`composeApp`/`uikit` code it exists
+for — filed as `docs/revisit.md` #1. See 25.1's own `Note:` for the full account.
+24.1 closed 2026-08-14: the root
+`build.gradle.kts` now enforces three module-boundary rules from `CLAUDE.md`'s Architecture section
+as a real `GradleException` at configuration time (nothing depends on `:androidApp`, only
+`:androidApp` depends on `:composeApp`, `:core:storage` never depends on any `feature:*:domain`),
+ported from `duckduckgo-Android`'s own `subprojects { incoming.beforeResolve { ... } }` mechanism.
+A fourth candidate rule ("no `androidMain` in feature modules") turned out not to hold — two
+feature modules legitimately have one for real `expect`/`actual` implementations — and was dropped
+from scope; see 24.1's own `Note:` for the full correction. 23.1 closed 2026-08-13:
+`WallosEnvelopeParser`'s two `ERROR`-with-throwable catch blocks now log the real exception at
+`WARN` (local Logcat only) and a scrubbed, body-free exception at `ERROR` (the one
+`CrashlyticsTree` forwards) — closes the raw-response-body-to-Crashlytics leak found while
+reviewing `docs/security/`-adjacent DDG infra. Two new regression tests confirm a planted marker
+string reaches the `WARN` entry but not the `ERROR` one. 22.1 closed 2026-08-13: a third
+button on the About screen ("Report an issue / suggestion") opens
+`https://github.com/Grigoriym/Wallosmobile/issues`, same `LocalUriHandler` pattern as the existing
+Project/Privacy Policy buttons. Verified on-device. 21.3 closed 2026-08-13:
+`.github/workflows/guardrails.yml` now loops the five workflow YAML files through the same
+`js-yaml` parse CLAUDE.md documents as a manual check, failing the job on a parse error. Verified
+locally: all five real files parse clean, a deliberately-broken scratch copy fails with a non-zero
+exit. See 21.3's own `Note:` for the `Gate-change:` line this step's commit carries.
+21.1 closed 2026-08-12: `lintFdroidDebug` and
+`lintGplayDebug -PgplayBuild` now run as CI steps in `.github/workflows/ci.yml` right after
+"Run detekt and ktlint"; `androidApp/build.gradle.kts` gained a `lint { disable += ... }` block
+trimming the two Renovate-redundant checks (`NewerVersionAvailable`, `GradleDependency`) — both
+lint tasks re-verified clean (`BUILD SUCCESSFUL`, 0 errors) after the trim. 20.4 closed
 2026-08-12: `kotlinx.datetime.LocalDate` trust-listed via a new `config/compose/stability_config.conf`
 + `configureComposeStabilityConfig()`, called unconditionally (never gated behind
 `-PcomposeStabilityReport`) from the same three call sites `configureComposeStabilityReports()` uses
@@ -128,7 +166,7 @@ five steps' full detail).
 2. Say: **"Read `docs/CHECKLIST.md` and do step N."**
 3. When it passes its *Verify* line: tick the box, update **Current step** above, add a one-line
    note under the step if anything deviated from the plan.
-4. Commit. Clear context. Repeat.
+4. Commit, PR into `dev`, merge once checks pass (Ground rules below). Clear context. Repeat.
 
 **Rules:**
 - Never start a step whose dependencies aren't ticked.
@@ -172,7 +210,11 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 ---
 
 Completed steps live in [`archive/CHECKLIST-DONE.md`](./archive/CHECKLIST-DONE.md) — **all of M0
-through M8, and now M10, M9, M11, M12, M13, M14, M15, M16, M17, M18 and M19**, verbatim. M10 was archived once before too (2026-08-08, its first seven
+through M8, and now M10, M9, M11, M12, M13, M14, M15, M16, M17, M18, M19, M20, M21, M22 and M23**,
+verbatim. M20 and M21 both closed 2026-08-12/13 but sat un-archived in this file for two sessions
+before being moved on 2026-08-13, alongside M22 — the "same commit as the closing step" rule
+(above) was skipped twice in a row; caught and backfilled, not a recurring problem to watch for
+beyond this note. M10 was archived once before too (2026-08-08, its first seven
 steps) and pulled back out the same day once two more real gaps turned up (10.8/10.9, below); once
 those two closed it, it was archived again for good, same day. On 2026-08-06 the per-step
 Deviations log that used to sit at the bottom of this file moved to
@@ -226,171 +268,6 @@ deleted. See `archive/CHECKLIST-DONE.md` for both steps. **M19 is done** too —
 here for TaigaMobileNova's own desktop technique to attach to) and covered the subscriptions list
 screen's four `when`-block states plus both banners, 8 tests total, all passing on-device; see
 `archive/CHECKLIST-DONE.md` for both steps.
-
----
-
-## M20 — Compose Compiler stability reports (not in plan §8's phase order)
-
-Decomposed 2026-08-12, the same day `TaigaMobileNova` did the identical work in its own
-`docs/compose/` — ported here at the user's request rather than independently re-derived. Full
-plan, researched facts (Kotlin/Compose-compiler version match, the single-Android-target
-simplification that avoids Taiga's own report-duplication detour, the module lists) and the
-`stability-scan.py` aggregator script (copied verbatim, project-agnostic) live in
-`docs/compose/stability-reports-plan.md` — read that before starting either step rather than
-re-deriving the Gradle extension shape or the module list here.
-
-Two steps are scoped now; a third (fixing whatever the audit in 20.2 actually finds) is
-deliberately **not** — Taiga's own precedent was to only scope its equivalent step once it knew
-what the first audit turned up, and this milestone follows the same discipline rather than
-guessing ahead. If 20.2 finds a real, fixable gap too large for its own step, it goes to
-`docs/revisit.md` (empty as of 2026-08-12 — a first finding here would be entry #1) or becomes
-20.3, decided at that point, not now.
-
-- [x] **20.1 — Gradle wiring: opt-in stability reports**
-  Add `configureComposeStabilityReports()` (new file
-  `build-logic/convention/src/main/kotlin/com/grappim/wallosmobile/buildlogic/ComposeCompilerReports.kt`),
-  gated behind `-PcomposeStabilityReport`, called from both `KmpLibraryComposeConventionPlugin.kt`
-  and `AndroidApplicationConventionPlugin.kt` right after `apply("org.jetbrains.kotlin.plugin.compose")`.
-  No `targetKotlinPlatforms` — this project has no `jvm()` target, so there's nothing to restrict
-  (see the plan doc's "Researched facts" for why Taiga needed that and this project doesn't).
-  *Verify:* the plan doc's own "Done when" block — reports appear under
-  `feature/subscriptions/ui/build/compose_reports/` with `-PcomposeStabilityReport --rerun-tasks`,
-  absent without the flag, and `androidApp:compileFdroidDebugKotlin -PcomposeStabilityReport` also
-  produces them. `:build-logic:convention:compileKotlin` clean (`build-logic` has no `ktlintCheck`
-  task).
-  ·  *Ref:* `docs/compose/stability-reports-plan.md` task 1;
-  `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 1 (the shape, not the
-  `targetKotlinPlatforms` detour — doesn't apply here).
-  Note: exactly the plan's snippet, no deviation — `ComposeCompilerGradlePluginExtension`'s member
-  names matched as assumed. All four `Done when` commands ran and passed as written. One thing the
-  plan didn't call out: `-PcomposeStabilityReport` also emits an `android/` subdirectory and a
-  `*-composables.csv` alongside the two `.txt` files in `compose_reports/` — worth noting in 20.2's
-  doc rather than assuming only the two `.txt` files exist.
-
-- [x] **20.2 — Aggregator script + first repo-wide audit + doc**
-  Copy `TaigaMobileNova/docs/compose/stability-scan.py` to `docs/compose/stability-scan.py`
-  (already done as part of this decomposition — confirm it's still there and still matches the
-  real report filenames rather than re-copying blind). Run `-PcomposeStabilityReport --rerun-tasks`
-  across all 14 Compose UI modules' `compileAndroidMain` plus `androidApp:compileFdroidDebugKotlin`
-  (module list in the plan doc — re-derive via
-  `grep -rl "wallosmobile.kmp.library.compose" --include="build.gradle.kts" .` if it's gone stale).
-  Run the script, triage its output the same three ways Taiga's task 2 did (fix inline if small,
-  `docs/revisit.md` if real but bigger, say so plainly if clean), and write
-  `docs/compose/stability-reports.md` (the "run it again" reference — how to run the audit, the
-  report format, this audit's findings). One-line pointer from CLAUDE.md's Compose rules section
-  to the new doc, next to the existing `ImmutableList` bullet.
-  *Verify:* `python3 docs/compose/stability-scan.py` runs and prints its summary;
-  `./gradlew allTests detekt ktlintCheck` if any production fix landed.
-  ·  *Ref:* `docs/compose/stability-reports-plan.md` task 2;
-  `TaigaMobileNova/docs/compose/stability-reports.md` (the doc shape to match).
-  Note: script needed no changes, report format matched Taiga's exactly. Findings: zero plain-`List`
-  violations (clean), and the same domain-model gap Taiga hit on a smaller scale (`PendingCertTrust`
-  in `core/domain`, `IconFile` in `feature/paymentmethods/domain`, `LogoFile` in
-  `feature/subscriptions/domain` — 3 modules, not Taiga's 11). Also found and documented a report
-  quirk not in Taiga's own doc: a same-module `UiState` parameter gets no stability prefix printed
-  at all, even when unstable — cross-check its own module's `-classes.txt` instead of trusting a
-  blank prefix. No production fix landed in this step (`allTests detekt ktlintCheck` not required
-  per the step's own Verify line) — user chose to scope the domain-gap fix as 20.3 rather than file
-  it to `docs/revisit.md`, since the fix shape is already validated by Taiga's task 3. Full findings:
-  `docs/compose/stability-reports.md`.
-
-- [x] **20.3 — Fix the domain-model stability gap**
-  Port Taiga's task 3 minimal-convention-plugin fix (see
-  `docs/compose/stability-reports-plan.md` task 3 for the full write-up and the three rejected
-  alternatives, ported from `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 3 rather
-  than re-derived here): new `wallosmobile.kmp.library.stability` convention plugin
-  (`build-logic/convention/src/main/kotlin/KmpLibraryStabilityConventionPlugin.kt` +
-  `ComposeStabilityMarker.kt`) applying only the Compose Kotlin compiler subplugin
-  (`org.jetbrains.kotlin.plugin.compose`, **not** `org.jetbrains.compose`) plus a `compileOnly
-  compose-runtime` dependency — no UI toolkit reaching the domain layer. Registered in
-  `gradle/libs.versions.toml` and `build-logic/convention/build.gradle.kts` following the
-  `kmpLibraryCompose` pattern. Applied alongside the existing `wallosmobile.kmp.library` alias in
-  the 3 modules 20.2's audit confirmed: `core/domain`, `feature/paymentmethods/domain`,
-  `feature/subscriptions/domain`. Re-run the full audit afterward and add any straggler the re-scan
-  still shows as unstable — Taiga's own task 3 found its hand-traced module list was incomplete and
-  only the empirical re-scan caught it; don't assume the 3-module list above is final without that
-  check.
-  *Verify:* `./gradlew :build-logic:convention:compileKotlin`; `./gradlew
-  :core:domain:compileAndroidMain :feature:paymentmethods:domain:compileAndroidMain
-  :feature:subscriptions:domain:compileAndroidMain`; re-run the task 2 audit
-  (`docs/compose/stability-reports.md#running-the-audit`) and confirm the unstable-composable-
-  parameter count drops to just the independently-unstable buckets (`kotlinx.datetime`,
-  `SavedStateConfiguration`); `./gradlew allTests detekt ktlintCheck`.
-  ·  *Ref:* `docs/compose/stability-reports-plan.md` task 3;
-  `TaigaMobileNova/docs/compose/stability-reports-plan.md` task 3 (the mechanism and rejected
-  alternatives); `docs/compose/stability-reports.md` (20.2's findings this step reacts to).
-  Note: ported exactly as planned, no deviation — new `wallosmobile.kmp.library.stability`
-  convention plugin (`ComposeStabilityMarker.kt` + `KmpLibraryStabilityConventionPlugin.kt`),
-  registered in `libs.versions.toml`/`build-logic/convention/build.gradle.kts`, applied alongside
-  `wallosmobile.kmp.library` in the 3 confirmed modules. Re-scan found no straggler beyond those
-  3 — the hand-traced list held this time, unlike Taiga's own task 3. All `Verify:` commands ran
-  and passed, including `allTests detekt ktlintCheck`. `docs/compose/stability-reports.md` updated
-  with an "After the fix" section recording the before/after composables-with-unstable-parameters
-  numbers.
-
-- [x] **20.4 — Trust-list `kotlinx.datetime.LocalDate` as stable**
-  Scoped 2026-08-12, after 20.3 closed, from a follow-up investigation into what else the Compose
-  Compiler stability space offers beyond the marker-plugin fix 20.1–20.3 ported from one article —
-  see that investigation's findings for the full survey (strong skipping / intrinsic remember /
-  `OptimizeNonSkippingGroups` / `PausableComposition` are all **already default-on** in this
-  project's exact `2.4.10` compose-compiler-gradle-plugin jar, confirmed by decompiling it, so
-  nothing to configure there) and for why the other candidates it turned up — `@Immutable`-annotating
-  `Subscription`/`AddSubscriptionParams`/`EditSubscriptionParams` (never passed directly as a
-  Composable parameter, would only be cosmetic), trust-listing `SavedStateConfiguration` (its one
-  consumer, `rememberNavigationState`, runs once at the shell root, not a recomposition hot path —
-  real risk per Android's own doc warning, zero real benefit), and wiring `androidApp:lintFdroidDebug`
-  into CI to close the "Compose lint never runs" gap CLAUDE.md's build-commands section already
-  documents (confirmed empirically: AGP's `com.android.kotlin.multiplatform.library` plugin produces
-  no lint model for its own Android source at all — `androidApp`'s aggregated lint report found zero
-  findings from any feature module when actually run, only from `androidApp`'s own thin files; a
-  known, currently-open AGP gap, not something a Gradle wiring fixes) — were investigated and
-  declined rather than scoped as steps.
-  `kotlinx.datetime.LocalDate` is different: it's the one "expected, not actionable" bucket from
-  20.2's audit that 20.3's marker-plugin approach structurally can't reach (`kotlinx-datetime` is a
-  third-party artifact — there's no module of ours to apply the Compose compiler subplugin to), it's
-  a genuinely immutable value type (all `val`s) so trusting it is well-founded rather than blind, and
-  it's a live parameter on a real interactive screen (`DateField` in the subscription editor) rather
-  than a once-at-root call site — fixing it would make `SubscriptionEditorUiState`,
-  `Subscription`, `AddSubscriptionParams` and `EditSubscriptionParams` genuinely stable, not just
-  report-quiet.
-  What the step needs to work out (not pre-solved here): a `.conf` file (format confirmed via
-  developer.android.com/develop/ui/compose/performance/stability/fix — one class per line, e.g.
-  `kotlinx.datetime.LocalDate`) wired through `composeCompiler { stabilityConfigurationFiles.set(...) }`
-  (the current, non-deprecated plural API — confirmed against the decompiled
-  `ComposeCompilerGradlePluginExtension`; the singular `stabilityConfigurationFile` the official doc's
-  own example still shows is `DeprecationLevel.ERROR` in this project's compiler version). **This
-  must not be gated behind `-PcomposeStabilityReport`** the way `configureComposeStabilityReports()`
-  is — that flag exists for the opt-in diagnostic dump, but a stability config file changes real
-  generated bytecode on every build, debug and release alike, so it needs its own unconditional
-  function (e.g. `configureComposeStabilityConfig()`) called alongside, not gated by, the reports
-  call. Decide the module list the same empirical way 20.3 did — hand-trace from the audit
-  (`feature/subscriptions/domain`, `feature/subscriptions/ui`, `feature/profile/ui` are the modules
-  20.2/20.3's findings show `LocalDate` reads unstable in) but confirm with a re-scan rather than
-  trusting the hand-traced list, same discipline as 20.3.
-  *Verify:* `./gradlew :build-logic:convention:compileKotlin`; re-run the task 2 audit
-  (`docs/compose/stability-reports.md#running-the-audit`) and confirm `DateField`'s `date` parameter
-  and `SubscriptionEditorUiState`'s `LocalDate` members no longer read unstable, with
-  `SavedStateConfiguration` the only entry left in "composables with unstable parameters";
-  `./gradlew allTests detekt ktlintCheck`.
-  · *Ref:* developer.android.com/develop/ui/compose/performance/stability/fix (config file format);
-  `docs/compose/stability-reports.md` (the audit this reacts to).
-  Note: new `config/compose/stability_config.conf` (one line: `kotlinx.datetime.LocalDate`), wired
-  through `configureComposeStabilityConfig()` in `ComposeCompilerReports.kt` — a plain
-  `stabilityConfigurationFiles.add(rootProject.layout.projectDirectory.file(...))`, confirmed against
-  the compose-compiler-gradle-plugin's own sources jar (the `-classes.txt`/`-composables.txt`
-  destinations use `DirectoryProperty`, `stabilityConfigurationFiles` is `ListProperty<RegularFile>`,
-  and `.add()` takes a `RegularFile` directly, matching the doc's own `.addAll(project.layout
-  .projectDirectory.file(...))` example). Called unconditionally, never gated behind
-  `-PcomposeStabilityReport`, from the same three call sites `configureComposeStabilityReports()`
-  already used (`KmpLibraryComposeConventionPlugin`, `AndroidApplicationConventionPlugin`,
-  `KmpLibraryStabilityConventionPlugin`) — resolved the step's own "decide the module list" question
-  by piggybacking on that existing set rather than picking a narrower one: every module carrying the
-  Compose compiler subplugin now trusts the type, not just the 3 hand-traced candidates, which is
-  fine since `LocalDate` is genuinely immutable everywhere. Re-scan confirmed the fix: composables-
-  with-unstable-parameters dropped to exactly 1 entry (`SavedStateConfiguration`), `DateField`'s
-  `date` parameter and `SubscriptionEditorUiState`/`AddSubscriptionParams`/`EditSubscriptionParams`'s
-  `LocalDate` members all read `stable`. All `Verify:` commands passed. **M20 is done (4/4)**.
-  `docs/compose/stability-reports.md` gets an "After the LocalDate trust-list" section.
 
 ---
 

@@ -303,11 +303,25 @@ have a `jvm()` target):
   `:module:detekt` reports `NO-SOURCE` and lints nothing. `configureLinting()` sets
   `source.setFrom(layout.projectDirectory.dir("src"))` to cover `commonMain`, `commonTest` and any
   platform source set.
+- **A `com.android.kotlin.multiplatform.library` module has no Lint task for its own
+  `androidMain`/`commonMain` *production* source at all** — only `lintAnalyzeAndroidHostTest`
+  (test source). A custom `lintChecks(project(":lint-rules"))` dependency (M25) therefore never
+  reaches a violation written in `feature:*:ui`/`composeApp`/`uikit`'s own commonMain, regardless
+  of whether it's declared on that module or propagated from `androidApp`'s own `checkDependencies`
+  — confirmed with `checkDependencies` both `true` and `false`. `androidApp:lintFdroidDebug`/
+  `lintGplayDebug` only ever see `androidApp`'s own `src/main`. Bundled checks shipped inside a
+  dependency AAR's own `lint.jar` (e.g. Compose runtime's `FlowOperatorInvokedInComposition`) are a
+  different mechanism and unaffected by this gap. Open, tracked in `docs/revisit.md` #1 — not
+  something `configureLinting()` can currently paper over the way it does for the host-test and
+  detekt-source-set gaps above.
 
-**Discipline that makes this cheap:** no `androidMain` source set in feature modules. If a feature
-needs a platform capability, it declares an `expect` in `commonMain` and the `actual` lives in
-`androidMain` of that module — so adding a target surfaces as compile errors listing exactly what
-is missing, rather than silently-Android code that has to be untangled.
+**Discipline that makes this cheap:** a feature module reaches `androidMain` only through
+`expect`/`actual`, never for arbitrary platform code dropped in directly. It declares an `expect`
+in `commonMain` and the `actual` lives in `androidMain` of that module — so adding a target
+surfaces as compile errors listing exactly what is missing, rather than silently-Android code that
+has to be untangled. (Not "an `androidMain` source set must never exist" — `feature/paymentmethods
+/ui/src/androidMain/` and `feature/subscriptions/ui/src/androidMain/` both legitimately have one;
+confirmed while scoping M24, see `CLAUDE.md`'s own Non-negotiables entry.)
 
 ### 3.2 Versions
 
@@ -2099,7 +2113,7 @@ one screen rather than a project-wide sweep —
 **Compose UI tests are instrumented (`androidDeviceTest`), not host tests, and have to be — this
 project declares no `jvm()` target for TaigaMobileNova's own `runComposeUiTest`/`jvmTest` technique
 to attach to (M19's own preamble in `docs/CHECKLIST.md` has the full comparison).** Wiring, per
-module that needs it (`kotlin { androidLibrary { withDeviceTestBuilder { sourceSetTreeName = null }
+module that needs it (`kotlin { android { withDeviceTestBuilder { sourceSetTreeName = null }
 .configure { instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" } } } }`, same shape
 3.3 used for Room's DAO suite) plus three `androidDeviceTest`-only dependencies, all pinned in
 `gradle/libs.versions.toml`:

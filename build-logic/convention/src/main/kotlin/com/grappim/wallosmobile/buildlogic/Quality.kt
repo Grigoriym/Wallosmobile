@@ -1,7 +1,6 @@
 package com.grappim.wallosmobile.buildlogic
 
 import dev.detekt.gradle.extensions.DetektExtension
-import java.io.File
 import org.gradle.api.Project
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
@@ -13,6 +12,7 @@ import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jlleitschuh.gradle.ktlint.KtlintExtension
 import org.jlleitschuh.gradle.ktlint.reporter.ReporterType
+import java.io.File
 
 // `:testing` is fakes and fixtures only — linting it adds noise without protecting anything,
 // and `.editorconfig` already disables ktlint for `**/testing/**`.
@@ -100,5 +100,14 @@ fun Project.configureLinting() {
     dependencies {
         "ktlintRuleset"(libs.findLibrary("composeRules-ktlint").get())
         "detektPlugins"(libs.findLibrary("composeRules-detekt").get())
+
+        // M25: a WallosMobile-specific Android Lint check (List/MutableList in a *UiState class
+        // or a public @Composable param). `lintChecks` only applies to the module that declares
+        // it — a consumer's own `lintChecks` does not reach into a dependency module's source
+        // (confirmed empirically: declaring it only in `androidApp` never surfaced a deliberately
+        // planted violation in `feature:subscriptions:ui`'s own `commonMain`), so every module
+        // needs its own line, same as `duckduckgo-Android`'s own per-module
+        // `gradle/android-library.gradle` convention script.
+        "lintChecks"(project(":lint-rules"))
     }
 }
