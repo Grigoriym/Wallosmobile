@@ -63,7 +63,13 @@ count_checklist_steps() {
 
 failed=0
 
-for sha in $(git rev-list --reverse "$RANGE"); do
+# --no-merges: a merge commit's own diff (against its first parent) shows everything the other
+# side brought in, not something *this* commit introduced — e.g. a branch catching up with dev
+# via `git merge dev` shows dev's entire history since the branch point as "touched," even though
+# each of those commits was already reviewed and declared on dev itself (found on renovate/filekit
+# after PR #15 merged: "Merge branch 'dev' into renovate/filekit" tripped nine files it never
+# touched). The commits that actually introduce content are still walked and still checked.
+for sha in $(git rev-list --reverse --no-merges "$RANGE"); do
   base="$(git rev-parse --verify --quiet "${sha}^" || echo "$EMPTY_TREE")"
   subject="$(git log -1 --format=%s "$sha")"
   reasons=()
