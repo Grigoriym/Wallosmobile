@@ -4439,3 +4439,154 @@ call verbatim.
   `.github/`, `build-logic/`, `config/detekt/`, `.editorconfig`, `gradle/libs.versions.toml` are);
   no `Gate-change:` line needed in this step's commit. **M24 is done** — archived to
   `archive/CHECKLIST-DONE.md` in this same commit.
+
+## M25 — A custom Android Lint detector for a WallosMobile-specific convention (not in plan §8's phase order)
+
+Decomposed 2026-08-14, from the "To review" entry filed 2026-08-13 (now removed) — the second of
+two entries filed the same day from reading `/home/gregory/proj/other/duckduckgo-Android` for
+transplantable infra; the first became **M24**. Read `duckduckgo-Android/lint-rules` in full
+(`~50` `com.android.tools.lint.detector.api.Detector` classes plus a `DuckDuckGoIssueRegistry`
+implementing `IssueRegistry`, wired into `app/build.gradle` via `lintChecks project(":lint-rules")`)
+for the *mechanism*, not its rules — Dagger/Anvil scoping and XML-view checks, none of which this
+repo has.
+
+**Picking a real target, not inventing one:** the backlog entry's own suggested case,
+`FlowOperatorInvokedInComposition` (16.5), turns out to already be closed — it's part of Compose
+runtime's own bundled lint checks, shipped inside the AAR and picked up automatically by the
+standard `Lint` task, so 21.1 wiring `lintFdroidDebug`/`lintGplayDebug` into CI already catches a
+repeat of it; a custom detector for it would be redundant. Checked the rest of CLAUDE.md's stated
+conventions against what's *already* gated before picking a replacement: bare `try/catch
+(Exception)` is detekt's `TooGenericExceptionCaught`/`SwallowedException`/
+`SuspendFunSwallowedCancellation` (all `active: true` in `config/detekt/detekt.yml`); the
+`CompositionLocal` allowlist is ktlint's `compose:compositionlocal-allowlist`; present-tense lambda
+naming is `compose:parameter-naming`. One real, explicitly-stated, mechanically-checkable
+convention has no gate anywhere: **"`ImmutableList` / `persistentListOf()` over `List` in state
+classes and Composable params, for stable recomposition"** (CLAUDE.md, Compose rules). M20's
+stability-report tooling (`docs/compose/stability-reports.md`) can *surface* a `List`-typed
+parameter making a class unstable, but it's an opt-in report a session has to remember to run, not
+a build failure — nothing today stops a plain `List<T>` from landing in a new `*UiState` class or a
+public `@Composable` parameter. Scoped to exactly this one detector, matching the backlog entry's
+own "one or two, not fifty": no second candidate in this project's actual history cleared the same
+bar (a real, repeated, currently-ungated mistake) without inventing one speculatively — a second
+detector is future backlog, not this milestone's job.
+
+- [x] **25.1 — A `lint-rules` module with one detector: `List`/`MutableList` in a `*UiState` class
+  or a public `@Composable` parameter**
+  New top-level module `lint-rules/` — plain `id("java-library")` + Kotlin JVM plugin, no AGP, same
+  shape as `duckduckgo-Android`'s own module and as this repo's own `build-logic` project (lints
+  against detekt's/ktlint's *default* ruleset via its own `detekt`/`ktlintCheck` run applied
+  directly in its `build.gradle.kts`, same as 21.2 set up for `build-logic` — no
+  `config.setFrom(config/detekt/detekt.yml)`, since that shared config's `Compose:` section needs
+  `io.nlopez.compose.rules:detekt` on the classpath for no reason here). `dependencies {
+  compileOnly(libs.lint.api); compileOnly(libs.lint.checks); testImplementation(libs.lint.tests) }`
+  — new `gradle/libs.versions.toml` entries at `com.android.tools.lint:lint-api`/`lint-checks`/
+  `lint-tests`, version **32.3.1**, confirmed against this project's own Gradle cache
+  (`~/.gradle/caches/modules-2/files-2.1/com.android.tools.lint/lint-api/32.3.1/`) as the version
+  AGP 9.3.1 (`agp` in the catalog) already resolves transitively — not guessed from the
+  AGP-major-plus-23 rule of thumb alone. Add `include(":lint-rules")` to `settings.gradle.kts`.
+  Add `lintChecks(project(":lint-rules"))` to `androidApp/build.gradle.kts`'s `dependencies {}` —
+  a plain AGP dependency configuration, needs no `build-logic` change.
+  One detector class, `UnstableCollectionInUiStateDetector : Detector(), SourceCodeScanner`,
+  UAST-based (same technique as DDG's `NoHardcodedCoroutineDispatcherDetector`): visits
+  `UParameter`s and flags one whose declared type's qualified name is exactly
+  `kotlin.collections.List` or `kotlin.collections.MutableList` (a qualified-name equality check,
+  not an assignability check — `kotlinx.collections.immutable.ImmutableList` implements `List` at
+  the type-system level, so a naive `is-a List` check would false-positive on the very type the
+  rule wants to encourage) when either: (a) the containing declaration is a class/constructor whose
+  simple name ends in `UiState`, or (b) the containing function carries `@Composable` and is
+  `public`/has no explicit `internal`/`private` modifier. `Issue.create(..., Category.CORRECTNESS,
+  priority = 6, Severity.ERROR, ...)` — must be `ERROR`, not `WARNING`: Android Lint only fails a
+  build (and therefore `lintFdroidDebug`/`lintGplayDebug`, and therefore CI) on `ERROR`/`FATAL`
+  severity by default, so a `WARNING` detector would compile clean and never actually gate anything,
+  the same silent-no-op failure mode this milestone exists to close.
+  Register it in a `WallosMobileIssueRegistry : IssueRegistry()` (one entry — no need for DDG's
+  50-entry list shape yet).
+  Tests: `lint-rules/src/test/` using `lint-tests`' `LintDetectorTest`/`TestFiles.kotlin(...)`
+  harness (DDG's own `*DetectorTest.kt` files are the reference for the harness shape) — one case
+  each for a `*UiState` class with a `List<T>` param (fails), a `*UiState` class with an
+  `ImmutableList<T>` param (clean), a public `@Composable` with a `List<T>` param (fails), and a
+  `private` `@Composable` with a `List<T>` param (clean, matching the rule's own "params" scope
+  reading as "the public signature" — narrow the detector rather than the test if this reads
+  differently once real UAST types are in hand).
+  *Verify:* `./gradlew -p lint-rules test` passes. Temporarily add a `List<String>` param to a real
+  `*UiState` class (or a public `@Composable`) in the app, run
+  `./gradlew :androidApp:lintFdroidDebug`, confirm it fails on the new issue ID — not a generic
+  resolution error; revert the scratch change and confirm
+  `./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug -PgplayBuild` both pass clean
+  against the real codebase (there is no known existing violation — this is a gate against future
+  drift, same framing as 24.1). `./gradlew detekt ktlintCheck` (root) unaffected since `lint-rules`
+  isn't in that aggregate. This commit touches `gradle/libs.versions.toml`, a `Gate-change:`
+  tripwire path — the commit needs the line (widening: a new dependency, nothing removed).
+  ·  *Ref:* `/home/gregory/proj/other/duckduckgo-Android/lint-rules/src/main/java/com/duckduckgo/lint/NoHardcodedCoroutineDispatcherDetector.kt`
+  for the UAST-reference-check shape and `registry/DuckDuckGoIssueRegistry.kt` for the registry;
+  `build-logic/convention/build.gradle.kts` for the "apply detekt/ktlint directly, no shared config"
+  precedent (21.2).
+  ·  *Note:* Landed, but with four real corrections the step's own text got wrong, plus two
+  pre-existing bugs found and fixed along the way — this is the milestone that turned out to be
+  mostly about the gate, not the detector.
+  1. **Type check is `resolve()?.qualifiedName == "java.util.List"` on the *resolved* PSI class,
+     not a `kotlin.collections.List`/`MutableList` text check.** Confirmed empirically (a
+     `System.err.println` planted in the detector, run against real compiled code): Kotlin's
+     `List`/`MutableList` both erase to the same `java.util.List` PSI-resolved class at this layer
+     regardless of which one is written in source, so one check covers both and a
+     `kotlinx.collections.immutable.ImmutableList` param (a real `List` subtype at the Kotlin
+     type-system level) correctly does *not* match, since `resolve()` returns the *declared*
+     type's own class, not a supertype.
+  2. **Visibility is `!hasModifierProperty(PsiModifier.PRIVATE)`, not a public-vs-internal
+     distinction** — Kotlin's `internal` has no distinct JVM access modifier (it's implemented via
+     name-mangling), so `PsiModifierListOwner` can't tell it apart from `public` reliably; "not
+     explicitly private" is the only distinction worth checking here.
+  3. **`lint-rules` needed the real `config.setFrom(config/detekt/detekt.yml)` +
+     `composeRules-detekt`/`composeRules-ktlint` dependencies after all** — the "same shape as
+     `build-logic`, no shared config" plan in this step's own text was wrong. `build-logic` gets
+     away with bare `alias(libs.plugins.detekt)`/`alias(libs.plugins.ktlint)` only because it's a
+     *separate included build* with its own `rootDir`; `lint-rules` is a normal subproject of
+     *this* build, so detekt's config auto-discovery finds the shared `config/detekt/detekt.yml`
+     regardless, and failed on its `Compose:` section (needs `io.nlopez.compose.rules:detekt` on
+     the classpath) until wired the same way every KMP module's own `configureLinting()` already
+     is. Also needed `alias(libs.plugins.jetbrains.kotlin.jvm) apply false` added to the *root*
+     `build.gradle.kts`'s `plugins {}` block (the existing "avoid loading a plugin twice" comment
+     there applied to this, the project's first non-KMP, non-`build-logic` Kotlin/JVM module, not
+     only to the plugins already listed).
+  4. **A `UParameter`'s `report`/`getLocation` calls need an explicit `as UElement` cast** — it
+     implements both `PsiElement` and `UElement`, and the overload set is ambiguous without one.
+     `UElementHandler` itself is `com.android.tools.lint.client.api.UElementHandler`, not
+     `org.jetbrains.uast.UElementHandler` as guessed. `TestLintTask` needs `.allowMissingSdk()` for
+     these plain-Kotlin fixtures, or every test fails before running with "This test requires an
+     Android SDK."
+
+  Two pre-existing bugs, unrelated to this step's own scope but blocking its own `Verify:` line,
+  fixed as part of landing it:
+  - **24.1's module-boundary check false-positived on `:composeApp -> :composeApp`**, thrown by
+    AGP/KGP's own android-host-test and lint-model machinery (`compileAndroidHostTest`,
+    `generateAndroidHostTestLintModel` — real Gradle tasks, not a real cross-module edge) resolving
+    a self-referential `ProjectDependency`. This has been failing `allTests`/`lintFdroidDebug` in
+    CI since 24.1 landed (`gh run list` showed the `24.1` commit's own CI run red, unnoticed —
+    `docs-only` commits don't trigger CI, so nothing after it re-ran the check until this step did).
+    Fixed with a `dependencyPath == projectPath` guard in root `build.gradle.kts`'s `subprojects {
+    }` block, before the three real rules.
+  - **`lint.abortOnError` has been `false` since 0.2/0.3 (build-logic's very first commit)** —
+    `lintFdroidDebug`/`lintGplayDebug` have never once failed a build on a real lint `ERROR`,
+    confirmed by planting a violation, watching it appear in the HTML/SARIF report at `ERROR`
+    severity, and watching the Gradle task still exit 0 regardless. 21.1 wired these tasks into CI
+    believing they were a real gate; they weren't, for anything — not this milestone's own check,
+    not a bundled Compose check like `FlowOperatorInvokedInComposition` — the whole time. Flipped
+    to `true` in `KotlinConfiguration.kt`'s `configureKotlinAndroid()`, confirmed clean against the
+    real codebase on both flavors before committing.
+
+  One real gap found and *not* closed, filed as `docs/revisit.md` #1 instead: **a dependency
+  module's own `lintChecks` findings don't reach a consuming app's Lint report.** Wiring
+  `lintChecks(project(":lint-rules"))` into every module via `configureLinting()` (not just
+  `androidApp`, where it first landed) was necessary but not sufficient — a violation planted
+  directly in `feature:subscriptions:ui`'s own `commonMain` `SubscriptionsUiState` never appeared
+  in `androidApp:lintFdroidDebug`'s report, with `checkDependencies` either `true` or `false`.
+  AGP 9.3.1's `com.android.kotlin.multiplatform.library` module type exposes only a
+  `lintAnalyzeAndroidHostTest` task per module — no task lints that module's own `androidMain`/
+  `commonMain` *production* source at all, so there is currently nothing to propagate. Net effect:
+  the detector only guards code written directly in `androidApp` (essentially none of which is
+  `*UiState`/`@Composable`), not the `feature:*:ui`/`composeApp`/`uikit` code it exists for. Bundled
+  checks shipped inside an AAR's own `lint.jar` (Compose runtime's `FlowOperatorInvokedInComposition`
+  among them) are unaffected by this — a different mechanism, confirmed still reachable via
+  `lintFdroidDebug` now that `abortOnError` is real again.
+
+**M25 is done** — archived to `archive/CHECKLIST-DONE.md` in this same commit.

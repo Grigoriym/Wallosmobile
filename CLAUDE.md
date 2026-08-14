@@ -139,6 +139,22 @@ This project uses the **`emulator-testing`** and **`finalize`** skills; both are
 # Flow built inside a composable lambda, `setContent { }` counts) that both gates missed; only
 # Android Studio's own inspection caught it at the time. Still worth a by-eye skim on any
 # `@Composable`-touching step, since lint only runs at CI/push time, not while writing the step.
+#
+# `lint.abortOnError` was `false` from 0.2/0.3 (build-logic's very first commit) until M25
+# (2026-08-14) — 21.1's CI wiring below ran this task on every push but it could never fail,
+# on a custom check or a bundled one (FlowOperatorInvokedInComposition included), the whole time.
+# Now `true` (`KotlinConfiguration.kt`'s `configureKotlinAndroid()`), confirmed clean against the
+# real codebase before flipping it. M25's own custom check (`:lint-rules`,
+# `UnstableCollectionInUiState`) is real and unit-tested, but only ever fires against `androidApp`'s
+# own `src/main` — a *dependency* module's `lintChecks` declaration (wired into every module via
+# `configureLinting()`) does not propagate that module's own `commonMain`/`androidMain` findings
+# into a consuming app's report under AGP 9.3.1's `com.android.kotlin.multiplatform.library` plugin,
+# confirmed empirically (a planted violation in `feature:subscriptions:ui` never appeared in
+# `androidApp:lintFdroidDebug`'s report, on or off, with `checkDependencies` either `true` or
+# `false`) — each such module exposes only a `lintAnalyzeAndroidHostTest` task, no
+# production-source-facing lint task, so there is currently nothing to wire this into for the
+# `feature:*:ui`/`composeApp`/`uikit` modules that actually hold `*UiState`/`@Composable` code.
+# `docs/revisit.md` #1 tracks closing this gap.
 ./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug -PgplayBuild
 
 # The Room DAOs were the first instrumented suite (3.3); `feature:subscriptions:ui`'s Compose UI
@@ -373,7 +389,15 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   defense-in-depth, not something provably reachable from every possible violator. Root
   `build.gradle.kts` is **not** one of `check-guardrails.sh`'s `TRIPWIRE_PATHS` (only `.github/`,
   `build-logic/`, `config/detekt/`, `.editorconfig`, `gradle/libs.versions.toml` are) — a change
-  here needs no `Gate-change:` line on its own.
+  here needs no `Gate-change:` line on its own. **A self-referential `ProjectDependency` (path ==
+  path) has to be excluded before the three checks run**, added in M25 after it broke
+  `allTests`/`lintFdroidDebug` outright: AGP/KGP's own android-host-test and lint-model machinery
+  resolves a module's test/lint classpath against a `ProjectDependency` pointing at the module
+  itself (`:composeApp:compileAndroidHostTest`, `:composeApp:generateAndroidHostTestLintModel` —
+  real Gradle tasks, not a real cross-module edge), which the `:composeApp`-depends-on-`:composeApp`
+  reading trips otherwise. This had been failing 24.1's own CI run unnoticed since 2026-08-14 — a
+  reminder that this check's own `GradleException` needs to be watched for in CI output after any
+  change near it, not just trusted to have passed because the commit that added it did.
 
 ## Non-negotiables
 

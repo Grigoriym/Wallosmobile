@@ -113,3 +113,41 @@ deleted — see `/finalize`.
   misspelled or does not exist` — that config section is only valid with the
   `io.nlopez.compose.rules:detekt` plugin on the classpath, which a Kotlin-DSL build-logic project
   has no reason to carry. Reverted to detekt's own default ruleset for `build-logic` instead.
+- `import org.jetbrains.uast.UElementHandler` in a new `lint-rules` `Detector` failed as an
+  unresolved reference (25.1) — the real package is `com.android.tools.lint.client.api
+  .UElementHandler`; `org.jetbrains.uast` only has the UAST node types, not the visitor-dispatch
+  helper. Also, `context.report(...)`/`context.getLocation(...)` overload resolution on a
+  `UParameter` (implements both `PsiElement` and `UElement`) is ambiguous without an explicit
+  `node as UElement` cast at the call site.
+- A new `lint-rules` module's `lint()` test task (`TestLintTask`, `lint-tests` artifact) failed
+  every test with `This test requires an Android SDK: No SDK configured` (25.1) — the fixtures are
+  plain Kotlin with no real Android dependency, so `.allowMissingSdk()` on the task builder was the
+  fix, not pointing `sdkHome()` at a real SDK.
+- Applying `alias(libs.plugins.jetbrains.kotlin.jvm)` directly in a new subproject's
+  `build.gradle.kts` (25.1's `lint-rules`, the project's first non-KMP, non-`build-logic` Kotlin/JVM
+  module) failed with "plugin is already on the classpath with an unknown version" until the same
+  plugin was also added as `apply false` in the root `build.gradle.kts`'s `plugins {}` block — the
+  comment already there ("necessary to avoid the plugins to be loaded multiple times in each
+  subproject's classloader") turned out to apply to any plugin a *second* subproject reaches for,
+  not just the ones already listed.
+- Applying `dev.detekt`/`org.jlleitschuh.gradle.ktlint` with no `config.setFrom` inside a **normal
+  subproject** of this build (25.1's `lint-rules`) still auto-discovered the shared root
+  `config/detekt/detekt.yml` and failed on its `Compose:` section — unlike `build-logic`, which
+  gets away with the same bare-plugins shape only because it's a *separate* included build with its
+  own `rootDir`, so the auto-discovery never finds this build's config file at all. A same-build
+  subproject needs the real `config.setFrom` + `composeRules-detekt`/`composeRules-ktlint`
+  dependencies, the same as every KMP module's `configureLinting()`.
+- `lint.abortOnError = false` (`build-logic`'s `KotlinConfiguration.kt`, set in the project's very
+  first commit, 0.2/0.3) meant `lintFdroidDebug`/`lintGplayDebug` had never once failed a build on
+  a real lint `ERROR` — confirmed by planting a violation, watching it appear in the HTML/SARIF
+  report at `ERROR` severity, and watching the Gradle task still exit 0. 21.1 wired these tasks
+  into CI believing they were a real gate; they weren't, for anything, the whole time. Fixed by
+  flipping to `true` (25.1), confirmed clean against the real codebase first.
+- A `lintChecks(project(":lint-rules"))` dependency declared on a *consuming* module (`androidApp`)
+  does not reach findings in a *dependency* module's own source (25.1) — a violation planted in
+  `feature:subscriptions:ui`'s `commonMain` never appeared in `androidApp:lintFdroidDebug`'s report
+  even after wiring `lintChecks` into every module via `configureLinting()` and trying
+  `checkDependencies` both `true` and `false`. Root cause: under AGP 9.3.1, a
+  `com.android.kotlin.multiplatform.library` module exposes only a `lintAnalyzeAndroidHostTest`
+  task, no task that lints its own `androidMain`/`commonMain` production source at all — there is
+  currently nothing to propagate. `docs/revisit.md` #1 tracks a real fix.

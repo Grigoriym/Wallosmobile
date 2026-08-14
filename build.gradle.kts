@@ -10,6 +10,7 @@ plugins {
     alias(libs.plugins.jetbrains.compose) apply false
     alias(libs.plugins.jetbrains.compose.compiler) apply false
     alias(libs.plugins.jetbrains.kotlin.multiplatform) apply false
+    alias(libs.plugins.jetbrains.kotlin.jvm) apply false
     alias(libs.plugins.koin.compiler) apply false
     alias(libs.plugins.kotlin.serialization) apply false
 
@@ -152,6 +153,15 @@ subprojects {
                 dependencies.withType<ProjectDependency>().forEach { dependency ->
                     val dependencyPath = dependency.path
                     val projectPath = subproject.path
+
+                    // AGP/KGP's own android-host-test and lint-model machinery resolves a
+                    // module's test/lint classpath against a `ProjectDependency` pointing at the
+                    // module itself (confirmed via `:composeApp:compileAndroidHostTest` and
+                    // `:composeApp:generateAndroidHostTestLintModel`, both real Gradle tasks, not
+                    // a real cross-module edge) — a self-dependency can never violate any of these
+                    // three rules, so it's excluded before the checks below rather than being
+                    // read as `:composeApp -> :composeApp`.
+                    if (dependencyPath == projectPath) return@forEach
 
                     // :benchmark is a com.android.test module and structurally must target
                     // :androidApp (`targetProjectPath`, benchmark/build.gradle.kts) — the one

@@ -46,7 +46,7 @@ internal fun Project.configureKotlinAndroid(commonExtension: CommonExtension) {
 
         lint.apply {
             checkDependencies = false
-            abortOnError = false
+            abortOnError = true
             warningsAsErrors = false
         }
 

@@ -303,6 +303,17 @@ have a `jvm()` target):
   `:module:detekt` reports `NO-SOURCE` and lints nothing. `configureLinting()` sets
   `source.setFrom(layout.projectDirectory.dir("src"))` to cover `commonMain`, `commonTest` and any
   platform source set.
+- **A `com.android.kotlin.multiplatform.library` module has no Lint task for its own
+  `androidMain`/`commonMain` *production* source at all** — only `lintAnalyzeAndroidHostTest`
+  (test source). A custom `lintChecks(project(":lint-rules"))` dependency (M25) therefore never
+  reaches a violation written in `feature:*:ui`/`composeApp`/`uikit`'s own commonMain, regardless
+  of whether it's declared on that module or propagated from `androidApp`'s own `checkDependencies`
+  — confirmed with `checkDependencies` both `true` and `false`. `androidApp:lintFdroidDebug`/
+  `lintGplayDebug` only ever see `androidApp`'s own `src/main`. Bundled checks shipped inside a
+  dependency AAR's own `lint.jar` (e.g. Compose runtime's `FlowOperatorInvokedInComposition`) are a
+  different mechanism and unaffected by this gap. Open, tracked in `docs/revisit.md` #1 — not
+  something `configureLinting()` can currently paper over the way it does for the host-test and
+  detekt-source-set gaps above.
 
 **Discipline that makes this cheap:** a feature module reaches `androidMain` only through
 `expect`/`actual`, never for arbitrary platform code dropped in directly. It declares an `expect`
