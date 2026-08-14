@@ -23,11 +23,33 @@ propagate. Bundled checks shipped inside an AAR's own `lint.jar` (Compose runtim
 
 Net effect: the detector only guards code written directly in `androidApp` (MainActivity-adjacent
 glue, essentially none of which is `*UiState`/`@Composable`), not the feature/composeApp/uikit code
-it was built for. Options to close it, none tried yet: check whether a newer AGP version's KMP
-library plugin adds a production-source lint task; apply `com.android.lint` directly to each
-Compose-bearing module instead of relying on cross-module propagation; or move the detector's
-target modules off `com.android.kotlin.multiplatform.library` for lint purposes specifically (not
-otherwise motivated). Re-run the planted-violation check in `feature:subscriptions:ui` (temporarily
-add a `List<String>` to a real `*UiState` class, `./gradlew :androidApp:lintFdroidDebug
---rerun-tasks`, check the HTML report for `UnstableCollectionInUiState`) before considering this
-closed.
+it was built for. Options considered:
+
+- Check whether a newer AGP version's KMP library plugin adds a production-source lint task —
+  untried, and not something to chase just for this (an AGP bump is its own decision).
+- Apply `com.android.lint` directly to each Compose-bearing module instead of relying on
+  cross-module propagation — untried, uncertain whether it coexists with
+  `com.android.kotlin.multiplatform.library` already applied to the same module.
+- Move the detector's target modules off `com.android.kotlin.multiplatform.library` for lint
+  purposes specifically — not otherwise motivated, heavy-handed.
+
+**Likely real fix, discussed with the user 2026-08-14, not started: port the check to detekt
+instead of Android Lint.** `configureLinting()` already runs detekt against every module's own
+`commonMain` correctly (`source.setFrom(layout.projectDirectory.dir("src"))`, confirmed no
+cross-module gap — that's how `compose-rules`' detekt ruleset already catches things today), so
+this sidesteps the whole AGP KMP-library limitation above rather than working around it. Shape:
+a new `detekt-rules` module (parallel to `lint-rules`, but implementing detekt's `Rule`/
+`RuleSetProvider` API against Kotlin PSI instead of Lint's `Detector`/`IssueRegistry` against
+UAST — same underlying check: a `List`/`MutableList`-typed property in a `*UiState` class or a
+public `@Composable` parameter), wired in via `detektPlugins(project(":detekt-rules"))` next to
+the existing `composeRules-detekt` line in `Quality.kt`. Whether `:lint-rules` stays (its own
+unit-tested `UnstableCollectionInUiStateDetector` still catches a violation written directly in
+`androidApp`, and the milestone's own real secondary yield — flipping `lint.abortOnError` to
+`true` — stands regardless) or gets dropped once the detekt version lands is an open call for
+whoever picks this up.
+
+Re-run the planted-violation check in `feature:subscriptions:ui` (temporarily add a `List<String>`
+to a real `*UiState` class, `./gradlew :androidApp:lintFdroidDebug --rerun-tasks`, check the HTML
+report for `UnstableCollectionInUiState`) before considering the Lint half of this closed; for the
+detekt version, `./gradlew :feature:subscriptions:ui:detekt` on the same scratch change is the
+equivalent check.
