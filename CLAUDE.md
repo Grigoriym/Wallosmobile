@@ -80,7 +80,10 @@ unaffected by the `dev`-side change above.
 The gates constrain the code a session writes; nothing constrains a session from widening a gate
 so its own step passes. `.github/workflows/guardrails.yml` doesn't prevent that — it makes it
 impossible to do quietly. A commit trips it by touching `.github/`, `build-logic/`,
-`config/detekt/`, `.editorconfig` or `gradle/libs.versions.toml`; by adding an `@Ignore` or a
+`config/detekt/`, or `.editorconfig`; by touching `gradle/libs.versions.toml`'s `detekt`, `ktlint`,
+`composeRules`, `agp` or `androidToolsLint` version keys specifically (a plain dependency bump —
+Renovate's usual PR — doesn't trip it, added 2026-08-14 after Renovate's own commits, which can
+never carry a `Gate-change:` line, failed guardrails on every PR); by adding an `@Ignore` or a
 `@Suppress`; or by **reducing** the number of Non-negotiables below or of steps in
 `docs/CHECKLIST.md` **plus `docs/archive/CHECKLIST-DONE.md`** — the two are summed, so moving a
 step between them is free and dropping one from either is not. Any of those needs a line in the
