@@ -15,7 +15,7 @@ kotlin {
     // `jni/` — neither is reachable from `testAndroidHostTest`. See the 3.3 note in
     // docs/CHECKLIST.md. `sourceSetTreeName = null` keeps `androidDeviceTest` out of the `test`
     // source-set tree, so `commonTest` is *not* also compiled onto the device.
-    androidLibrary {
+    android {
         withDeviceTestBuilder { sourceSetTreeName = null }
             .configure { instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     }

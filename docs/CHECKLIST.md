@@ -9,9 +9,79 @@ M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
-**M18 done**
-**Current step:** none — M18 closed. The Compose UI test setup M17 left queued in "To review"
-hasn't been decomposed yet; that's a fresh session's job. 18.2 closed 2026-08-11: the Settings →
+**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
+M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
+**M25 done**
+**Current step:** M25 done, next milestone not yet decomposed. 25.1 closed 2026-08-14: a new
+`lint-rules` module adds one custom Android Lint detector (`UnstableCollectionInUiState`,
+`List`/`MutableList` in a `*UiState` class or a public `@Composable` param), wired into every
+module via `configureLinting()`. Landed alongside two unrelated pre-existing bugs it exposed and
+fixed — `lint.abortOnError` had been `false` since the project's first commit, so
+`lintFdroidDebug`/`lintGplayDebug` had never once failed a build on any real lint error despite
+21.1 wiring them into CI; and 24.1's module-boundary check false-positived on AGP's own
+`:composeApp -> :composeApp` self-dependency, which had been failing CI unnoticed since 24.1
+itself. One real gap found and not closed: a dependency module's own `lintChecks` findings don't
+reach a consuming app's report under AGP 9.3.1's KMP-library plugin, so the new detector currently
+only guards `androidApp`'s own source, not the `feature:*:ui`/`composeApp`/`uikit` code it exists
+for — filed as `docs/revisit.md` #1. See 25.1's own `Note:` for the full account.
+24.1 closed 2026-08-14: the root
+`build.gradle.kts` now enforces three module-boundary rules from `CLAUDE.md`'s Architecture section
+as a real `GradleException` at configuration time (nothing depends on `:androidApp`, only
+`:androidApp` depends on `:composeApp`, `:core:storage` never depends on any `feature:*:domain`),
+ported from `duckduckgo-Android`'s own `subprojects { incoming.beforeResolve { ... } }` mechanism.
+A fourth candidate rule ("no `androidMain` in feature modules") turned out not to hold — two
+feature modules legitimately have one for real `expect`/`actual` implementations — and was dropped
+from scope; see 24.1's own `Note:` for the full correction. 23.1 closed 2026-08-13:
+`WallosEnvelopeParser`'s two `ERROR`-with-throwable catch blocks now log the real exception at
+`WARN` (local Logcat only) and a scrubbed, body-free exception at `ERROR` (the one
+`CrashlyticsTree` forwards) — closes the raw-response-body-to-Crashlytics leak found while
+reviewing `docs/security/`-adjacent DDG infra. Two new regression tests confirm a planted marker
+string reaches the `WARN` entry but not the `ERROR` one. 22.1 closed 2026-08-13: a third
+button on the About screen ("Report an issue / suggestion") opens
+`https://github.com/Grigoriym/Wallosmobile/issues`, same `LocalUriHandler` pattern as the existing
+Project/Privacy Policy buttons. Verified on-device. 21.3 closed 2026-08-13:
+`.github/workflows/guardrails.yml` now loops the five workflow YAML files through the same
+`js-yaml` parse CLAUDE.md documents as a manual check, failing the job on a parse error. Verified
+locally: all five real files parse clean, a deliberately-broken scratch copy fails with a non-zero
+exit. See 21.3's own `Note:` for the `Gate-change:` line this step's commit carries.
+21.1 closed 2026-08-12: `lintFdroidDebug` and
+`lintGplayDebug -PgplayBuild` now run as CI steps in `.github/workflows/ci.yml` right after
+"Run detekt and ktlint"; `androidApp/build.gradle.kts` gained a `lint { disable += ... }` block
+trimming the two Renovate-redundant checks (`NewerVersionAvailable`, `GradleDependency`) — both
+lint tasks re-verified clean (`BUILD SUCCESSFUL`, 0 errors) after the trim. 20.4 closed
+2026-08-12: `kotlinx.datetime.LocalDate` trust-listed via a new `config/compose/stability_config.conf`
++ `configureComposeStabilityConfig()`, called unconditionally (never gated behind
+`-PcomposeStabilityReport`) from the same three call sites `configureComposeStabilityReports()` uses
+— see 20.4's own `Note:` for the module-list reasoning and the re-scan confirmation
+(composables-with-unstable-parameters down to the single remaining `SavedStateConfiguration` entry).
+20.3 closed 2026-08-12: new `wallosmobile.kmp.library.stability`
+convention plugin (Compose Kotlin compiler subplugin only, `compileOnly compose-runtime`) applied
+to `core/domain`, `feature/paymentmethods/domain` and `feature/subscriptions/domain` — the re-scan
+confirmed no straggler beyond those 3 and the unstable-composable-parameter count dropped to just
+the 2 independently-unstable foreign-type entries. 20.2 closed 2026-08-12: ran the aggregator
+across all 15 targets, wrote `docs/compose/stability-reports.md`, and found the same domain-model
+gap TaigaMobileNova hit, on a smaller scale (3 domain modules, not 11) — scoped as 20.3 rather than
+filed to `docs/revisit.md`, at the user's choice. 20.1 closed 2026-08-12:
+`configureComposeStabilityReports()` wired into both `KmpLibraryComposeConventionPlugin.kt` and
+`AndroidApplicationConventionPlugin.kt` right after their `org.jetbrains.kotlin.plugin.compose`
+apply — see 20.1's own `Note:` for the two extra report artifacts (`android/` subdir,
+`*-composables.csv`) the plan doc didn't mention. M20 decomposed 2026-08-12, ported from
+`TaigaMobileNova/docs/compose/`'s own same-day work. 19.2 closed 2026-08-12: `feature:subscriptions:ui`'s list screen now has real matrix
+coverage — 8 instrumented tests across `SubscriptionsScreenTest` (loading/failed/empty/no-match/
+loaded, the four `when`-block branches plus the ordinary case) and two new files,
+`widgets/StaleBannerTest.kt`/`widgets/ConversionBannerTest.kt`, covering the two banners directly.
+See 19.2's own `Note:` for a step-prose correction: the checklist text names `isStale` as one of the
+four `SubscriptionsContent`-`when`-block states, but the block's real branches are `isLoading`,
+`isFailed`, `isEmpty`, `isNoMatch` — `isStale` draws the banner alongside the rows with no branch of
+its own, and is covered by the separate `StaleBannerTest` instead, matching what the step's very
+next sentence already said. All 8 tests passing on-device (`Medium_Phone_API_36.1`). **M19 is done**
+— both steps archived to `archive/CHECKLIST-DONE.md` in this same commit. 19.1 closed 2026-08-12:
+`feature:subscriptions:ui`'s
+`androidDeviceTest` source set is wired for Compose UI tests (same `withDeviceTestBuilder
+{ sourceSetTreeName = null }` shape as 3.3's Room DAO suite), one test passing on-device against
+`SubscriptionsContent` (now `internal`) rendering the empty state — see 19.1's own `Note:` for the
+two artifact-resolution gotchas (the correct `ui-test-junit4`/`ui-test-manifest` coordinates, and a
+transitively-pulled `espresso-core:3.5.0` crashing on this AVD's API 36 until forced to 3.7.0). 18.2 closed 2026-08-11: the Settings →
 Trusted certificates screen shipped, verified end-to-end on-device against a throwaway TLS front —
 see 18.2's own `Note:` for the full on-device trace (accept a real TOFU prompt, revoke it from the
 new screen, confirm the same host re-prompts on the next connection). `docs/revisit.md` #1 (filed
@@ -96,7 +166,7 @@ five steps' full detail).
 2. Say: **"Read `docs/CHECKLIST.md` and do step N."**
 3. When it passes its *Verify* line: tick the box, update **Current step** above, add a one-line
    note under the step if anything deviated from the plan.
-4. Commit. Clear context. Repeat.
+4. Commit, PR into `dev`, merge once checks pass (Ground rules below). Clear context. Repeat.
 
 **Rules:**
 - Never start a step whose dependencies aren't ticked.
@@ -140,7 +210,11 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 ---
 
 Completed steps live in [`archive/CHECKLIST-DONE.md`](./archive/CHECKLIST-DONE.md) — **all of M0
-through M8, and now M10, M9, M11, M12, M13, M14, M15, M16, M17 and M18**, verbatim. M10 was archived once before too (2026-08-08, its first seven
+through M8, and now M10, M9, M11, M12, M13, M14, M15, M16, M17, M18, M19, M20, M21, M22 and M23**,
+verbatim. M20 and M21 both closed 2026-08-12/13 but sat un-archived in this file for two sessions
+before being moved on 2026-08-13, alongside M22 — the "same commit as the closing step" rule
+(above) was skipped twice in a row; caught and backfilled, not a recurring problem to watch for
+beyond this note. M10 was archived once before too (2026-08-08, its first seven
 steps) and pulled back out the same day once two more real gaps turned up (10.8/10.9, below); once
 those two closed it, it was archived again for good, same day. On 2026-08-06 the per-step
 Deviations log that used to sit at the bottom of this file moved to
@@ -189,7 +263,11 @@ fixed inline; see `archive/CHECKLIST-DONE.md` for its eight steps. **M18 is done
 steps closed that gap: `TrustedCertStorage` gained `untrust`/`getAllFlow` and a Settings → Trusted
 certificates screen shipped, verified end-to-end on-device against a throwaway TLS front (accept a
 real TOFU prompt, revoke it, confirm the next connection re-prompts); `docs/revisit.md` #1 is
-deleted. See `archive/CHECKLIST-DONE.md` for both steps.
+deleted. See `archive/CHECKLIST-DONE.md` for both steps. **M19 is done** too — its two steps wired
+`feature:subscriptions:ui`'s `androidDeviceTest` source set for Compose UI tests (no `jvm()` target
+here for TaigaMobileNova's own desktop technique to attach to) and covered the subscriptions list
+screen's four `when`-block states plus both banners, 8 tests total, all passing on-device; see
+`archive/CHECKLIST-DONE.md` for both steps.
 
 ---
 
@@ -257,6 +335,10 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   written per step anyway — which is what the 82–100% on the logic layers already shows. This is not
   a "later" item any more; it needs a reason to come *back*, such as coverage on a logic module
   visibly falling.
+  **The Compose-UI-test half left this list to become M19, 2026-08-12, now closed** — see
+  `archive/CHECKLIST-DONE.md`'s M19 preamble for why Taiga's `jvm()`-based technique doesn't
+  transfer and what shape the first tests took. The Kover-floor half above stays parked on its own
+  terms.
 - **A certificate-trust prompt anywhere a refresh can fail, not only on the login screen** (3.8) —
   **decided against, 2026-08-09.** 5.1 already closed the copy half (a rotated certificate names
   itself in the stale banner/error message and points at Disconnect); this would have added the
@@ -275,16 +357,25 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   sitting silently empty while `loadCategories`/`loadPayers`/`loadPaymentMethods` are in flight — but
   the user still sees the screen itself take a while to open, which that fix never addressed. Two
   separate, real costs, only one still unscoped:
-  1. **The network wait — still open, unscoped.** 2 of the 3 picker calls land together ~500–700ms
-     after the request (the third, `get_household`, is fast — under 15ms) against the local
-     instance, with no retries or exceptions logged. Confirmed server-side, not client:
-     `LoginThrottle` only gates `login.php`/`totp.php`, `NetworkModule.kt` sets no connection-pool
-     limit, and a bare `curl` to the same three endpoints from the host resolved in ~7ms each — so
-     whatever serializes two of the three only shows up through the app's own request pattern
-     (PHP-FPM worker count or session-file locking are the live guesses, still unconfirmed). Fixing
-     this for real means giving these three repositories a cache the way `SubscriptionsRepository`
-     already has one — Phase 5 management-screen scope, not a small change. Filed 2026-08-07; the
-     next session picking this up should read this entry before re-deriving the measurement.
+  1. **The network wait — declined 2026-08-12, not worth it.** 2 of the 3 picker calls land
+     together ~500–700ms after the request (the third, `get_household`, is fast — under 15ms)
+     against the local instance, with no retries or exceptions logged. Confirmed server-side, not
+     client: `LoginThrottle` only gates `login.php`/`totp.php`, `NetworkModule.kt` sets no
+     connection-pool limit, and a bare `curl` to the same three endpoints from the host resolved in
+     ~7ms each — so whatever serializes two of the three only shows up through the app's own
+     request pattern (PHP-FPM worker count or session-file locking are the live guesses, still
+     unconfirmed and now staying that way). Filed 2026-08-07. Scoped 2026-08-12: a real fix means
+     giving `CategoriesRepository`/`HouseholdRepository`/`PaymentMethodsRepository` a cache the way
+     `SubscriptionsRepository` has one — new Room entities/DAOs in `core:storage`, a `Cache` class
+     per feature `data` module, a breaking `get*` → `observe*`/`refresh*` interface change reaching
+     three management-screen list ViewModels plus `SubscriptionEditorViewModel`, and ~9 test fakes
+     updated to match — reversing the explicit "reference data, no cache" call written into all
+     three repos' own KDoc. That's out of proportion to the payoff: it only pays off from the
+     *second* editor open onward (first open, or any open after an edit elsewhere invalidates the
+     cache, still round-trips), and doesn't touch the actual unconfirmed root cause either way.
+     User declined to pursue; **don't re-open this per step; it needs a reason to come back**, such
+     as the stagger getting materially worse or a real Phase 5 management-screen cache landing for
+     other reasons and picking these three up for free.
   2. **The JIT warm-up tax on cold navigation — addressed by M13, but the "fixed" verdict below
      rested on an unapplied profile. Now corrected: real improvement, not the original
      "indistinguishable" claim.** Re-investigated 2026-08-09 alongside the scroll-laggy item
@@ -313,28 +404,30 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
      the same as 13.2's own 93%/101.9ms and 88%/107.3ms) — that "did not improve" result stands
      on its own, unaffected by the profile-application gap. See the doc's "What landed" section
      for full numbers.
-- **The subscriptions list scrolls laggy.** Filed 2026-08-08 by the user; investigated 2026-08-09
-  (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), together with the FAB item above on
-  the hunch they shared a cause — confirmed true. A static code trace ruled out all three original
-  guesses (missing `key`, unstable item type, ViewModel flow re-emission during scroll — none
-  survive a read of `SubscriptionsScreen.kt`/`SubscriptionCard.kt`/`SubscriptionsViewModel.kt`).
-  Two real causes turned up by trace instead:
+- **The subscriptions list scrolls laggy — resolved, 2026-08-12.** Filed 2026-08-08 by the user;
+  investigated 2026-08-09 (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), together
+  with the FAB item above on the hunch they shared a cause — confirmed true. A static code trace
+  ruled out all three original guesses (missing `key`, unstable item type, ViewModel flow
+  re-emission during scroll — none survive a read of
+  `SubscriptionsScreen.kt`/`SubscriptionCard.kt`/`SubscriptionsViewModel.kt`). Two real causes
+  turned up by trace instead:
   - **Coil loading ~20+ previously-unfetched logos at once on a fast fling, contending on a lock
     inside Coil's own disk-cache writer — fixed and verified, `a0cf54d`.**
     `AppModule.provideImageLoader`'s fetcher concurrency is now capped at 4
     (`fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(4))`); on-device contention dropped
     from 18 events/50.6ms to 0 across two follow-up cold-scroll runs.
-  - **The same JIT-compilation floor as the FAB item above — addressed by M13, still open as a
-    user-visible complaint.** The Coil fix alone didn't move it: overall frame-jank numbers stayed
-    flat even with Coil contention at zero, confirming Coil was never the dominant cause of the
-    *aggregate* jank this AVD measures. Folded into **M13** (an Android Baseline Profile) alongside
-    the FAB item's JIT half, 2026-08-10, closed the same day: the profile eliminates JIT-code-cache
-    lock contention on the list-scroll path too (confirmed, reproduced across two runs), but the
-    doc's own frame-jank/worst-frame numbers — the metric closest to "does it feel laggy" — did not
-    improve and read worse in both post-profile runs on this AVD (`archive/CHECKLIST-DONE.md`'s
-    13.2 has the full numbers and the caveats around them). **The user's original complaint is not
-    confirmed fixed** — real hardware, not this software-rendered AVD, is the only way to settle
-    whether the profile actually helps a real user's felt experience.
+  - **The same JIT-compilation floor as the FAB item above — addressed by M13, now confirmed fixed
+    on real hardware.** M13's Baseline Profile eliminates JIT-code-cache lock contention on the
+    list-scroll path (confirmed on the AVD, 13.2), but 13.2's own AVD frame-jank measurement read
+    flat-to-worse, leaving the user's real complaint unconfirmed either way. The 2026-08-12
+    real-device addendum first confirmed the jank itself was real hardware, not an AVD artifact
+    (`SM-A920F`, 89% janky cold, `gplayDebug` — a build variant that structurally cannot carry the
+    profile). A same-day follow-up caught that gap and closed it: a signed `gplayRelease` build
+    (which does carry the profile, and is what Play/F-Droid actually distribute) on that exact same
+    device dropped janky frames from 83–90% to 3–11% and worst-case frame time from 150ms to
+    44–57ms, reproduced across two cold runs. **The original complaint is confirmed fixed** — every
+    real user already has this fix, since `androidx.profileinstaller` applies the bundled profile
+    automatically outside Play too. Full numbers: the doc's three 2026-08-12 addenda.
 - **The Subscriptions list flashed its empty-state text on every login — fixed and verified,
   2026-08-10, outside the checklist step process, same shape as `a0cf54d`.**
   Two compounding causes in `SubscriptionsViewModel`: (1) `_uiState`'s initial value defaulted
@@ -370,7 +463,7 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   WallosMobile already has a Keystore-backed cipher over the API key and a ported
   `CompositeTrustManager`, both further along than Taiga's own starting point, but Network/Auth/
   Platform/Code/Privacy/Resilience have never been reviewed at all). **Testing: next milestone
-  after M17, not folded into it.** Taiga's Compose UI test sweep runs via a `jvmTest` source set
+  after M17, not folded into it — became M19, now closed too.** Taiga's Compose UI test sweep runs via a `jvmTest` source set
   (Compose Desktop test artifacts), and WallosMobile declares no `jvm()` target, so that exact
   mechanism doesn't transfer as-is — but that's a setup gap for the next milestone to close, not a
   reason to drop the idea: once M17 closes, scope whether to add a `jvm()` target (so

@@ -109,7 +109,12 @@ section and `docs/local-info.txt` — this file only covers the device side.
   `force-stop` both the app and the browser before starting a kill cycle that follows a
   link tap. The link itself is a logcat check, not a screenshot (the browser's own
   first-run page looks the same for every URL): `adb logcat -c`, tap, then
-  `grep "ActivityTaskManager.*START"` for the `dat=`/`capturedLink=` fields.
+  `grep "ActivityTaskManager.*START"` for the `dat=`/`capturedLink=` fields. **This stops
+  working once the URL is longer than a short path** — confirmed 2026-08-13 (22.1) on
+  `https://github.com/Grigoriym/Wallosmobile/issues`: the `START` line's own `dat=` is
+  elided to `dat=https://github.com/...` by `ActivityTaskManager`'s log formatting, not
+  the real value. For a URL this long, screenshot Chrome's address bar instead (tapping
+  it expands the truncated display) — slower, but it's the value that's actually true.
 - **Theme check is a pixel, not an impression**:
   `python3 -c "from PIL import Image; print(Image.open('shot.png').convert('RGB')
   .getpixel((540, 220)))"` — `(26, 27, 31)` is `SurfaceDark`, `(253, 251, 255)` is

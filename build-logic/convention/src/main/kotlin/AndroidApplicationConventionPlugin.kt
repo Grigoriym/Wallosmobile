@@ -4,6 +4,8 @@ import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.grappim.wallosmobile.buildlogic.AppBuildTypes
 import com.grappim.wallosmobile.buildlogic.AppFlavors
 import com.grappim.wallosmobile.buildlogic.FlavorDimensions
+import com.grappim.wallosmobile.buildlogic.configureComposeStabilityConfig
+import com.grappim.wallosmobile.buildlogic.configureComposeStabilityReports
 import com.grappim.wallosmobile.buildlogic.configureFlavors
 import com.grappim.wallosmobile.buildlogic.configureKotlinAndroid
 import com.grappim.wallosmobile.buildlogic.configureLinting
@@ -13,6 +15,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.apply
 import org.gradle.kotlin.dsl.configure
+import java.io.File
 
 class AndroidApplicationConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) {
@@ -21,63 +24,17 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
             apply(plugin = "org.jetbrains.kotlin.plugin.compose")
             apply(plugin = "io.insert-koin.compiler.plugin")
 
+            configureComposeStabilityReports()
+            configureComposeStabilityConfig()
+
             extensions.configure<ApplicationExtension> {
                 defaultConfig.apply {
                     targetSdk = libs.findVersion("targetSdk").get().toString().toInt()
                     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
                 }
 
-                // One release identity per store flavor — assigned on the flavor below, not on
-                // the `release` build type, so `debug` keeps AGP's own default debug signing.
-                signingConfigs {
-                    AppFlavors.entries.forEach { flavor ->
-                        create("${flavor.title}Release") {
-                            val envSuffix = flavor.title.uppercase()
-                            storeFile = rootProject.file("wallos_mobile_${flavor.title}.jks")
-                            storePassword = System.getenv("WALLOS_STORE_PASS_$envSuffix")
-                            keyAlias = System.getenv("WALLOS_ALIAS_$envSuffix")
-                            keyPassword = System.getenv("WALLOS_KEY_PASS_$envSuffix")
-                            enableV2Signing = true
-                            enableV3Signing = true
-                        }
-                    }
-
-                    // F-Droid also ships a debug channel, and it needs a signing identity that's
-                    // stable across CI runs (unlike AGP's own per-machine debug key) so a device
-                    // can upgrade in place from one build to the next. Wired onto the variant
-                    // below, not the flavor, because a flavor-level signingConfig would apply to
-                    // both its build types and this one must not touch `fdroidRelease`.
-                    create("fdroidDebug") {
-                        storeFile = rootProject.file("wallos_mobile_fdroid_debug.jks")
-                        storePassword = System.getenv("WALLOS_STORE_PASS_FDROID_DEBUG")
-                        keyAlias = System.getenv("WALLOS_ALIAS_FDROID_DEBUG")
-                        keyPassword = System.getenv("WALLOS_KEY_PASS_FDROID_DEBUG")
-                        enableV2Signing = true
-                        enableV3Signing = true
-                    }
-                }
-
-                buildTypes {
-                    debug {
-                        applicationIdSuffix = AppBuildTypes.DEBUG.applicationIdSuffix
-
-                        isDebuggable = true
-                        isMinifyEnabled = false
-                        isShrinkResources = false
-                    }
-                    release {
-                        applicationIdSuffix = AppBuildTypes.RELEASE.applicationIdSuffix
-
-                        isDebuggable = false
-                        isMinifyEnabled = true
-                        isShrinkResources = true
-
-                        proguardFiles(
-                            getDefaultProguardFile("proguard-android-optimize.txt"),
-                            "proguard-rules.pro"
-                        )
-                    }
-                }
+                configureAppSigningConfigs(rootDir)
+                configureAppBuildTypes()
 
                 bundle {
                     language {
@@ -123,6 +80,62 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
             // the gates have to cover, even though it is not a KMP module.
             configureTests()
             configureLinting()
+        }
+    }
+}
+
+// One release identity per store flavor — assigned on the flavor below, not on the `release`
+// build type, so `debug` keeps AGP's own default debug signing.
+private fun ApplicationExtension.configureAppSigningConfigs(rootDir: File) {
+    signingConfigs {
+        AppFlavors.entries.forEach { flavor ->
+            create("${flavor.title}Release") {
+                val envSuffix = flavor.title.uppercase()
+                storeFile = File(rootDir, "wallos_mobile_${flavor.title}.jks")
+                storePassword = System.getenv("WALLOS_STORE_PASS_$envSuffix")
+                keyAlias = System.getenv("WALLOS_ALIAS_$envSuffix")
+                keyPassword = System.getenv("WALLOS_KEY_PASS_$envSuffix")
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+
+        // F-Droid also ships a debug channel, and it needs a signing identity that's stable
+        // across CI runs (unlike AGP's own per-machine debug key) so a device can upgrade in
+        // place from one build to the next. Wired onto the variant below, not the flavor,
+        // because a flavor-level signingConfig would apply to both its build types and this
+        // one must not touch `fdroidRelease`.
+        create("fdroidDebug") {
+            storeFile = File(rootDir, "wallos_mobile_fdroid_debug.jks")
+            storePassword = System.getenv("WALLOS_STORE_PASS_FDROID_DEBUG")
+            keyAlias = System.getenv("WALLOS_ALIAS_FDROID_DEBUG")
+            keyPassword = System.getenv("WALLOS_KEY_PASS_FDROID_DEBUG")
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+}
+
+private fun ApplicationExtension.configureAppBuildTypes() {
+    buildTypes {
+        debug {
+            applicationIdSuffix = AppBuildTypes.DEBUG.applicationIdSuffix
+
+            isDebuggable = true
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+        release {
+            applicationIdSuffix = AppBuildTypes.RELEASE.applicationIdSuffix
+
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
