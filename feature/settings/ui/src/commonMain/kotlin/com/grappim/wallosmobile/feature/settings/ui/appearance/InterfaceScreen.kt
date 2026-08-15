@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
@@ -114,11 +115,13 @@ private fun InterfaceContent(uiState: InterfaceUiState, modifier: Modifier = Mod
 @Composable
 private fun CrashReportingRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.padding(end = LABEL_SPACING)) {
+        Column(modifier = Modifier.weight(1f).padding(end = LABEL_SPACING)) {
             Text(text = stringResource(RString.settings_crash_reporting), style = MaterialTheme.typography.bodyLarge)
             Text(
                 text = stringResource(RString.settings_crash_reporting_description),
@@ -126,7 +129,7 @@ private fun CrashReportingRow(checked: Boolean, onCheckedChange: (Boolean) -> Un
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 

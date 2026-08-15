@@ -24,6 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextOverflow
+import com.grappim.wallosmobile.strings.RString
+import com.grappim.wallosmobile.strings.generated.resources.uikit_back_content_description
+import com.grappim.wallosmobile.strings.generated.resources.uikit_menu_content_description
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import com.grappim.wallosmobile.utils.ui.NativeText
@@ -31,6 +34,7 @@ import com.grappim.wallosmobile.utils.ui.asString
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,7 +78,7 @@ fun WallosTopAppBar(
                         IconButton(onClick = navIcon.onBackClick ?: defaultGoBack) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back"
+                                contentDescription = stringResource(RString.uikit_back_content_description)
                             )
                         }
                     }
@@ -94,7 +98,7 @@ fun WallosTopAppBar(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Menu,
-                                contentDescription = "Menu"
+                                contentDescription = stringResource(RString.uikit_menu_content_description)
                             )
                         }
                     }

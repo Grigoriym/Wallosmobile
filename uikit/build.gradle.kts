@@ -12,6 +12,8 @@ kotlin {
 
             // `api`: `TopBarConfig` exposes `NativeText` in its public signature.
             api(projects.utils.ui)
+
+            implementation(projects.strings)
         }
     }
 }

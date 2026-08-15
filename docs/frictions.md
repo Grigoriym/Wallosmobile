@@ -184,3 +184,9 @@ deleted — see `/finalize`.
   Java-interop synthetic-property sugar for a `getFoo()` method only applies when the declaring
   class originates from Java bytecode, not when calling from Kotlin into another Kotlin class.
   `ownerFunction.getContainingClassOrObject()` (explicit method call) is what actually compiles.
+- A new `androidDeviceTest` calling `performClick()` on a row found via `onNodeWithText` (27.4,
+  `SubscriptionEditorContent`'s notify `SwitchRow`) failed with `expected:<false> but was:<null>` —
+  the callback never fired, no exception. `performClick()` dispatches a real on-screen touch, not a
+  semantics action, and the row sits below the fold in this long scrollable form; `assertIsOn()` on
+  the same node passed fine just before it, since a semantics assertion reads state regardless of
+  what's actually rendered on screen. `performScrollTo()` before `performClick()` fixed it.

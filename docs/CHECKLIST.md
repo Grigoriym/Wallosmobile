@@ -11,8 +11,62 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done**
-**Current step:** none — M26 closed 2026-08-14. 26.1 closed 2026-08-14: a new `detekt-rules`
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done**
+**Current step:** M27 done 2026-08-15 — next up is decomposing a new milestone. 27.5 closed
+2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
+(`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
+`dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
+session can't hear audio, verified via `uiautomator dump`'s accessibility-node tree instead (the
+same tree TalkBack itself reads): confirmed `content-desc="Menu"`/`"Back"` on `WallosTopAppBar`
+(27.1) and confirmed all three `toggleable` rows (`SubscriptionEditorScreen`'s three switches,
+`CrashReportingRow`, `PaymentMethodEditorScreen`'s `Enabled` row — 27.2) collapse to a single
+`checkable="true" clickable="true"` node with `checked` matching the on-screen state, rather than
+two separate nodes. Focus order (drawer opens with the current screen pre-focused, pushed screens
+focus Back) read sensibly throughout. Separately, `font_scale 1.3` screenshots of Dashboard,
+Subscriptions list, the editor and Settings/Interface found one real bug:
+`InterfaceScreen.kt`'s `CrashReportingRow` Column had no `Modifier.weight(1f)`, so its two-line
+description text wasn't constrained to leave room for the `Switch` and the wrapped text collided
+with it at 1.3x scale — a one-line fix (added the `weight(1f)`), confirmed clean on-device after a
+rebuild. `docs/revisit.md` gained one unrelated finding surfaced by the same pass: the Subscriptions
+list's `LazyColumn` has no bottom `contentPadding` to clear the FAB, so the last row can render
+underneath it (reproduces at any font scale, not layout-break-worthy to fix inline here — needs a
+deliberate clearance value, not a guess). `docs/EMULATOR_TESTING.md` gained the TalkBack service
+component name and the first-enable notification-permission-dialog gotcha; the generic
+enable/disable/touch-exploration/dump-as-audio-substitute technique went into the shared
+`emulator-testing` skill (`agentic-grappim`, left uncommitted for review). 27.4 closed 2026-08-15:
+two new `androidDeviceTest`s in `feature:subscriptions:ui`. `WallosTopAppBarMenuTest.kt` renders
+`WallosTopAppBar` directly (the
+module has no other way to reach the drawer shell that actually hosts it) with
+`NavigationIconConfig.Menu` and asserts `onNodeWithContentDescription` finds the now-localized
+string — the 27.1 regression check. `SubscriptionEditorSwitchRowTest.kt` renders
+`SubscriptionEditorContent` (now `internal`, same precedent as `SubscriptionsContent`) with
+`notify = true`, asserts the row found by its label text is a single merged node via `assertIsOn`,
+then `performScrollTo().performClick()`s it and asserts `onNotifyChange(false)` fired — the 27.2
+regression check, proving both the merge and that the whole row is the hit target. The scroll
+turned out to be load-bearing: `performClick` dispatches a real on-screen touch, and the notify row
+sits below the fold in this long form, so the first run failed with the callback never firing until
+`performScrollTo()` was added before it (`assertIsOn` needed no such fix, since a semantics
+assertion reads state regardless of what's actually on screen). `./gradlew
+:feature:subscriptions:ui:connectedAndroidDeviceTest` (10/10) and `./gradlew detekt ktlintCheck`
+both pass. 27.3 closed 2026-08-15: a new `uikit` commonTest, `ContrastTest.kt`,
+computes WCAG relative-luminance contrast directly from the `Color.kt` palette constants for all
+ten on-color/color pairs across both `LightColorScheme` and `DarkColorScheme` (20 total) and
+asserts each is `>= 4.5:1`. All twenty already pass — no `Color.kt` change needed; ratios ranged
+5.46:1 (dark `surfaceVariant`/`onSurfaceVariant`, the tightest) to 16.73:1 (light
+`surface`/`onSurface`). `./gradlew :uikit:testAndroidHostTest --tests
+"com.grappim.wallosmobile.uikit.ContrastTest"` and `detekt ktlintCheck` both pass. 27.2 closed
+2026-08-15: `InterfaceScreen.kt`'s `CrashReportingRow`,
+`SubscriptionEditorScreen.kt`'s `SwitchRow` and `PaymentMethodEditorScreen.kt`'s `SwitchRow` now
+put `Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)` on
+the `Row` and set the inner `Switch`'s `onCheckedChange` to `null`, matching the `RadioButton`
+rows' `selectable` pattern. `detekt ktlintCheck` plus the three touched modules'
+`testAndroidHostTest` all pass. 27.1 closed 2026-08-15: `uikit` now depends on `:strings`
+(`implementation(projects.strings)`, matching every `feature:*:ui` module's own line), and
+`WallosTopAppBar`'s two bare `"Back"`/`"Menu"` content-description literals are now
+`stringResource(RString.uikit_back_content_description)` /
+`stringResource(RString.uikit_menu_content_description)`, backed by two new entries in
+`strings/src/commonMain/composeResources/values/strings.xml`. `:uikit:compileKotlin` and
+`detekt ktlintCheck` both pass. 26.1 closed 2026-08-14: a new `detekt-rules`
 module ports `UnstableCollectionInUiState` to a real detekt `Rule` (`UnstableCollectionInUiStateRule`,
 registered under a new `WallosMobile` ruleset id), wired into every module via `configureLinting()`
 the same way `composeRules-detekt` is — closing `docs/revisit.md` #1, since a `detektPlugins` rule
@@ -421,6 +475,187 @@ There is no cross-module propagation gap to work around the way there is for And
   providers actually on *that module's* `detektPlugins` classpath, not against what
   `configureLinting()` wires into other modules. `:lint-rules` dropped as recommended, confirmed
   rather than assumed — see the header `Note:` above for the verify.
+
+---
+
+## M27 — Accessibility audit and fixes (not in plan §8's phase order)
+
+Decomposed 2026-08-15, from a general "what's needed for accessibility" survey the user asked for
+in chat — not a `docs/issues/` investigation, since nothing here started as a reported bug. The
+survey read the source rather than driving a device, and found the app already gets a fair amount
+right for free: no fixed `sp` font sizes anywhere (system font-scale works by default),
+`android:supportsRtl="true"`, `SubscriptionLogo`/`PaymentMethodIcon` correctly pass
+`contentDescription = null` on decorative logos (the name is already adjacent text), `LoginScreen`
+already sets `semantics { contentType = ... }` for autofill, and the `RadioButton` rows in
+`InterfaceScreen.kt`/`StartDestinationScreen.kt` already use the whole-row-is-the-target pattern on
+purpose (there's a comment explaining why). Android Lint is already wired into CI with
+`abortOnError = true` (M21/M25), which enforces some baseline a11y checks for free. Four real,
+independently-fixable gaps survived that read, plus one thing (an on-device pass) no amount of
+source-reading can substitute for — five steps below, in dependency order: 27.1/27.2 are
+independent source fixes, 27.3 is independent of both, 27.4 depends on 27.1 and 27.2 having
+landed, and 27.5 (the device pass) goes last since it's the cheapest way to confirm all four at
+once rather than booting the emulator repeatedly.
+
+- [x] **27.1 — Localize `WallosTopAppBar`'s hardcoded "Back"/"Menu" content descriptions**
+  `uikit/.../widgets/topappbar/WallosTopAppBar.kt` lines 77 and 97 pass
+  `contentDescription = "Back"` / `"Menu"` as bare literals — the only two content descriptions in
+  the entire codebase not routed through `RString`/`stringResource` (every sibling on the same
+  screen — `NavigationIconConfig.Custom`, both `TopBarActionIconButton`/`TopBarActionVectorButton`
+  — takes an already-resolved `String` from its caller, which *does* go through `RString` at the
+  call site). Two real costs: these two never get translated when the app localizes, so a TalkBack
+  user on a non-English device still hears English for exactly these two controls; and it
+  contradicts this project's own "Each string is imported by name" rule.
+
+  `uikit` does not currently depend on `:strings` (zero `RString` usage anywhere under
+  `uikit/src`, confirmed by grep) — add `implementation(projects.strings)` to
+  `uikit/build.gradle.kts`, the same line every `feature:*:ui` module already has, rather than
+  giving `uikit` a second, separately-packaged string catalog (it already generates its own `Res`
+  class for `RDrawable`, but reusing the one catalog every other string in the app goes through is
+  the better precedent). Add two entries to
+  `strings/src/commonMain/composeResources/values/strings.xml` — existing names are
+  feature-prefixed (`login_username_label`, `settings_crash_reporting`); `uikit` isn't a feature,
+  so prefix with the module name the same way: `uikit_back_content_description` /
+  `uikit_menu_content_description`. Replace both literals in `WallosTopAppBar.kt` with
+  `stringResource(RString.uikit_back_content_description)` /
+  `stringResource(RString.uikit_menu_content_description)` — both call sites are already inside a
+  `@Composable` context.
+
+  *Verify:* `./gradlew :uikit:compileKotlin` (a missing/misspelled resource fails as `Unresolved
+  reference` at the `RString.x` usage, not the import — CLAUDE.md's own note on this). Then
+  `./gradlew detekt ktlintCheck`. A live TalkBack confirmation that these now announce correctly
+  happens in 27.5, not repeated here.
+
+- [x] **27.2 — Give the three `Switch` rows the same whole-row-is-the-target pattern the
+  `RadioButton` rows already use**
+  Three call sites, each a `Row { Text(label[, description]); Switch(checked, onCheckedChange) }`
+  with only the `Switch` itself clickable/focusable: `InterfaceScreen.kt`'s `CrashReportingRow`
+  (~line 114), `SubscriptionEditorScreen.kt`'s `SwitchRow` (~line 298), and
+  `PaymentMethodEditorScreen.kt`'s `SwitchRow` (~line 186). This is a smaller tap target than the
+  row pattern already proven next to two of these, and it gives TalkBack two separate stops (an
+  unfocusable label, then the small switch) instead of one node announcing label and state
+  together — inconsistent with the `RadioButton` rows' own documented reasoning: "the whole row is
+  the target and the `RadioButton` takes `onClick = null`, so the button is drawn by the row's
+  `selectable` rather than being a second, smaller hit area over the same state."
+
+  Fix, identical at all three call sites: add `Modifier.toggleable(value = checked, role =
+  Role.Switch, onValueChange = onCheckedChange)` to the `Row`, and change the inner `Switch` to
+  `onCheckedChange = null` so it stops being its own separately-focusable target — the `toggleable`
+  analogue of the `RadioButton` rows' `selectable`.
+
+  *Verify:* no existing test targets `CrashReportingRow`/`SwitchRow` directly (confirmed by grep —
+  nothing under `*Test.kt` references either name), so nothing to update there.
+  `./gradlew detekt ktlintCheck` plus each touched module's `testAndroidHostTest`. On-device
+  confirmation folds into 27.5.
+
+  Note: applied exactly as planned at all three call sites — `Modifier.toggleable(value = checked,
+  role = Role.Switch, onValueChange = onCheckedChange)` on the `Row`, `Switch`'s own
+  `onCheckedChange` set to `null`. `Role` was already imported in `InterfaceScreen.kt`;
+  `SubscriptionEditorScreen.kt` and `PaymentMethodEditorScreen.kt` needed both a new `Role` and a
+  new `toggleable` import. `./gradlew detekt ktlintCheck
+  :feature:settings:ui:testAndroidHostTest :feature:subscriptions:ui:testAndroidHostTest
+  :feature:paymentmethods:ui:testAndroidHostTest` all green.
+
+- [x] **27.3 — WCAG AA contrast check on `LightColorScheme`/`DarkColorScheme`**
+  Computable without a device, so do it by computation rather than eyeballing (per this project's
+  own "determinism over process" rule) instead of leaving it to the device pass. `uikit/.../
+  Theme.kt` defines ten on-color/color pairs per scheme: `primary`/`onPrimary`,
+  `primaryContainer`/`onPrimaryContainer`, `secondary`/`onSecondary`,
+  `secondaryContainer`/`onSecondaryContainer`, `tertiary`/`onTertiary`,
+  `tertiaryContainer`/`onTertiaryContainer`, `error`/`onError`, `errorContainer`/`onErrorContainer`,
+  `surface`/`onSurface`, `surfaceVariant`/`onSurfaceVariant` — 20 pairs across both schemes. Add a
+  small `uikit` `commonTest` that computes WCAG relative-luminance contrast ratio for each pair
+  from the `Color.kt` constants directly and asserts `>= 4.5` (normal-text AA; note in the test if
+  a pair is only ever used for large text/icons, where `3.0` is the real bar, rather than holding
+  every pair to the stricter number by default).
+
+  *Verify:* the new test passes against the real palette. If any pair fails, that's a real finding
+  — fix the failing `Color.kt` constant if it's a small, isolated tone adjustment; if fixing it
+  would mean re-deriving more of the tonal palette than that, file it in `docs/revisit.md` instead
+  of forcing a fix inline, per M17's own precedent for exactly this kind of call.
+
+  Note: all 20 pairs already pass 4.5:1 — no `Color.kt` change needed, nothing filed in
+  `docs/revisit.md`. `ContrastTest.kt` computes WCAG relative luminance straight from
+  `androidx.compose.ui.graphics.Color`'s own `.red`/`.green`/`.blue` (already sRGB gamma-encoded
+  0..1 floats for a `Color(0xFF...)` literal) rather than decoding the hex constants by hand.
+  Every pair here is normal-text UI, so all twenty are held to the 4.5:1 bar — none of them is
+  large-text/icon-only, so the `3.0` carve-out this step's own text allows didn't apply.
+
+- [x] **27.4 — Semantics assertions in `feature:subscriptions:ui`'s existing `androidDeviceTest`
+  suite (M19), covering what 27.1/27.2 changed inside that module**
+  `androidDeviceTest` is opt-in per module and currently wired only for
+  `feature:subscriptions:ui` and `core:storage` (confirmed by grep for `withDeviceTestBuilder`) —
+  so this step stays inside that existing wiring rather than adding it to a new module, and
+  therefore only covers the two 27.1/27.2 changes reachable from `feature:subscriptions:ui`: the
+  `WallosTopAppBar` `Menu` icon (used by `SubscriptionsScreen`'s shell) and
+  `SubscriptionEditorScreen`'s own `SwitchRow`. The `CrashReportingRow` (settings) and
+  `PaymentMethodEditorScreen` `SwitchRow` fixes have no automated regression coverage after this
+  step — that gap is intentional (those modules have no device-test wiring today, and adding it
+  is out of this step's scope) and is exactly what 27.5's manual pass exists to cover instead.
+
+  Add two tests: one asserting `onNodeWithContentDescription` finds the (now-localized) Menu
+  button; one asserting `SubscriptionEditorScreen`'s toggle row is a single merged semantics node
+  exposing `Role.Switch` and the correct on/off state (`assertIsOn`/`assertIsOff`) rather than two
+  separate nodes — this is the actual regression check for 27.2's `mergeDescendants` change.
+
+  *Verify:* `./gradlew :feature:subscriptions:ui:connectedAndroidDeviceTest` passes on the AVD
+  (needs the emulator up — `emulator-testing` skill).
+
+  Note: `SubscriptionsContent` never renders `WallosTopAppBar` itself — the shell in `composeApp`
+  does, driven by `LocalTopBarConfig`, and `feature:subscriptions:ui` has no way to reach
+  `composeApp` (the dependency runs the other way). So the Menu test renders `WallosTopAppBar`
+  directly from `uikit` (already a dependency of this module) with `NavigationIconConfig.Menu`
+  rather than going through `SubscriptionsScreen`'s full wiring. `SubscriptionEditorContent` needed
+  to go from `private` to `internal` for the second test to reach it, mirroring `SubscriptionsContent`'s
+  own precedent. `performClick()` dispatches a real on-screen touch rather than invoking a semantics
+  action directly, so the first run of the switch-row test failed (`expected:<false> but
+  was:<null>` — the callback never fired) because the notify row sits below the fold in the
+  scrollable form; `performScrollTo()` before `performClick()` fixed it. `assertIsOn()` needed no
+  such fix, since it reads semantics state regardless of what's on screen.
+
+- [x] **27.5 — Device pass: TalkBack walkthrough + largest-font-scale screenshots**
+  The one thing source-reading can't substitute for. Boot the AVD (`emulator-testing` skill),
+  enable TalkBack via `adb shell settings put secure enabled_accessibility_services` /
+  `accessibility_enabled 1` (confirm the exact service component name for this AVD's TalkBack
+  build before assuming the setting string), and walk Dashboard → Subscriptions list →
+  Subscription editor → Settings → the two 27.2 rows not covered by 27.4's automated test
+  (`CrashReportingRow`, `PaymentMethodEditorScreen`'s `SwitchRow`) — confirm focus order reads
+  sensibly and both switches announce as one stop with label and state together. Separately, set
+  the largest system font scale (`adb shell settings put system font_scale 1.3` or via the
+  on-device Settings app) and screenshot the same three-to-four key screens, checking for text
+  truncation or overlap.
+
+  Split what this finds two ways, per `CLAUDE.md`'s own rule on shared skills: any project-specific
+  fact this AVD/app combination turns up (the exact TalkBack service component name, a
+  font-scale-specific gotcha on a particular screen) goes in `docs/EMULATOR_TESTING.md`, same as
+  every other device fact that skill already holds. A *generic*, non-project-specific
+  TalkBack/font-scale driving technique belongs in the shared `emulator-testing` skill itself,
+  which lives in the separate `agentic-grappim` repo — this step cannot commit that edit directly;
+  flag it for `/finalize` to actually push, the same as any other shared-skill lesson a step turns
+  up. Any real layout break found and not a one-line fix goes in `docs/revisit.md` rather than
+  being forced inline, mirroring M17's own instruction for exactly this situation.
+
+  *Verify:* the walkthrough and screenshots happen and get eyeballed; this step's "done" condition
+  is that both passes ran and their findings — fixed inline, filed in `docs/revisit.md`, or noted
+  as a shared-skill gap for `/finalize` — are accounted for, not that every screen turned out
+  perfect.
+
+  Note: a headless adb session can't hear TalkBack speak, so the walkthrough verified via
+  `uiautomator dump`'s accessibility-node tree instead of audio — that tree is exactly what
+  TalkBack itself reads (`content-desc`, `checkable`/`checked`, node merging), so it's a reliable
+  proxy. TalkBack's touch-exploration mode also meant a single `input tap` only focuses, not
+  clicks — navigation used two taps ~150ms apart (a real double-tap gesture) throughout. All four
+  27.1/27.2 fixes confirmed live: `WallosTopAppBar` exposes `content-desc="Menu"`/`"Back"`, and all
+  three `toggleable` rows (`SubscriptionEditorScreen`'s three switches, `CrashReportingRow`,
+  `PaymentMethodEditorScreen`'s `Enabled` row) are single `checkable`/`clickable` nodes with
+  `checked` matching on-screen state. Focus order was sensible everywhere walked. The font-scale
+  pass (`font_scale 1.3`) found one real bug fixed inline — `CrashReportingRow`'s label `Column`
+  had no `Modifier.weight(1f)`, so its two-line description wasn't constrained to leave room for
+  the `Switch` and the wrapped text collided with it — and one unrelated finding filed in
+  `docs/revisit.md` (the Subscriptions list's FAB overlapping its last row, present at any font
+  scale, not a one-line fix). Project-specific facts (TalkBack's component name on this AVD, the
+  first-enable permission-dialog gotcha) went in `docs/EMULATOR_TESTING.md`; the generic
+  enable/disable/touch-exploration/dump-as-audio-substitute technique went into the shared
+  `emulator-testing` skill, left uncommitted in `agentic-grappim` for review.
 
 ---
 

@@ -154,6 +154,18 @@ section and `docs/local-info.txt` — this file only covers the device side.
   file:///sdcard/Pictures/x.jpg` after `adb push`) and, on this AVD's picker, an explicit
   **Done** tap after selecting the thumbnail — tapping the thumbnail alone only checks
   it.
+- **TalkBack's service component on this AVD/image is
+  `com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`** —
+  found via `adb shell dumpsys package com.google.android.marvin.talkback | grep -A20 "Service
+  Resolver Table"`, since `settings get secure enabled_accessibility_services` returns `null` before
+  it's ever been set and there's no simpler lookup. `adb shell settings put secure
+  enabled_accessibility_services <that value>` plus `accessibility_enabled 1` turns it on; **`settings
+  put secure enabled_accessibility_services ""` fails with `Bad arguments`** to turn it back off —
+  `settings delete secure enabled_accessibility_services` is what actually clears it (confirmed
+  27.5). **The first time TalkBack is enabled on a fresh AVD boot, a system permission dialog** ("Allow
+  Android Accessibility Suite to send you notifications?") **pops up over whatever screen is on top**
+  and eats the next tap the same way the stylus-tutorial popup does — screenshot after enabling,
+  before trusting the next tap reached the app.
 - **`Medium_Phone_API_36.1` cannot reproduce an IME-insets/`windowSoftInputMode` bug on
   its own.** The 2026-08-10 "Login screen doesn't scroll" report (`docs/issues/2026-08-10-login-screen-doesnt-scroll.md`)
   never reproduced on this AVD — forcing real content overflow (landscape rotation) with
