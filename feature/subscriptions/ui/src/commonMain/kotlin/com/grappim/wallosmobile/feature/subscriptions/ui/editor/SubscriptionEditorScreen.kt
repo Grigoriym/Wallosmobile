@@ -129,8 +129,11 @@ fun SubscriptionEditorScreen(
     SubscriptionEditorContent(uiState = uiState, onPickLogoFileClick = pickLogoFile)
 }
 
+// `internal`, not `private`: `androidDeviceTest` is a friend compilation of `commonMain`/
+// `androidMain`, same as any AGP `androidTest` — same precedent as `SubscriptionsScreen.kt`'s
+// `SubscriptionsContent` (19.1), reused by 27.4 to assert the notify row's merged semantics.
 @Composable
-private fun SubscriptionEditorContent(
+internal fun SubscriptionEditorContent(
     uiState: SubscriptionEditorUiState,
     modifier: Modifier = Modifier,
     onPickLogoFileClick: () -> Unit = {}

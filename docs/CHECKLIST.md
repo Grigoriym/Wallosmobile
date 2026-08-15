@@ -11,8 +11,22 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `3/5`
-**Current step:** 27.4 — 27.3 closed 2026-08-15: a new `uikit` commonTest, `ContrastTest.kt`,
+**M25 done** · M26 `1/1` — **M26 done** · M27 `4/5`
+**Current step:** 27.5 — 27.4 closed 2026-08-15: two new `androidDeviceTest`s in
+`feature:subscriptions:ui`. `WallosTopAppBarMenuTest.kt` renders `WallosTopAppBar` directly (the
+module has no other way to reach the drawer shell that actually hosts it) with
+`NavigationIconConfig.Menu` and asserts `onNodeWithContentDescription` finds the now-localized
+string — the 27.1 regression check. `SubscriptionEditorSwitchRowTest.kt` renders
+`SubscriptionEditorContent` (now `internal`, same precedent as `SubscriptionsContent`) with
+`notify = true`, asserts the row found by its label text is a single merged node via `assertIsOn`,
+then `performScrollTo().performClick()`s it and asserts `onNotifyChange(false)` fired — the 27.2
+regression check, proving both the merge and that the whole row is the hit target. The scroll
+turned out to be load-bearing: `performClick` dispatches a real on-screen touch, and the notify row
+sits below the fold in this long form, so the first run failed with the callback never firing until
+`performScrollTo()` was added before it (`assertIsOn` needed no such fix, since a semantics
+assertion reads state regardless of what's actually on screen). `./gradlew
+:feature:subscriptions:ui:connectedAndroidDeviceTest` (10/10) and `./gradlew detekt ktlintCheck`
+both pass. 27.3 closed 2026-08-15: a new `uikit` commonTest, `ContrastTest.kt`,
 computes WCAG relative-luminance contrast directly from the `Color.kt` palette constants for all
 ten on-color/color pairs across both `LightColorScheme` and `DarkColorScheme` (20 total) and
 asserts each is `>= 4.5:1`. All twenty already pass — no `Color.kt` change needed; ratios ranged
@@ -544,7 +558,7 @@ once rather than booting the emulator repeatedly.
   Every pair here is normal-text UI, so all twenty are held to the 4.5:1 bar — none of them is
   large-text/icon-only, so the `3.0` carve-out this step's own text allows didn't apply.
 
-- [ ] **27.4 — Semantics assertions in `feature:subscriptions:ui`'s existing `androidDeviceTest`
+- [x] **27.4 — Semantics assertions in `feature:subscriptions:ui`'s existing `androidDeviceTest`
   suite (M19), covering what 27.1/27.2 changed inside that module**
   `androidDeviceTest` is opt-in per module and currently wired only for
   `feature:subscriptions:ui` and `core:storage` (confirmed by grep for `withDeviceTestBuilder`) —
@@ -563,6 +577,18 @@ once rather than booting the emulator repeatedly.
 
   *Verify:* `./gradlew :feature:subscriptions:ui:connectedAndroidDeviceTest` passes on the AVD
   (needs the emulator up — `emulator-testing` skill).
+
+  Note: `SubscriptionsContent` never renders `WallosTopAppBar` itself — the shell in `composeApp`
+  does, driven by `LocalTopBarConfig`, and `feature:subscriptions:ui` has no way to reach
+  `composeApp` (the dependency runs the other way). So the Menu test renders `WallosTopAppBar`
+  directly from `uikit` (already a dependency of this module) with `NavigationIconConfig.Menu`
+  rather than going through `SubscriptionsScreen`'s full wiring. `SubscriptionEditorContent` needed
+  to go from `private` to `internal` for the second test to reach it, mirroring `SubscriptionsContent`'s
+  own precedent. `performClick()` dispatches a real on-screen touch rather than invoking a semantics
+  action directly, so the first run of the switch-row test failed (`expected:<false> but
+  was:<null>` — the callback never fired) because the notify row sits below the fold in the
+  scrollable form; `performScrollTo()` before `performClick()` fixed it. `assertIsOn()` needed no
+  such fix, since it reads semantics state regardless of what's on screen.
 
 - [ ] **27.5 — Device pass: TalkBack walkthrough + largest-font-scale screenshots**
   The one thing source-reading can't substitute for. Boot the AVD (`emulator-testing` skill),
