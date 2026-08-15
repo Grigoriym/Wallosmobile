@@ -82,7 +82,7 @@ compose-bom = "2026.06.01"
 # wrapper (it's Android-instrumentation-only), so it needs its own version — pinned to what
 # jetbrainsComposeMultiplatform 1.11.1 actually resolves `androidx.compose.ui:*` to for the
 # android target (confirmed via `androidCompileClasspath` dependency resolution, 19.1).
-androidxComposeUiTest = "1.11.2"
+androidxComposeUiTest = "1.12.0"
 
 material = "1.14.0"
 activity-compose = "1.13.0"
