@@ -121,7 +121,7 @@ private fun CrashReportingRow(checked: Boolean, onCheckedChange: (Boolean) -> Un
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.padding(end = LABEL_SPACING)) {
+        Column(modifier = Modifier.weight(1f).padding(end = LABEL_SPACING)) {
             Text(text = stringResource(RString.settings_crash_reporting), style = MaterialTheme.typography.bodyLarge)
             Text(
                 text = stringResource(RString.settings_crash_reporting_description),

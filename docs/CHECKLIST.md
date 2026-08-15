@@ -11,9 +11,31 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `4/5`
-**Current step:** 27.5 — 27.4 closed 2026-08-15: two new `androidDeviceTest`s in
-`feature:subscriptions:ui`. `WallosTopAppBarMenuTest.kt` renders `WallosTopAppBar` directly (the
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done**
+**Current step:** M27 done 2026-08-15 — next up is decomposing a new milestone. 27.5 closed
+2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
+(`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
+`dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
+session can't hear audio, verified via `uiautomator dump`'s accessibility-node tree instead (the
+same tree TalkBack itself reads): confirmed `content-desc="Menu"`/`"Back"` on `WallosTopAppBar`
+(27.1) and confirmed all three `toggleable` rows (`SubscriptionEditorScreen`'s three switches,
+`CrashReportingRow`, `PaymentMethodEditorScreen`'s `Enabled` row — 27.2) collapse to a single
+`checkable="true" clickable="true"` node with `checked` matching the on-screen state, rather than
+two separate nodes. Focus order (drawer opens with the current screen pre-focused, pushed screens
+focus Back) read sensibly throughout. Separately, `font_scale 1.3` screenshots of Dashboard,
+Subscriptions list, the editor and Settings/Interface found one real bug:
+`InterfaceScreen.kt`'s `CrashReportingRow` Column had no `Modifier.weight(1f)`, so its two-line
+description text wasn't constrained to leave room for the `Switch` and the wrapped text collided
+with it at 1.3x scale — a one-line fix (added the `weight(1f)`), confirmed clean on-device after a
+rebuild. `docs/revisit.md` gained one unrelated finding surfaced by the same pass: the Subscriptions
+list's `LazyColumn` has no bottom `contentPadding` to clear the FAB, so the last row can render
+underneath it (reproduces at any font scale, not layout-break-worthy to fix inline here — needs a
+deliberate clearance value, not a guess). `docs/EMULATOR_TESTING.md` gained the TalkBack service
+component name and the first-enable notification-permission-dialog gotcha; the generic
+enable/disable/touch-exploration/dump-as-audio-substitute technique went into the shared
+`emulator-testing` skill (`agentic-grappim`, left uncommitted for review). 27.4 closed 2026-08-15:
+two new `androidDeviceTest`s in `feature:subscriptions:ui`. `WallosTopAppBarMenuTest.kt` renders
+`WallosTopAppBar` directly (the
 module has no other way to reach the drawer shell that actually hosts it) with
 `NavigationIconConfig.Menu` and asserts `onNodeWithContentDescription` finds the now-localized
 string — the 27.1 regression check. `SubscriptionEditorSwitchRowTest.kt` renders
@@ -590,7 +612,7 @@ once rather than booting the emulator repeatedly.
   scrollable form; `performScrollTo()` before `performClick()` fixed it. `assertIsOn()` needed no
   such fix, since it reads semantics state regardless of what's on screen.
 
-- [ ] **27.5 — Device pass: TalkBack walkthrough + largest-font-scale screenshots**
+- [x] **27.5 — Device pass: TalkBack walkthrough + largest-font-scale screenshots**
   The one thing source-reading can't substitute for. Boot the AVD (`emulator-testing` skill),
   enable TalkBack via `adb shell settings put secure enabled_accessibility_services` /
   `accessibility_enabled 1` (confirm the exact service component name for this AVD's TalkBack
@@ -616,6 +638,24 @@ once rather than booting the emulator repeatedly.
   is that both passes ran and their findings — fixed inline, filed in `docs/revisit.md`, or noted
   as a shared-skill gap for `/finalize` — are accounted for, not that every screen turned out
   perfect.
+
+  Note: a headless adb session can't hear TalkBack speak, so the walkthrough verified via
+  `uiautomator dump`'s accessibility-node tree instead of audio — that tree is exactly what
+  TalkBack itself reads (`content-desc`, `checkable`/`checked`, node merging), so it's a reliable
+  proxy. TalkBack's touch-exploration mode also meant a single `input tap` only focuses, not
+  clicks — navigation used two taps ~150ms apart (a real double-tap gesture) throughout. All four
+  27.1/27.2 fixes confirmed live: `WallosTopAppBar` exposes `content-desc="Menu"`/`"Back"`, and all
+  three `toggleable` rows (`SubscriptionEditorScreen`'s three switches, `CrashReportingRow`,
+  `PaymentMethodEditorScreen`'s `Enabled` row) are single `checkable`/`clickable` nodes with
+  `checked` matching on-screen state. Focus order was sensible everywhere walked. The font-scale
+  pass (`font_scale 1.3`) found one real bug fixed inline — `CrashReportingRow`'s label `Column`
+  had no `Modifier.weight(1f)`, so its two-line description wasn't constrained to leave room for
+  the `Switch` and the wrapped text collided with it — and one unrelated finding filed in
+  `docs/revisit.md` (the Subscriptions list's FAB overlapping its last row, present at any font
+  scale, not a one-line fix). Project-specific facts (TalkBack's component name on this AVD, the
+  first-enable permission-dialog gotcha) went in `docs/EMULATOR_TESTING.md`; the generic
+  enable/disable/touch-exploration/dump-as-audio-substitute technique went into the shared
+  `emulator-testing` skill, left uncommitted in `agentic-grappim` for review.
 
 ---
 
