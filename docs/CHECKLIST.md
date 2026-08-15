@@ -11,8 +11,13 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `1/5`
-**Current step:** 27.2 — 27.1 closed 2026-08-15: `uikit` now depends on `:strings`
+**M25 done** · M26 `1/1` — **M26 done** · M27 `2/5`
+**Current step:** 27.3 — 27.2 closed 2026-08-15: `InterfaceScreen.kt`'s `CrashReportingRow`,
+`SubscriptionEditorScreen.kt`'s `SwitchRow` and `PaymentMethodEditorScreen.kt`'s `SwitchRow` now
+put `Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)` on
+the `Row` and set the inner `Switch`'s `onCheckedChange` to `null`, matching the `RadioButton`
+rows' `selectable` pattern. `detekt ktlintCheck` plus the three touched modules'
+`testAndroidHostTest` all pass. 27.1 closed 2026-08-15: `uikit` now depends on `:strings`
 (`implementation(projects.strings)`, matching every `feature:*:ui` module's own line), and
 `WallosTopAppBar`'s two bare `"Back"`/`"Menu"` content-description literals are now
 `stringResource(RString.uikit_back_content_description)` /
@@ -477,7 +482,7 @@ once rather than booting the emulator repeatedly.
   `./gradlew detekt ktlintCheck`. A live TalkBack confirmation that these now announce correctly
   happens in 27.5, not repeated here.
 
-- [ ] **27.2 — Give the three `Switch` rows the same whole-row-is-the-target pattern the
+- [x] **27.2 — Give the three `Switch` rows the same whole-row-is-the-target pattern the
   `RadioButton` rows already use**
   Three call sites, each a `Row { Text(label[, description]); Switch(checked, onCheckedChange) }`
   with only the `Switch` itself clickable/focusable: `InterfaceScreen.kt`'s `CrashReportingRow`
@@ -498,6 +503,14 @@ once rather than booting the emulator repeatedly.
   nothing under `*Test.kt` references either name), so nothing to update there.
   `./gradlew detekt ktlintCheck` plus each touched module's `testAndroidHostTest`. On-device
   confirmation folds into 27.5.
+
+  Note: applied exactly as planned at all three call sites — `Modifier.toggleable(value = checked,
+  role = Role.Switch, onValueChange = onCheckedChange)` on the `Row`, `Switch`'s own
+  `onCheckedChange` set to `null`. `Role` was already imported in `InterfaceScreen.kt`;
+  `SubscriptionEditorScreen.kt` and `PaymentMethodEditorScreen.kt` needed both a new `Role` and a
+  new `toggleable` import. `./gradlew detekt ktlintCheck
+  :feature:settings:ui:testAndroidHostTest :feature:subscriptions:ui:testAndroidHostTest
+  :feature:paymentmethods:ui:testAndroidHostTest` all green.
 
 - [ ] **27.3 — WCAG AA contrast check on `LightColorScheme`/`DarkColorScheme`**
   Computable without a device, so do it by computation rather than eyeballing (per this project's
