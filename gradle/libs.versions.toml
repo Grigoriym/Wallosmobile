@@ -91,7 +91,7 @@ activity-compose = "1.13.0"
 # file itself; nothing made ART actually consume it on a sideloaded/F-Droid install until this).
 profileinstaller = "1.4.1"
 lifecycle = "2.11.0"
-paging = "3.5.0"
+paging = "3.5.1"
 room = "2.8.4"
 sqlite = "2.7.0"
 
