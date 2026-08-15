@@ -11,8 +11,14 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `0/5`
-**Current step:** 27.1 — M27 decomposed 2026-08-15, an accessibility audit and fixes. 26.1 closed 2026-08-14: a new `detekt-rules`
+**M25 done** · M26 `1/1` — **M26 done** · M27 `1/5`
+**Current step:** 27.2 — 27.1 closed 2026-08-15: `uikit` now depends on `:strings`
+(`implementation(projects.strings)`, matching every `feature:*:ui` module's own line), and
+`WallosTopAppBar`'s two bare `"Back"`/`"Menu"` content-description literals are now
+`stringResource(RString.uikit_back_content_description)` /
+`stringResource(RString.uikit_menu_content_description)`, backed by two new entries in
+`strings/src/commonMain/composeResources/values/strings.xml`. `:uikit:compileKotlin` and
+`detekt ktlintCheck` both pass. 26.1 closed 2026-08-14: a new `detekt-rules`
 module ports `UnstableCollectionInUiState` to a real detekt `Rule` (`UnstableCollectionInUiStateRule`,
 registered under a new `WallosMobile` ruleset id), wired into every module via `configureLinting()`
 the same way `composeRules-detekt` is — closing `docs/revisit.md` #1, since a `detektPlugins` rule
@@ -442,7 +448,7 @@ independent source fixes, 27.3 is independent of both, 27.4 depends on 27.1 and 
 landed, and 27.5 (the device pass) goes last since it's the cheapest way to confirm all four at
 once rather than booting the emulator repeatedly.
 
-- [ ] **27.1 — Localize `WallosTopAppBar`'s hardcoded "Back"/"Menu" content descriptions**
+- [x] **27.1 — Localize `WallosTopAppBar`'s hardcoded "Back"/"Menu" content descriptions**
   `uikit/.../widgets/topappbar/WallosTopAppBar.kt` lines 77 and 97 pass
   `contentDescription = "Back"` / `"Menu"` as bare literals — the only two content descriptions in
   the entire codebase not routed through `RString`/`stringResource` (every sibling on the same

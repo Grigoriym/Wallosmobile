@@ -289,6 +289,9 @@
         <item quantity="other">Every %1$d years</item>
     </plurals>
 
+    <string name="uikit_back_content_description">Back</string>
+    <string name="uikit_menu_content_description">Menu</string>
+
     <string name="error_unreachable">Couldn't reach that server. Check the URL and your connection.</string>
     <string name="error_certificate_changed">This server's certificate isn't the one you trusted. Disconnect in Settings and connect again to review the new one.</string>
     <string name="error_not_wallos">Nothing that looks like Wallos answered at that address. Check the server URL.</string>
