@@ -11,8 +11,15 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `2/5`
-**Current step:** 27.3 — 27.2 closed 2026-08-15: `InterfaceScreen.kt`'s `CrashReportingRow`,
+**M25 done** · M26 `1/1` — **M26 done** · M27 `3/5`
+**Current step:** 27.4 — 27.3 closed 2026-08-15: a new `uikit` commonTest, `ContrastTest.kt`,
+computes WCAG relative-luminance contrast directly from the `Color.kt` palette constants for all
+ten on-color/color pairs across both `LightColorScheme` and `DarkColorScheme` (20 total) and
+asserts each is `>= 4.5:1`. All twenty already pass — no `Color.kt` change needed; ratios ranged
+5.46:1 (dark `surfaceVariant`/`onSurfaceVariant`, the tightest) to 16.73:1 (light
+`surface`/`onSurface`). `./gradlew :uikit:testAndroidHostTest --tests
+"com.grappim.wallosmobile.uikit.ContrastTest"` and `detekt ktlintCheck` both pass. 27.2 closed
+2026-08-15: `InterfaceScreen.kt`'s `CrashReportingRow`,
 `SubscriptionEditorScreen.kt`'s `SwitchRow` and `PaymentMethodEditorScreen.kt`'s `SwitchRow` now
 put `Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)` on
 the `Row` and set the inner `Switch`'s `onCheckedChange` to `null`, matching the `RadioButton`
@@ -512,7 +519,7 @@ once rather than booting the emulator repeatedly.
   :feature:settings:ui:testAndroidHostTest :feature:subscriptions:ui:testAndroidHostTest
   :feature:paymentmethods:ui:testAndroidHostTest` all green.
 
-- [ ] **27.3 — WCAG AA contrast check on `LightColorScheme`/`DarkColorScheme`**
+- [x] **27.3 — WCAG AA contrast check on `LightColorScheme`/`DarkColorScheme`**
   Computable without a device, so do it by computation rather than eyeballing (per this project's
   own "determinism over process" rule) instead of leaving it to the device pass. `uikit/.../
   Theme.kt` defines ten on-color/color pairs per scheme: `primary`/`onPrimary`,
@@ -529,6 +536,13 @@ once rather than booting the emulator repeatedly.
   — fix the failing `Color.kt` constant if it's a small, isolated tone adjustment; if fixing it
   would mean re-deriving more of the tonal palette than that, file it in `docs/revisit.md` instead
   of forcing a fix inline, per M17's own precedent for exactly this kind of call.
+
+  Note: all 20 pairs already pass 4.5:1 — no `Color.kt` change needed, nothing filed in
+  `docs/revisit.md`. `ContrastTest.kt` computes WCAG relative luminance straight from
+  `androidx.compose.ui.graphics.Color`'s own `.red`/`.green`/`.blue` (already sRGB gamma-encoded
+  0..1 floats for a `Color(0xFF...)` literal) rather than decoding the hex constants by hand.
+  Every pair here is normal-text UI, so all twenty are held to the 4.5:1 bar — none of them is
+  large-text/icon-only, so the `3.0` carve-out this step's own text allows didn't apply.
 
 - [ ] **27.4 — Semantics assertions in `feature:subscriptions:ui`'s existing `androidDeviceTest`
   suite (M19), covering what 27.1/27.2 changed inside that module**
