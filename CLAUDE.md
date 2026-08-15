@@ -575,6 +575,15 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   checking which token it reads (see the sources-jar note under Architecture) and, if that role is
   still unset, setting it rather than passing a colour at the call site.
 - Fixed-item screens (settings) use `Column`, not `LazyColumn`.
+- **A `Row` pairing a wrapping label with a trailing fixed-size control (`Switch`, an icon) needs
+  `Modifier.weight(1f)` on the label's `Column`**, or `Arrangement.SpaceBetween` lets the label's
+  `Text` measure at up to the row's full width and the control ends up centered over wherever the
+  label happened to wrap to at a larger font scale. Found 2026-08-15 (27.5's device pass, `font_scale
+  1.3`): `InterfaceScreen.kt`'s `CrashReportingRow` had no `weight(1f)`, and its two-line description
+  collided with the `Switch`. The other two switch rows (`SubscriptionEditorScreen`,
+  `PaymentMethodEditorScreen`) never hit this only because their label is a single bare `Text` with
+  no description underneath, so there's nothing to wrap — the moment a switch row grows a second
+  line, it needs the same `weight(1f)` this one was missing.
 - **A new `CompositionLocal` fails `ktlintCheck`** (`compose:compositionlocal-allowlist`) until it
   is named in `.editorconfig`'s `compose_allowed_composition_locals` — which is a tripwire path, so
   adding one costs a `Gate-change:` line. There are two, both provided by the shell and by
