@@ -218,8 +218,8 @@
     <string name="currency_editor_fab_content_description">Add currency</string>
 
     <string name="settings_server">Server</string>
-    <string name="settings_disconnect">Disconnect</string>
-    <string name="settings_disconnect_description">Disconnecting clears the API key stored on this device. Nothing changes on the server.</string>
+    <string name="settings_disconnect">Log Out</string>
+    <string name="settings_disconnect_description">Logging out clears the API key stored on this device. Nothing changes on the server.</string>
 
     <string name="settings_profile">Profile</string>
     <string name="settings_profile_description">Budget</string>
