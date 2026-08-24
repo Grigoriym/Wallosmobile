@@ -949,8 +949,20 @@ whenever they choose — consistent with M15's own `Done when` not requiring an 
 `ci.yml`/`guardrails.yml` (15.1), the two new workflow files (15.2, 15.4) and
 `AndroidApplicationConventionPlugin.kt` (15.3) are all tripwire paths (§3.6) — each of M15's four
 steps carried its own `Gate-change:` line. **M15 is done**: all four steps ticked, `dev` is the
-default branch, and `master` now moves only through the release-automation chain, with branch
-protection still deliberately deferred until the repo nears its first real release.
+default branch, and `master` now moves only through the release-automation chain.
+
+**Branch protection landed 2026-08-24**, the same day the repo went public — GitHub rulesets
+(not classic branch protection) on both `dev` and `master`: PR required (0 approvals, solo
+maintainer), the `guardrails` status check required, force-push/deletion blocked, owner has an
+`always`-bypass actor. Only `guardrails` is required, not `ci` — `ci.yml`'s `paths-ignore` skips
+docs-only commits, so a required `ci` check would leave a docs-only PR unmergeable forever. This
+retired the gap this section used to describe (`GITHUB_TOKEN` sufficing for the back-merge): with
+`dev` now protected, `release-finalize.yml`'s "Back-merge master into dev" step needs
+`RELEASE_PAT` exactly as predicted above, and the workflow was updated to use it. **`RELEASE_PAT`
+does not exist as a repo secret yet** (confirmed via `gh api .../actions/secrets`) — it has to be
+a PAT from the owner's own account (the bypass actor), added as a repo secret before
+`release-finalize.yml` next runs, or the back-merge step fails with a push rejection while the
+tag and GitHub Release from the same run still succeed.
 
 **Post-M15 check, not a fifth step: does `androidApp/proguard-rules.pro` need anything?** The
 `release` build type has carried `isMinifyEnabled = true`/`isShrinkResources = true` since before
