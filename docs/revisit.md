@@ -45,3 +45,25 @@ pass: `POST_NOTIFICATIONS` runtime permission (Android 13+), a notification chan
 that doesn't fight the existing refresh cadence, and a decision on whether it duplicates or
 replaces the subtitle now on that switch (added the same session, `SubscriptionEditorScreen.kt`'s
 `SwitchRow` `subtitle` param) once it exists.
+
+## 3. Only Subscriptions survives offline — Dashboard (and everything else) has no cache
+
+Raised 2026-08-24: offline, the Dashboard's Monthly/Period budget cards show the raw "Couldn't
+reach that server…" error instead of a stale banner over old numbers, and the "Showing saved data"
+banner (`StaleBanner`, `feature/subscriptions/ui/.../widgets/`) exists only on the subscriptions
+list. Both are the same root cause, not two bugs: `feature:subscriptions` is the **only** module
+with a Room cache (`grep`-confirmed — `core.storage.db`/`@Dao`/`RoomDatabase` usage is nowhere
+under `feature/dashboard`, `feature/paymentmethods`, `feature/household` or `feature/profile`).
+`DashboardRepository`'s own docstring says so on purpose ("no cache behind either call... every
+call is a round trip", M8) and `DashboardUiState`'s docstring: "No cache behind any of the
+sources" — there is no cached row for a failed call to leave standing, so `isLoading` is the only
+state that screen has. `StaleBanner`/`isStale`/`isFailed` (plan §7.1) are a real pattern, but they
+depend on a DAO `Flow` existing to be stale *over* — Dashboard has none.
+
+Not a small fix: making the banner "app-wide" means giving Dashboard, Payment Methods, Household
+and Profile the same `observe*`/`refresh*` + Room cache architecture Subscriptions got in M3 —
+schema, DAOs, mappers, `isStale`/`isFailed` derivation, tests, per feature. Worth a real design
+pass per feature (is `get_monthly_cost`/`get_period_budget` even meaningful to cache as a stale
+snapshot, or would a cached number just be actively misleading once it's a day old — unlike a
+subscription row, which doesn't change shape when stale) before deciding which of these four
+modules actually gets one, rather than mechanically repeating M3 four times.
