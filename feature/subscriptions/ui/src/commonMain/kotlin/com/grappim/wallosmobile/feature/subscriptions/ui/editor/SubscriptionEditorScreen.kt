@@ -69,6 +69,7 @@ import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_notes
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_notify
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_notify_days_before
+import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_notify_subtitle
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_payer
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_payment_method
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_picker_none
@@ -233,7 +234,8 @@ internal fun SubscriptionEditorContent(
         SwitchRow(
             label = RString.subscription_editor_notify,
             checked = uiState.notify,
-            onCheckedChange = uiState.onNotifyChange
+            onCheckedChange = uiState.onNotifyChange,
+            subtitle = RString.subscription_editor_notify_subtitle
         )
 
         if (uiState.notify) {
@@ -338,7 +340,8 @@ private fun SwitchRow(
     label: StringResource,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    subtitle: StringResource? = null
 ) {
     Row(
         modifier = modifier
@@ -347,7 +350,18 @@ private fun SwitchRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = stringResource(label), style = MaterialTheme.typography.bodyLarge)
+        if (subtitle != null) {
+            Column(modifier = Modifier.weight(1f).padding(end = LABEL_SPACING)) {
+                Text(text = stringResource(label), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = stringResource(subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            Text(text = stringResource(label), style = MaterialTheme.typography.bodyLarge)
+        }
         Switch(checked = checked, onCheckedChange = null)
     }
 }
@@ -511,6 +525,7 @@ private val WritableBillingCycle.label: StringResource
 private val SCREEN_PADDING = 16.dp
 private val FIELD_SPACING = 16.dp
 private val LOGO_SECTION_SPACING = 8.dp
+private val LABEL_SPACING = 16.dp
 private val PICKER_SPINNER_SIZE = 24.dp
 private const val FREQUENCY_WEIGHT = 1f
 private const val CYCLE_WEIGHT = 2f

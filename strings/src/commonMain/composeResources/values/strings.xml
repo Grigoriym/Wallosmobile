@@ -138,6 +138,7 @@
     <string name="subscription_editor_logo_file_picked">Selected: %1$s</string>
     <string name="subscription_editor_logo_file_hint">Used only if Logo URL above is left blank.</string>
     <string name="subscription_editor_notify">Notify before renewal</string>
+    <string name="subscription_editor_notify_subtitle">Sent by the server's own configured channels (email, Discord, etc.), not by this device.</string>
     <string name="subscription_editor_notify_days_before">Days before</string>
     <string name="subscription_editor_auto_renew">Auto-renews</string>
     <string name="subscription_editor_inactive">Inactive</string>
