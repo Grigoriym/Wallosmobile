@@ -67,3 +67,25 @@ pass per feature (is `get_monthly_cost`/`get_period_budget` even meaningful to c
 snapshot, or would a cached number just be actively misleading once it's a day old — unlike a
 subscription row, which doesn't change shape when stale) before deciding which of these four
 modules actually gets one, rather than mechanically repeating M3 four times.
+
+## 4. `MoneyFormatter` (and anything built on it) is fixed-format, not locale-aware
+
+Raised 2026-08-24 while looking at `DashboardViewModel.kt:106`'s
+`usedPercent = monthlyBudget?.let { "${moneyFormatter.format(it.used, "")}%" }.orEmpty()` — the
+literal `%` appended in Kotlin rather than through a string resource. Checked and left alone for
+now: `MoneyFormatter`'s own docstring already commits to this on purpose ("The grouping and the
+decimal point are fixed... not taken from the device locale... A locale-aware formatter is
+possible later... and is not what v1 wants") and the web mirrors it exactly (`index.php:286`,
+`:344`: `number_format($…, 2)."%"`, no translation string for the sign either) — so this one
+call site isn't a new inconsistency, just the same already-declared decision surfacing again.
+
+Worth a real pass once the app actually ships more than one locale (`strings/…/composeResources/`
+has only a `values/` directory right now — no `values-xx` exists yet, so there is nothing to be
+inconsistent *with* today): `MoneyFormatter.format` mixes two concerns that a locale-aware version
+would need to split — matching the *server's* number shape (thousands/decimal separators, which
+must stay fixed regardless of device locale, since the app has to agree with whatever the same
+instance renders) versus symbol/percent *placement*, which varies by locale (`"42 %"` vs `"%42"`)
+and currently doesn't. The docstring already names the mechanism (`expect`/`actual` over the
+platform `NumberFormat`) and the tradeoff (out of reach of a host test) — this entry is only to
+make sure it doesn't get re-litigated from scratch, and to catch every fixed-format call site
+(not just this one `usedPercent` line) in the same pass rather than one at a time.
