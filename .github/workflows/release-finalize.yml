@@ -27,10 +27,10 @@ jobs:
         with:
           ref: master
           fetch-depth: 0
-          # Plain GITHUB_TOKEN is enough while dev carries no branch protection (15.1's
-          # deferred follow-up). Once that protection lands, the back-merge below needs an
-          # admin PAT (RELEASE_PAT) to push past it, same as TaigaMobileNova.
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # dev now has branch protection (ruleset, 2026-08-24) blocking direct pushes — the
+          # back-merge below needs an admin PAT (RELEASE_PAT) to push past it, same as
+          # TaigaMobileNova. Plain GITHUB_TOKEN (github-actions[bot]) is not a bypass actor.
+          token: ${{ secrets.RELEASE_PAT }}
 
       - name: Set up git
         run: |
