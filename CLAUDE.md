@@ -68,12 +68,21 @@ skips CI but still needs Guardrails green before merging.
 user's request.** Before that date, `dev` behaved exactly like `master` did pre-M15: direct
 pushes, no PR. The mechanics are in "Then close the step out" step 4 above; this applies to
 *any* commit landing on `dev` — a checklist step, a milestone decomposition, an ad-hoc fix —
-not only checklist steps. Branch protection on `dev` is still **not** turned on (that's a
-follow-up for once the repo nears its first real release), so nothing technically stops a direct
-push — this is a process discipline to follow regardless, not something the repo enforces.
+not only checklist steps. **Branch protection is turned on for both `dev` and `master`** as of
+2026-08-24, the same day the repo went public — GitHub repository rulesets (`gh api
+repos/{owner}/{repo}/rulesets`, not classic branch protection), each requiring a PR (0 approvals
+needed — solo maintainer) with the `guardrails` status check green, and blocking force-push and
+branch deletion. The repo owner has an `always` bypass actor on both, so a direct push or an
+emergency merge without a green check is still possible from that account, but no longer the
+default path. **Only `guardrails` is a required check, not `ci`** — `ci.yml` has `paths-ignore`
+for `**.md`/`docs/**`, so it never runs on a docs-only commit; requiring it would leave a
+docs-only PR permanently unmergeable (the required check would never report). `guardrails.yml`
+has no such path filter, so it always runs and is safe to require. `ci`'s result still shows on
+the PR, just isn't enforced by the ruleset.
 **`master` only moves via release automation, not ordinary steps** — it advances only through
 15.2–15.4's `release-prepare` → PR → `release-finalize` → tag → `release` workflows (plan §3.9),
-unaffected by the `dev`-side change above.
+unaffected by the `dev`-side change above; the new `master` ruleset requires that PR path already,
+so nothing about 15.2–15.4's own mechanics needs to change.
 
 ### Changing a gate means saying so
 
