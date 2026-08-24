@@ -24,9 +24,11 @@ import org.koin.core.annotation.KoinViewModel
 import kotlin.time.Clock
 
 /**
- * Nothing on this screen writes and nothing refreshes a cache behind it (M8 preamble), so unlike
- * `SubscriptionsViewModel` there is no `observe*` to combine with — one [load] call per open (and
- * per [DashboardUiState.onRetryClick]) is the whole lifecycle.
+ * Nothing on this screen writes, so unlike `SubscriptionsViewModel` there is no `observe*` to
+ * combine with — one [load] call per open (and per [DashboardUiState.onRetryClick]) is the whole
+ * lifecycle. [load] does refresh the subscriptions cache now (`DashboardHomeUseCase`, since
+ * 2026-08-24), it just doesn't keep observing it afterward: a re-open is a fresh [load], the same
+ * way reloading a web page is a fresh request.
  */
 @KoinViewModel
 class DashboardViewModel(

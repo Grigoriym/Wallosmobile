@@ -1987,7 +1987,14 @@ These carry over unchanged; they are listed so the port is deliberate rather tha
   definitions (8.1's own note said so), so the module needs `alias(libs.plugins.wallosmobile.kmp.di)`
   added to its `build.gradle.kts` and a new `<Feature>DomainModule` (`@Module @Configuration
   @ComponentScan`) — that module didn't need one before and won't need it again if it stays at
-  zero.
+  zero. **`DashboardHomeUseCase` also refreshes `SubscriptionsRepository`'s cache itself now**
+  (found 2026-08-24, `docs/issues/2026-08-24-dashboard-zeros-after-login.md`): it originally read
+  the cache as a bare snapshot on the stated assumption that "the cache is refreshed elsewhere,"
+  which is false the moment login has just cleared it and Dashboard — the app's default start
+  destination — is the first screen to read it, before the Subscriptions tab (the only other
+  refresher in the app) has ever run. A use case that reads a cache it doesn't own can't assume
+  something else keeps it warm without checking who that something else actually is and whether
+  it's guaranteed to have run first.
 - **Koin with `io.insert-koin.compiler.plugin`**, one `@Module @Configuration @ComponentScan` per
   module. Never KSP for DI.
 - **Offline = disable, missing permission = hide.** Wallos has no permission model beyond
