@@ -58,14 +58,18 @@ import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_date_confirm
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_frequency
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_inactive
+import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_logo_file_hint
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_logo_file_pick
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_logo_file_picked
+import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_logo_section_title
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_logo_url
+import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_logo_url_hint
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_name
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_next_payment
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_notes
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_notify
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_notify_days_before
+import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_notify_subtitle
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_payer
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_payment_method
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_picker_none
@@ -220,21 +224,18 @@ internal fun SubscriptionEditorContent(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
         )
 
-        OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
-            value = uiState.logoUrl,
-            onValueChange = uiState.onLogoUrlChange,
-            label = { Text(stringResource(RString.subscription_editor_logo_url)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
+        LogoSection(
+            logoUrl = uiState.logoUrl,
+            onLogoUrlChange = uiState.onLogoUrlChange,
+            logoFile = uiState.logoFile,
+            onPickLogoFileClick = onPickLogoFileClick
         )
-
-        LogoFilePicker(logoFile = uiState.logoFile, onPickLogoFileClick = onPickLogoFileClick)
 
         SwitchRow(
             label = RString.subscription_editor_notify,
             checked = uiState.notify,
-            onCheckedChange = uiState.onNotifyChange
+            onCheckedChange = uiState.onNotifyChange,
+            subtitle = RString.subscription_editor_notify_subtitle
         )
 
         if (uiState.notify) {
@@ -282,19 +283,54 @@ internal fun SubscriptionEditorContent(
     }
 }
 
-/** The multipart alternative to [SubscriptionEditorUiState.logoUrl] (7.9) — device gallery, not a URL. */
+/**
+ * Both ways of setting a logo (7.9) in one visual block, since the server only ever uses one of
+ * them: `logo_url` wins outright when set, and a picked file is silently ignored
+ * (`set_subscriptions.php`) — [subscription_editor_logo_file_hint] says so rather than leaving it
+ * ambiguous which of the two widgets below actually took effect.
+ */
 @Composable
-private fun LogoFilePicker(logoFile: LogoFile?, onPickLogoFileClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        TextButton(onClick = onPickLogoFileClick) {
-            Text(stringResource(RString.subscription_editor_logo_file_pick))
-        }
+private fun LogoSection(
+    logoUrl: String,
+    onLogoUrlChange: (String) -> Unit,
+    logoFile: LogoFile?,
+    onPickLogoFileClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(LOGO_SECTION_SPACING)) {
+        Text(
+            text = stringResource(RString.subscription_editor_logo_section_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
-        if (logoFile != null) {
+        OutlinedTextField(
+            modifier = Modifier.fillMaxWidth(),
+            value = logoUrl,
+            onValueChange = onLogoUrlChange,
+            label = { Text(stringResource(RString.subscription_editor_logo_url)) },
+            supportingText = { Text(stringResource(RString.subscription_editor_logo_url_hint)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
+        )
+
+        Column {
+            TextButton(onClick = onPickLogoFileClick) {
+                Text(stringResource(RString.subscription_editor_logo_file_pick))
+            }
+
             Text(
-                text = stringResource(RString.subscription_editor_logo_file_picked, logoFile.fileName),
-                style = MaterialTheme.typography.bodySmall
+                text = stringResource(RString.subscription_editor_logo_file_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            if (logoFile != null) {
+                Text(
+                    text = stringResource(RString.subscription_editor_logo_file_picked, logoFile.fileName),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
 }
@@ -304,7 +340,8 @@ private fun SwitchRow(
     label: StringResource,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    subtitle: StringResource? = null
 ) {
     Row(
         modifier = modifier
@@ -313,7 +350,18 @@ private fun SwitchRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = stringResource(label), style = MaterialTheme.typography.bodyLarge)
+        if (subtitle != null) {
+            Column(modifier = Modifier.weight(1f).padding(end = LABEL_SPACING)) {
+                Text(text = stringResource(label), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = stringResource(subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            Text(text = stringResource(label), style = MaterialTheme.typography.bodyLarge)
+        }
         Switch(checked = checked, onCheckedChange = null)
     }
 }
@@ -476,6 +524,8 @@ private val WritableBillingCycle.label: StringResource
 
 private val SCREEN_PADDING = 16.dp
 private val FIELD_SPACING = 16.dp
+private val LOGO_SECTION_SPACING = 8.dp
+private val LABEL_SPACING = 16.dp
 private val PICKER_SPINNER_SIZE = 24.dp
 private const val FREQUENCY_WEIGHT = 1f
 private const val CYCLE_WEIGHT = 2f

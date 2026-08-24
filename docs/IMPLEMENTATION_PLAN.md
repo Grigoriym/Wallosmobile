@@ -1217,6 +1217,41 @@ Decomposed into `docs/CHECKLIST.md` as **M16** below, all four open questions no
 
 ---
 
+### 3.11 Module-boundary guardrails (M24)
+
+Ported from `duckduckgo-Android`'s `subprojects { incoming.beforeResolve { ... } }`: the root
+`build.gradle.kts` enforces three of this doc's own Architecture/Non-negotiables rules as a real
+`GradleException` at Gradle configuration time, not just as prose a session could drift from —
+nothing depends on `:androidApp` (except `:benchmark`, which structurally must via
+`targetProjectPath`); only `:androidApp` depends on `:composeApp`; `:core:storage` never depends on
+any `feature:*:domain`.
+
+**A self-referential `ProjectDependency` (path == path) has to be excluded before the three checks
+run**, added after it broke `allTests`/`lintFdroidDebug` outright: AGP/KGP's own android-host-test
+and lint-model machinery resolves a module's test/lint classpath against a `ProjectDependency`
+pointing at the module itself (`:composeApp:compileAndroidHostTest`,
+`:composeApp:generateAndroidHostTestLintModel` — real Gradle tasks, not a real cross-module edge),
+which the `:composeApp`-depends-on-`:composeApp` reading trips otherwise. This had been failing
+24.1's own CI run unnoticed for a full cycle — a reminder that this check's own `GradleException`
+needs to be watched for in CI output after any change near it, not just trusted to have passed
+because the commit that added it did.
+
+Two things worth knowing before extending this check with a new rule: a genuinely **cyclic**
+scratch violation never reaches it — Gradle's own static task-graph cycle detector fires first,
+during task-graph calculation, before `incoming.beforeResolve` is ever invoked — so proving a new
+rule fires needs a scratch dependency that is real but *not* already cyclic with the target
+project's existing graph. And an AGP **application** module with product flavors (`:androidApp`
+itself) isn't cleanly consumable as a project compile dependency from a non-flavor-matching module
+at all — resolving one from a plain KMP library module hits Gradle's own variant-ambiguity error
+before this check's `GradleException` would; that rule is real defense-in-depth, not something
+provably reachable from every possible violator.
+
+Root `build.gradle.kts` is **not** one of `check-guardrails.sh`'s `TRIPWIRE_PATHS` (only
+`.github/`, `build-logic/`, `config/detekt/`, `.editorconfig`, `gradle/libs.versions.toml` are) —
+a change here needs no `Gate-change:` line on its own.
+
+---
+
 ## 4. `core:api` — the load-bearing module
 
 ### 4.1 `WallosApiClient`
@@ -1371,6 +1406,18 @@ That `Json { ignoreUnknownKeys = true; isLenient = true }` belongs to the parser
 binding. With `ContentNegotiation` dropped (§4.1), the parser is the only JSON consumer in the
 app — Mealie's `@HttpJson` qualifier exists to configure `ContentNegotiation` and has nothing to
 configure here.
+
+**A caught exception's own `.message` can carry more than the surrounding log text admits**
+(M23): `kotlinx.serialization`'s decode-failure messages embed the full offending JSON verbatim.
+`CrashlyticsTree.log()` (`androidApp/.../CrashlyticsTree.kt`) forwards exactly one thing —
+`LogPriority.ERROR` with a non-null `throwable` — so passing a caught `e` straight through as
+`throwable =` at `ERROR` ships whatever's in `e.message` to Google on a `gplay` build, response
+data included. `WallosEnvelopeParser.logShapeMismatch` is the fix shape for any catch block whose
+exception message might carry response or user data: log the real `e` at `WARN` (local Logcat
+only) and a fresh exception with a fixed, data-free message at `ERROR`. The audit technique
+generalizes — `WallosLogger.install()`/`.uninstall()` (`core:logger`) is public, so any module's
+`commonTest` can install a fake and assert on exactly what a given catch block would send to
+Crashlytics, the same shape as `core:logger`'s own `LogcatTest.kt`.
 
 ### 4.3 Error mapping
 
@@ -1997,6 +2044,19 @@ These carry over unchanged; they are listed so the port is deliberate rather tha
   it's guaranteed to have run first.
 - **Koin with `io.insert-koin.compiler.plugin`**, one `@Module @Configuration @ComponentScan` per
   module. Never KSP for DI.
+  **A module class needs its own line in `composeApp`'s dependencies, separate from
+  `AppModule`'s `includes`** — `includes` only tells the Koin compiler where to find the class, it
+  doesn't add a Gradle dependency edge. 8.3 hit this adding `DashboardDomainModule`: `composeApp`
+  already depended on `feature.dashboard.data`, but that module's own dependency on
+  `feature.dashboard.domain` is `implementation`, not `api`, so the domain module's class stayed
+  invisible to `composeApp` until it got its own `implementation(projects.feature.dashboard.domain)`
+  line. **The same rule applies past DI, to any type** — Gradle's `implementation` visibility is
+  never transitive, so a module that needs a plain type (not just a Koin module class) reached only
+  through another module's `implementation` dependency needs its own direct line too. 8.1 and 8.3
+  both hit the Koin-class form for `composeApp`; 8.4 hit the plain-type form for
+  `feature:dashboard:ui`, which needed its own `implementation(projects.feature.subscriptions.domain)`
+  line to see `Subscription` — the type `feature:dashboard:domain` already depends on the same
+  `implementation` way.
 - **Offline = disable, missing permission = hide.** Wallos has no permission model beyond
   "user id 1 is admin", so this reduces to `LocalOfflineState` disabling write actions.
 - **Tests: hand-written fakes, never mocks** — see §6.1.

@@ -213,17 +213,16 @@ ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private sta
 # list` (`active` vs. `disabled_yaml_error`) is a fallback for something guardrails can't catch
 # (a semantic error `js-yaml` accepts as valid YAML but the Actions schema rejects).
 
-# Gradle Isolated Projects was trialled and measured a real ~2.7x config-time win (2026-08-12),
-# but is currently **off** — `gradle.properties` has `org.gradle.isolated-projects=true` commented
-# out. Turning it on hits a real violation inside the Kotlin Multiplatform Gradle plugin's own KSP
-# task wiring for `:core:storage` (the Room module) on Gradle 9.7.0's tightened checks — third-party
-# plugin code, nothing in this repo to fix. Still worth knowing regardless of on/off: any
+# Gradle Isolated Projects was trialled and measured a real config-time win, but is currently
+# **off** — `gradle.properties` has `org.gradle.isolated-projects=true` commented out, blocked by a
+# third-party violation in the Kotlin Multiplatform Gradle plugin's own KSP task wiring for
+# `:core:storage` (nothing in this repo to fix). Still worth knowing regardless of on/off: any
 # `build-logic` convention plugin or per-module `build.gradle.kts` reaching for a build-root-relative
 # path must use the current project's own `rootDir` (a plain, already-known-at-Settings-time `File`),
 # never `rootProject.file(...)`/`rootProject.files(...)`/`rootProject.layout...` (a live reference to
 # another project's mutable state) — the fix already applied throughout `build-logic` and worth
-# keeping even with the flag off. Full trial process, the violations found and fixed, the 9.7.0
-# regression, and re-check instructions for the next Gradle/KGP bump: `docs/GRADLE_ISOLATED_PROJECTS.md`.
+# keeping even with the flag off. Full trial process, the violations found and fixed, and re-check
+# instructions for the next Gradle/KGP bump: `docs/GRADLE_ISOLATED_PROJECTS.md`.
 
 # Gradle wrapper is 9.7.0 (bumped from 9.6.1, 2026-08-12, via the `update-gradle-wrapper` skill).
 # `./gradlew wrapper --gradle-version ... --gradle-distribution-sha256-sum ...` needs
@@ -306,18 +305,16 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
 - **An `androidApp`-only type can never be named in `composeApp`/`uikit` code** — the Gradle
   dependency runs one way (`androidApp` → `composeApp`), so a `koinInject<T>()` for a type that
   lives in `androidApp` doesn't compile from below it. A seam that has to live in `androidApp`
-  (Play Core's `AppUpdateChecker` needs a real `Activity`, so it can't be a KMP module the way
-  `CrashReporter` is) but has to surface something in the Compose shell has two ways across the
-  boundary, and the cheaper one wins when it's available: **check whether the display mechanism
-  itself is a plain, composition-independent type from a shared module first** (16.5:
-  `SnackbarHostController` has no composition dependency, so `MainActivity` just constructs it
-  and passes the instance *down* into `WallosAppContent`, collecting `appUpdateChecker.updateState`
-  in `lifecycleScope` and calling `.show()` directly — `AppUpdateChecker`/`UpdateState` never need
-  to be nameable in Compose code at all this way). Only when the shell has to own the whole
-  mechanism does the narrower `Flow`/callback shape apply — `WallosAppContent.onDarkThemeChange:
-  (Boolean) -> Unit` is that case, since the platform edge-to-edge call can't move into a shared
-  module. Don't reach for the narrow-signal shape by default; 16.5's own first pass did, and
-  reverted it once the cheaper option turned up. One consequence either way: a type kept out of
+  (needs a real `Activity`, say, so it can't be a KMP module the way `CrashReporter` is) but has to
+  surface something in the Compose shell has two ways across the boundary, and the cheaper one
+  wins when it's available: **check whether the display mechanism itself is a plain,
+  composition-independent type from a shared module first** — if so, `androidApp` constructs it
+  and passes the instance *down* into the shell, and the `androidApp`-only type never needs to be
+  nameable in Compose code at all. Only when the shell has to own the whole mechanism does the
+  narrower `Flow`/callback shape apply. Don't reach for the narrow-signal shape by default — it's
+  the more expensive option, and 16.5's own first pass reached for it anyway before reverting once
+  the cheaper option turned up (worked example, both approaches: plan §3.10). One consequence
+  either way: a type kept out of
   `composeApp` never needs a `KoinGraphTest` `EXTERNALLY_SUPPLIED` entry, since nothing below
   `androidApp` ever asks Koin for it — unlike `CrashReporter`, which *is* injected straight into
   `composeApp`-graph ViewModels and therefore needs one (see the DI paragraph below).
@@ -364,16 +361,9 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   `~/.gradle/caches/modules-2/files-2.1/com.android.tools.build/gradle-api/<agp version>/`; `unzip`
   its `com/android/build/api/dsl/*.kt` (classic DSL) or `com/android/build/api/variant/*.kt` (the
   newer Variant API — `AndroidComponentsExtension`, `onVariants`, `VariantSelector`) rather than
-  guessing which supertype carries a property or method. 15.3 used the `dsl/` half to confirm
-  `signingConfig` is `ApplicationVariantDimension`'s, reached through `ApplicationProductFlavor :
-  ApplicationBaseFlavor, ProductFlavor` — and that a flavor-level `signingConfig` only takes effect
-  for a build type that leaves its own unset, since `debug` already carries a non-null default from
-  the plugin itself. It then needed the `variant/` half too: giving *one* (flavor, build type) pair
-  its own signing identity without that bleed-through isn't expressible in the classic DSL at all —
-  `androidComponents.onVariants(selector().withBuildType(...).withFlavor(...)) { variant ->
-  variant.signingConfig.setConfig(dslSigningConfig) }` is the mechanism, and `ApplicationVariant
-  .signingConfig` (variant-API type) vs. the DSL's `ApkSigningConfig` are deliberately distinct
-  types that `setConfig` bridges. `build-logic/convention/build.gradle.kts` applies
+  guessing which supertype carries a property or method — worked example, giving one (flavor,
+  build type) pair its own signing identity without bleeding into others: plan §3.9.
+  `build-logic/convention/build.gradle.kts` applies
   `alias(libs.plugins.detekt)`/`alias(libs.plugins.ktlint)` directly (21.2) — the same minimal
   shape as the root `build.gradle.kts`, with **no** `config.setFrom` pointing at
   `config/detekt/detekt.yml`: that shared config's `Compose` section needs the
@@ -392,29 +382,16 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   Groovy) version of the same check.
 - **The root `build.gradle.kts` enforces three module-boundary rules from this file's own
   Architecture/Non-negotiables sections as a real `GradleException` at Gradle configuration time**
-  (M24, ported from `duckduckgo-Android`'s `subprojects { incoming.beforeResolve { ... } }`):
-  nothing depends on `:androidApp` (except `:benchmark`, which structurally must via
+  (M24): nothing depends on `:androidApp` (except `:benchmark`, which structurally must via
   `targetProjectPath`); only `:androidApp` depends on `:composeApp`; `:core:storage` never depends
-  on any `feature:*:domain`. Two things worth knowing before extending this check with a new rule:
-  a genuinely **cyclic** scratch violation never reaches it — Gradle's own static task-graph cycle
-  detector fires first, during task-graph calculation, before `incoming.beforeResolve` is ever
-  invoked — so proving a new rule fires needs a scratch dependency that is real but *not* already
-  cyclic with the target project's existing graph. And an AGP **application** module with product
-  flavors (`:androidApp` itself) isn't cleanly consumable as a project compile dependency from a
-  non-flavor-matching module at all — resolving one from a plain KMP library module hits Gradle's
-  own variant-ambiguity error before this check's `GradleException` would; that rule is real
-  defense-in-depth, not something provably reachable from every possible violator. Root
-  `build.gradle.kts` is **not** one of `check-guardrails.sh`'s `TRIPWIRE_PATHS` (only `.github/`,
-  `build-logic/`, `config/detekt/`, `.editorconfig`, `gradle/libs.versions.toml` are) — a change
-  here needs no `Gate-change:` line on its own. **A self-referential `ProjectDependency` (path ==
-  path) has to be excluded before the three checks run**, added in M25 after it broke
-  `allTests`/`lintFdroidDebug` outright: AGP/KGP's own android-host-test and lint-model machinery
-  resolves a module's test/lint classpath against a `ProjectDependency` pointing at the module
-  itself (`:composeApp:compileAndroidHostTest`, `:composeApp:generateAndroidHostTestLintModel` —
-  real Gradle tasks, not a real cross-module edge), which the `:composeApp`-depends-on-`:composeApp`
-  reading trips otherwise. This had been failing 24.1's own CI run unnoticed since 2026-08-14 — a
-  reminder that this check's own `GradleException` needs to be watched for in CI output after any
-  change near it, not just trusted to have passed because the commit that added it did.
+  on any `feature:*:domain`. **A self-referential `ProjectDependency` has to be excluded before the
+  three checks run**, or AGP/KGP's own android-host-test and lint-model machinery (which resolves a
+  module's test/lint classpath against a `ProjectDependency` pointing at the module itself) trips
+  the check on every build. Mechanism, the cyclic-dependency and AGP-variant-ambiguity edge cases,
+  and why this needs watching in CI output specifically rather than just trusted because it once
+  passed: plan §3.11. Root `build.gradle.kts` is **not** one of `check-guardrails.sh`'s
+  `TRIPWIRE_PATHS` (only `.github/`, `build-logic/`, `config/detekt/`, `.editorconfig`,
+  `gradle/libs.versions.toml` are) — a change here needs no `Gate-change:` line on its own.
 
 ## Non-negotiables
 
@@ -452,29 +429,19 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   only `AppModule` (`composeApp`'s own graph) and can never see a binding that lives in
   `AndroidModule` (`androidApp`)** — `androidApp` sits above `composeApp`, the same reason
   `AppInfoProvider` is in the test's own `EXTERNALLY_SUPPLIED` list. A flavor-swapped `@Single`
-  binding declared per-flavor in `androidApp/src/<flavor>/kotlin/.../di/` (16.3's
-  `CrashReporterImpl`, and 16.5's `AppUpdateChecker` impl by the same trick) is invisible to it on
+  binding declared per-flavor in `androidApp/src/<flavor>/kotlin/.../di/` is invisible to it on
   *both* flavors — a missing one is a runtime crash at first injection, not a test failure.
-  Compiling both flavors (`compileFdroidDebugKotlin`, `compileGplayDebugKotlin -PgplayBuild`)
-  proves the binding class exists and satisfies the interface, but not that Koin can resolve it —
-  only an on-device cold start does that. The **first** `composeApp`-level class to take such a
-  type as a constructor parameter breaks `verify()` outright, not silently — 16.4's
-  `AboutViewModel`/`InterfaceViewModel` were `CrashReporter`'s first consumers below `androidApp`
-  (16.3 only used it from `WallosApp.kt` itself), and `KoinGraphTest` failed with a real
-  `MissingKoinDefinitionException` until `CrashReporter::class` joined `AppInfoProvider::class` in
-  `EXTERNALLY_SUPPLIED`. **A module class needs its
-  own line in `composeApp`'s dependencies, separate from `AppModule`'s `includes`** — `includes`
-  only tells the Koin compiler where to find the class, it doesn't add a Gradle dependency edge.
-  8.3 hit this adding `DashboardDomainModule`: `composeApp` already depended on
-  `feature.dashboard.data`, but that module's own dependency on `feature.dashboard.domain` is
-  `implementation`, not `api`, so the domain module's class stayed invisible to `composeApp` until
-  it got its own `implementation(projects.feature.dashboard.domain)` line. **The same rule applies
-  past DI, to any type** — Gradle's `implementation` visibility is never transitive, so a module
-  that needs a plain type (not just a Koin module class) reached only through another module's
-  `implementation` dependency needs its own direct line too. 8.1 and 8.3 both hit the Koin-class
-  form for `composeApp`; 8.4 hit the plain-type form for `feature:dashboard:ui`, which needed its
-  own `implementation(projects.feature.subscriptions.domain)` line to see `Subscription` — the type
-  `feature:dashboard:domain` already depends on the same `implementation` way.
+  Compiling both flavors proves the binding class exists and satisfies the interface, but not that
+  Koin can resolve it — only an on-device cold start does that. The **first** `composeApp`-level
+  class to take such a type as a constructor parameter breaks `verify()` outright, not silently,
+  needing `EXTERNALLY_SUPPLIED` (worked example, `CrashReporter`/`AboutViewModel`: plan §3.10).
+  **A module class needs its own line in `composeApp`'s dependencies, separate from `AppModule`'s
+  `includes`** — `includes` only tells the Koin compiler where to find the class, it doesn't add a
+  Gradle dependency edge. **The same rule applies past DI, to any type** — Gradle's
+  `implementation` visibility is never transitive, so a module that needs a plain type (not just a
+  Koin module class) reached only through another module's `implementation` dependency needs its
+  own direct line too (worked examples, `DashboardDomainModule`/`Subscription`: plan §6, the Koin
+  bullet under Architecture patterns).
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`. Every
   new route must be registered in the polymorphic `SerializersModule` in `NavKeySerializers.kt`,
@@ -643,14 +610,11 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   `throwable =`, never reaches Crashlytics. That makes the *throwable itself* the thing to audit,
   not the fixed string passed as the log message: a caught exception's own `.message` can carry
   more than the surrounding text admits (`kotlinx.serialization`'s decode-failure messages embed
-  the full offending JSON verbatim, confirmed 2026-08-13 in `WallosEnvelopeParser` — M23). Passing
+  the full offending JSON verbatim — M23, worked example and audit technique: plan §4.2). Passing
   `e` straight through as `throwable =` at `ERROR` ships whatever's in `e.message` to Google on a
   `gplay` build. Fix shape when a caught exception's message might carry response/user data: log
   the real `e` at `WARN` (local Logcat only) and a fresh exception with a fixed, data-free message
-  at `ERROR`, mirroring `WallosEnvelopeParser`'s `logShapeMismatch`. `WallosLogger.install()` /
-  `.uninstall()` (`core:logger`) is public, so any module's `commonTest` can install a fake and
-  assert on exactly what a given catch block would send to Crashlytics — same shape as
-  `core:logger`'s own `LogcatTest.kt`.
+  at `ERROR`.
 
 ## Strings and resources
 

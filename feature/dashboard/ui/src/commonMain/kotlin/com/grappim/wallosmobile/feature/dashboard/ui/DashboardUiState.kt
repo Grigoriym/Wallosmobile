@@ -5,7 +5,13 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
 /** One row of a subscription-and-date list — shared by the Overdue and Upcoming sections, whose rows are the same shape. */
-data class UpcomingPaymentUiItem(val id: Int, val name: String, val price: String, val nextPayment: String)
+data class UpcomingPaymentUiItem(
+    val id: Int,
+    val name: String,
+    val price: String,
+    val nextPayment: String,
+    val logoUrl: String = ""
+)
 
 /**
  * @param title the server's own period label (`MonthlyCost.title`, e.g. "August 2026"), blank

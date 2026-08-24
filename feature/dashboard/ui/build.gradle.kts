@@ -25,8 +25,17 @@ kotlin {
             implementation(projects.uikit)
             implementation(projects.strings)
 
+            // For `BaseUrlProvider` alone: a logo is a bare filename until the instance root is
+            // put in front of it (API doc §4) — same reason `feature:subscriptions:ui` and
+            // `feature:paymentmethods:ui` each carry this.
+            implementation(projects.core.api)
+
             implementation(projects.utils.formatter.decimal)
             implementation(projects.utils.formatter.datetime)
+
+            // Mirrors `feature:subscriptions:ui`'s own reason (4.5): the loader is built in
+            // `:composeApp`, this module only draws the `@Composable` API from it.
+            implementation(libs.coil.compose)
         }
 
         commonTest.dependencies {

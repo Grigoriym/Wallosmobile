@@ -131,10 +131,14 @@
     <string name="subscription_editor_picker_none">None</string>
     <string name="subscription_editor_notes">Notes</string>
     <string name="subscription_editor_url">Website</string>
+    <string name="subscription_editor_logo_section_title">Logo</string>
     <string name="subscription_editor_logo_url">Logo URL</string>
+    <string name="subscription_editor_logo_url_hint">Downloads an image from this address to use as the logo.</string>
     <string name="subscription_editor_logo_file_pick">Choose logo image</string>
     <string name="subscription_editor_logo_file_picked">Selected: %1$s</string>
+    <string name="subscription_editor_logo_file_hint">Used only if Logo URL above is left blank.</string>
     <string name="subscription_editor_notify">Notify before renewal</string>
+    <string name="subscription_editor_notify_subtitle">Sent by the server's own configured channels (email, Discord, etc.), not by this device.</string>
     <string name="subscription_editor_notify_days_before">Days before</string>
     <string name="subscription_editor_auto_renew">Auto-renews</string>
     <string name="subscription_editor_inactive">Inactive</string>
@@ -218,8 +222,8 @@
     <string name="currency_editor_fab_content_description">Add currency</string>
 
     <string name="settings_server">Server</string>
-    <string name="settings_disconnect">Disconnect</string>
-    <string name="settings_disconnect_description">Disconnecting clears the API key stored on this device. Nothing changes on the server.</string>
+    <string name="settings_disconnect">Log Out</string>
+    <string name="settings_disconnect_description">Logging out clears the API key stored on this device. Nothing changes on the server.</string>
 
     <string name="settings_profile">Profile</string>
     <string name="settings_profile_description">Budget</string>
