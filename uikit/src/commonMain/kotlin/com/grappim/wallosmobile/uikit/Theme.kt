@@ -12,6 +12,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
+import com.grappim.wallosmobile.uikit.widgets.snackbar.LocalSnackbarHostController
+import com.grappim.wallosmobile.uikit.widgets.snackbar.SnackbarHostController
 import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
 import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarController
 
@@ -109,8 +111,9 @@ fun WallosMobileTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Comp
 /**
  * The theme every `@Preview` goes through. It adds only the composition locals the shell would
  * otherwise provide: [LocalTopBarConfig], because any screen that declares its own top bar reads it
- * and would crash without it, and [LocalIsOffline] for the same reason — a preview of the offline
- * variant provides that one again itself.
+ * and would crash without it, [LocalIsOffline] for the same reason — a preview of the offline
+ * variant provides that one again itself — and [LocalSnackbarHostController] for a screen that
+ * ever calls into it directly rather than only through the shell's own collector.
  *
  * It deliberately adds no `Surface` of its own: [WallosMobileTheme] owns that now, so a preview
  * renders on the same background and with the same `LocalContentColor` as the running app.
@@ -120,7 +123,8 @@ fun WallosMobilePreviewTheme(content: @Composable () -> Unit) {
     WallosMobileTheme {
         CompositionLocalProvider(
             LocalTopBarConfig provides remember { TopBarController() },
-            LocalIsOffline provides false
+            LocalIsOffline provides false,
+            LocalSnackbarHostController provides remember { SnackbarHostController() }
         ) {
             content()
         }

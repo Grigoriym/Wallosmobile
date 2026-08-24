@@ -10,11 +10,7 @@ enum class FlavorDimensions {
     STORE
 }
 
-enum class AppFlavors(
-    val title: String,
-    val dimensions: FlavorDimensions,
-    val applicationIdSuffix: String? = null
-) {
+enum class AppFlavors(val title: String, val dimensions: FlavorDimensions, val applicationIdSuffix: String? = null) {
     GPLAY("gplay", FlavorDimensions.STORE),
     FDROID("fdroid", FlavorDimensions.STORE, ".fdroid")
 }
@@ -24,7 +20,6 @@ fun configureFlavors(
     flavorConfigurationBlock: ProductFlavor.(flavor: AppFlavors) -> Unit = {}
 ) {
     commonExtension.apply {
-
         FlavorDimensions.entries.forEach { flavorDimension ->
             flavorDimensions += flavorDimension.name
         }

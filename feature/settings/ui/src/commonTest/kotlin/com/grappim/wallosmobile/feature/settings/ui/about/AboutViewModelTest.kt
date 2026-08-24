@@ -1,6 +1,10 @@
 package com.grappim.wallosmobile.feature.settings.ui.about
 
 import com.grappim.wallosmobile.core.appinfoapi.AppInfoProvider
+import com.grappim.wallosmobile.strings.RString
+import com.grappim.wallosmobile.strings.generated.resources.privacy_policy_url
+import com.grappim.wallosmobile.strings.generated.resources.privacy_policy_url_gplay
+import com.grappim.wallosmobile.testing.FakeCrashReporter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -13,7 +17,10 @@ class AboutViewModelTest {
      */
     @Test
     fun `the build facts reach the state unchanged`() {
-        val viewModel = AboutViewModel(FakeAppInfoProvider(name = "1.2.3", code = 42, debug = true))
+        val viewModel = AboutViewModel(
+            appInfoProvider = FakeAppInfoProvider(name = "1.2.3", code = 42, debug = true),
+            crashReporter = FakeCrashReporter()
+        )
 
         val uiState = viewModel.uiState.value
         assertEquals("1.2.3", uiState.versionName)
@@ -27,9 +34,34 @@ class AboutViewModelTest {
      */
     @Test
     fun `a release build is reported as one`() {
-        val viewModel = AboutViewModel(FakeAppInfoProvider(name = "1.2.3", code = 42, debug = false))
+        val viewModel = AboutViewModel(
+            appInfoProvider = FakeAppInfoProvider(name = "1.2.3", code = 42, debug = false),
+            crashReporter = FakeCrashReporter()
+        )
 
         assertFalse(viewModel.uiState.value.isDebug)
+    }
+
+    // The gplay-flavored policy names the Crashlytics section this app's fdroid-flavored one
+    // doesn't have, so which link renders has to follow `crashReporter.isAvailable`, not a default.
+    @Test
+    fun `the gplay privacy policy is used when the crash reporter is available`() {
+        val viewModel = AboutViewModel(
+            appInfoProvider = FakeAppInfoProvider(name = "1.2.3", code = 42, debug = false),
+            crashReporter = FakeCrashReporter().apply { isAvailable = true }
+        )
+
+        assertEquals(RString.privacy_policy_url_gplay, viewModel.uiState.value.privacyPolicyLink)
+    }
+
+    @Test
+    fun `the plain privacy policy is used when the crash reporter is unavailable`() {
+        val viewModel = AboutViewModel(
+            appInfoProvider = FakeAppInfoProvider(name = "1.2.3", code = 42, debug = false),
+            crashReporter = FakeCrashReporter().apply { isAvailable = false }
+        )
+
+        assertEquals(RString.privacy_policy_url, viewModel.uiState.value.privacyPolicyLink)
     }
 
     // Private to this file, as in `SettingsViewModelTest` and `InterfaceViewModelTest`: `:testing`

@@ -30,6 +30,11 @@ line, then tick the box, add a one-line `Note:` under the step if anything devia
 and update the `Progress` / `Current step` header. Don't start a step whose dependencies aren't
 ticked, and don't expand scope beyond the step.
 
+**Answering a question a not-yet-started step will ask is not the same as asking for that step to
+run.** If the user states a preference or decision a later step needs (e.g. ruling on `FLAG_SECURE`
+before 17.5 had been started), record it for when that step runs — don't treat it as the "do step
+N" trigger and launch the step immediately. Corrected 2026-08-11.
+
 **Then close the step out — every time, without being asked:**
 
 1. Run the **`/finalize` skill**. A step almost always teaches something the plan didn't know;
@@ -39,15 +44,55 @@ ticked, and don't expand scope beyond the step.
 3. **Check the docs for claims the step just made false** — `IMPLEMENTATION_PLAN.md` and this
    file both accumulate stale present-tense statements (a build command that no longer exists,
    a "the repo is still…" line). Grep for what changed rather than trusting a read-through.
-4. Commit and push. One commit per step, straight to `master` — subject `0.N — short title`,
-   body listing the deltas that aren't obvious from the diff.
+4. Commit, push to a branch, and open a PR into `dev` — subject `0.N — short title`, body listing
+   the deltas that aren't obvious from the diff (same content a direct-push commit message would
+   have carried). **Then stop — the user merges it and reports back if something broke.** Don't
+   background-watch CI/Guardrails for it (`gh pr checks --watch` or otherwise): asked and declined
+   2026-08-14, in the same breath as asking for PRs at all — the user merges, watching costs
+   usage for no benefit. One commit still lands on `dev` per step; the PR is a checkpoint before it
+   lands, not a batching mechanism.
+
+**Decomposing a new milestone is its own commit, made the moment it happens — not left
+for the session that does step 1 to discover via `git status`.** Every milestone from M3
+onward has one (`git log --oneline | grep decompos`), subject `docs: plan M<N> — …` or
+`docs: decompose M<N> …`. M16's planning session broke this once (2026-08-10): the plan
+§3.10 write-up and the M16 checklist entries sat uncommitted across a `/clear`, and the
+next session only caught it by noticing the initial `git status` still showed those two
+files modified before it had touched anything. Recovered by splitting the pending diff
+into the missing planning commit plus the step's own — but don't rely on that recovery
+path; commit the decomposition before ending the planning session. Same PR flow as any other
+`dev` commit since 2026-08-14 (below) — a milestone-decomposition commit is docs-only, so it
+skips CI but still needs Guardrails green before merging.
+
+**Every push to `dev` goes through a PR now, not a direct push — changed 2026-08-14 at the
+user's request.** Before that date, `dev` behaved exactly like `master` did pre-M15: direct
+pushes, no PR. The mechanics are in "Then close the step out" step 4 above; this applies to
+*any* commit landing on `dev` — a checklist step, a milestone decomposition, an ad-hoc fix —
+not only checklist steps. **Branch protection is turned on for both `dev` and `master`** as of
+2026-08-24, the same day the repo went public — GitHub repository rulesets (`gh api
+repos/{owner}/{repo}/rulesets`, not classic branch protection), each requiring a PR (0 approvals
+needed — solo maintainer) with the `guardrails` status check green, and blocking force-push and
+branch deletion. The repo owner has an `always` bypass actor on both, so a direct push or an
+emergency merge without a green check is still possible from that account, but no longer the
+default path. **Only `guardrails` is a required check, not `ci`** — `ci.yml` has `paths-ignore`
+for `**.md`/`docs/**`, so it never runs on a docs-only commit; requiring it would leave a
+docs-only PR permanently unmergeable (the required check would never report). `guardrails.yml`
+has no such path filter, so it always runs and is safe to require. `ci`'s result still shows on
+the PR, just isn't enforced by the ruleset.
+**`master` only moves via release automation, not ordinary steps** — it advances only through
+15.2–15.4's `release-prepare` → PR → `release-finalize` → tag → `release` workflows (plan §3.9),
+unaffected by the `dev`-side change above; the new `master` ruleset requires that PR path already,
+so nothing about 15.2–15.4's own mechanics needs to change.
 
 ### Changing a gate means saying so
 
 The gates constrain the code a session writes; nothing constrains a session from widening a gate
 so its own step passes. `.github/workflows/guardrails.yml` doesn't prevent that — it makes it
 impossible to do quietly. A commit trips it by touching `.github/`, `build-logic/`,
-`config/detekt/`, `.editorconfig` or `gradle/libs.versions.toml`; by adding an `@Ignore` or a
+`config/detekt/`, or `.editorconfig`; by touching `gradle/libs.versions.toml`'s `detekt`, `ktlint`,
+`composeRules`, `agp` or `androidToolsLint` version keys specifically (a plain dependency bump —
+Renovate's usual PR — doesn't trip it, added 2026-08-14 after Renovate's own commits, which can
+never carry a `Gate-change:` line, failed guardrails on every PR); by adding an `@Ignore` or a
 `@Suppress`; or by **reducing** the number of Non-negotiables below or of steps in
 `docs/CHECKLIST.md` **plus `docs/archive/CHECKLIST-DONE.md`** — the two are summed, so moving a
 step between them is free and dropping one from either is not. Any of those needs a line in the
@@ -89,15 +134,62 @@ This project uses the **`emulator-testing`** and **`finalize`** skills; both are
 
 ```bash
 ./gradlew :androidApp:assembleGplayDebug :androidApp:assembleFdroidDebug   # build (both store flavors)
+
+# A plain `assembleGplayDebug` above (no `-PgplayBuild`) silently builds without the Firebase/Play
+# Core plugins and dependencies at all — not a partial build, a structurally different one (16.1,
+# plan §3.10). A build that actually needs Crashlytics/In-App Update — every gplay build now that
+# 16.3's `CrashReporterImpl` exists and is always compiled into that flavor — needs the property
+# and a `google-services.json` at androidApp/src/gplay/google-services.json (real file, gitignored;
+# a plain `installGplayDebug` without both crashes on cold start, 16.3's own `Note:`):
+./gradlew :androidApp:assembleGplayDebug -PgplayBuild
+
+# `assembleFdroidDebug` and any `*Release`/`*fdroidDebug` package task need six env vars
+# (`WALLOS_STORE_PASS_<FLAVOR>`/`WALLOS_ALIAS_<FLAVOR>`/`WALLOS_KEY_PASS_<FLAVOR>` for GPLAY and
+# FDROID, plus the three `_FDROID_DEBUG` siblings — 15.3) that this shell may not have set; without
+# them, `compileFdroidDebugKotlin` still succeeds but `packageFdroidDebug` fails with `SigningConfig
+# "fdroidDebug" is missing required property "storePassword"`. `assembleGplayDebug`'s own `debug`
+# build type keeps AGP's default debug signing and needs none of this — only `fdroidDebug`'s stable
+# signing identity (15.3) does. `git stash -u` and re-running is the fast way to confirm a
+# packaging failure like this is a missing-env-var gap, not something the current change broke.
 ./gradlew allTests                           # all KMP module tests
 ./gradlew :module:path:testAndroidHostTest   # one module
 ./gradlew detekt ktlintCheck                 # must pass before ticking a step
 ./gradlew :module:path:ktlintFormat          # fix style — don't hand-format
 ./gradlew koverHtmlReport                    # coverage
 
-# The Room DAOs are the one instrumented suite (3.3) — an emulator must be up, and neither
-# `allTests` nor CI runs it. Nothing else in the repo has a device-test source set.
+# Neither `detekt` nor `ktlintCheck` runs Android/Compose lint — that's a separate task, now also
+# in CI (21.1) after `detekt ktlintCheck`. 16.5 shipped a `FlowOperatorInvokedInComposition` (a
+# Flow built inside a composable lambda, `setContent { }` counts) that both gates missed; only
+# Android Studio's own inspection caught it at the time. Still worth a by-eye skim on any
+# `@Composable`-touching step, since lint only runs at CI/push time, not while writing the step.
+#
+# `lint.abortOnError` was `false` from 0.2/0.3 (build-logic's very first commit) until M25
+# (2026-08-14) — 21.1's CI wiring below ran this task on every push but it could never fail,
+# on a custom check or a bundled one (FlowOperatorInvokedInComposition included), the whole time.
+# Now `true` (`KotlinConfiguration.kt`'s `configureKotlinAndroid()`), confirmed clean against the
+# real codebase before flipping it. M25's own custom Lint check (`:lint-rules`,
+# `UnstableCollectionInUiState`) was real and unit-tested, but only ever fired against `androidApp`'s
+# own `src/main` — a *dependency* module's `lintChecks` declaration (wired into every module via
+# `configureLinting()`) does not propagate that module's own `commonMain`/`androidMain` findings
+# into a consuming app's report under AGP 9.3.1's `com.android.kotlin.multiplatform.library` plugin,
+# confirmed empirically (a planted violation in `feature:subscriptions:ui` never appeared in
+# `androidApp:lintFdroidDebug`'s report, on or off, with `checkDependencies` either `true` or
+# `false`) — each such module exposes only a `lintAnalyzeAndroidHostTest` task, no
+# production-source-facing lint task, so there was nothing to wire this into for the
+# `feature:*:ui`/`composeApp`/`uikit` modules that actually hold `*UiState`/`@Composable` code.
+# M26 (26.1, 2026-08-14) ported the check to a real detekt `Rule` (`:detekt-rules`) instead, which
+# has no such gap — `configureLinting()` already runs `detekt` against every module's own
+# `commonMain`/`commonTest` directly — and dropped `:lint-rules` once the port was confirmed to
+# also catch a violation planted straight in `androidApp`.
+./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug -PgplayBuild
+
+# The Room DAOs were the first instrumented suite (3.3); `feature:subscriptions:ui`'s Compose UI
+# tests (M19, 19.1) are the second, same `androidDeviceTest`/`withDeviceTestBuilder` shape. Neither
+# `allTests` nor CI runs either — an emulator must be up locally. See plan §6.1 for what a Compose
+# `androidDeviceTest` needs beyond Room's (the `ui-test-junit4`/`ui-test-manifest`/`espresso-core`
+# artifact pins).
 ./gradlew :core:storage:connectedAndroidDeviceTest
+./gradlew :feature:subscriptions:ui:connectedAndroidDeviceTest
 
 # ktlint's `standard:function-signature` rule collapses any signature that fits in 120 chars back
 # onto one line, so hand-wrapping a parameter list "for readability" fails `ktlintCheck`. Write it
@@ -121,6 +213,35 @@ ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private sta
 # goes through a venv, never a bare/system `pip install`: this machine's `pip` refuses one outright
 # ("externally managed environment", PEP 668). `python3 -m venv` in the scratch directory first.
 
+# To sanity-check a GitHub Actions workflow YAML's syntax locally before pushing it (neither
+# `actionlint` nor Python's `PyYAML` is installed on this machine): system `node` already carries
+# `js-yaml` at /usr/share/nodejs, no install needed.
+# NODE_PATH=/usr/share/nodejs node -e "require('js-yaml').load(require('fs').readFileSync('path/to.yml','utf8'))"
+# `guardrails.yml` runs this same check on all five workflow files in CI (21.3), so a syntax error
+# now fails the push instead of only surfacing via GitHub's own parse afterward — `gh workflow
+# list` (`active` vs. `disabled_yaml_error`) is a fallback for something guardrails can't catch
+# (a semantic error `js-yaml` accepts as valid YAML but the Actions schema rejects).
+
+# Gradle Isolated Projects was trialled and measured a real config-time win, but is currently
+# **off** — `gradle.properties` has `org.gradle.isolated-projects=true` commented out, blocked by a
+# third-party violation in the Kotlin Multiplatform Gradle plugin's own KSP task wiring for
+# `:core:storage` (nothing in this repo to fix). Still worth knowing regardless of on/off: any
+# `build-logic` convention plugin or per-module `build.gradle.kts` reaching for a build-root-relative
+# path must use the current project's own `rootDir` (a plain, already-known-at-Settings-time `File`),
+# never `rootProject.file(...)`/`rootProject.files(...)`/`rootProject.layout...` (a live reference to
+# another project's mutable state) — the fix already applied throughout `build-logic` and worth
+# keeping even with the flag off. Full trial process, the violations found and fixed, and re-check
+# instructions for the next Gradle/KGP bump: `docs/GRADLE_ISOLATED_PROJECTS.md`.
+
+# Gradle wrapper is 9.7.0 (bumped from 9.6.1, 2026-08-12, via the `update-gradle-wrapper` skill).
+# `./gradlew wrapper --gradle-version ... --gradle-distribution-sha256-sum ...` needs
+# `--no-validate-url` in this environment — the wrapper task's own HEAD-request pre-check
+# (`validateDistributionUrl=true`) fails here (`Unexpected end of file from server`) even though a
+# plain `curl -I` against the same URL succeeds; restore `validateDistributionUrl=true` in
+# `gradle-wrapper.properties` by hand afterward; it's a one-time generation-time check, not
+# needed again once the distribution is cached locally, and this looks like a quirk of this
+# sandboxed environment's networking rather than a real problem for CI or other machines.
+
 # Regenerate the Android Baseline Profile (M13, plan §3.7) — needs a connected device/AVD, same
 # one `emulator-testing` already boots for on-device Verify: lines. Writes straight into
 # androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt, committed as source.
@@ -136,9 +257,16 @@ recipe, the stale-banner network check, and more) live in the **`emulator-testin
 (`~/.claude/skills/emulator-testing`) and `docs/EMULATOR_TESTING.md`, not here — read those before
 driving the emulator rather than re-deriving any of it.
 
-CI (`.github/workflows/ci.yml`, plan §3.5, §3.8) runs assemble + `allTests` + `detekt ktlintCheck`
-+ `koverXmlReport` (uploaded to Codecov) on push and PR to `master`, but `paths-ignore` skips
-`**.md` and `docs/**` — a docs-only commit produces **no CI run**, which is not a failure. The
+CI (`.github/workflows/ci.yml`, plan §3.5, §3.8, §3.10) runs `assembleFdroidDebug` then
+`assembleGplayDebug -PgplayBuild` (split since 16.2 — a single `assembleDebug` can't pass
+`-PgplayBuild` to only one flavor) + `allTests` + `detekt ktlintCheck` + `lintFdroidDebug
+lintGplayDebug -PgplayBuild` (21.1) + `koverXmlReport` (uploaded
+to Codecov) on push and PR to `dev` and `master`, but `paths-ignore` skips `**.md` and `docs/**` —
+a docs-only commit produces **no CI run**, which is not a failure. The gplay assemble step restores
+`androidApp/src/gplay/google-services.json` from the `WALLOS_GOOGLE_SERVICES_GPLAY` secret first
+(`mkdir -p` ahead of the redirect, kept even though `androidApp/src/gplay/` now has other tracked
+files as of 16.3 — a fresh checkout still needs the `mkdir -p` on any commit older than that;
+`docs/CHECKLIST.md`'s 16.2 `Note:`). The
 instrumented Room DAO tests are still local/emulator-only — `allTests` doesn't fan out to device
 tests and the CI job has no emulator, so Kover's XML report never sees them either. The second
 workflow, `guardrails.yml` (plan §3.6), has no `paths-ignore` and runs no Gradle, so a docs-only
@@ -183,6 +311,22 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
 - **What a repository has to say *during* a call is a callback parameter, not a flow beside it**
   (`onThrottleWait: (Duration) -> Unit`, defaulted to `{}`). The call is already the scope, so a
   flow would need a lifetime and an initial value that a parameter has none of.
+- **An `androidApp`-only type can never be named in `composeApp`/`uikit` code** — the Gradle
+  dependency runs one way (`androidApp` → `composeApp`), so a `koinInject<T>()` for a type that
+  lives in `androidApp` doesn't compile from below it. A seam that has to live in `androidApp`
+  (needs a real `Activity`, say, so it can't be a KMP module the way `CrashReporter` is) but has to
+  surface something in the Compose shell has two ways across the boundary, and the cheaper one
+  wins when it's available: **check whether the display mechanism itself is a plain,
+  composition-independent type from a shared module first** — if so, `androidApp` constructs it
+  and passes the instance *down* into the shell, and the `androidApp`-only type never needs to be
+  nameable in Compose code at all. Only when the shell has to own the whole mechanism does the
+  narrower `Flow`/callback shape apply. Don't reach for the narrow-signal shape by default — it's
+  the more expensive option, and 16.5's own first pass reached for it anyway before reverting once
+  the cheaper option turned up (worked example, both approaches: plan §3.10). One consequence
+  either way: a type kept out of
+  `composeApp` never needs a `KoinGraphTest` `EXTERNALLY_SUPPLIED` entry, since nothing below
+  `androidApp` ever asks Koin for it — unlike `CrashReporter`, which *is* injected straight into
+  `composeApp`-graph ViewModels and therefore needs one (see the DI paragraph below).
 - **A `SavedStateHandle` holds a JSON string here, not an encoded `SavedState`.** On Android
   `androidx.savedstate`'s `SavedState` **is** `Bundle`, unreachable from a host test — Robolectric
   is out. `SavedStateHandle()` itself, `get`, `set` and `getMutableStateFlow` are pure Kotlin, so
@@ -221,6 +365,42 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   `~/.gradle/caches/modules-2/files-2.1/org.jetbrains.compose.material3/` and read
   `commonMain/androidx/compose/material3/tokens/*Tokens.kt` or `ColorScheme.kt`, rather than
   guessing which token a component reads.
+- **Same technique for AGP's own DSL, when a `build-logic` convention plugin needs an exact
+  interface shape** — `com.android.tools.build:gradle-api`'s `-sources.jar` sits in
+  `~/.gradle/caches/modules-2/files-2.1/com.android.tools.build/gradle-api/<agp version>/`; `unzip`
+  its `com/android/build/api/dsl/*.kt` (classic DSL) or `com/android/build/api/variant/*.kt` (the
+  newer Variant API — `AndroidComponentsExtension`, `onVariants`, `VariantSelector`) rather than
+  guessing which supertype carries a property or method — worked example, giving one (flavor,
+  build type) pair its own signing identity without bleeding into others: plan §3.9.
+  `build-logic/convention/build.gradle.kts` applies
+  `alias(libs.plugins.detekt)`/`alias(libs.plugins.ktlint)` directly (21.2) — the same minimal
+  shape as the root `build.gradle.kts`, with **no** `config.setFrom` pointing at
+  `config/detekt/detekt.yml`: that shared config's `Compose` section needs the
+  `io.nlopez.compose.rules:detekt` plugin on the classpath, which a Kotlin-DSL build-logic project
+  has no reason to carry. So `build-logic` lints against detekt's own default ruleset, not the
+  app's tuned one — `./gradlew -p build-logic detekt ktlintCheck` is what a convention-plugin
+  change needs to pass locally, in addition to `compileKotlin`.
+- **Same technique again for Gradle's own API**, when a root-level check needs to know an exact
+  interface shape rather than guessing or porting a reference project's call verbatim —
+  `gradle-core-api-<version>.jar` sits in the Gradle wrapper distribution itself
+  (`~/.gradle/wrapper/dists/gradle-<version>-bin/<hash>/gradle-<version>/lib/`), no Maven
+  coordinate needed; `javap` a `.class` extracted from it directly (no `-sources.jar` exists for
+  Gradle's own API the way it does for Material 3/AGP above). 24.1 confirmed
+  `ProjectDependency.getPath()` this way — a first-class method on 9.7.0, no
+  `.dependencyProject.path` hop needed at all, unlike `duckduckgo-Android`'s own (older-Gradle,
+  Groovy) version of the same check.
+- **The root `build.gradle.kts` enforces three module-boundary rules from this file's own
+  Architecture/Non-negotiables sections as a real `GradleException` at Gradle configuration time**
+  (M24): nothing depends on `:androidApp` (except `:benchmark`, which structurally must via
+  `targetProjectPath`); only `:androidApp` depends on `:composeApp`; `:core:storage` never depends
+  on any `feature:*:domain`. **A self-referential `ProjectDependency` has to be excluded before the
+  three checks run**, or AGP/KGP's own android-host-test and lint-model machinery (which resolves a
+  module's test/lint classpath against a `ProjectDependency` pointing at the module itself) trips
+  the check on every build. Mechanism, the cyclic-dependency and AGP-variant-ambiguity edge cases,
+  and why this needs watching in CI output specifically rather than just trusted because it once
+  passed: plan §3.11. Root `build.gradle.kts` is **not** one of `check-guardrails.sh`'s
+  `TRIPWIRE_PATHS` (only `.github/`, `build-logic/`, `config/detekt/`, `.editorconfig`,
+  `gradle/libs.versions.toml` are) — a change here needs no `Gate-change:` line on its own.
 
 ## Non-negotiables
 
@@ -232,8 +412,13 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   a DataStore migration, a deprecated overload, or a compatibility shim — change the thing and
   say in the commit that stored state is discarded. This expires the day the app ships: the
   stored API key and the back stack are then the two things that need real care.
-- **No `androidMain` in feature modules** — use `expect`/`actual`. Platform targets are declared
-  **only** in `configureKmp()` in `build-logic`.
+- **A feature module reaches `androidMain` only through `expect`/`actual`, never for arbitrary
+  Android-only code.** This is not "an `androidMain` source set must never exist" — real ones do
+  (`feature/paymentmethods/ui/src/androidMain/`, `feature/subscriptions/ui/src/androidMain/`, each
+  holding one `actual` for a `commonMain` `expect`, confirmed 2026-08-14 while scoping M24: a
+  literal directory-existence check would have failed the real, correct build). Platform *targets*
+  are declared **only** in `configureKmp()` in `build-logic` — no feature module calls
+  `androidTarget()` itself.
 - **`commonMain` is not enforced platform-neutral here.** Android being the only target,
   `commonMain` compiles against the JVM variants: `java.io.File` and `kotlinx.coroutines.runBlocking`
   both resolve there and *nothing* fails. Keeping common code common is a discipline, not a
@@ -249,19 +434,23 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   `@InjectedParam` on the constructor property**, or the graph looks for a definition of that
   type and the screen crashes at first injection — `KoinGraphTest` will **not** catch a missing
   one for a primitive type (`verify()` whitelists `String`/`Int`/`Long`/`Double`), but **will**
-  catch a missing one on `SavedStateHandle`, which is not whitelisted. **A module class needs its
-  own line in `composeApp`'s dependencies, separate from `AppModule`'s `includes`** — `includes`
-  only tells the Koin compiler where to find the class, it doesn't add a Gradle dependency edge.
-  8.3 hit this adding `DashboardDomainModule`: `composeApp` already depended on
-  `feature.dashboard.data`, but that module's own dependency on `feature.dashboard.domain` is
-  `implementation`, not `api`, so the domain module's class stayed invisible to `composeApp` until
-  it got its own `implementation(projects.feature.dashboard.domain)` line. **The same rule applies
-  past DI, to any type** — Gradle's `implementation` visibility is never transitive, so a module
-  that needs a plain type (not just a Koin module class) reached only through another module's
-  `implementation` dependency needs its own direct line too. 8.1 and 8.3 both hit the Koin-class
-  form for `composeApp`; 8.4 hit the plain-type form for `feature:dashboard:ui`, which needed its
-  own `implementation(projects.feature.subscriptions.domain)` line to see `Subscription` — the type
-  `feature:dashboard:domain` already depends on the same `implementation` way.
+  catch a missing one on `SavedStateHandle`, which is not whitelisted. **`KoinGraphTest` verifies
+  only `AppModule` (`composeApp`'s own graph) and can never see a binding that lives in
+  `AndroidModule` (`androidApp`)** — `androidApp` sits above `composeApp`, the same reason
+  `AppInfoProvider` is in the test's own `EXTERNALLY_SUPPLIED` list. A flavor-swapped `@Single`
+  binding declared per-flavor in `androidApp/src/<flavor>/kotlin/.../di/` is invisible to it on
+  *both* flavors — a missing one is a runtime crash at first injection, not a test failure.
+  Compiling both flavors proves the binding class exists and satisfies the interface, but not that
+  Koin can resolve it — only an on-device cold start does that. The **first** `composeApp`-level
+  class to take such a type as a constructor parameter breaks `verify()` outright, not silently,
+  needing `EXTERNALLY_SUPPLIED` (worked example, `CrashReporter`/`AboutViewModel`: plan §3.10).
+  **A module class needs its own line in `composeApp`'s dependencies, separate from `AppModule`'s
+  `includes`** — `includes` only tells the Koin compiler where to find the class, it doesn't add a
+  Gradle dependency edge. **The same rule applies past DI, to any type** — Gradle's
+  `implementation` visibility is never transitive, so a module that needs a plain type (not just a
+  Koin module class) reached only through another module's `implementation` dependency needs its
+  own direct line too (worked examples, `DashboardDomainModule`/`Subscription`: plan §6, the Koin
+  bullet under Architecture patterns).
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`. Every
   new route must be registered in the polymorphic `SerializersModule` in `NavKeySerializers.kt`,
@@ -291,6 +480,12 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
 - **A `commonTest` fixture is a Kotlin constant, not a file.** There is no portable way to read a
   resource or a path from `commonTest`, so recorded HTML/JSON lives in a `*Fixtures.kt` and
   anything filesystem-backed needs an in-memory fake.
+- **Production code is never shaped by testing needs.** If a code path is flaky or can't be
+  observed deterministically as written, fix or simplify the *test* — don't add a seam,
+  injectable parameter, or abstraction to production code purely so a test can control it. This
+  holds even for a small, additive, provably-safe change (e.g. a defaulted constructor parameter
+  confirmed not to affect the DI graph): the question is whether it belongs in production code at
+  all, not whether it's safe. Ask before adding any such seam.
 
 ## Settled decisions
 
@@ -344,7 +539,9 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   fails detekt (4.4's About row on `SettingsScreen`), and the fix is the order the subscriptions
   screens already use: callbacks first, `viewModel` last with its default.
 - **`ImmutableList` / `persistentListOf()`** over `List` in state classes and Composable params,
-  for stable recomposition.
+  for stable recomposition. `docs/compose/stability-reports.md` is the opt-in Compose Compiler
+  audit that verifies this convention (and catches domain types reading unstable) — how to run it,
+  the report formats, and what it's found so far.
 - **Always write previews** for screens and reusable widgets, using `@PreviewWallosDarkLight` +
   `WallosMobilePreviewTheme` (both from `uikit`). The `Surface` belongs to `WallosMobileTheme`, so
   a preview draws the same background and `LocalContentColor` as the app — don't add a `Surface`
@@ -354,6 +551,15 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   checking which token it reads (see the sources-jar note under Architecture) and, if that role is
   still unset, setting it rather than passing a colour at the call site.
 - Fixed-item screens (settings) use `Column`, not `LazyColumn`.
+- **A `Row` pairing a wrapping label with a trailing fixed-size control (`Switch`, an icon) needs
+  `Modifier.weight(1f)` on the label's `Column`**, or `Arrangement.SpaceBetween` lets the label's
+  `Text` measure at up to the row's full width and the control ends up centered over wherever the
+  label happened to wrap to at a larger font scale. Found 2026-08-15 (27.5's device pass, `font_scale
+  1.3`): `InterfaceScreen.kt`'s `CrashReportingRow` had no `weight(1f)`, and its two-line description
+  collided with the `Switch`. The other two switch rows (`SubscriptionEditorScreen`,
+  `PaymentMethodEditorScreen`) never hit this only because their label is a single bare `Text` with
+  no description underneath, so there's nothing to wrap — the moment a switch row grows a second
+  line, it needs the same `weight(1f)` this one was missing.
 - **A new `CompositionLocal` fails `ktlintCheck`** (`compose:compositionlocal-allowlist`) until it
   is named in `.editorconfig`'s `compose_allowed_composition_locals` — which is a tripwire path, so
   adding one costs a `Gate-change:` line. There are two, both provided by the shell and by
@@ -408,6 +614,16 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   `Throwable.findPendingCertTrust()` (`core:domain`) walks the chain for it. Any "everything else"
   arm has to *ask* it ahead of falling back to a generic unreachable-server message, because a
   rotated certificate is the one transport failure the user can fix. Full mechanism: plan §4.5.
+- **`CrashlyticsTree.log()` forwards exactly one thing: `LogPriority.ERROR` with a non-null
+  `throwable`** (`androidApp/.../CrashlyticsTree.kt`) — a `WARN` catch, or an `ERROR` one with no
+  `throwable =`, never reaches Crashlytics. That makes the *throwable itself* the thing to audit,
+  not the fixed string passed as the log message: a caught exception's own `.message` can carry
+  more than the surrounding text admits (`kotlinx.serialization`'s decode-failure messages embed
+  the full offending JSON verbatim — M23, worked example and audit technique: plan §4.2). Passing
+  `e` straight through as `throwable =` at `ERROR` ships whatever's in `e.message` to Google on a
+  `gplay` build. Fix shape when a caught exception's message might carry response/user data: log
+  the real `e` at `WARN` (local Logcat only) and a fresh exception with a fixed, data-free message
+  at `ERROR`.
 
 ## Strings and resources
 
@@ -516,6 +732,16 @@ Two known drifts in those repos: `MealieMobile/docs/kmp-nav3.md` disagrees with 
 (plan §5.5), and Mealie's `CLAUDE.md` Tech Stack line says Koin uses KSP — its `build-logic` shows
 the compiler plugin.
 
+## Chat replies
+
+Answer in chat as a tl;dr: short, plain, human, straightforward. Give the result and the
+next step, not the reasoning that got there.
+
+- This is about chat only. Docs, code, comments, commit messages: write them however
+  the artifact and this file's other rules call for.
+- If something genuinely doesn't compress — a real tradeoff, a caveat that changes the
+  answer — explain it in full. Don't let that become the default excuse for length.
+
 ## Coding guidelines
 
 **Tradeoff:** these bias toward caution over speed. For trivial tasks, use judgment.
@@ -575,3 +801,11 @@ Add a one-line, past-tense entry to `docs/frictions.md` before moving on — cre
 isn't there. At the end of a session, read the file back and report what was added, with a count,
 even when the count is zero. The same friction three times is a fix, not a fourth line — raise it
 in `/finalize`.
+
+### A real finding that isn't small enough to fix inline goes in `docs/revisit.md`
+
+Started 2026-08-11 (17.3, MASVS-NETWORK), matching TaigaMobileNova's `docs/revisit.md` shape:
+numbered `## N. Title` entries, deleted once actually fixed rather than accumulated. Use it when a
+review or a step turns up a genuine gap that needs more than the step's own scope to close (a new
+storage method plus a screen, not a one-line change) — write the entry, don't just mention it in a
+checklist `Note:` and let it evaporate.

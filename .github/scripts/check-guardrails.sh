@@ -27,6 +27,20 @@ TRIPWIRE_PATHS=(
   'gradle/libs.versions.toml'
 )
 
+# gradle/libs.versions.toml is on the list above, but Renovate touches it constantly for
+# ordinary dependency bumps (filekit, ktor, coroutines, ...) that don't decide whether anything
+# passes, and a bot-authored commit can never carry a Gate-change line. Only these version keys
+# actually govern a gate — detekt/ktlint/composeRules run the lint checks, agp/androidToolsLint
+# govern Android Lint (lint.abortOnError, :lint-rules' own API) — so the wire below only fires
+# when one of them is what changed, not on every version bump in the file.
+GATE_VERSION_KEYS='^[+-](detekt|ktlint|composeRules|agp|androidToolsLint)[[:space:]]*='
+
+# True if the diff for gradle/libs.versions.toml between $1 and $2 touches a gate-relevant key.
+libs_versions_touches_gate() {
+  git diff "$1" "$2" -- gradle/libs.versions.toml |
+    grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -qE "$GATE_VERSION_KEYS"
+}
+
 # Counts a rule document's rules. A reworded or reflowed bullet leaves these alone; a deleted
 # one does not — which is the difference between editing the rules and dropping them.
 # A rev that predates the file counts as zero rules, so adding it can't read as a drop.
@@ -49,7 +63,13 @@ count_checklist_steps() {
 
 failed=0
 
-for sha in $(git rev-list --reverse "$RANGE"); do
+# --no-merges: a merge commit's own diff (against its first parent) shows everything the other
+# side brought in, not something *this* commit introduced — e.g. a branch catching up with dev
+# via `git merge dev` shows dev's entire history since the branch point as "touched," even though
+# each of those commits was already reviewed and declared on dev itself (found on renovate/filekit
+# after PR #15 merged: "Merge branch 'dev' into renovate/filekit" tripped nine files it never
+# touched). The commits that actually introduce content are still walked and still checked.
+for sha in $(git rev-list --reverse --no-merges "$RANGE"); do
   base="$(git rev-parse --verify --quiet "${sha}^" || echo "$EMPTY_TREE")"
   subject="$(git log -1 --format=%s "$sha")"
   reasons=()
@@ -58,6 +78,11 @@ for sha in $(git rev-list --reverse "$RANGE"); do
     [ -n "$file" ] || continue
     for wire in "${TRIPWIRE_PATHS[@]}"; do
       case "$wire" in
+        gradle/libs.versions.toml)
+          if [ "$file" = "$wire" ] && libs_versions_touches_gate "$base" "$sha"; then
+            reasons+=("touches $file (a gate-relevant version: detekt/ktlint/composeRules/agp/androidToolsLint)")
+          fi
+          ;;
         */) [ "${file##"$wire"}" != "$file" ] && reasons+=("touches $file") ;;
         *)  [ "$file" = "$wire" ] && reasons+=("touches $file") ;;
       esac

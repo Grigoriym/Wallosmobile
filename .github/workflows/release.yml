@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.1.0)'
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+    env:
+      WALLOS_STORE_PASS_GPLAY: ${{ secrets.WALLOS_STORE_PASS_GPLAY }}
+      WALLOS_ALIAS_GPLAY: ${{ secrets.WALLOS_ALIAS_GPLAY }}
+      WALLOS_KEY_PASS_GPLAY: ${{ secrets.WALLOS_KEY_PASS_GPLAY }}
+      WALLOS_STORE_PASS_FDROID: ${{ secrets.WALLOS_STORE_PASS_FDROID }}
+      WALLOS_ALIAS_FDROID: ${{ secrets.WALLOS_ALIAS_FDROID }}
+      WALLOS_KEY_PASS_FDROID: ${{ secrets.WALLOS_KEY_PASS_FDROID }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      ENCODED_GOOGLE_SERVICES_GPLAY: ${{ secrets.WALLOS_GOOGLE_SERVICES_GPLAY }}
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          validate-wrappers: true
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Restore wallos_mobile_gplay.jks
+        run: echo "$ENCODED_GPLAY" | base64 -d > ./wallos_mobile_gplay.jks
+        env:
+          ENCODED_GPLAY: ${{ secrets.WALLOS_FILE_GPLAY }}
+
+      - name: Restore wallos_mobile_fdroid.jks
+        run: echo "$ENCODED_FDROID" | base64 -d > ./wallos_mobile_fdroid.jks
+        env:
+          ENCODED_FDROID: ${{ secrets.WALLOS_FILE_FDROID }}
+
+      - name: Restore google-services.json
+        run: |
+          mkdir -p androidApp/src/gplay
+          echo "$ENCODED_GOOGLE_SERVICES_GPLAY" | base64 -d > androidApp/src/gplay/google-services.json
+
+      - name: Build release APKs and AAB
+        run: ./gradlew :androidApp:assembleGplayRelease :androidApp:assembleFdroidRelease :androidApp:bundleGplayRelease -PgplayBuild
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          make_latest: true
+          preserve_order: true
+          files: |
+            androidApp/build/outputs/apk/gplay/release/androidApp-gplay-release.apk
+            androidApp/build/outputs/apk/fdroid/release/androidApp-fdroid-release.apk
+            androidApp/build/outputs/bundle/gplayRelease/androidApp-gplay-release.aab

@@ -6,12 +6,14 @@ permissions:
 on:
   push:
     branches:
+      - dev
       - master
     paths-ignore:
       - '**.md'
       - 'docs/**'
   pull_request:
     branches:
+      - dev
       - master
     paths-ignore:
       - '**.md'
@@ -24,6 +26,11 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    env:
+      ENCODED_GOOGLE_SERVICES_GPLAY: ${{ secrets.WALLOS_GOOGLE_SERVICES_GPLAY }}
+      WALLOS_STORE_PASS_FDROID_DEBUG: ${{ secrets.WALLOS_STORE_PASS_FDROID_DEBUG }}
+      WALLOS_ALIAS_FDROID_DEBUG: ${{ secrets.WALLOS_ALIAS_FDROID_DEBUG }}
+      WALLOS_KEY_PASS_FDROID_DEBUG: ${{ secrets.WALLOS_KEY_PASS_FDROID_DEBUG }}
 
     steps:
       - name: Check out the repo
@@ -43,14 +50,30 @@ jobs:
       - name: Set up the Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Assemble the debug APK
-        run: ./gradlew :androidApp:assembleDebug
+      - name: Restore google-services.json
+        run: |
+          mkdir -p androidApp/src/gplay
+          echo "$ENCODED_GOOGLE_SERVICES_GPLAY" | base64 -d > androidApp/src/gplay/google-services.json
+
+      - name: Restore wallos_mobile_fdroid_debug.jks
+        run: echo "$ENCODED_FDROID_DEBUG" | base64 -d > ./wallos_mobile_fdroid_debug.jks
+        env:
+          ENCODED_FDROID_DEBUG: ${{ secrets.WALLOS_FILE_FDROID_DEBUG }}
+
+      - name: Assemble the fdroid debug APK
+        run: ./gradlew :androidApp:assembleFdroidDebug
+
+      - name: Assemble the gplay debug APK
+        run: ./gradlew :androidApp:assembleGplayDebug -PgplayBuild
 
       - name: Run the unit tests
         run: ./gradlew allTests
 
       - name: Run detekt and ktlint
         run: ./gradlew detekt ktlintCheck
+
+      - name: Run Android/Compose lint
+        run: ./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug -PgplayBuild
 
       - name: Generate Kover XML report
         run: ./gradlew koverXmlReport

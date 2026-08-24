@@ -12,6 +12,7 @@ import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jlleitschuh.gradle.ktlint.KtlintExtension
 import org.jlleitschuh.gradle.ktlint.reporter.ReporterType
+import java.io.File
 
 // `:testing` is fakes and fixtures only — linting it adds noise without protecting anything,
 // and `.editorconfig` already disables ktlint for `**/testing/**`.
@@ -65,7 +66,11 @@ fun Project.configureLinting() {
     configure<DetektExtension> {
         buildUponDefaultConfig.set(true)
         parallel.set(true)
-        config.setFrom(rootProject.files("config/detekt/detekt.yml"))
+        // `rootDir` (not `rootProject.files(...)`) — every Project already carries its build's
+        // root directory as a plain, non-cross-project value, so this doesn't need `rootProject`
+        // itself (a live Project reference to another project, which Isolated Projects forbids
+        // reading from a subproject).
+        config.setFrom(File(rootDir, "config/detekt/detekt.yml"))
         allRules.set(false)
 
         // detekt's default source set is `src/main/{java,kotlin}`, which no KMP module has —
@@ -95,5 +100,11 @@ fun Project.configureLinting() {
     dependencies {
         "ktlintRuleset"(libs.findLibrary("composeRules-ktlint").get())
         "detektPlugins"(libs.findLibrary("composeRules-detekt").get())
+
+        // M26: the detekt port of :lint-rules' UnstableCollectionInUiState check — unlike
+        // `lintChecks` above, a `detektPlugins` rule runs as part of the *consuming* module's own
+        // `detekt` task, so this one real reaches every module's own `feature:*:ui`/`composeApp`/
+        // `uikit` source, closing docs/revisit.md #1.
+        "detektPlugins"(project(":detekt-rules"))
     }
 }

@@ -10,9 +10,11 @@ permissions:
 on:
   push:
     branches:
+      - dev
       - master
   pull_request:
     branches:
+      - dev
       - master
 
 concurrency:
@@ -28,6 +30,12 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          # For pull_request, actions/checkout defaults to GitHub's synthetic test-merge commit
+          # (refs/pull/<n>/merge) — an auto-generated "Merge X into Y" message that can never
+          # carry a Gate-change: line, even when the real commit underneath it did (found on the
+          # first tripwire-touching PR run through this flow, #15). Pinning to the PR's actual
+          # head commit checks the commit message that will really land on the branch.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Work out the range to check
         id: range
@@ -46,3 +54,11 @@ jobs:
 
       - name: Check the gate tripwires
         run: .github/scripts/check-guardrails.sh '${{ steps.range.outputs.range }}'
+
+      - name: Validate workflow YAML syntax
+        run: |
+          npm install --no-save js-yaml
+          for f in .github/workflows/*.yml; do
+            echo "Checking ${f}"
+            node -e "require('js-yaml').load(require('fs').readFileSync('${f}', 'utf8'))"
+          done

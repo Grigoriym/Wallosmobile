@@ -29,6 +29,8 @@ import com.grappim.wallosmobile.strings.generated.resources.settings_server
 import com.grappim.wallosmobile.strings.generated.resources.settings_start_destination
 import com.grappim.wallosmobile.strings.generated.resources.settings_start_destination_description
 import com.grappim.wallosmobile.strings.generated.resources.settings_title
+import com.grappim.wallosmobile.strings.generated.resources.settings_trusted_certificates
+import com.grappim.wallosmobile.strings.generated.resources.settings_trusted_certificates_description
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
@@ -39,7 +41,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
-// Four callbacks without defaults, so `viewModel` moves last: `compose:parameter-order` only
+// Five callbacks without defaults, so `viewModel` moves last: `compose:parameter-order` only
 // exempts a *single* trailing function from having to follow the defaulted params.
 @Composable
 fun SettingsScreen(
@@ -47,6 +49,7 @@ fun SettingsScreen(
     onStartDestinationClick: () -> Unit,
     onAboutClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onTrustedCertsClick: () -> Unit,
     viewModel: SettingsViewModel = koinViewModel<SettingsViewModel>()
 ) {
     val topBarController = LocalTopBarConfig.current
@@ -66,7 +69,8 @@ fun SettingsScreen(
         onInterfaceClick = onInterfaceClick,
         onStartDestinationClick = onStartDestinationClick,
         onAboutClick = onAboutClick,
-        onProfileClick = onProfileClick
+        onProfileClick = onProfileClick,
+        onTrustedCertsClick = onTrustedCertsClick
     )
 }
 
@@ -77,6 +81,7 @@ private fun SettingsContent(
     onStartDestinationClick: () -> Unit,
     onAboutClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onTrustedCertsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     // A fixed set of items, so a `Column` rather than a `LazyColumn`.
@@ -110,6 +115,12 @@ private fun SettingsContent(
             title = RString.settings_about,
             subtitle = RString.settings_about_description,
             onClick = onAboutClick
+        )
+
+        SettingsRow(
+            title = RString.settings_trusted_certificates,
+            subtitle = RString.settings_trusted_certificates_description,
+            onClick = onTrustedCertsClick
         )
 
         HorizontalDivider()
@@ -184,6 +195,7 @@ private fun SettingsContentPreview() = WallosMobilePreviewTheme {
         onInterfaceClick = {},
         onStartDestinationClick = {},
         onAboutClick = {},
-        onProfileClick = {}
+        onProfileClick = {},
+        onTrustedCertsClick = {}
     )
 }
