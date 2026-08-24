@@ -190,3 +190,16 @@ deleted — see `/finalize`.
   semantics action, and the row sits below the fold in this long scrollable form; `assertIsOn()` on
   the same node passed fine just before it, since a semantics assertion reads state regardless of
   what's actually rendered on screen. `performScrollTo()` before `performClick()` fixed it.
+- PR #31 (`release/v1.0.0` → `master`, the repo's first-ever release PR) failed the `guardrails`
+  required check on one commit, `99ec8e8` (2026-08-12, "20.1 — wire opt-in Compose Compiler
+  stability reports") — touched `build-logic/` with no `Gate-change:` line. Confirmed genuine, not
+  a script bug: replaying `check-guardrails.sh` as it existed at that commit's own time against
+  just that commit still fails it. It slipped through originally because `guardrails.yml` at the
+  time only ran on push/PR to `master`, and before M15 (2026-08-14) every commit landed straight on
+  the single trunk with no PR to enforce a red check — so the failure was visible but nothing
+  blocked on it. This is the first PR ever to check `origin/master..HEAD` since `master` has never
+  advanced before, so it's the only PR that will ever see this specific commit in its range; every
+  later release only diffs since the prior release tag, and everything else in the 40-ish-commit
+  range passed cleanly. Rewriting already-public `dev` history for a 12-day-old commit wasn't a real
+  option (force-push is blocked on `dev` now anyway); the owner's ruleset bypass on `master` is the
+  intended way past a one-time, understood case like this one.
