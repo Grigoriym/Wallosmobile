@@ -931,12 +931,15 @@ and base64 content are already GitHub repo secrets too (`WALLOS_FILE_<FLAVOR>` f
 — confirmed via `gh secret list`, 15.4 does not need to treat them as missing.
 
 **15.4, as built:** `release.yml` is tag-triggered (`push: tags: [v*]`) plus `workflow_dispatch`
-(a required `tag` input, for a dry run against a tag that doesn't exist yet). It restores only the
-two *release* keystores from `WALLOS_FILE_GPLAY`/`WALLOS_FILE_FDROID` (not `fdroidDebug` — that
-config exists for CI builds generally, per 15.3, not this tag-triggered path) into the
-root-relative paths `AndroidApplicationConventionPlugin.kt` reads, then runs
-`assembleGplayRelease assembleFdroidRelease bundleGplayRelease` and publishes everything via
-`softprops/action-gh-release@v3`, same as Taiga. No composite setup action exists in this repo
+(a required `tag` input, for a dry run against a tag that doesn't exist yet). It restores the
+three keystores from `WALLOS_FILE_GPLAY`/`WALLOS_FILE_FDROID`/`WALLOS_FILE_FDROID_DEBUG` (the
+`fdroidDebug` restore and its three signing env vars were added post-15.4, 2026-08-24, at the
+user's request, so the F-Droid debug channel — stable-signed and upgradeable in place, per 15.3 —
+gets published as a release asset alongside the two real release builds, not just built in CI)
+into the root-relative paths `AndroidApplicationConventionPlugin.kt` reads, then runs
+`assembleGplayRelease assembleFdroidRelease assembleFdroidDebug bundleGplayRelease` and publishes
+everything via `softprops/action-gh-release@v3`, same as Taiga (Taiga has no debug-channel asset
+to port, since it never grew a `fdroidDebug` config the way 15.3 did here). No composite setup action exists in this repo
 (unlike Taiga's `android-setup-composite-action`), so the Java 21/Gradle/Android SDK setup steps
 are copied inline from `ci.yml` instead of factored out. The live dry run
 (`gh workflow run release.yml -f tag=v0.0.0-test`) was deliberately not run this session — it

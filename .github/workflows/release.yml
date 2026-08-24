@@ -23,6 +23,9 @@ jobs:
       WALLOS_STORE_PASS_FDROID: ${{ secrets.WALLOS_STORE_PASS_FDROID }}
       WALLOS_ALIAS_FDROID: ${{ secrets.WALLOS_ALIAS_FDROID }}
       WALLOS_KEY_PASS_FDROID: ${{ secrets.WALLOS_KEY_PASS_FDROID }}
+      WALLOS_STORE_PASS_FDROID_DEBUG: ${{ secrets.WALLOS_STORE_PASS_FDROID_DEBUG }}
+      WALLOS_ALIAS_FDROID_DEBUG: ${{ secrets.WALLOS_ALIAS_FDROID_DEBUG }}
+      WALLOS_KEY_PASS_FDROID_DEBUG: ${{ secrets.WALLOS_KEY_PASS_FDROID_DEBUG }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       ENCODED_GOOGLE_SERVICES_GPLAY: ${{ secrets.WALLOS_GOOGLE_SERVICES_GPLAY }}
 
@@ -54,13 +57,18 @@ jobs:
         env:
           ENCODED_FDROID: ${{ secrets.WALLOS_FILE_FDROID }}
 
+      - name: Restore wallos_mobile_fdroid_debug.jks
+        run: echo "$ENCODED_FDROID_DEBUG" | base64 -d > ./wallos_mobile_fdroid_debug.jks
+        env:
+          ENCODED_FDROID_DEBUG: ${{ secrets.WALLOS_FILE_FDROID_DEBUG }}
+
       - name: Restore google-services.json
         run: |
           mkdir -p androidApp/src/gplay
           echo "$ENCODED_GOOGLE_SERVICES_GPLAY" | base64 -d > androidApp/src/gplay/google-services.json
 
       - name: Build release APKs and AAB
-        run: ./gradlew :androidApp:assembleGplayRelease :androidApp:assembleFdroidRelease :androidApp:bundleGplayRelease -PgplayBuild
+        run: ./gradlew :androidApp:assembleGplayRelease :androidApp:assembleFdroidRelease :androidApp:assembleFdroidDebug :androidApp:bundleGplayRelease -PgplayBuild
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
@@ -73,4 +81,5 @@ jobs:
           files: |
             androidApp/build/outputs/apk/gplay/release/androidApp-gplay-release.apk
             androidApp/build/outputs/apk/fdroid/release/androidApp-fdroid-release.apk
+            androidApp/build/outputs/apk/fdroid/debug/androidApp-fdroid-debug.apk
             androidApp/build/outputs/bundle/gplayRelease/androidApp-gplay-release.aab
