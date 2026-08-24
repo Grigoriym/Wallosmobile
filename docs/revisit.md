@@ -25,3 +25,23 @@ Not a one-line fix: needs a deliberate bottom-clearance value (FAB touch target 
 other FAB-bearing screen has the same gap — out of scope for M27 (accessibility), which is why this
 wasn't fixed inline during 27.5. Fix by giving `SubscriptionsList`'s `contentPadding` an asymmetric
 `bottom` value sized to actually clear the FAB.
+
+## 2. No mobile-side renewal notifications
+
+Raised 2026-08-24 while explaining what the subscription editor's "Notify before renewal" switch
+(`SubscriptionEditorScreen.kt`) actually does: it only writes the server's own `notify` /
+`notify_days_before` fields (`docs/WALLOS_API.md` §3.12). Delivery is entirely Wallos'
+`endpoints/cronjobs/sendnotifications.php` cron job, through whatever channel (email, Discord,
+ntfy, …) is configured on the server — confirmed there is **no** notification code anywhere in
+this app (`NotificationManager`, `NotificationCompat`, `WorkManager`, `POST_NOTIFICATIONS`: zero
+hits). A self-hosted instance with no channel configured server-side gives the toggle no effect
+at all, silently.
+
+Worth investigating, not fixing inline: whether this app should grow its **own** local
+notification, independent of the server's channels — e.g. a `WorkManager` job that reads the
+already-cached `core:storage` rows and posts a reminder for renewals due soon, using
+`notify`/`notify_days_before` as the per-subscription opt-in it already is. Needs its own design
+pass: `POST_NOTIFICATIONS` runtime permission (Android 13+), a notification channel, a schedule
+that doesn't fight the existing refresh cadence, and a decision on whether it duplicates or
+replaces the subtitle now on that switch (added the same session, `SubscriptionEditorScreen.kt`'s
+`SwitchRow` `subtitle` param) once it exists.
