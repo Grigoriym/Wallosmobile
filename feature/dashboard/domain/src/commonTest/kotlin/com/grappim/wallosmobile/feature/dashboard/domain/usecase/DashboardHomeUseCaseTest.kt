@@ -205,6 +205,45 @@ class DashboardHomeUseCaseTest {
         assertEquals(emptyList(), result.upcomingPayments)
     }
 
+    @Test
+    fun `subscriptions are refreshed before the dashboard reads them`() = runTest {
+        val dashboardRepository = FakeDashboardRepository(
+            monthlyCost = Result.success(MonthlyCost(title = "August 2026", amount = 0.0, currencySymbol = "€")),
+            periodBudget = Result.failure(WallosError.UnsupportedEndpoint)
+        )
+        val sub = subscription(id = 1).copy(nextPayment = LocalDate(2026, 8, 20), price = 42.0)
+        // Cache starts empty, the way it does right after a fresh login (`ApiKeyStorage.clear()`).
+        // Only a refresh the use case runs itself makes `sub` visible.
+        val subscriptionsRepository = FakeSubscriptionsRepository(
+            initialSubscriptions = emptyList(),
+            subscriptionsAfterRefresh = listOf(sub)
+        )
+
+        val result = useCase(dashboardRepository, subscriptionsRepository).getDashboardHomeData(today)
+
+        assertEquals(1, subscriptionsRepository.refreshCallCount)
+        assertEquals(listOf(1), result.upcomingPayments.map { it.id })
+    }
+
+    @Test
+    fun `a subscriptions refresh failure still leaves the rest of the dashboard populated`() = runTest {
+        val monthlyCost = MonthlyCost(title = "August 2026", amount = 42.0, currencySymbol = "€")
+        val dashboardRepository = FakeDashboardRepository(
+            monthlyCost = Result.success(monthlyCost),
+            periodBudget = Result.failure(WallosError.UnsupportedEndpoint)
+        )
+        val sub = subscription(id = 1).copy(nextPayment = LocalDate(2026, 8, 20), price = 42.0)
+        val subscriptionsRepository = FakeSubscriptionsRepository(
+            initialSubscriptions = listOf(sub),
+            refreshResult = Result.failure(WallosError.Server("boom"))
+        )
+
+        val result = useCase(dashboardRepository, subscriptionsRepository).getDashboardHomeData(today)
+
+        assertEquals(monthlyCost, result.monthlyCost.getOrThrow())
+        assertEquals(listOf(1), result.upcomingPayments.map { it.id })
+    }
+
     private fun useCase(
         dashboardRepository: DashboardRepository,
         subscriptionsRepository: SubscriptionsRepository,
@@ -283,17 +322,32 @@ class DashboardHomeUseCaseTest {
         ): Result<Unit> = error("not used by this test")
     }
 
-    private class FakeSubscriptionsRepository(private val subscriptions: List<Subscription>) : SubscriptionsRepository {
+    private class FakeSubscriptionsRepository(
+        initialSubscriptions: List<Subscription> = emptyList(),
+        private val refreshResult: Result<Unit> = Result.success(Unit),
+        private val subscriptionsAfterRefresh: List<Subscription> = initialSubscriptions
+    ) : SubscriptionsRepository {
 
-        override fun observeSubscriptions(): Flow<List<Subscription>> = flowOf(subscriptions)
+        private val cache = MutableStateFlow(initialSubscriptions)
+
+        var refreshCallCount = 0
+            private set
+
+        override fun observeSubscriptions(): Flow<List<Subscription>> = cache
 
         override fun observePriceConversion(): Flow<PriceConversion> = MutableStateFlow(PriceConversion())
 
         override fun observeCurrencies(): Flow<List<Currency>> = flowOf(emptyList())
 
-        override suspend fun refreshSubscriptions(): Result<Unit> = error("not used by this test")
+        override suspend fun refreshSubscriptions(): Result<Unit> {
+            refreshCallCount++
+            if (refreshResult.isSuccess) {
+                cache.value = subscriptionsAfterRefresh
+            }
+            return refreshResult
+        }
 
-        override fun observeSubscription(id: Int): Flow<Subscription?> = flowOf(subscriptions).map { list ->
+        override fun observeSubscription(id: Int): Flow<Subscription?> = cache.map { list ->
             list.firstOrNull { it.id == id }
         }
 

@@ -6,10 +6,17 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import com.grappim.wallosmobile.composeapp.di.KoinApp
 import com.grappim.wallosmobile.core.appinfoapi.AppInfoProvider
+import com.grappim.wallosmobile.core.asynckmp.ApplicationScope
+import com.grappim.wallosmobile.core.crashreportingapi.CrashReporter
 import com.grappim.wallosmobile.core.logger.TimberLogger
+import com.grappim.wallosmobile.core.storage.crashreporting.CrashReportingStorage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.plugin.module.dsl.startKoin
+import org.koin.plugin.module.dsl.typeQualifier
 import timber.log.Timber
 
 class WallosApp :
@@ -19,6 +26,12 @@ class WallosApp :
     private val appInfoProvider: AppInfoProvider by inject()
 
     private val imageLoader: ImageLoader by inject()
+
+    private val crashReporter: CrashReporter by inject()
+
+    private val crashReportingStorage: CrashReportingStorage by inject()
+
+    private val applicationScope: CoroutineScope by inject(typeQualifier(ApplicationScope::class))
 
     override fun onCreate() {
         super.onCreate()
@@ -31,6 +44,10 @@ class WallosApp :
         }
 
         setupLogger()
+
+        crashReportingStorage.crashReportingEnabled
+            .onEach { enabled -> crashReporter.setCollectionEnabled(enabled) }
+            .launchIn(applicationScope)
     }
 
     /**
@@ -45,6 +62,7 @@ class WallosApp :
         if (appInfoProvider.isDebug()) {
             Timber.plant(Timber.DebugTree())
         }
+        Timber.plant(CrashlyticsTree(crashReporter))
         TimberLogger.install()
     }
 }

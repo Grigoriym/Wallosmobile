@@ -144,12 +144,13 @@ internal class SetupRepositoryImpl(
     }
 
     /**
-     * Only the fingerprint is pinned, not the certificate the prompt displayed (plan §4.5) — the
-     * host scopes it, so a certificate accepted for one instance can't authenticate another.
+     * The pin is scoped to `(host, fingerprint)` (plan §4.5) — a certificate accepted for one
+     * instance can't authenticate another — but the full [pendingCertTrust] is what gets stored,
+     * so the Settings screen (18.2) can show what it's revoking.
      */
     override suspend fun trustCertificate(pendingCertTrust: PendingCertTrust): Result<Unit> = resultOf {
         withContext(dispatcher) {
-            trustedCertStorage.trust(pendingCertTrust.host, pendingCertTrust.sha256Fingerprint)
+            trustedCertStorage.trust(pendingCertTrust)
         }
     }
 

@@ -26,6 +26,13 @@ section and `docs/local-info.txt` — this file only covers the device side.
 
 ## App-specific gotchas
 
+- **This machine can have a real phone (`SM-A920F`, a Samsung Galaxy A9 on Android 10) connected
+  over USB**, and `adb`/an `installXxxDebug` task silently prefers it over the AVD whenever no
+  emulator is booted yet (16.5: `installGplayDebug -PgplayBuild` landed there on its first run of
+  a session, install succeeding with no error). Always `adb devices -l` before trusting an install
+  reached `Medium_Phone_API_36.1`, and boot the AVD explicitly rather than assuming it's the only
+  device attached — the skill's own generic warning about this, not a one-off.
+
 - **`screencap` is 1080×2400 while the returned image is scaled** — multiply screenshot
   coordinates by the display factor before `input tap`, or better, read a
   `uiautomator dump`'s real-pixel `bounds` instead. Mixing scaled and unscaled
@@ -102,7 +109,12 @@ section and `docs/local-info.txt` — this file only covers the device side.
   `force-stop` both the app and the browser before starting a kill cycle that follows a
   link tap. The link itself is a logcat check, not a screenshot (the browser's own
   first-run page looks the same for every URL): `adb logcat -c`, tap, then
-  `grep "ActivityTaskManager.*START"` for the `dat=`/`capturedLink=` fields.
+  `grep "ActivityTaskManager.*START"` for the `dat=`/`capturedLink=` fields. **This stops
+  working once the URL is longer than a short path** — confirmed 2026-08-13 (22.1) on
+  `https://github.com/Grigoriym/Wallosmobile/issues`: the `START` line's own `dat=` is
+  elided to `dat=https://github.com/...` by `ActivityTaskManager`'s log formatting, not
+  the real value. For a URL this long, screenshot Chrome's address bar instead (tapping
+  it expands the truncated display) — slower, but it's the value that's actually true.
 - **Theme check is a pixel, not an impression**:
   `python3 -c "from PIL import Image; print(Image.open('shot.png').convert('RGB')
   .getpixel((540, 220)))"` — `(26, 27, 31)` is `SurfaceDark`, `(253, 251, 255)` is
@@ -142,6 +154,18 @@ section and `docs/local-info.txt` — this file only covers the device side.
   file:///sdcard/Pictures/x.jpg` after `adb push`) and, on this AVD's picker, an explicit
   **Done** tap after selecting the thumbnail — tapping the thumbnail alone only checks
   it.
+- **TalkBack's service component on this AVD/image is
+  `com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`** —
+  found via `adb shell dumpsys package com.google.android.marvin.talkback | grep -A20 "Service
+  Resolver Table"`, since `settings get secure enabled_accessibility_services` returns `null` before
+  it's ever been set and there's no simpler lookup. `adb shell settings put secure
+  enabled_accessibility_services <that value>` plus `accessibility_enabled 1` turns it on; **`settings
+  put secure enabled_accessibility_services ""` fails with `Bad arguments`** to turn it back off —
+  `settings delete secure enabled_accessibility_services` is what actually clears it (confirmed
+  27.5). **The first time TalkBack is enabled on a fresh AVD boot, a system permission dialog** ("Allow
+  Android Accessibility Suite to send you notifications?") **pops up over whatever screen is on top**
+  and eats the next tap the same way the stylus-tutorial popup does — screenshot after enabling,
+  before trusting the next tap reached the app.
 - **`Medium_Phone_API_36.1` cannot reproduce an IME-insets/`windowSoftInputMode` bug on
   its own.** The 2026-08-10 "Login screen doesn't scroll" report (`docs/issues/2026-08-10-login-screen-doesnt-scroll.md`)
   never reproduced on this AVD — forcing real content overflow (landscape rotation) with

@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.dashboard.ui
 
+import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.dashboard.domain.calculator.SubscriptionStats
 import com.grappim.wallosmobile.feature.dashboard.domain.model.DashboardHomeData
@@ -71,7 +72,8 @@ class DashboardViewModelTest {
     private fun viewModel() = DashboardViewModel(
         dashboardHomeUseCase = useCase,
         moneyFormatter = MoneyFormatter(),
-        dateFormatter = DateFormatter()
+        dateFormatter = DateFormatter(),
+        baseUrlProvider = FakeBaseUrlProvider()
     )
 
     @Test
@@ -406,6 +408,10 @@ class DashboardViewModelTest {
         notify = false,
         notifyDaysBefore = null
     )
+
+    private class FakeBaseUrlProvider : BaseUrlProvider {
+        override fun getBaseUrl(): String = "https://wallos.example.com/"
+    }
 
     /**
      * Private to this file, as in the other UI ViewModel tests: `:testing` is on every module's

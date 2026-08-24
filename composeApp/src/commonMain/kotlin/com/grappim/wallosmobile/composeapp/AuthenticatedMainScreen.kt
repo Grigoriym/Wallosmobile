@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -23,6 +24,8 @@ import com.grappim.wallosmobile.composeapp.widget.WallosDrawerWidget
 import com.grappim.wallosmobile.core.navigation.Navigator
 import com.grappim.wallosmobile.core.storage.NetworkMonitor
 import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
+import com.grappim.wallosmobile.uikit.widgets.snackbar.LocalSnackbarHostController
+import com.grappim.wallosmobile.uikit.widgets.snackbar.SnackbarHostController
 import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
 import com.grappim.wallosmobile.uikit.widgets.topappbar.NavigationIconConfig
 import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarController
@@ -39,7 +42,8 @@ fun AuthenticatedMainScreen(
     appState: MainAppState,
     modifier: Modifier = Modifier,
     drawerItemsBuilder: DrawerItemsBuilder = koinInject(),
-    networkMonitor: NetworkMonitor = koinInject()
+    networkMonitor: NetworkMonitor = koinInject(),
+    snackbarHostController: SnackbarHostController = remember { SnackbarHostController() }
 ) {
     val navigator = remember(appState) { Navigator(appState.navigationState) }
     val topBarController = remember { TopBarController() }
@@ -55,7 +59,8 @@ fun AuthenticatedMainScreen(
 
     CompositionLocalProvider(
         LocalTopBarConfig provides topBarController,
-        LocalIsOffline provides !isOnline
+        LocalIsOffline provides !isOnline,
+        LocalSnackbarHostController provides snackbarHostController
     ) {
         WallosDrawerWidget(
             modifier = modifier,
@@ -73,7 +78,8 @@ fun AuthenticatedMainScreen(
             MainScaffold(
                 appState = appState,
                 navigator = navigator,
-                topBarController = topBarController
+                topBarController = topBarController,
+                snackbarHostController = snackbarHostController
             )
         }
     }
@@ -84,6 +90,7 @@ private fun MainScaffold(
     appState: MainAppState,
     navigator: Navigator,
     topBarController: TopBarController,
+    snackbarHostController: SnackbarHostController,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -96,6 +103,7 @@ private fun MainScaffold(
                 defaultGoBack = { navigator.goBack() }
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostController.hostState) },
         floatingActionButton = {
             // Navigating to the editor is not itself a write — the offline gate belongs on that
             // screen's Save button, not here, the same reasoning `SubscriptionsScreen`'s Filter

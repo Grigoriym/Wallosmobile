@@ -11,6 +11,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
@@ -30,7 +32,8 @@ fun SubscriptionCard(item: SubscriptionUiItem, onClick: () -> Unit, modifier: Mo
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(CARD_PADDING),
+                .padding(CARD_PADDING)
+                .alpha(if (item.isActive) 1f else INACTIVE_ALPHA),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(CARD_PADDING)
         ) {
@@ -71,7 +74,11 @@ fun SubscriptionCard(item: SubscriptionUiItem, onClick: () -> Unit, modifier: Mo
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(BADGE_SPACING)
             ) {
-                Text(text = item.price, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = item.price,
+                    style = MaterialTheme.typography.titleMedium,
+                    textDecoration = if (item.isActive) null else TextDecoration.LineThrough
+                )
 
                 if (!item.isActive) {
                     InactiveBadge()
@@ -84,6 +91,7 @@ fun SubscriptionCard(item: SubscriptionUiItem, onClick: () -> Unit, modifier: Mo
 private val CARD_PADDING = 16.dp
 private val LOGO_SIZE = 48.dp
 private val BADGE_SPACING = 4.dp
+private const val INACTIVE_ALPHA = 0.6f
 
 @PreviewWallosDarkLight
 @Composable

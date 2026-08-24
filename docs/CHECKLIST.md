@@ -8,15 +8,220 @@ context, with no memory of previous sessions.
 M4 `5/5` — **Phase 2c done** · M5 `6/6` — **M5 done** · M6 `2/2` — **M6 done** · M7 `9/9` ·
 M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done** · M11 `1/1` —
 **M11 done** · M12 `3/3` — **M12 done** · M13 `2/2` — **M13 done** · M14 `2/2` — **M14 done** ·
-M15 `0/4`
-**Current step:** M14 done — `.codacy.yml`, `renovate.json` and `codecov.yml` now exist at root,
-and `.github/workflows/ci.yml` uploads a Kover XML report to Codecov after `detekt`/`ktlintCheck`;
-`CODECOV_TOKEN` was missing at session start (`gh secret list` empty) and the user added it via
-the GitHub UI mid-session. The push-based half of 14.1/14.2's `Verify:` lines (Codacy/Renovate
-dashboard reactions, a green Codecov check on the pushed commit) still needs a look after this
-session's push lands. **M15 planned** the same day (branch model + release automation, see
-below), one step per future session — next session can start at 15.1, or pick something else from
-"To review".
+M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
+**M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
+M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done**
+**Current step:** M27 done 2026-08-15 — next up is decomposing a new milestone. 27.5 closed
+2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
+(`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
+`dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
+session can't hear audio, verified via `uiautomator dump`'s accessibility-node tree instead (the
+same tree TalkBack itself reads): confirmed `content-desc="Menu"`/`"Back"` on `WallosTopAppBar`
+(27.1) and confirmed all three `toggleable` rows (`SubscriptionEditorScreen`'s three switches,
+`CrashReportingRow`, `PaymentMethodEditorScreen`'s `Enabled` row — 27.2) collapse to a single
+`checkable="true" clickable="true"` node with `checked` matching the on-screen state, rather than
+two separate nodes. Focus order (drawer opens with the current screen pre-focused, pushed screens
+focus Back) read sensibly throughout. Separately, `font_scale 1.3` screenshots of Dashboard,
+Subscriptions list, the editor and Settings/Interface found one real bug:
+`InterfaceScreen.kt`'s `CrashReportingRow` Column had no `Modifier.weight(1f)`, so its two-line
+description text wasn't constrained to leave room for the `Switch` and the wrapped text collided
+with it at 1.3x scale — a one-line fix (added the `weight(1f)`), confirmed clean on-device after a
+rebuild. `docs/revisit.md` gained one unrelated finding surfaced by the same pass: the Subscriptions
+list's `LazyColumn` has no bottom `contentPadding` to clear the FAB, so the last row can render
+underneath it (reproduces at any font scale, not layout-break-worthy to fix inline here — needs a
+deliberate clearance value, not a guess). `docs/EMULATOR_TESTING.md` gained the TalkBack service
+component name and the first-enable notification-permission-dialog gotcha; the generic
+enable/disable/touch-exploration/dump-as-audio-substitute technique went into the shared
+`emulator-testing` skill (`agentic-grappim`, left uncommitted for review). 27.4 closed 2026-08-15:
+two new `androidDeviceTest`s in `feature:subscriptions:ui`. `WallosTopAppBarMenuTest.kt` renders
+`WallosTopAppBar` directly (the
+module has no other way to reach the drawer shell that actually hosts it) with
+`NavigationIconConfig.Menu` and asserts `onNodeWithContentDescription` finds the now-localized
+string — the 27.1 regression check. `SubscriptionEditorSwitchRowTest.kt` renders
+`SubscriptionEditorContent` (now `internal`, same precedent as `SubscriptionsContent`) with
+`notify = true`, asserts the row found by its label text is a single merged node via `assertIsOn`,
+then `performScrollTo().performClick()`s it and asserts `onNotifyChange(false)` fired — the 27.2
+regression check, proving both the merge and that the whole row is the hit target. The scroll
+turned out to be load-bearing: `performClick` dispatches a real on-screen touch, and the notify row
+sits below the fold in this long form, so the first run failed with the callback never firing until
+`performScrollTo()` was added before it (`assertIsOn` needed no such fix, since a semantics
+assertion reads state regardless of what's actually on screen). `./gradlew
+:feature:subscriptions:ui:connectedAndroidDeviceTest` (10/10) and `./gradlew detekt ktlintCheck`
+both pass. 27.3 closed 2026-08-15: a new `uikit` commonTest, `ContrastTest.kt`,
+computes WCAG relative-luminance contrast directly from the `Color.kt` palette constants for all
+ten on-color/color pairs across both `LightColorScheme` and `DarkColorScheme` (20 total) and
+asserts each is `>= 4.5:1`. All twenty already pass — no `Color.kt` change needed; ratios ranged
+5.46:1 (dark `surfaceVariant`/`onSurfaceVariant`, the tightest) to 16.73:1 (light
+`surface`/`onSurface`). `./gradlew :uikit:testAndroidHostTest --tests
+"com.grappim.wallosmobile.uikit.ContrastTest"` and `detekt ktlintCheck` both pass. 27.2 closed
+2026-08-15: `InterfaceScreen.kt`'s `CrashReportingRow`,
+`SubscriptionEditorScreen.kt`'s `SwitchRow` and `PaymentMethodEditorScreen.kt`'s `SwitchRow` now
+put `Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)` on
+the `Row` and set the inner `Switch`'s `onCheckedChange` to `null`, matching the `RadioButton`
+rows' `selectable` pattern. `detekt ktlintCheck` plus the three touched modules'
+`testAndroidHostTest` all pass. 27.1 closed 2026-08-15: `uikit` now depends on `:strings`
+(`implementation(projects.strings)`, matching every `feature:*:ui` module's own line), and
+`WallosTopAppBar`'s two bare `"Back"`/`"Menu"` content-description literals are now
+`stringResource(RString.uikit_back_content_description)` /
+`stringResource(RString.uikit_menu_content_description)`, backed by two new entries in
+`strings/src/commonMain/composeResources/values/strings.xml`. `:uikit:compileKotlin` and
+`detekt ktlintCheck` both pass. 26.1 closed 2026-08-14: a new `detekt-rules`
+module ports `UnstableCollectionInUiState` to a real detekt `Rule` (`UnstableCollectionInUiStateRule`,
+registered under a new `WallosMobile` ruleset id), wired into every module via `configureLinting()`
+the same way `composeRules-detekt` is — closing `docs/revisit.md` #1, since a `detektPlugins` rule
+runs against the *consuming* module's own source, unlike the `:lint-rules` `lintChecks` version it
+replaces. Verified live: a scratch `List<String>` planted in a real `feature:subscriptions:ui`
+`*UiState` class was caught by `:feature:subscriptions:ui:detekt` (the module the old check
+couldn't reach), and the same violation planted directly in `androidApp` was caught by
+`:androidApp:detekt` too. `:lint-rules` is deleted (module, `settings.gradle.kts` entry, its
+`android-tools-lint-*`/`androidToolsLint` `libs.versions.toml` entries, and its `lintChecks` line
+in `Quality.kt`) — the recommendation in this step's own text, confirmed rather than assumed via
+the verify above. 25.1 closed 2026-08-14: a new
+`lint-rules` module adds one custom Android Lint detector (`UnstableCollectionInUiState`,
+`List`/`MutableList` in a `*UiState` class or a public `@Composable` param), wired into every
+module via `configureLinting()`. Landed alongside two unrelated pre-existing bugs it exposed and
+fixed — `lint.abortOnError` had been `false` since the project's first commit, so
+`lintFdroidDebug`/`lintGplayDebug` had never once failed a build on any real lint error despite
+21.1 wiring them into CI; and 24.1's module-boundary check false-positived on AGP's own
+`:composeApp -> :composeApp` self-dependency, which had been failing CI unnoticed since 24.1
+itself. One real gap found and not closed: a dependency module's own `lintChecks` findings don't
+reach a consuming app's report under AGP 9.3.1's KMP-library plugin, so the new detector currently
+only guards `androidApp`'s own source, not the `feature:*:ui`/`composeApp`/`uikit` code it exists
+for — filed as `docs/revisit.md` #1. See 25.1's own `Note:` for the full account.
+24.1 closed 2026-08-14: the root
+`build.gradle.kts` now enforces three module-boundary rules from `CLAUDE.md`'s Architecture section
+as a real `GradleException` at configuration time (nothing depends on `:androidApp`, only
+`:androidApp` depends on `:composeApp`, `:core:storage` never depends on any `feature:*:domain`),
+ported from `duckduckgo-Android`'s own `subprojects { incoming.beforeResolve { ... } }` mechanism.
+A fourth candidate rule ("no `androidMain` in feature modules") turned out not to hold — two
+feature modules legitimately have one for real `expect`/`actual` implementations — and was dropped
+from scope; see 24.1's own `Note:` for the full correction. 23.1 closed 2026-08-13:
+`WallosEnvelopeParser`'s two `ERROR`-with-throwable catch blocks now log the real exception at
+`WARN` (local Logcat only) and a scrubbed, body-free exception at `ERROR` (the one
+`CrashlyticsTree` forwards) — closes the raw-response-body-to-Crashlytics leak found while
+reviewing `docs/security/`-adjacent DDG infra. Two new regression tests confirm a planted marker
+string reaches the `WARN` entry but not the `ERROR` one. 22.1 closed 2026-08-13: a third
+button on the About screen ("Report an issue / suggestion") opens
+`https://github.com/Grigoriym/Wallosmobile/issues`, same `LocalUriHandler` pattern as the existing
+Project/Privacy Policy buttons. Verified on-device. 21.3 closed 2026-08-13:
+`.github/workflows/guardrails.yml` now loops the five workflow YAML files through the same
+`js-yaml` parse CLAUDE.md documents as a manual check, failing the job on a parse error. Verified
+locally: all five real files parse clean, a deliberately-broken scratch copy fails with a non-zero
+exit. See 21.3's own `Note:` for the `Gate-change:` line this step's commit carries.
+21.1 closed 2026-08-12: `lintFdroidDebug` and
+`lintGplayDebug -PgplayBuild` now run as CI steps in `.github/workflows/ci.yml` right after
+"Run detekt and ktlint"; `androidApp/build.gradle.kts` gained a `lint { disable += ... }` block
+trimming the two Renovate-redundant checks (`NewerVersionAvailable`, `GradleDependency`) — both
+lint tasks re-verified clean (`BUILD SUCCESSFUL`, 0 errors) after the trim. 20.4 closed
+2026-08-12: `kotlinx.datetime.LocalDate` trust-listed via a new `config/compose/stability_config.conf`
++ `configureComposeStabilityConfig()`, called unconditionally (never gated behind
+`-PcomposeStabilityReport`) from the same three call sites `configureComposeStabilityReports()` uses
+— see 20.4's own `Note:` for the module-list reasoning and the re-scan confirmation
+(composables-with-unstable-parameters down to the single remaining `SavedStateConfiguration` entry).
+20.3 closed 2026-08-12: new `wallosmobile.kmp.library.stability`
+convention plugin (Compose Kotlin compiler subplugin only, `compileOnly compose-runtime`) applied
+to `core/domain`, `feature/paymentmethods/domain` and `feature/subscriptions/domain` — the re-scan
+confirmed no straggler beyond those 3 and the unstable-composable-parameter count dropped to just
+the 2 independently-unstable foreign-type entries. 20.2 closed 2026-08-12: ran the aggregator
+across all 15 targets, wrote `docs/compose/stability-reports.md`, and found the same domain-model
+gap TaigaMobileNova hit, on a smaller scale (3 domain modules, not 11) — scoped as 20.3 rather than
+filed to `docs/revisit.md`, at the user's choice. 20.1 closed 2026-08-12:
+`configureComposeStabilityReports()` wired into both `KmpLibraryComposeConventionPlugin.kt` and
+`AndroidApplicationConventionPlugin.kt` right after their `org.jetbrains.kotlin.plugin.compose`
+apply — see 20.1's own `Note:` for the two extra report artifacts (`android/` subdir,
+`*-composables.csv`) the plan doc didn't mention. M20 decomposed 2026-08-12, ported from
+`TaigaMobileNova/docs/compose/`'s own same-day work. 19.2 closed 2026-08-12: `feature:subscriptions:ui`'s list screen now has real matrix
+coverage — 8 instrumented tests across `SubscriptionsScreenTest` (loading/failed/empty/no-match/
+loaded, the four `when`-block branches plus the ordinary case) and two new files,
+`widgets/StaleBannerTest.kt`/`widgets/ConversionBannerTest.kt`, covering the two banners directly.
+See 19.2's own `Note:` for a step-prose correction: the checklist text names `isStale` as one of the
+four `SubscriptionsContent`-`when`-block states, but the block's real branches are `isLoading`,
+`isFailed`, `isEmpty`, `isNoMatch` — `isStale` draws the banner alongside the rows with no branch of
+its own, and is covered by the separate `StaleBannerTest` instead, matching what the step's very
+next sentence already said. All 8 tests passing on-device (`Medium_Phone_API_36.1`). **M19 is done**
+— both steps archived to `archive/CHECKLIST-DONE.md` in this same commit. 19.1 closed 2026-08-12:
+`feature:subscriptions:ui`'s
+`androidDeviceTest` source set is wired for Compose UI tests (same `withDeviceTestBuilder
+{ sourceSetTreeName = null }` shape as 3.3's Room DAO suite), one test passing on-device against
+`SubscriptionsContent` (now `internal`) rendering the empty state — see 19.1's own `Note:` for the
+two artifact-resolution gotchas (the correct `ui-test-junit4`/`ui-test-manifest` coordinates, and a
+transitively-pulled `espresso-core:3.5.0` crashing on this AVD's API 36 until forced to 3.7.0). 18.2 closed 2026-08-11: the Settings →
+Trusted certificates screen shipped, verified end-to-end on-device against a throwaway TLS front —
+see 18.2's own `Note:` for the full on-device trace (accept a real TOFU prompt, revoke it from the
+new screen, confirm the same host re-prompts on the next connection). `docs/revisit.md` #1 (filed
+during 17.3) is now deleted — the gap it filed is closed. 18.1 closed 2026-08-11: `TrustedCertStorage`
+now stores the full `PendingCertTrust` JSON-encoded (was a bare `host|fingerprint` string) and
+gained `getAllFlow`/`untrust`, matching TaigaMobileNova's own shape — see 18.1's own `Note:` for the
+dependency-edge fallout (`core:storage` → `core:domain`, `:testing` → `core:domain`). M18 decomposed
+2026-08-11 straight from `docs/revisit.md` #1: `TrustedCertStorage` had no way to list or revoke an
+accepted TOFU pin short of clearing all app data. Picked over the Compose UI test setup M17 left
+queued in "To review" because the user asked for this one directly; that stays next. 17.8 (Resilience) closed 2026-08-11: confirmed N/A,
+even faster than Taiga's own task 7 — no OAuth flow anywhere in the app and no
+`client_secret`/`CLIENT_SECRET`/`client_id` in source, `build-logic`, or the version catalogue.
+`docs/security/masvs.md`'s header rewritten to state all eight MASVS categories were addressed
+(seven reviewed in full, RESILIENCE excluded with its reasoning inline — no vendor asset for the
+device owner to be the adversary of, since the user self-hosts the server this client talks to). No
+code changed. **M17 is done** — all eight MASVS v2 categories reviewed, register created and
+complete, no Open findings anywhere in it; one real gap (TOFU pin revocation) filed as
+`docs/revisit.md` #1 rather than fixed inline. 17.7 (Privacy) closed 2026-08-11: all four MASVS-PRIVACY
+controls Accepted, no Open findings. Both declared permissions (`INTERNET`,
+`ACCESS_NETWORK_STATE`) trace to real call sites, no analytics/ad-ID dependency anywhere in the
+catalogue. Crash-reporting disclosure confirmed structurally real (fdroid's `CrashReporterImpl`
+is a total no-op and the settings toggle is absent, not disabled, on that flavor; both
+`PRIVACY_POLICY*.md` docs mirror the split). `ApiKeyStorage.clear()` deletes all three Room tables
+the app has before removing the key, confirmed at all three call sites (disconnect, both login
+paths) — no account's cache survives into the next login. No code changed. 17.6 (Code quality)
+closed 2026-08-11: all four MASVS-CODE
+controls Accepted, no Open findings. `minSdk = 24` ported from TaigaMobileNova's own catalogue at
+this project's first commit, no independent rationale documented (same absence Taiga's own row
+recorded). `renovate.json`'s `osvVulnerabilityAlerts` still set (since M14); GitHub's native
+Dependabot alerts confirmed OFF (`vulnerability-alerts` → 404), an optional separate lever, not
+required. `WallosEnvelopeParser` is the app's only JSON config, already tolerant
+(`ignoreUnknownKeys`/`isLenient`). Both `LocalUriHandler.openUri()` call sites (`AboutScreen.kt`)
+resolve to fixed `RString` resources, never user/server-supplied text — doesn't reproduce Taiga's
+own scheme-allowlist finding since nothing here feeds untrusted text into `openUri` today. No code
+changed. 17.5 (Platform) closed 2026-08-11: IPC surface is `MainActivity`
+alone (only component in either manifest, plain `MAIN`/`LAUNCHER`, no deep link); password field
+has a working Show/Hide toggle, hidden by default. `FLAG_SECURE` decided with the user directly
+rather than assumed: they don't want it — same reasoning as Taiga's maintainer, since it would
+block screenshots app-wide on a single-`Activity` app they use themselves, not just on login —
+recorded Accepted. No code changed. 17.4 (Authentication) closed 2026-08-11: login bridge reviewed
+clean — password lives only in an in-memory `MutableStateFlow`, never persisted or logged, sent
+once as a form-body param over the same `RedactingLogger`-covered engine; scrape target confirmed
+always the user's own configured host (`BaseUrlProviderImpl` reads the same `ServerUrlStorage`
+value `SetupRepositoryImpl` saves before any web call); no `WebView` anywhere, so RFC 8252 doesn't
+apply; AUTH-2/3 re-confirmed N/A (no biometric anywhere). One design tradeoff recorded Accepted:
+`LoginThrottle`'s backoff is client-side only, since Wallos itself enforces no lockout. No code
+changed. 17.3 (Network) closed 2026-08-11: `CompositeTrustManager`
+reviewed against all three `kmp-checks.md` TOFU questions — falls through to the platform default,
+requires a hostname match before ever offering trust, pins per-`(host, fingerprint)` not per-host,
+still checks expiry on a pin hit, only activates from an explicit user Confirm tap — all backed by
+existing `CompositeTrustManagerTest` cases, no gap. `usesCleartextTraffic="true"` recorded as
+Accepted: the API key does cross an `http://` instance in the clear (form-body, never a URL param),
+bounded by `RedactingLogger` and the existing login-screen cleartext warning. One real, non-security
+gap found: no in-app way to revoke an accepted TOFU pin — filed `docs/revisit.md` #1 (new file), not
+fixed (needs a new storage method + UI screen, not small/isolated). No code changed. 17.2
+(Cryptography) closed 2026-08-11: `KeystoreSecretCipher`'s
+`KeyGenParameterSpec` reviewed clean — AES/GCM, no padding, 128-bit tag, IV reuse not just
+defaulted-away but platform-*enforced* against (no `setRandomizedEncryptionRequired(false)`, no
+IV ever supplied by the code), key never exported, no key/secret literal anywhere in source/
+build-logic/version catalogue. One real gap needing a device, not a source read — key size isn't
+pinned via `.setKeySize()` — added to the Needs-a-device table. No code changed. 17.1 (Storage)
+closed 2026-08-11: `docs/security/masvs.md`
+created, both leads from the milestone preamble resolved as **Accepted deviations**, not Open
+findings — the `allowBackup`/no-extraction-rules gap is bounded by the cipher already in place
+(ciphertext-only file, Keystore key doesn't travel with a backup), and `ServerUrlStorageImpl` holds
+only a bare URL. No code changed. M16 done; the "TaigaMobileNova recently did a security review"
+"To review" entry (filed 2026-08-10) was investigated 2026-08-11 and decomposed into M17 — see the
+milestone's own preamble below for what that investigation found (short version: Taiga's MASVS
+register mechanics apply directly and WallosMobile starts from a better position on Storage/Crypto/
+Network than Taiga did; Taiga's *testing* overhaul doesn't transfer as-is — no `jvm()` target here
+for its `jvmTest`-based Compose UI test technique to attach to — so a testing-setup milestone is
+next after M17, not folded into it).
+Previous **Current step** note on 16.5 moved to `archive/CHECKLIST-DONE.md` with the rest of M16
+(M16 shipped `gplay`-only crash reporting and a Play In-App Update prompt; see the archive for all
+five steps' full detail).
 
 ---
 
@@ -26,7 +231,7 @@ below), one step per future session — next session can start at 15.1, or pick 
 2. Say: **"Read `docs/CHECKLIST.md` and do step N."**
 3. When it passes its *Verify* line: tick the box, update **Current step** above, add a one-line
    note under the step if anything deviated from the plan.
-4. Commit. Clear context. Repeat.
+4. Commit, PR into `dev`, merge once checks pass (Ground rules below). Clear context. Repeat.
 
 **Rules:**
 - Never start a step whose dependencies aren't ticked.
@@ -70,7 +275,11 @@ It loads automatically; don't duplicate it here. Checklist-specific rules only:
 ---
 
 Completed steps live in [`archive/CHECKLIST-DONE.md`](./archive/CHECKLIST-DONE.md) — **all of M0
-through M8, and now M10, M9, M11, M12, M13 and M14**, verbatim. M10 was archived once before too (2026-08-08, its first seven
+through M8, and now M10, M9, M11, M12, M13, M14, M15, M16, M17, M18, M19, M20, M21, M22 and M23**,
+verbatim. M20 and M21 both closed 2026-08-12/13 but sat un-archived in this file for two sessions
+before being moved on 2026-08-13, alongside M22 — the "same commit as the closing step" rule
+(above) was skipped twice in a row; caught and backfilled, not a recurring problem to watch for
+beyond this note. M10 was archived once before too (2026-08-08, its first seven
 steps) and pulled back out the same day once two more real gaps turned up (10.8/10.9, below); once
 those two closed it, it was archived again for good, same day. On 2026-08-06 the per-step
 Deviations log that used to sit at the bottom of this file moved to
@@ -103,90 +312,350 @@ shipped the `:benchmark` module and extended its generator to all three cold-JIT
 `archive/CHECKLIST-DONE.md` for the honest measurement result (JIT lock contention eliminated,
 aggregate frame-jank on this AVD not improved). **M14 is done** too — its two steps, filed
 directly by the user rather than decomposed from "To review", wired Codacy, Renovate and Codecov
-the way `TaigaMobileNova` already has them; see `archive/CHECKLIST-DONE.md`.
+the way `TaigaMobileNova` already has them; see `archive/CHECKLIST-DONE.md`. **M15 is done** too —
+its four steps, filed directly by the user the same session the repo went public, ported Taiga's
+branch model and release automation: `dev` as the default branch, `release-prepare`/
+`release-finalize` for the version-bump and tag mechanics, `signingConfigs` for release signing,
+and `release.yml` to build and publish the signed artifacts; see `archive/CHECKLIST-DONE.md` for
+its four steps. **M16 is done** too — its five steps ported Taiga's Firebase Crashlytics (with a
+user-facing opt-out) and Play In-App Update to the `gplay` flavor only, structurally absent from
+`fdroid`; see `archive/CHECKLIST-DONE.md` for its five steps, including 16.5's Compose snackbar
+shell surface (`SnackbarHostController`, mirroring `TopBarController`) that Taiga itself never had.
+**M17 is done** too — its eight steps ran the `masvs-review` skill once per MASVS v2 category,
+creating `docs/security/masvs.md`; every category came back Accepted/N/A with no Open findings, one
+real gap (no in-app way to revoke an accepted TOFU pin) filed as `docs/revisit.md` #1 rather than
+fixed inline; see `archive/CHECKLIST-DONE.md` for its eight steps. **M18 is done** too — its two
+steps closed that gap: `TrustedCertStorage` gained `untrust`/`getAllFlow` and a Settings → Trusted
+certificates screen shipped, verified end-to-end on-device against a throwaway TLS front (accept a
+real TOFU prompt, revoke it, confirm the next connection re-prompts); `docs/revisit.md` #1 is
+deleted. See `archive/CHECKLIST-DONE.md` for both steps. **M19 is done** too — its two steps wired
+`feature:subscriptions:ui`'s `androidDeviceTest` source set for Compose UI tests (no `jvm()` target
+here for TaigaMobileNova's own desktop technique to attach to) and covered the subscriptions list
+screen's four `when`-block states plus both banners, 8 tests total, all passing on-device; see
+`archive/CHECKLIST-DONE.md` for both steps.
 
 ---
 
-## M15 — Branch model (dev/master) + release automation, ported from TaigaMobileNova (plan §3.9)
+## M26 — Port `UnstableCollectionInUiState` to detekt, closing `docs/revisit.md` #1 (not in plan §8's phase order)
 
-Goal: `dev` is the default branch and receives ordinary work exactly the way `master` does today
-(direct pushes, one step per commit — no PR required yet); `master` moves only on a release, via
-three GitHub Actions workflows ported from Taiga (`release-prepare` → PR → `release-finalize` →
-tag → `release`). **Done when** all four steps below are ticked; a *real* release is not part of
-this milestone's own `Done when` — 15.4's own text says why.
+Decomposed 2026-08-14, from `docs/revisit.md` #1 (filed the same day, during 25.1): the Lint
+detector 25.1 shipped only ever sees a violation written directly in `androidApp`'s own source —
+`lintChecks` from a dependency module never reaches a consuming app's report under AGP 9.3.1's
+`com.android.kotlin.multiplatform.library` plugin, so the `feature:*:ui`/`composeApp`/`uikit`
+code the rule actually exists for is unguarded. Investigated the same day (chat, not a separate
+doc): confirmed via `javap` against the real `dev.detekt:detekt-api-2.0.0-alpha.5.jar` (no
+sources jar published for this version — same technique CLAUDE.md documents for AGP/Gradle APIs)
+that `dev.detekt.api.Rule extends DetektVisitor extends org.jetbrains.kotlin.psi.KtTreeVisitorVoid`
+— plain Kotlin PSI, no UAST, no `BindingContext`/type resolution needed, unlike the Lint version.
+`RuleSetProvider` registration mirrors `lint-rules`' own `IssueRegistry` shape
+(`META-INF/services/dev.detekt.api.RuleSetProvider`, confirmed against the exact file name shipped
+inside `io.nlopez.compose.rules:detekt`'s own jar — already a `detektPlugins` dependency of every
+module via `configureLinting()`). Both `dev.detekt:detekt-test` and `detekt-test-utils` publish at
+`2.0.0-alpha.5` on Maven Central, confirmed directly rather than assumed. `:lint-rules` is
+deliberately absent from the root `kover {}` list (build tooling, not production code, same as
+`:testing`) — `:detekt-rules` follows the same precedent.
 
-Planned 2026-08-10, filed directly by the user, same as M14: the repo is about to go public
-(user's decision, made this session), which unblocks the one thing that made a straight Taiga port
-impossible before now — branch protection needs a public repo or a paid GitHub tier, confirmed via
-a 403 on this repo back in M14 (plan §3.8). Full design and the two corrections this session's
-research made to a straight port — Taiga's protection actually sits on `dev`, not `master`, and
-this repo has no `signingConfigs` at all yet — live in plan §3.9. **Branch protection itself is
-explicitly out of scope here** — the user's own instruction was to write it down as a follow-up
-once the repo is public and nears its first release, not to turn it on now. Until then `dev`
-behaves exactly like `master` does today.
+Why this closes the gap 25.1 couldn't: detekt already runs correctly against every module's own
+`commonMain`/`commonTest` via `configureLinting()`'s
+`source.setFrom(layout.projectDirectory.dir("src"))` — the exact mechanism
+`io.nlopez.compose.rules:detekt` already relies on today to catch a `feature:*:ui` violation.
+There is no cross-module propagation gap to work around the way there is for Android Lint's
+`lintChecks` under the KMP-library plugin.
 
-- [ ] **15.1 — Create `dev`, make it default, retarget `ci.yml` + `guardrails.yml`, update the docs**
-  Branch `dev` off current `master` tip, push it, then flip the repo's default branch to `dev`
-  (`gh repo edit --default-branch dev` or the GitHub UI). Retarget both `ci.yml` and
-  `guardrails.yml`: `branches: [master]` → `branches: [dev, master]` on their `push` and
-  `pull_request` triggers — mirroring Taiga's `code_analysis.yml` shape (runs on both branches),
-  not `build.yml`'s dev-only PR trigger, since WallosMobile has one combined CI job rather than
-  Taiga's two-workflow split, and `master` still needs both gates for 15.2's eventual release PR.
-  **`.codacy.yml` and `renovate.json` need no edits** — both act on whichever branch GitHub reports
-  as default, so flipping the default repoints them with no file change; only the *prose*
-  describing that (plan §3.8) needs updating, not the config. Update `CLAUDE.md`'s "How work
-  happens here" step 4 ("straight to `master`") to "straight to `dev`", and add a short paragraph
-  stating `master` only moves via 15.2–15.4's automation, with branch protection deliberately not
-  turned on yet. Update `README.md`'s CI line and any other `master`-as-the-branch text.
-  *Verify:* `gh repo view --json defaultBranchRef` reports `dev`; a trivial push to `dev` shows
-  both the CI and Guardrails checks running against it (`gh run list --branch dev`); grep confirms
-  no remaining "straight to `master`" line in `CLAUDE.md`/`README.md`. **Touches `.github/` — needs
-  a `Gate-change:` line.**
+- [x] **26.1 — A `detekt-rules` module porting `UnstableCollectionInUiState` to a real detekt
+  `Rule`, closing `docs/revisit.md` #1**
+  New top-level module `detekt-rules/` — plain `java-library` + Kotlin JVM plugin, no AGP, same
+  shape as `lint-rules/build.gradle.kts`: explicit `config.setFrom(File(rootDir,
+  "config/detekt/detekt.yml"))` + `source.setFrom(layout.projectDirectory.dir("src"))` +
+  `detektPlugins(libs.composeRules.detekt)`/`ktlintRuleset(libs.composeRules.ktlint)` — needed for
+  the same reason `lint-rules` needed it (25.1's `Note:` point 3): detekt auto-discovers the
+  shared config regardless of `config.setFrom`, and its `Compose:` section fails at configuration
+  time without compose-rules on the classpath. `compileOnly("dev.detekt:detekt-api")` as a new
+  `gradle/libs.versions.toml` library alias under the existing `detekt` version key (no version
+  bump). `testImplementation("dev.detekt:detekt-test")` + `testImplementation("dev.detekt:detekt-test-utils")`
+  (both confirmed published at `2.0.0-alpha.5` on Maven Central, 2026-08-14). Add
+  `include(":detekt-rules")` to `settings.gradle.kts`.
 
-- [ ] **15.2 — `release-prepare.yml` + `release-finalize.yml`: branch, version-bump and tag mechanics**
-  Port both from Taiga near-verbatim: `release-prepare` (manual `workflow_dispatch`, takes
-  version + version code) merges `dev` into `master` locally, cuts a `release/vX` branch, bumps
-  `gradle/libs.versions.toml`'s `version-code`/`version-name`, opens a PR `release/vX` → `master`.
-  `release-finalize` fires on that PR closing merged, tags `vX`, and back-merges `master` into
-  `dev`. **Drop Taiga's F-Droid/Play changelog-stub steps** — `fastlane/metadata/android/en-US/
-  changelogs/` and `playstore/changelogs/` don't exist in this repo, unlike Taiga's already-
-  published one; note in the release PR body that changelog content is still manual, and leave the
-  real scaffolding to whichever later milestone actually prepares the store listings. No
-  `RELEASE_PAT` needed yet — plain `GITHUB_TOKEN` (`contents: write`, `pull-requests: write`)
-  suffices while nothing is branch-protected; note in the workflow that a real admin PAT is needed
-  once 15.1's deferred protection actually lands.
-  *Verify:* both workflow YAMLs pass GitHub's own syntax validation (a push with no `on:` errors in
-  the Actions tab); a full dry run is deliberately not part of this step — see 15.4. **Touches
-  `.github/` — needs a `Gate-change:` line.**
+  One rule class, `UnstableCollectionInUiStateRule : Rule(config, description, url)`, overriding
+  `visitParameter(parameter: KtParameter)`: match `parameter.typeReference`'s simple type name text
+  against `List`/`MutableList` — a **text** check, not the Lint version's PSI-*resolved*-class
+  check, and safe here for a reason that doesn't apply to Lint's UAST layer: `ImmutableList` is
+  never spelled `List` in source, so there is no erasure collision to guard against the way
+  `resolve()`-to-`java.util.List` was needed for (25.1's `Note:` point 1). Then the same two
+  containment checks as the Lint detector: constructor param of a class whose simple name ends
+  `UiState` (via `parameter.ownerFunction` as a `KtPrimaryConstructor`, its
+  `containingClassOrObject`), or a parameter of a function carrying `@Composable` and not
+  explicitly `private` (mirroring 25.1's `Note:` point 2 — no public/internal distinction,
+  `internal` has no real JVM modifier to check). Activation and severity are config-driven in this
+  detekt version, not an `Issue.create(..., Severity.ERROR)` call the way Lint has — see the
+  `config/detekt/detekt.yml` block below.
 
-- [ ] **15.3 — Release signing: `signingConfigs` + keystore secrets**
-  `AndroidApplicationConventionPlugin.kt`'s `release` build type currently has **no
-  `signingConfigs` at all** — confirmed via a grep across `build-logic/` and `androidApp/
-  build.gradle.kts`, neither flavor can produce a signed release build today. Add a
-  `signingConfigs` block reading keystore path/passwords from env (matching Taiga's
-  `TAIGA_KEYSTORE_R`/`_D` + password secrets shape), wired per flavor (`gplay`, `fdroid`).
-  **Generating the actual production keystore is the user's own call, not a session's** —
-  `keytool -genkeypair` run locally, the resulting `.jks` plus its four passwords added as GitHub
-  secrets, never committed. This step's job is the Gradle wiring and documenting the recipe, not
-  fabricating a signing identity. No Google Services/Firebase restore step is needed — the
-  `google-services`/`firebase-*` catalog entries are declared in `gradle/libs.versions.toml` but
-  unapplied anywhere in this repo.
-  *Verify:* `./gradlew :androidApp:assembleGplayRelease :androidApp:assembleFdroidRelease` builds
-  and signs both, using a locally-provided test keystore. **Touches `build-logic/` — needs a
-  `Gate-change:` line.**
+  Registration: a `RuleSetProvider` implementation (`RuleSetId("WallosMobile")`, one entry in its
+  `RuleSet`'s rule map) plus `detekt-rules/src/main/resources/META-INF/services/dev.detekt.api.RuleSetProvider`.
 
-- [ ] **15.4 — `release.yml`: build and publish signed artifacts**
-  Port Taiga's tag-triggered (+ `workflow_dispatch`) release workflow, scoped down: Android only
-  (`assembleGplayRelease`/`assembleFdroidRelease` + `bundleGplayRelease`), no desktop `deb`/`rpm`
-  packaging (no desktop target exists here), no `google-services.json` restore (per 15.3). Uploads
-  to a GitHub Release via `softprops/action-gh-release@v3`, same as Taiga. **First check 15.3's
-  keystore secrets actually exist** (`gh secret list`) before this step's `Verify:` line can pass —
-  same shape as 14.2's `CODECOV_TOKEN` callout.
-  *Verify:* `gh workflow run release.yml -f tag=v0.0.0-test` (or a real first tag, if the app is
-  ready by then) produces a signed APK/AAB and a GitHub Release. **This milestone's own `Done
-  when` does not require an actual release to exist** — only that the mechanism is provably wired;
-  a real first release is a product decision for whenever the app is actually ready to ship, not a
-  gate on closing M15. **Touches `.github/` — needs a `Gate-change:` line.**
+  Wiring: one line in `Quality.kt`'s `configureLinting()`, next to the existing
+  `"detektPlugins"(libs.findLibrary("composeRules-detekt").get())` line:
+  `"detektPlugins"(project(":detekt-rules"))`. New activation block in
+  `config/detekt/detekt.yml`, mirroring the existing `Compose:` block:
+  ```
+  WallosMobile:
+      UnstableCollectionInUiState:
+          active: true
+  ```
+  (a new ruleset id — `buildUponDefaultConfig: true` doesn't know about it otherwise).
+
+  Tests: `detekt-rules/src/test/`, mirroring `UnstableCollectionInUiStateDetectorTest.kt`'s four
+  cases (`*UiState` + `List<T>` fails, `*UiState` + `ImmutableList<T>` clean, public `@Composable`
+  + `List<T>` fails, `private` `@Composable` + `List<T>` clean) via `detekt-test`/
+  `detekt-test-utils`'s harness — read `io.nlopez.compose.rules:detekt`'s own compiled classes for
+  the harness shape if it isn't self-evident from the artifact alone (no sources jar for either;
+  `javap` is the fallback, same as this milestone's own investigation used).
+
+  Decide `:lint-rules`' fate as part of this step, not left open: once `:detekt-rules` is
+  confirmed catching the violation in `androidApp` too (verify below), `:lint-rules`'s real-world
+  catch surface is fully subsumed — its `lintChecks` wiring only ever exposed a violation written
+  directly in `androidApp`'s own source (`docs/revisit.md` #1), which `:detekt-rules` also covers
+  via `configureLinting()`. Recommendation: drop `:lint-rules` (module, `settings.gradle.kts`
+  entry, the `lintChecks(project(":lint-rules"))` line in `Quality.kt`, its `libs.versions.toml`
+  `lint-api`/`lint-checks`/`lint-tests` entries) rather than keep two tools flagging the same
+  thing — but this is a real call about deleting working infra, not a mechanical step; if it reads
+  differently once both are in hand, say so in the `Note:` and keep both.
+
+  *Verify:* `./gradlew -p detekt-rules test` passes. Re-run `docs/revisit.md` #1's own prescribed
+  check: temporarily add a `List<String>` to a real `*UiState` class in `feature:subscriptions:ui`,
+  run `./gradlew :feature:subscriptions:ui:detekt --rerun-tasks`, confirm the report shows
+  `UnstableCollectionInUiState` — this is the actual close of the gap, since
+  `feature:subscriptions:ui` is exactly the module the Lint version couldn't reach. Also add the
+  same violation directly in `androidApp`'s own source, run `./gradlew :androidApp:detekt --rerun-tasks`,
+  confirm it fires there too (the overlap that justifies the `:lint-rules` call above). Revert both
+  scratch changes, confirm `./gradlew detekt ktlintCheck` (root) passes clean against the real
+  codebase. Delete `docs/revisit.md` #1.
+
+  This step touches `config/detekt/detekt.yml` and `gradle/libs.versions.toml` — both
+  `TRIPWIRE_PATHS`; the commit needs a `Gate-change:` line (widening: a new active rule that can
+  fail real builds, plus new dependencies).
+
+  ·  *Ref:* `lint-rules/build.gradle.kts` and `Quality.kt`'s `configureLinting()` for the parallel
+  wiring shape; `io.nlopez.compose.rules:detekt`'s own jar
+  (`~/.gradle/caches/modules-2/files-2.1/io.nlopez.compose.rules/detekt/0.6.3/`) for a real
+  `RuleSetProvider` registration and rule-writing precedent already on this project's own
+  classpath.
+
+  Note: two real deviations from the plan text above, both confirmed by digging into the actual
+  jars rather than assumed from the plan's "confirmed published" line. (1) `detekt-test`'s
+  `runtimeElements` variant requests the `detekt-api-test-fixtures` Gradle capability from
+  `detekt-api`, but `detekt-api` only ever publishes a **sources** jar under that capability —
+  confirmed on both `2.0.0-alpha.5` and the newer `2.0.0-alpha.6` on Maven Central by fetching and
+  reading each one's `.module` metadata directly, so a plain `testImplementation(detekt-test)`
+  fails resolution outright ("No matching variant ... with capability
+  'dev.detekt:detekt-api-test-fixtures' was found") on every currently-published `2.0.0-alpha.x`.
+  This is a real upstream publishing gap, not a version problem a bump would fix. Worked around in
+  `detekt-rules/build.gradle.kts` by declaring `testImplementation(libs.detekt.test) { isTransitive
+  = false }` plus the module's own real transitive needs by hand (`detekt-api`,
+  `detekt-test-utils`, `kotlin-compiler:2.4.0`, `kotlin-reflect:2.4.0`) — the two things this
+  module's tests actually reach into `detekt-test` for (`TestConfig`, the `Rule.lint(String)`
+  extension) need nothing from the missing artifact. Tests use the plain `rule.lint(code: String)`
+  overload directly rather than `detekt-test-utils`' `compileContentForTest` + the `KtFile`-typed
+  overload — simpler, and confirmed to catch all four cases without needing a compiled
+  `KotlinEnvironmentContainer`. (2) `KtConstructor.getContainingClassOrObject()` (and several other
+  `KtElement` accessors) is declared as a plain Kotlin `fun`, not a `val`/property, in its own
+  `.kt` source (confirmed by fetching `kotlin-compiler:2.4.0`'s `-sources.jar` and reading
+  `KtConstructor.kt` directly) — Kotlin's Java-interop synthetic-property sugar (`.foo` for a
+  Java-style `getFoo()`) only applies when the declaring class originates from Java bytecode
+  without Kotlin metadata, not when calling from Kotlin into another Kotlin class. Property-style
+  `ownerFunction.containingClassOrObject` fails as "Unresolved reference"; the working call is
+  `ownerFunction.getContainingClassOrObject()`. Worth remembering for any future PSI-walking detekt
+  rule written against `org.jetbrains.kotlin.psi.*` — a `get`-prefixed name on a PSI class is not
+  automatically a Kotlin property. `:benchmark` and `:detekt-rules` itself both needed their own
+  `detektPlugins(project(":detekt-rules"))` line (`:detekt-rules`' own is a real, non-cyclic
+  self-dependency — `detektPlugins` only consumes the project's `jar` output, which its own
+  `detekt` task doesn't feed into) for the same reason `:benchmark` already needed
+  `detektPlugins(libs.composeRules.detekt)` for `Compose:` (25.1/pre-existing): a module's own
+  `detekt` task validates the shared config's every top-level ruleset key against only the
+  providers actually on *that module's* `detektPlugins` classpath, not against what
+  `configureLinting()` wires into other modules. `:lint-rules` dropped as recommended, confirmed
+  rather than assumed — see the header `Note:` above for the verify.
+
+---
+
+## M27 — Accessibility audit and fixes (not in plan §8's phase order)
+
+Decomposed 2026-08-15, from a general "what's needed for accessibility" survey the user asked for
+in chat — not a `docs/issues/` investigation, since nothing here started as a reported bug. The
+survey read the source rather than driving a device, and found the app already gets a fair amount
+right for free: no fixed `sp` font sizes anywhere (system font-scale works by default),
+`android:supportsRtl="true"`, `SubscriptionLogo`/`PaymentMethodIcon` correctly pass
+`contentDescription = null` on decorative logos (the name is already adjacent text), `LoginScreen`
+already sets `semantics { contentType = ... }` for autofill, and the `RadioButton` rows in
+`InterfaceScreen.kt`/`StartDestinationScreen.kt` already use the whole-row-is-the-target pattern on
+purpose (there's a comment explaining why). Android Lint is already wired into CI with
+`abortOnError = true` (M21/M25), which enforces some baseline a11y checks for free. Four real,
+independently-fixable gaps survived that read, plus one thing (an on-device pass) no amount of
+source-reading can substitute for — five steps below, in dependency order: 27.1/27.2 are
+independent source fixes, 27.3 is independent of both, 27.4 depends on 27.1 and 27.2 having
+landed, and 27.5 (the device pass) goes last since it's the cheapest way to confirm all four at
+once rather than booting the emulator repeatedly.
+
+- [x] **27.1 — Localize `WallosTopAppBar`'s hardcoded "Back"/"Menu" content descriptions**
+  `uikit/.../widgets/topappbar/WallosTopAppBar.kt` lines 77 and 97 pass
+  `contentDescription = "Back"` / `"Menu"` as bare literals — the only two content descriptions in
+  the entire codebase not routed through `RString`/`stringResource` (every sibling on the same
+  screen — `NavigationIconConfig.Custom`, both `TopBarActionIconButton`/`TopBarActionVectorButton`
+  — takes an already-resolved `String` from its caller, which *does* go through `RString` at the
+  call site). Two real costs: these two never get translated when the app localizes, so a TalkBack
+  user on a non-English device still hears English for exactly these two controls; and it
+  contradicts this project's own "Each string is imported by name" rule.
+
+  `uikit` does not currently depend on `:strings` (zero `RString` usage anywhere under
+  `uikit/src`, confirmed by grep) — add `implementation(projects.strings)` to
+  `uikit/build.gradle.kts`, the same line every `feature:*:ui` module already has, rather than
+  giving `uikit` a second, separately-packaged string catalog (it already generates its own `Res`
+  class for `RDrawable`, but reusing the one catalog every other string in the app goes through is
+  the better precedent). Add two entries to
+  `strings/src/commonMain/composeResources/values/strings.xml` — existing names are
+  feature-prefixed (`login_username_label`, `settings_crash_reporting`); `uikit` isn't a feature,
+  so prefix with the module name the same way: `uikit_back_content_description` /
+  `uikit_menu_content_description`. Replace both literals in `WallosTopAppBar.kt` with
+  `stringResource(RString.uikit_back_content_description)` /
+  `stringResource(RString.uikit_menu_content_description)` — both call sites are already inside a
+  `@Composable` context.
+
+  *Verify:* `./gradlew :uikit:compileKotlin` (a missing/misspelled resource fails as `Unresolved
+  reference` at the `RString.x` usage, not the import — CLAUDE.md's own note on this). Then
+  `./gradlew detekt ktlintCheck`. A live TalkBack confirmation that these now announce correctly
+  happens in 27.5, not repeated here.
+
+- [x] **27.2 — Give the three `Switch` rows the same whole-row-is-the-target pattern the
+  `RadioButton` rows already use**
+  Three call sites, each a `Row { Text(label[, description]); Switch(checked, onCheckedChange) }`
+  with only the `Switch` itself clickable/focusable: `InterfaceScreen.kt`'s `CrashReportingRow`
+  (~line 114), `SubscriptionEditorScreen.kt`'s `SwitchRow` (~line 298), and
+  `PaymentMethodEditorScreen.kt`'s `SwitchRow` (~line 186). This is a smaller tap target than the
+  row pattern already proven next to two of these, and it gives TalkBack two separate stops (an
+  unfocusable label, then the small switch) instead of one node announcing label and state
+  together — inconsistent with the `RadioButton` rows' own documented reasoning: "the whole row is
+  the target and the `RadioButton` takes `onClick = null`, so the button is drawn by the row's
+  `selectable` rather than being a second, smaller hit area over the same state."
+
+  Fix, identical at all three call sites: add `Modifier.toggleable(value = checked, role =
+  Role.Switch, onValueChange = onCheckedChange)` to the `Row`, and change the inner `Switch` to
+  `onCheckedChange = null` so it stops being its own separately-focusable target — the `toggleable`
+  analogue of the `RadioButton` rows' `selectable`.
+
+  *Verify:* no existing test targets `CrashReportingRow`/`SwitchRow` directly (confirmed by grep —
+  nothing under `*Test.kt` references either name), so nothing to update there.
+  `./gradlew detekt ktlintCheck` plus each touched module's `testAndroidHostTest`. On-device
+  confirmation folds into 27.5.
+
+  Note: applied exactly as planned at all three call sites — `Modifier.toggleable(value = checked,
+  role = Role.Switch, onValueChange = onCheckedChange)` on the `Row`, `Switch`'s own
+  `onCheckedChange` set to `null`. `Role` was already imported in `InterfaceScreen.kt`;
+  `SubscriptionEditorScreen.kt` and `PaymentMethodEditorScreen.kt` needed both a new `Role` and a
+  new `toggleable` import. `./gradlew detekt ktlintCheck
+  :feature:settings:ui:testAndroidHostTest :feature:subscriptions:ui:testAndroidHostTest
+  :feature:paymentmethods:ui:testAndroidHostTest` all green.
+
+- [x] **27.3 — WCAG AA contrast check on `LightColorScheme`/`DarkColorScheme`**
+  Computable without a device, so do it by computation rather than eyeballing (per this project's
+  own "determinism over process" rule) instead of leaving it to the device pass. `uikit/.../
+  Theme.kt` defines ten on-color/color pairs per scheme: `primary`/`onPrimary`,
+  `primaryContainer`/`onPrimaryContainer`, `secondary`/`onSecondary`,
+  `secondaryContainer`/`onSecondaryContainer`, `tertiary`/`onTertiary`,
+  `tertiaryContainer`/`onTertiaryContainer`, `error`/`onError`, `errorContainer`/`onErrorContainer`,
+  `surface`/`onSurface`, `surfaceVariant`/`onSurfaceVariant` — 20 pairs across both schemes. Add a
+  small `uikit` `commonTest` that computes WCAG relative-luminance contrast ratio for each pair
+  from the `Color.kt` constants directly and asserts `>= 4.5` (normal-text AA; note in the test if
+  a pair is only ever used for large text/icons, where `3.0` is the real bar, rather than holding
+  every pair to the stricter number by default).
+
+  *Verify:* the new test passes against the real palette. If any pair fails, that's a real finding
+  — fix the failing `Color.kt` constant if it's a small, isolated tone adjustment; if fixing it
+  would mean re-deriving more of the tonal palette than that, file it in `docs/revisit.md` instead
+  of forcing a fix inline, per M17's own precedent for exactly this kind of call.
+
+  Note: all 20 pairs already pass 4.5:1 — no `Color.kt` change needed, nothing filed in
+  `docs/revisit.md`. `ContrastTest.kt` computes WCAG relative luminance straight from
+  `androidx.compose.ui.graphics.Color`'s own `.red`/`.green`/`.blue` (already sRGB gamma-encoded
+  0..1 floats for a `Color(0xFF...)` literal) rather than decoding the hex constants by hand.
+  Every pair here is normal-text UI, so all twenty are held to the 4.5:1 bar — none of them is
+  large-text/icon-only, so the `3.0` carve-out this step's own text allows didn't apply.
+
+- [x] **27.4 — Semantics assertions in `feature:subscriptions:ui`'s existing `androidDeviceTest`
+  suite (M19), covering what 27.1/27.2 changed inside that module**
+  `androidDeviceTest` is opt-in per module and currently wired only for
+  `feature:subscriptions:ui` and `core:storage` (confirmed by grep for `withDeviceTestBuilder`) —
+  so this step stays inside that existing wiring rather than adding it to a new module, and
+  therefore only covers the two 27.1/27.2 changes reachable from `feature:subscriptions:ui`: the
+  `WallosTopAppBar` `Menu` icon (used by `SubscriptionsScreen`'s shell) and
+  `SubscriptionEditorScreen`'s own `SwitchRow`. The `CrashReportingRow` (settings) and
+  `PaymentMethodEditorScreen` `SwitchRow` fixes have no automated regression coverage after this
+  step — that gap is intentional (those modules have no device-test wiring today, and adding it
+  is out of this step's scope) and is exactly what 27.5's manual pass exists to cover instead.
+
+  Add two tests: one asserting `onNodeWithContentDescription` finds the (now-localized) Menu
+  button; one asserting `SubscriptionEditorScreen`'s toggle row is a single merged semantics node
+  exposing `Role.Switch` and the correct on/off state (`assertIsOn`/`assertIsOff`) rather than two
+  separate nodes — this is the actual regression check for 27.2's `mergeDescendants` change.
+
+  *Verify:* `./gradlew :feature:subscriptions:ui:connectedAndroidDeviceTest` passes on the AVD
+  (needs the emulator up — `emulator-testing` skill).
+
+  Note: `SubscriptionsContent` never renders `WallosTopAppBar` itself — the shell in `composeApp`
+  does, driven by `LocalTopBarConfig`, and `feature:subscriptions:ui` has no way to reach
+  `composeApp` (the dependency runs the other way). So the Menu test renders `WallosTopAppBar`
+  directly from `uikit` (already a dependency of this module) with `NavigationIconConfig.Menu`
+  rather than going through `SubscriptionsScreen`'s full wiring. `SubscriptionEditorContent` needed
+  to go from `private` to `internal` for the second test to reach it, mirroring `SubscriptionsContent`'s
+  own precedent. `performClick()` dispatches a real on-screen touch rather than invoking a semantics
+  action directly, so the first run of the switch-row test failed (`expected:<false> but
+  was:<null>` — the callback never fired) because the notify row sits below the fold in the
+  scrollable form; `performScrollTo()` before `performClick()` fixed it. `assertIsOn()` needed no
+  such fix, since it reads semantics state regardless of what's on screen.
+
+- [x] **27.5 — Device pass: TalkBack walkthrough + largest-font-scale screenshots**
+  The one thing source-reading can't substitute for. Boot the AVD (`emulator-testing` skill),
+  enable TalkBack via `adb shell settings put secure enabled_accessibility_services` /
+  `accessibility_enabled 1` (confirm the exact service component name for this AVD's TalkBack
+  build before assuming the setting string), and walk Dashboard → Subscriptions list →
+  Subscription editor → Settings → the two 27.2 rows not covered by 27.4's automated test
+  (`CrashReportingRow`, `PaymentMethodEditorScreen`'s `SwitchRow`) — confirm focus order reads
+  sensibly and both switches announce as one stop with label and state together. Separately, set
+  the largest system font scale (`adb shell settings put system font_scale 1.3` or via the
+  on-device Settings app) and screenshot the same three-to-four key screens, checking for text
+  truncation or overlap.
+
+  Split what this finds two ways, per `CLAUDE.md`'s own rule on shared skills: any project-specific
+  fact this AVD/app combination turns up (the exact TalkBack service component name, a
+  font-scale-specific gotcha on a particular screen) goes in `docs/EMULATOR_TESTING.md`, same as
+  every other device fact that skill already holds. A *generic*, non-project-specific
+  TalkBack/font-scale driving technique belongs in the shared `emulator-testing` skill itself,
+  which lives in the separate `agentic-grappim` repo — this step cannot commit that edit directly;
+  flag it for `/finalize` to actually push, the same as any other shared-skill lesson a step turns
+  up. Any real layout break found and not a one-line fix goes in `docs/revisit.md` rather than
+  being forced inline, mirroring M17's own instruction for exactly this situation.
+
+  *Verify:* the walkthrough and screenshots happen and get eyeballed; this step's "done" condition
+  is that both passes ran and their findings — fixed inline, filed in `docs/revisit.md`, or noted
+  as a shared-skill gap for `/finalize` — are accounted for, not that every screen turned out
+  perfect.
+
+  Note: a headless adb session can't hear TalkBack speak, so the walkthrough verified via
+  `uiautomator dump`'s accessibility-node tree instead of audio — that tree is exactly what
+  TalkBack itself reads (`content-desc`, `checkable`/`checked`, node merging), so it's a reliable
+  proxy. TalkBack's touch-exploration mode also meant a single `input tap` only focuses, not
+  clicks — navigation used two taps ~150ms apart (a real double-tap gesture) throughout. All four
+  27.1/27.2 fixes confirmed live: `WallosTopAppBar` exposes `content-desc="Menu"`/`"Back"`, and all
+  three `toggleable` rows (`SubscriptionEditorScreen`'s three switches, `CrashReportingRow`,
+  `PaymentMethodEditorScreen`'s `Enabled` row) are single `checkable`/`clickable` nodes with
+  `checked` matching on-screen state. Focus order was sensible everywhere walked. The font-scale
+  pass (`font_scale 1.3`) found one real bug fixed inline — `CrashReportingRow`'s label `Column`
+  had no `Modifier.weight(1f)`, so its two-line description wasn't constrained to leave room for
+  the `Switch` and the wrapped text collided with it — and one unrelated finding filed in
+  `docs/revisit.md` (the Subscriptions list's FAB overlapping its last row, present at any font
+  scale, not a one-line fix). Project-specific facts (TalkBack's component name on this AVD, the
+  first-enable permission-dialog gotcha) went in `docs/EMULATOR_TESTING.md`; the generic
+  enable/disable/touch-exploration/dump-as-audio-substitute technique went into the shared
+  `emulator-testing` skill, left uncommitted in `agentic-grappim` for review.
 
 ---
 
@@ -254,6 +723,10 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   written per step anyway — which is what the 82–100% on the logic layers already shows. This is not
   a "later" item any more; it needs a reason to come *back*, such as coverage on a logic module
   visibly falling.
+  **The Compose-UI-test half left this list to become M19, 2026-08-12, now closed** — see
+  `archive/CHECKLIST-DONE.md`'s M19 preamble for why Taiga's `jvm()`-based technique doesn't
+  transfer and what shape the first tests took. The Kover-floor half above stays parked on its own
+  terms.
 - **A certificate-trust prompt anywhere a refresh can fail, not only on the login screen** (3.8) —
   **decided against, 2026-08-09.** 5.1 already closed the copy half (a rotated certificate names
   itself in the stale banner/error message and points at Disconnect); this would have added the
@@ -272,16 +745,25 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   sitting silently empty while `loadCategories`/`loadPayers`/`loadPaymentMethods` are in flight — but
   the user still sees the screen itself take a while to open, which that fix never addressed. Two
   separate, real costs, only one still unscoped:
-  1. **The network wait — still open, unscoped.** 2 of the 3 picker calls land together ~500–700ms
-     after the request (the third, `get_household`, is fast — under 15ms) against the local
-     instance, with no retries or exceptions logged. Confirmed server-side, not client:
-     `LoginThrottle` only gates `login.php`/`totp.php`, `NetworkModule.kt` sets no connection-pool
-     limit, and a bare `curl` to the same three endpoints from the host resolved in ~7ms each — so
-     whatever serializes two of the three only shows up through the app's own request pattern
-     (PHP-FPM worker count or session-file locking are the live guesses, still unconfirmed). Fixing
-     this for real means giving these three repositories a cache the way `SubscriptionsRepository`
-     already has one — Phase 5 management-screen scope, not a small change. Filed 2026-08-07; the
-     next session picking this up should read this entry before re-deriving the measurement.
+  1. **The network wait — declined 2026-08-12, not worth it.** 2 of the 3 picker calls land
+     together ~500–700ms after the request (the third, `get_household`, is fast — under 15ms)
+     against the local instance, with no retries or exceptions logged. Confirmed server-side, not
+     client: `LoginThrottle` only gates `login.php`/`totp.php`, `NetworkModule.kt` sets no
+     connection-pool limit, and a bare `curl` to the same three endpoints from the host resolved in
+     ~7ms each — so whatever serializes two of the three only shows up through the app's own
+     request pattern (PHP-FPM worker count or session-file locking are the live guesses, still
+     unconfirmed and now staying that way). Filed 2026-08-07. Scoped 2026-08-12: a real fix means
+     giving `CategoriesRepository`/`HouseholdRepository`/`PaymentMethodsRepository` a cache the way
+     `SubscriptionsRepository` has one — new Room entities/DAOs in `core:storage`, a `Cache` class
+     per feature `data` module, a breaking `get*` → `observe*`/`refresh*` interface change reaching
+     three management-screen list ViewModels plus `SubscriptionEditorViewModel`, and ~9 test fakes
+     updated to match — reversing the explicit "reference data, no cache" call written into all
+     three repos' own KDoc. That's out of proportion to the payoff: it only pays off from the
+     *second* editor open onward (first open, or any open after an edit elsewhere invalidates the
+     cache, still round-trips), and doesn't touch the actual unconfirmed root cause either way.
+     User declined to pursue; **don't re-open this per step; it needs a reason to come back**, such
+     as the stagger getting materially worse or a real Phase 5 management-screen cache landing for
+     other reasons and picking these three up for free.
   2. **The JIT warm-up tax on cold navigation — addressed by M13, but the "fixed" verdict below
      rested on an unapplied profile. Now corrected: real improvement, not the original
      "indistinguishable" claim.** Re-investigated 2026-08-09 alongside the scroll-laggy item
@@ -310,28 +792,30 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
      the same as 13.2's own 93%/101.9ms and 88%/107.3ms) — that "did not improve" result stands
      on its own, unaffected by the profile-application gap. See the doc's "What landed" section
      for full numbers.
-- **The subscriptions list scrolls laggy.** Filed 2026-08-08 by the user; investigated 2026-08-09
-  (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), together with the FAB item above on
-  the hunch they shared a cause — confirmed true. A static code trace ruled out all three original
-  guesses (missing `key`, unstable item type, ViewModel flow re-emission during scroll — none
-  survive a read of `SubscriptionsScreen.kt`/`SubscriptionCard.kt`/`SubscriptionsViewModel.kt`).
-  Two real causes turned up by trace instead:
+- **The subscriptions list scrolls laggy — resolved, 2026-08-12.** Filed 2026-08-08 by the user;
+  investigated 2026-08-09 (`docs/issues/2026-08-09-fab-open-and-list-scroll-jank.md`), together
+  with the FAB item above on the hunch they shared a cause — confirmed true. A static code trace
+  ruled out all three original guesses (missing `key`, unstable item type, ViewModel flow
+  re-emission during scroll — none survive a read of
+  `SubscriptionsScreen.kt`/`SubscriptionCard.kt`/`SubscriptionsViewModel.kt`). Two real causes
+  turned up by trace instead:
   - **Coil loading ~20+ previously-unfetched logos at once on a fast fling, contending on a lock
     inside Coil's own disk-cache writer — fixed and verified, `a0cf54d`.**
     `AppModule.provideImageLoader`'s fetcher concurrency is now capped at 4
     (`fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(4))`); on-device contention dropped
     from 18 events/50.6ms to 0 across two follow-up cold-scroll runs.
-  - **The same JIT-compilation floor as the FAB item above — addressed by M13, still open as a
-    user-visible complaint.** The Coil fix alone didn't move it: overall frame-jank numbers stayed
-    flat even with Coil contention at zero, confirming Coil was never the dominant cause of the
-    *aggregate* jank this AVD measures. Folded into **M13** (an Android Baseline Profile) alongside
-    the FAB item's JIT half, 2026-08-10, closed the same day: the profile eliminates JIT-code-cache
-    lock contention on the list-scroll path too (confirmed, reproduced across two runs), but the
-    doc's own frame-jank/worst-frame numbers — the metric closest to "does it feel laggy" — did not
-    improve and read worse in both post-profile runs on this AVD (`archive/CHECKLIST-DONE.md`'s
-    13.2 has the full numbers and the caveats around them). **The user's original complaint is not
-    confirmed fixed** — real hardware, not this software-rendered AVD, is the only way to settle
-    whether the profile actually helps a real user's felt experience.
+  - **The same JIT-compilation floor as the FAB item above — addressed by M13, now confirmed fixed
+    on real hardware.** M13's Baseline Profile eliminates JIT-code-cache lock contention on the
+    list-scroll path (confirmed on the AVD, 13.2), but 13.2's own AVD frame-jank measurement read
+    flat-to-worse, leaving the user's real complaint unconfirmed either way. The 2026-08-12
+    real-device addendum first confirmed the jank itself was real hardware, not an AVD artifact
+    (`SM-A920F`, 89% janky cold, `gplayDebug` — a build variant that structurally cannot carry the
+    profile). A same-day follow-up caught that gap and closed it: a signed `gplayRelease` build
+    (which does carry the profile, and is what Play/F-Droid actually distribute) on that exact same
+    device dropped janky frames from 83–90% to 3–11% and worst-case frame time from 150ms to
+    44–57ms, reproduced across two cold runs. **The original complaint is confirmed fixed** — every
+    real user already has this fix, since `androidx.profileinstaller` applies the bundled profile
+    automatically outside Play too. Full numbers: the doc's three 2026-08-12 addenda.
 - **The Subscriptions list flashed its empty-state text on every login — fixed and verified,
   2026-08-10, outside the checklist step process, same shape as `a0cf54d`.**
   Two compounding causes in `SubscriptionsViewModel`: (1) `_uiState`'s initial value defaulted
@@ -358,4 +842,21 @@ Kover-floor ones have each been settled twice, the certificate-trust one once (2
   `AuthenticatedMainScreen.kt`) had no correct IME insets to push content against on that API
   level — API 36's own insets dispatch masks the gap, which is why the emulator never reproduced
   it. Fixed with a single `android:windowSoftInputMode="adjustResize"` on the activity.
+- **TaigaMobileNova recently did a security review and a testing overhaul — investigated
+  2026-08-11, left this list to become M17 on the security half.** Filed 2026-08-10 by the user.
+  Read `TaigaMobileNova/docs/security/` (`masvs.md`, `masvs-review-plan.md`) and `docs/testing/`
+  (`improvement-plan.md`, `survey.md`, `compose-ui-test-spike.md`) in full, then checked both
+  against WallosMobile's actual source rather than assuming the parallel holds. **Security: real
+  gap, decomposed into M17** (see its preamble above for the full comparison — short version:
+  WallosMobile already has a Keystore-backed cipher over the API key and a ported
+  `CompositeTrustManager`, both further along than Taiga's own starting point, but Network/Auth/
+  Platform/Code/Privacy/Resilience have never been reviewed at all). **Testing: next milestone
+  after M17, not folded into it — became M19, now closed too.** Taiga's Compose UI test sweep runs via a `jvmTest` source set
+  (Compose Desktop test artifacts), and WallosMobile declares no `jvm()` target, so that exact
+  mechanism doesn't transfer as-is — but that's a setup gap for the next milestone to close, not a
+  reason to drop the idea: once M17 closes, scope whether to add a `jvm()` target (so
+  `runComposeUiTest` can run in `jvmTest` the same way Taiga's does) or build out the
+  `androidDeviceTest` route instead (3.3 already paid part of that setup cost). The settled
+  no-Kover-floor decision is unaffected either way — Taiga's survey/heuristics work didn't surface
+  anything that reopens it.
 

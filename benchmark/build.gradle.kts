@@ -16,7 +16,7 @@ plugins {
 configure<DetektExtension> {
     buildUponDefaultConfig.set(true)
     parallel.set(true)
-    config.setFrom(rootProject.files("config/detekt/detekt.yml"))
+    config.setFrom(File(rootDir, "config/detekt/detekt.yml"))
     allRules.set(false)
     source.setFrom(layout.projectDirectory.dir("src"))
 }
@@ -81,4 +81,6 @@ dependencies {
     // adds both unconditionally rather than only to Compose modules.
     ktlintRuleset(libs.composeRules.ktlint)
     detektPlugins(libs.composeRules.detekt)
+    // M26: same reason as above, for the shared config's `WallosMobile:` section.
+    detektPlugins(project(":detekt-rules"))
 }

@@ -1,8 +1,10 @@
 package com.grappim.wallosmobile.feature.settings.ui.appearance
 
 import app.cash.turbine.test
+import com.grappim.wallosmobile.core.storage.crashreporting.CrashReportingStorage
 import com.grappim.wallosmobile.core.storage.theme.ThemeMode
 import com.grappim.wallosmobile.core.storage.theme.ThemeStorage
+import com.grappim.wallosmobile.testing.FakeCrashReporter
 import com.grappim.wallosmobile.testing.MainDispatcherRule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,10 +13,14 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class InterfaceViewModelTest {
 
     private val themeStorage = FakeThemeStorage()
+    private val crashReportingStorage = FakeCrashReportingStorage()
+    private val crashReporter = FakeCrashReporter()
     private val mainDispatcherRule = MainDispatcherRule()
 
     @BeforeTest
@@ -27,7 +33,11 @@ class InterfaceViewModelTest {
         mainDispatcherRule.tearDown()
     }
 
-    private fun viewModel() = InterfaceViewModel(themeStorage = themeStorage)
+    private fun viewModel() = InterfaceViewModel(
+        themeStorage = themeStorage,
+        crashReportingStorage = crashReportingStorage,
+        crashReporter = crashReporter
+    )
 
     @Test
     fun `the stored mode is what the radio group shows`() = runTest {
@@ -76,6 +86,36 @@ class InterfaceViewModelTest {
         assertEquals(ThemeMode.Dark, viewModel.uiState.value.selectedMode)
     }
 
+    // `isCrashReportingAvailable` gates whether the toggle renders at all (fdroid vs. gplay,
+    // 16.4) — it is a build/flavor fact read once, so no flow to await here.
+    @Test
+    fun `the toggle is available exactly when the crash reporter is`() {
+        crashReporter.isAvailable = true
+
+        assertTrue(viewModel().uiState.value.isCrashReportingAvailable)
+    }
+
+    @Test
+    fun `the toggle is unavailable when the crash reporter is not`() {
+        crashReporter.isAvailable = false
+
+        assertFalse(viewModel().uiState.value.isCrashReportingAvailable)
+    }
+
+    @Test
+    fun `the stored consent is what the toggle shows`() = runTest {
+        crashReportingStorage.enabled.value = true
+
+        assertTrue(viewModel().uiState.value.crashReportingEnabled)
+    }
+
+    @Test
+    fun `toggling crash reporting stores the new consent`() = runTest {
+        viewModel().uiState.value.onCrashReportingToggle(true)
+
+        assertEquals(listOf(true), crashReportingStorage.stored)
+    }
+
     // Private to this file, as in 1.10, 2.3 and `SettingsViewModelTest`: `:testing` is for doubles
     // more than one module needs, and this one has a single consumer.
     private class FakeThemeStorage : ThemeStorage {
@@ -90,6 +130,19 @@ class InterfaceViewModelTest {
             if (failOnSet) error("the store is unwritable")
             stored += mode
             this.mode.value = mode
+        }
+    }
+
+    private class FakeCrashReportingStorage : CrashReportingStorage {
+
+        val enabled = MutableStateFlow(false)
+        val stored = mutableListOf<Boolean>()
+
+        override val crashReportingEnabled: Flow<Boolean> = enabled
+
+        override suspend fun setCrashReportingEnabled(enabled: Boolean) {
+            stored += enabled
+            this.enabled.value = enabled
         }
     }
 }

@@ -19,8 +19,11 @@ import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.about_build
 import com.grappim.wallosmobile.strings.generated.resources.about_build_debug
 import com.grappim.wallosmobile.strings.generated.resources.about_build_release
+import com.grappim.wallosmobile.strings.generated.resources.about_privacy_policy
 import com.grappim.wallosmobile.strings.generated.resources.about_project
 import com.grappim.wallosmobile.strings.generated.resources.about_project_url
+import com.grappim.wallosmobile.strings.generated.resources.about_report_issue
+import com.grappim.wallosmobile.strings.generated.resources.about_report_issue_url
 import com.grappim.wallosmobile.strings.generated.resources.about_version
 import com.grappim.wallosmobile.strings.generated.resources.about_version_value
 import com.grappim.wallosmobile.strings.generated.resources.settings_about
@@ -57,6 +60,8 @@ private fun AboutContent(uiState: AboutUiState, modifier: Modifier = Modifier) {
     // here and it is wired locally rather than through the UI state.
     val uriHandler = LocalUriHandler.current
     val projectUrl = stringResource(RString.about_project_url)
+    val privacyPolicyUrl = stringResource(uiState.privacyPolicyLink)
+    val reportIssueUrl = stringResource(RString.about_report_issue_url)
 
     // A fixed set of facts, so a `Column` rather than a `LazyColumn`.
     Column(
@@ -80,6 +85,20 @@ private fun AboutContent(uiState: AboutUiState, modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(stringResource(RString.about_project))
+        }
+
+        Button(
+            onClick = { uriHandler.openUri(privacyPolicyUrl) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(stringResource(RString.about_privacy_policy))
+        }
+
+        Button(
+            onClick = { uriHandler.openUri(reportIssueUrl) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(stringResource(RString.about_report_issue))
         }
     }
 }

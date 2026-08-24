@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.settings.ui.appearance
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -7,8 +8,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,7 +23,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.grappim.wallosmobile.core.storage.theme.ThemeMode
 import com.grappim.wallosmobile.strings.RString
+import com.grappim.wallosmobile.strings.generated.resources.settings_crash_reporting
+import com.grappim.wallosmobile.strings.generated.resources.settings_crash_reporting_description
 import com.grappim.wallosmobile.strings.generated.resources.settings_interface
+import com.grappim.wallosmobile.strings.generated.resources.settings_privacy
 import com.grappim.wallosmobile.strings.generated.resources.settings_theme
 import com.grappim.wallosmobile.strings.generated.resources.settings_theme_dark
 import com.grappim.wallosmobile.strings.generated.resources.settings_theme_light
@@ -54,35 +60,76 @@ fun InterfaceScreen(viewModel: InterfaceViewModel = koinViewModel<InterfaceViewM
 
 @Composable
 private fun InterfaceContent(uiState: InterfaceUiState, modifier: Modifier = Modifier) {
-    // Three fixed options, so a `Column` rather than a `LazyColumn`.
+    // Two fixed sections (the second only on gplay), so a `Column` rather than a `LazyColumn`.
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(SCREEN_PADDING)
+            .padding(SCREEN_PADDING),
+        verticalArrangement = Arrangement.spacedBy(SECTION_SPACING)
     ) {
-        Text(
-            text = stringResource(RString.settings_theme),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = TITLE_SPACING)
-        )
+        Column {
+            Text(
+                text = stringResource(RString.settings_theme),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(bottom = TITLE_SPACING)
+            )
 
-        Column(modifier = Modifier.selectableGroup()) {
-            ThemeModeRow(
-                mode = ThemeMode.System,
-                selected = uiState.selectedMode == ThemeMode.System,
-                onSelect = uiState.onModeSelect
-            )
-            ThemeModeRow(
-                mode = ThemeMode.Light,
-                selected = uiState.selectedMode == ThemeMode.Light,
-                onSelect = uiState.onModeSelect
-            )
-            ThemeModeRow(
-                mode = ThemeMode.Dark,
-                selected = uiState.selectedMode == ThemeMode.Dark,
-                onSelect = uiState.onModeSelect
+            Column(modifier = Modifier.selectableGroup()) {
+                ThemeModeRow(
+                    mode = ThemeMode.System,
+                    selected = uiState.selectedMode == ThemeMode.System,
+                    onSelect = uiState.onModeSelect
+                )
+                ThemeModeRow(
+                    mode = ThemeMode.Light,
+                    selected = uiState.selectedMode == ThemeMode.Light,
+                    onSelect = uiState.onModeSelect
+                )
+                ThemeModeRow(
+                    mode = ThemeMode.Dark,
+                    selected = uiState.selectedMode == ThemeMode.Dark,
+                    onSelect = uiState.onModeSelect
+                )
+            }
+        }
+
+        // Absent, not disabled, on fdroid — `crashReporter.isAvailable` is a build/flavor fact,
+        // not a permission the user could grant later.
+        if (uiState.isCrashReportingAvailable) {
+            Column {
+                Text(
+                    text = stringResource(RString.settings_privacy),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = TITLE_SPACING)
+                )
+
+                CrashReportingRow(
+                    checked = uiState.crashReportingEnabled,
+                    onCheckedChange = uiState.onCrashReportingToggle
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CrashReportingRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = LABEL_SPACING)) {
+            Text(text = stringResource(RString.settings_crash_reporting), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = stringResource(RString.settings_crash_reporting_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 
@@ -126,6 +173,7 @@ private val ThemeMode.label: StringResource
     }
 
 private val SCREEN_PADDING = 16.dp
+private val SECTION_SPACING = 24.dp
 private val TITLE_SPACING = 8.dp
 private val ROW_PADDING = 12.dp
 private val LABEL_SPACING = 16.dp
@@ -140,4 +188,10 @@ private fun InterfaceContentPreview() = WallosMobilePreviewTheme {
 @Composable
 private fun InterfaceContentDarkSelectedPreview() = WallosMobilePreviewTheme {
     InterfaceContent(uiState = InterfaceUiState(selectedMode = ThemeMode.Dark))
+}
+
+@PreviewWallosDarkLight
+@Composable
+private fun InterfaceContentCrashReportingPreview() = WallosMobilePreviewTheme {
+    InterfaceContent(uiState = InterfaceUiState(isCrashReportingAvailable = true, crashReportingEnabled = true))
 }

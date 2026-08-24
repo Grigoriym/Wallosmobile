@@ -2,12 +2,14 @@ package com.grappim.wallosmobile.feature.dashboard.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.dashboard.domain.calculator.SubscriptionStats
 import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyCost
 import com.grappim.wallosmobile.feature.dashboard.domain.model.PeriodBudget
 import com.grappim.wallosmobile.feature.dashboard.domain.usecase.DashboardHomeUseCase
+import com.grappim.wallosmobile.feature.dashboard.ui.toLogoUrl
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
 import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
@@ -24,15 +26,18 @@ import org.koin.core.annotation.KoinViewModel
 import kotlin.time.Clock
 
 /**
- * Nothing on this screen writes and nothing refreshes a cache behind it (M8 preamble), so unlike
- * `SubscriptionsViewModel` there is no `observe*` to combine with — one [load] call per open (and
- * per [DashboardUiState.onRetryClick]) is the whole lifecycle.
+ * Nothing on this screen writes, so unlike `SubscriptionsViewModel` there is no `observe*` to
+ * combine with — one [load] call per open (and per [DashboardUiState.onRetryClick]) is the whole
+ * lifecycle. [load] does refresh the subscriptions cache now (`DashboardHomeUseCase`, since
+ * 2026-08-24), it just doesn't keep observing it afterward: a re-open is a fresh [load], the same
+ * way reloading a web page is a fresh request.
  */
 @KoinViewModel
 class DashboardViewModel(
     private val dashboardHomeUseCase: DashboardHomeUseCase,
     private val moneyFormatter: MoneyFormatter,
-    private val dateFormatter: DateFormatter
+    private val dateFormatter: DateFormatter,
+    private val baseUrlProvider: BaseUrlProvider
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState(isLoading = true, onRetryClick = ::load))
@@ -148,6 +153,7 @@ class DashboardViewModel(
         id = subscription.id,
         name = subscription.name,
         price = moneyFormatter.format(subscription.price, subscription.currencySymbol),
-        nextPayment = subscription.nextPayment?.let(dateFormatter::formatDisplayDate).orEmpty()
+        nextPayment = subscription.nextPayment?.let(dateFormatter::formatDisplayDate).orEmpty(),
+        logoUrl = baseUrlProvider.toLogoUrl(subscription.logo)
     )
 }

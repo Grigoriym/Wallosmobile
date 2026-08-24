@@ -6,15 +6,77 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
+import androidx.lifecycle.lifecycleScope
 import com.grappim.wallosmobile.composeapp.WallosAppContent
+import com.grappim.wallosmobile.di.AppUpdateChecker
+import com.grappim.wallosmobile.di.UpdateState
+import com.grappim.wallosmobile.strings.RString
+import com.grappim.wallosmobile.strings.generated.resources.app_update_downloaded
+import com.grappim.wallosmobile.strings.generated.resources.app_update_restart
+import com.grappim.wallosmobile.uikit.widgets.snackbar.SnackbarHostController
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.getString
+import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
+
+    private val appUpdateChecker: AppUpdateChecker by inject()
+    private val snackbarHostController = SnackbarHostController()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        appUpdateChecker.checkAndRequestUpdate(this)
+        observeUpdateState()
+
         setContent {
-            WallosAppContent(onDarkThemeChange = ::applyEdgeToEdge)
+            WallosAppContent(
+                onDarkThemeChange = ::applyEdgeToEdge,
+                snackbarHostController = snackbarHostController
+            )
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appUpdateChecker.registerUpdateListener()
+        appUpdateChecker.checkUpdateStateOnResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        appUpdateChecker.unregisterUpdateListener()
+    }
+
+    /**
+     * Plain `lifecycleScope`, not a Compose `LaunchedEffect` — `AppUpdateChecker`/`UpdateState`
+     * are `androidApp`-only types that can't be named in `composeApp`/`uikit` code (the Gradle
+     * dependency runs the other way), so this stays here rather than crossing that boundary. Only
+     * the plain `SnackbarHostController` (from `uikit`) is shared with the Compose shell, the same
+     * instance `WallosAppContent` renders through `Scaffold`'s `snackbarHost` slot.
+     */
+    private fun observeUpdateState() {
+        lifecycleScope.launch {
+            appUpdateChecker.updateState.collectLatest { state ->
+                when (state) {
+                    UpdateState.UpdateDownloaded -> showRestartSnackbar()
+                }
+            }
+        }
+    }
+
+    private suspend fun showRestartSnackbar() {
+        val result = snackbarHostController.show(
+            message = getString(RString.app_update_downloaded),
+            actionLabel = getString(RString.app_update_restart),
+            duration = SnackbarDuration.Indefinite
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            appUpdateChecker.completeUpdate()
         }
     }
 

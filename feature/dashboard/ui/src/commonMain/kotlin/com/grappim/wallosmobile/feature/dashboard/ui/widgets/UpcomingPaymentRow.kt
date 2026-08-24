@@ -20,7 +20,7 @@ import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import org.jetbrains.compose.resources.stringResource
 
-/** No logo, cycle or inactive badge: 8.2 already filtered to active rows, and the card doesn't need the rest. */
+/** No cycle or inactive badge: 8.2 already filtered to active rows, and the card doesn't need the rest. */
 @Composable
 fun UpcomingPaymentRow(item: UpcomingPaymentUiItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(modifier = modifier.fillMaxWidth(), onClick = onClick) {
@@ -31,6 +31,8 @@ fun UpcomingPaymentRow(item: UpcomingPaymentUiItem, onClick: () -> Unit, modifie
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(CARD_PADDING)
         ) {
+            UpcomingPaymentLogo(logoUrl = item.logoUrl, name = item.name, size = LOGO_SIZE)
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.name,
@@ -53,6 +55,7 @@ fun UpcomingPaymentRow(item: UpcomingPaymentUiItem, onClick: () -> Unit, modifie
 }
 
 private val CARD_PADDING = 16.dp
+private val LOGO_SIZE = 40.dp
 
 @PreviewWallosDarkLight
 @Composable
