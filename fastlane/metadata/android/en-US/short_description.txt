@@ -1,0 +1,1 @@
+Unofficial Android client for the Wallos subscription tracker

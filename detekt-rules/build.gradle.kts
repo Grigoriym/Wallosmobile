@@ -45,8 +45,8 @@ dependencies {
     // reach into `detekt-test` for (`TestConfig`, the `Rule.lint(String)` extension) need nothing
     // from the missing test-fixtures artifact.
     testImplementation(libs.detekt.test) { isTransitive = false }
-    testImplementation("org.jetbrains.kotlin:kotlin-compiler:2.4.0")
-    testImplementation("org.jetbrains.kotlin:kotlin-reflect:2.4.0")
+    testImplementation("org.jetbrains.kotlin:kotlin-compiler:2.4.10")
+    testImplementation("org.jetbrains.kotlin:kotlin-reflect:2.4.10")
 
     "detektPlugins"(libs.composeRules.detekt)
     "ktlintRuleset"(libs.composeRules.ktlint)
