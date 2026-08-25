@@ -77,7 +77,7 @@ jetbrainsAndroidxLifecycle = "2.11.0"
 # https://developer.android.com/guide/navigation/navigation-3
 jetbrainsNav3 = "1.1.1"
 
-compose-bom = "2026.06.01"
+compose-bom = "2026.08.00"
 # `androidx.compose.ui:ui-test-manifest` has no `org.jetbrains.compose.ui` multiplatform
 # wrapper (it's Android-instrumentation-only), so it needs its own version — pinned to what
 # jetbrainsComposeMultiplatform 1.11.1 actually resolves `androidx.compose.ui:*` to for the
