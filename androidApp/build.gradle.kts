@@ -16,6 +16,19 @@ if (project.hasProperty("gplayBuild")) {
 }
 
 android {
+    // AGP embeds a "Dependency metadata" block in the APK's signing block by default, for Play
+    // Console's dependency scanning. F-Droid's scanner rejects any extra signing block outright
+    // (`ERROR Found extra signing block 'Dependency metadata'`) — this property is project-wide,
+    // not flavor-scoped, so it only turns off cleanly now that release.yml builds fdroid and
+    // gplay as separate `-PgplayBuild` invocations (see the fdroid/gplay plugin-application split
+    // below, same reasoning). TaigaMobileNova carries the identical gate.
+    if (!project.hasProperty("gplayBuild")) {
+        dependenciesInfo {
+            includeInApk = false
+            includeInBundle = false
+        }
+    }
+
     namespace = libs.versions.app.pkg.get()
 
     defaultConfig {
