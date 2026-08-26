@@ -67,8 +67,11 @@ jobs:
           mkdir -p androidApp/src/gplay
           echo "$ENCODED_GOOGLE_SERVICES_GPLAY" | base64 -d > androidApp/src/gplay/google-services.json
 
-      - name: Build release APKs and AAB
-        run: ./gradlew :androidApp:assembleGplayRelease :androidApp:assembleFdroidRelease :androidApp:assembleFdroidDebug :androidApp:bundleGplayRelease -PgplayBuild
+      - name: Build release Fdroid APKs
+        run: ./gradlew :androidApp:assembleFdroidRelease :androidApp:assembleFdroidDebug
+
+      - name: Build release Gplay APK and AAB
+        run: ./gradlew :androidApp:assembleGplayRelease :androidApp:bundleGplayRelease -PgplayBuild
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
