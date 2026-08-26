@@ -1,1 +1,1 @@
-What's new in v1.0.2
+Fixed the F-Droid build not being reproducible against the signed release binary. No user-facing changes.
