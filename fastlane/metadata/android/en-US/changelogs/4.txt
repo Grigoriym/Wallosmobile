@@ -1,1 +1,1 @@
-What's new in v1.0.3
+Fixed the F-Droid build tripping the scanner on a dependency-metadata signing block. No user-facing changes.

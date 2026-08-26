@@ -1,1 +1,1 @@
-What's new in v1.0.3
+Maintenance release. No user-facing changes.
