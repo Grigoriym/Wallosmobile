@@ -110,7 +110,7 @@ androidxEspresso = "3.7.0"
 # `androidx.baselineprofile` Gradle plugin (13.1: same release train, `baseline-profile-
 # gradle-plugin` ships alongside `benchmark-macro-junit4`). Only for `:benchmark`, an
 # instrumentation-only module — never a `wallosmobile.*` KMP module dependency.
-androidxBenchmark = "1.5.0-rc01"
+androidxBenchmark = "1.5.0-rc02"
 androidxTestExtJunit = "1.3.0"
 androidxTestUiautomator = "2.4.0"
 
