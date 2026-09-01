@@ -246,6 +246,13 @@ ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private sta
 # one `emulator-testing` already boots for on-device Verify: lines. Writes straight into
 # androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt, committed as source.
 ./gradlew :androidApp:generateGplayReleaseBaselineProfile
+
+# Render the full module dependency graph (requires graphviz: apt/brew install graphviz).
+# Ported from HedvigInsurance's gradle/projectDependencyGraph.gradle, itself from
+# chrisbanes/tivi — via agentic-grappim/investigations/reference-app-scouting.md and
+# TaigaMobileNova's own port (2026-09-01). Colors nodes by module kind (KMP, Android app,
+# plain Kotlin/JVM) using this repo's actual plugin ids.
+./gradlew generateProjectDependencyGraph   # → build/reports/dependency-graph/project.png
 ```
 
 A step whose `Verify:` line is about the running app is verified **on the emulator**, not by
