@@ -89,3 +89,28 @@ and currently doesn't. The docstring already names the mechanism (`expect`/`actu
 platform `NumberFormat`) and the tradeoff (out of reach of a host test) — this entry is only to
 make sure it doesn't get re-litigated from scratch, and to catch every fixed-format call site
 (not just this one `usedPercent` line) in the same pass rather than one at a time.
+
+## 5. No deep-link readiness plan yet
+
+Found 2026-09-01 while triaging `agentic-grappim/investigations/reference-app-scouting.md`'s
+HedvigInsurance findings. Three of that scan's patterns share one trigger — none is worth adopting
+today, all three become the right move the moment deep links (or any synthetic/reconstructed back
+stack) land:
+
+- **Nav-key marker interfaces** (Hedvig: `TopLevelTabRoot`, `DeepLinkAncestry`, etc.) for letting
+  the shell ask "does this screen do X" without importing the feature — WallosMobile's drawer shell
+  currently has exactly one cross-cutting need (which items show in the drawer), handled fine by
+  plain state; not worth the interface machinery for one property.
+- **`navigateUp` reserved for the top-bar back arrow, everything else uses a plain pop** —
+  `core/navigation/.../Navigator.kt`'s `goBack()` is WallosMobile's only pop primitive, so there is
+  no deep-link-aware/plain-pop split for this discipline to protect yet. Confirmed no deep-link
+  code exists anywhere in the repo (grepped while checking this).
+- **Deep-link matcher aggregation + pending-deep-link-while-logged-out queue** — the actual
+  mechanism a deep-link feature would need; nothing to build until one is planned.
+
+Not fixing inline because there's nothing to fix — no code exists to hold the discipline yet, and
+adding the marker interfaces/split/queue speculatively would be exactly the kind of unrequested
+"flexibility" `CLAUDE.md`'s Simplicity-first rule warns against. Revisit when a deep-link feature
+(or a second tab-parking-style shell need) is actually planned — that session should read
+`docs/architecture/navigation-and-di.md` in `/home/gregory/proj/HedvigInsurance` for the worked
+mechanism rather than re-deriving it.
