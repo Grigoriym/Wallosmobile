@@ -146,9 +146,8 @@ private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
             )
         }
 
-        // The probe answered before the user typed a password this instance would never look at
-        // (plan §1.1). It replaces the path toggle below rather than joining it: with password
-        // login off there is no choice left to offer, only a reason.
+        // The probe already knows this instance has password login off, so there is no toggle to
+        // offer below — only the reason text (plan §1.1).
         if (uiState.isPasswordLoginDisabled) {
             Text(
                 text = stringResource(RString.login_password_login_disabled),

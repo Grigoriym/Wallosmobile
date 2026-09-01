@@ -280,6 +280,12 @@ vertical slices, **all source in `commonMain`**. This list is the rules; the rat
 worked examples and which step established each one live in `docs/IMPLEMENTATION_PLAN.md`
 (§2, §3.3, §3.4, §4.7, §6) — read there for the "why," not here.
 
+- **A DTO never appears outside its feature's `data`/`dto`/`mapper` modules** — `domain` and `ui`
+  see only mapped domain types. The module split already makes this true everywhere (confirmed
+  2026-09-01: zero `Dto` references outside those layers, repo-wide), so this is naming an
+  existing boundary, not changing one; it exists to catch a future repository method accidentally
+  typed to return a DTO before it ships, the same way `WallosError` is the only thing that leaves
+  `core:api` (see Error handling below).
 - **Shell**: `ModalNavigationDrawer` + a `TopBarController` provided through `LocalTopBarConfig`;
   each screen declares its own `TopBarConfig`. Feature `ui` modules depend on `uikit`, never on
   `composeApp`.
@@ -761,6 +767,20 @@ Touch only what you must. Don't "improve" adjacent code, comments, or formatting
 what isn't broken. Match existing style even if you'd do it differently. Don't add UI or
 navigation that wasn't asked for. Remove orphans *your* change created; mention pre-existing dead
 code rather than deleting it. **Every changed line should trace directly to the request.**
+
+### Comments
+A comment describes only the *current* code and stands alone — no reference to this codebase's
+own history ("replaces X…", "used to…"), no rejected alternative ("…instead of the old Y", "…not
+Z"), no conversation/process state ("for now", "TBD", "pending design"). Test: would this make
+sense to someone reading cold, with no knowledge of the PR or conversation that produced it? If
+not, cut it — that context belongs in the commit message, not the source.
+
+**A `plan §N` / `docs/WALLOS_API.md §N` citation is not a history reference** — it points at a
+permanent rationale document (`docs/IMPLEMENTATION_PLAN.md` is literally "the reference" per
+Docs, not memory above), not at what the PR changed or what got argued over, and it still makes
+sense to someone reading cold since the doc is one click away. This carve-out is why the
+pervasive `(plan §X)` citations throughout this codebase are not what this rule targets — don't
+strip them; the rule is about narrating change or process, not about citing a stable doc.
 
 ### Goal-driven execution
 Turn tasks into verifiable goals — "fix the bug" → "write a failing test, then make it pass". For
