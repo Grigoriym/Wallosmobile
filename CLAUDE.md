@@ -782,6 +782,19 @@ sense to someone reading cold since the doc is one click away. This carve-out is
 pervasive `(plan §X)` citations throughout this codebase are not what this rule targets — don't
 strip them; the rule is about narrating change or process, not about citing a stable doc.
 
+**A bare checklist-step citation — `(3.11)`, `M26:`, a `--- 7.9: multipart logo upload ---` test
+divider — is the same kind of reference, not a narrower exception to it.** It points at a
+permanent, numbered record (`docs/CHECKLIST.md` / `docs/archive/CHECKLIST-DONE.md`), the same way
+`plan §N` points at `IMPLEMENTATION_PLAN.md` — provenance instead of rationale, but still a stable
+doc pointer rather than a PR/conversation breadcrumb. Confirmed 2026-09-01 while re-checking this
+rule (~226 sites, grepped, mostly test-file section dividers organizing a file by which step added
+each group of tests): the ones that also *read* like narration on a keyword match ("no longer",
+"replaced", "instead of") turned out on inspection to be describing current runtime behavior or a
+current design choice's rationale, not code history, once the citation itself is set aside — so
+this carve-out doesn't quietly launder a real violation, it just recognizes what the citation
+already was. A comment that narrates an actual change ("previously did X, now does Y") is still a
+violation regardless of whether a step number rides along with it.
+
 ### Goal-driven execution
 Turn tasks into verifiable goals — "fix the bug" → "write a failing test, then make it pass". For
 multi-step work, state the plan as steps with a verify check each, then loop until they pass.
