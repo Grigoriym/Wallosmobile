@@ -92,8 +92,9 @@ make sure it doesn't get re-litigated from scratch, and to catch every fixed-for
 
 ## 5. No deep-link readiness plan yet
 
-Found 2026-09-01 while triaging `agentic-grappim/investigations/reference-app-scouting.md`'s
-HedvigInsurance findings. Three of that scan's patterns share one trigger — none is worth adopting
+Found 2026-09-01 while triaging the HedvigInsurance findings from `agentic-grappim`'s old
+reference-app-scouting investigation doc (since retired/folded into
+`agentic-grappim/skills/mobile-patterns/`). Three of that scan's patterns share one trigger — none is worth adopting
 today, all three become the right move the moment deep links (or any synthetic/reconstructed back
 stack) land:
 
