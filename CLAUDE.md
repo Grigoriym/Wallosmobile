@@ -249,9 +249,10 @@ ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private sta
 
 # Render the full module dependency graph (requires graphviz: apt/brew install graphviz).
 # Ported from HedvigInsurance's gradle/projectDependencyGraph.gradle, itself from
-# chrisbanes/tivi — via agentic-grappim/investigations/reference-app-scouting.md and
-# TaigaMobileNova's own port (2026-09-01). Colors nodes by module kind (KMP, Android app,
-# plain Kotlin/JVM) using this repo's actual plugin ids.
+# chrisbanes/tivi — via TaigaMobileNova's own port (2026-09-01). The scouting doc that
+# originally surfaced this (agentic-grappim/investigations/reference-app-scouting.md) has
+# since been retired/folded into the shared `mobile-patterns` skill. Colors nodes by
+# module kind (KMP, Android app, plain Kotlin/JVM) using this repo's actual plugin ids.
 ./gradlew generateProjectDependencyGraph   # → build/reports/dependency-graph/project.png
 ```
 
