@@ -363,7 +363,6 @@ MealieMobile, so it ports verbatim — only the plugin prefix changes.
 | `uikit`, `strings` | `kmp.library` + `kmp.library.compose` |
 | `utils:ui` | `kmp.library` + `kmp.library.compose` + `kmp.di` + `kmp.serialization` |
 | `core:api` | `kmp.library` + `kmp.di` + `kmp.network` + `kmp.serialization` |
-| `core:navigation` | `kmp.library` + `kmp.library.compose` |
 | `testing` | `kmp.library` + `kmp.serialization` + `kmp.network` |
 
 Standard dependency sets:
@@ -374,7 +373,6 @@ commonMain.dependencies {
     implementation(projects.strings)
     implementation(projects.uikit)
     implementation(projects.utils.ui)
-    implementation(projects.core.navigation)
     implementation(projects.feature.NAME.domain)
     implementation(libs.jetbrains.compose.icons.extended)   // only for icons outside the core set
 }
@@ -420,8 +418,6 @@ Four details that are easy to miss and annoying to diagnose:
 - **`:strings` exposes `RPlurals` (`Res.plurals`) beside `RString`.** CMP supports `<plurals>`,
   and `pluralStringResource(RPlurals.x, count, count)` takes the count **twice** — once to select
   the form, once as the `%1$d` argument (2.4).
-- **`core:navigation` takes the Compose plugin here**, unlike Taiga's (which holds only
-  extension functions). Ours holds `NavigationState` and `toEntries()`, which are `@Composable`.
 - **`uikit` has no `androidMain`.** Mealie's `expect fun colorScheme(darkTheme)` exists only to
   reach `dynamicDarkColorScheme(LocalContext)`, which is Android-only. WallosMobile takes a static
   Material 3 palette seeded from the logo navy `#233E67` instead — it keeps the brand, and the
@@ -1736,12 +1732,16 @@ Versions: `jetbrainsNav3 = "1.1.1"`, `jetbrainsComposeLifecycle = "2.11.0"`,
 
 ### 5.2 Where the pieces live
 
-MealieMobile keeps all of nav3 inside `composeApp/nav/`. WallosMobile splits it, because
-`Navigator` and `NavigationState` are pure Kotlin with no route imports and are therefore directly
-unit-testable:
+MealieMobile keeps all of nav3 inside `composeApp/nav/`. WallosMobile originally split
+`Navigator`/`NavigationState` into their own `core:navigation` module, since they're pure Kotlin
+with no route imports and were therefore directly unit-testable in isolation. That module was
+retired in favor of the published `io.github.grigoriym:grappim-kit-navigation` library once
+`core:navigation` was extracted as `grappim-kit`'s canonical shared implementation (`grappim-kit`
+CONSUMING.md's `navigation` section) — `NavigationState`, `Navigator`, `toEntries()` and
+`rememberNavigationState` now live there instead of in this repo, pulled in as
+`libs.grappim.kit.navigation` from `composeApp`'s own `build.gradle.kts`:
 
 ```
-core/navigation/                  NavigationState, Navigator, toEntries(), rememberNavigationState
 composeApp/.../
   WallosAppContent.kt             theme + the startup branch; MainActivity calls only this
   MainAppState.kt                 back stacks + drawer state + current RouteConfig
@@ -1758,7 +1758,8 @@ composeApp/.../
 ```
 
 `rememberNavigationState` takes the `SavedStateConfiguration` as a parameter rather than building
-it, which is what keeps `core:navigation` free of route imports.
+it, which is what keeps `grappim-kit-navigation` free of route imports — it can't depend on every
+feature module's route classes without inverting the dependency direction.
 
 The dual back stack is in from v1, because the drawer needs it (§5.4) — a single
 `rememberNavBackStack` would not survive the second drawer destination. It is a port, so the cost
@@ -1846,6 +1847,19 @@ MealieMobile/uikit/.../uikit/widgets/topappbar/                        TopBarCon
 plus one independent sub-stack per section — is exactly the drawer model: each drawer destination
 keeps its own history. Ports unchanged, along with single-top, re-tap-to-root, and back stepping
 through the sub-stack before falling back to the section stack.
+
+**`topLevelStack` back behavior changed with the `grappim-kit-navigation` swap (§5.2).** The
+originally-ported `Navigator.goToTopLevel()` pushed onto `topLevelStack` on every drawer-section
+switch, so `goBack()`/`canGoBack()` cascaded back through every section visited that session before
+falling through to system back — this was the same unreviewed bug TaigaMobileNova's own `dev`
+independently fixed (`e78fe61b`) before `core:navigation` was extracted as `grappim-kit`'s
+canonical source, so wallosmobile inherited the pre-fix behavior when it ported the module and
+carried it until the swap. `grappim-kit-navigation` 0.1.1's `goToTopLevel()` always *replaces* the
+current `topLevelStack` entry instead — `topLevelStack` never exceeds size 1, so back at any
+drawer section's root is unhandled (falls straight through to system back/exit) rather than
+cycling through previously-visited sections. Confirmed deliberate with the user before adopting it
+(2026-09-08): this is a real, user-visible navigation behavior change bundled into what otherwise
+reads as routine dependency housekeeping, not a bug fix local to this repo.
 
 Supporting types come with it: `DrawerDestination` (enum of top-level routes, each typed `NavKey`
 so the drawer's click site needs no cast), `DrawerItem` (`Destination` / `Group` / `Divider`, so
@@ -1999,15 +2013,17 @@ catalog but is **not used** — `koinViewModel()` alone is enough. Don't add it 
 
 ### 5.6 What this changes elsewhere in this plan
 
-- `core:navigation` is a real module with logic and tests, not the thin extension holder it is in
-  TaigaMobileNova.
+- `core:navigation` was a real module with logic and tests, not the thin extension holder it is in
+  TaigaMobileNova — later retired in favor of the published `grappim-kit-navigation` once
+  `core:navigation` became that library's canonical source (§5.2).
 - Feature `ui` modules that **own a route** need `kotlinx.serialization` (for `@Serializable`
   routes) in addition to Compose. Not every one does: `feature:setup:ui` renders above the shell
   and never enters a back stack, so it carries no route and no serialization plugin (1.11).
 - `Navigator` is unit-tested directly: `NavBackStack(vararg elements)` is a public constructor, so
   a test builds `NavigationState` by hand with no Compose runtime and no `rememberNavBackStack`,
-  and `derivedStateOf` reads fine outside a composition. There is **no `NavigatorTest` in
-  MealieMobile** to port — `core/navigation`'s was written for this repo (1.7).
+  and `derivedStateOf` reads fine outside a composition. There was **no `NavigatorTest` in
+  MealieMobile** to port — `core/navigation`'s was written for this repo (1.7), and that test
+  suite now lives in `grappim-kit` itself rather than in this repo.
 
 ---
 
@@ -2934,8 +2950,9 @@ Nothing at present — the two entries this section held are both settled below.
   `koin-ksp-compiler` entry in Mealie's catalog is unused. (KSP is still needed for Room.)
 - **Android-only targets** — `configureKmp()` declares no targets at all; the Android one comes
   from the AGP KMP library plugin (§3.1). iOS and Desktop return in Phase 6.
-- **nav3 placement** — `NavigationState`/`Navigator`/`toEntries()` live in `core:navigation`
-  (§5.2), not in `composeApp` as MealieMobile has them, so `Navigator` stays unit-testable.
+- **nav3 placement** — `NavigationState`/`Navigator`/`toEntries()` originally lived in their own
+  `core:navigation` module rather than in `composeApp` as MealieMobile has them, so `Navigator`
+  stayed unit-testable in isolation; now published externally as `grappim-kit-navigation` (§5.2).
 - **Shell** — `ModalNavigationDrawer`, not bottom navigation, matching both reference apps (§5.4).
 - **Money representation** — `Double` + careful formatting, no external big-decimal library.
   Settled by 2.2: the client never does arithmetic beyond summation, and money formatting is fixed

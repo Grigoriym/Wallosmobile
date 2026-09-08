@@ -103,7 +103,7 @@ stack) land:
   currently has exactly one cross-cutting need (which items show in the drawer), handled fine by
   plain state; not worth the interface machinery for one property.
 - **`navigateUp` reserved for the top-bar back arrow, everything else uses a plain pop** —
-  `core/navigation/.../Navigator.kt`'s `goBack()` is WallosMobile's only pop primitive, so there is
+  `grappim-kit-navigation`'s `Navigator.goBack()` is WallosMobile's only pop primitive, so there is
   no deep-link-aware/plain-pop split for this discipline to protect yet. Confirmed no deep-link
   code exists anywhere in the repo (grepped while checking this).
 - **Deep-link matcher aggregation + pending-deep-link-while-logged-out queue** — the actual

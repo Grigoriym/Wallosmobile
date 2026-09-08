@@ -11,7 +11,7 @@ plugins {
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation(projects.core.navigation)
+            implementation(libs.grappim.kit.navigation)
             implementation(projects.uikit)
             implementation(projects.strings)
 
