@@ -16,12 +16,12 @@ import androidx.compose.ui.Modifier
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.grappim.kit.navigation.Navigator
 import com.grappim.wallosmobile.composeapp.nav.DrawerDestination
 import com.grappim.wallosmobile.composeapp.nav.DrawerItemsBuilder
 import com.grappim.wallosmobile.composeapp.nav.FabConfig
 import com.grappim.wallosmobile.composeapp.nav.MainNavHost
 import com.grappim.wallosmobile.composeapp.widget.WallosDrawerWidget
-import com.grappim.wallosmobile.core.navigation.Navigator
 import com.grappim.wallosmobile.core.storage.NetworkMonitor
 import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
 import com.grappim.wallosmobile.uikit.widgets.snackbar.LocalSnackbarHostController
