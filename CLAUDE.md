@@ -356,8 +356,8 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   aggregated by an explicit per-module list, so a module left out of it is silently at 0% and
   nothing fails. `:testing` is deliberately absent (fakes, not production code).
 - **Every module of a layer gets the same plugin set** — see plan §3.3 for the table and the
-  standard dependency blocks. Coroutines, datetime, immutable collections, `core:logger` and the
-  test deps come from the convention plugins — never declare them per module. Same for the
+  standard dependency blocks. Coroutines, datetime, immutable collections, `grappim-kit-logger`
+  and the test deps come from the convention plugins — never declare them per module. Same for the
   Compose set, including **material icons** (`Icons.Filled.*`), which material3 does *not* pull
   in transitively and which therefore lives in `configureKmpCompose()`, not in any module.
 - **`material-icons-core` is ~50 icons, and the obvious one is usually missing** — no
@@ -610,7 +610,7 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
 - **Never use bare `try/catch (Exception)` in coroutines** — it swallows `CancellationException`
   and breaks structured concurrency. Use `resultOf` from `core.domain`.
 - **Never swallow an exception silently.** Every `catch` at minimum logs.
-- `logcat { }` from `core:logger` has two overloads, and **inside a class body it always resolves
+- `logcat { }` from `grappim-kit-logger` has two overloads, and **inside a class body it always resolves
   to the `Any.logcat` extension**, which tags the line with the receiver's `simpleName`. The
   receiverless overload (tag stays `null`) is only reachable from top-level code — passing
   `tag = "…"` is the only way to override it from a class.

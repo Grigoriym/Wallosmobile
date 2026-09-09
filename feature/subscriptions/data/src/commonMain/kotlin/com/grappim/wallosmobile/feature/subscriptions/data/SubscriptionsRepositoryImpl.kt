@@ -1,11 +1,11 @@
 package com.grappim.wallosmobile.feature.subscriptions.data
 
+import com.grappim.kit.logger.LogPriority
+import com.grappim.kit.logger.logcat
 import com.grappim.wallosmobile.core.api.FormParams
 import com.grappim.wallosmobile.core.api.MultipartFile
 import com.grappim.wallosmobile.core.asynckmp.IoDispatcher
 import com.grappim.wallosmobile.core.domain.resultOf
-import com.grappim.wallosmobile.core.logger.LogPriority
-import com.grappim.wallosmobile.core.logger.logcat
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.EditSubscriptionParams

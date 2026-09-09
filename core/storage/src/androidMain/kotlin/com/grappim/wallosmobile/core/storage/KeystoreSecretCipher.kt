@@ -3,8 +3,8 @@ package com.grappim.wallosmobile.core.storage
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import com.grappim.wallosmobile.core.logger.LogPriority
-import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.kit.logger.LogPriority
+import com.grappim.kit.logger.logcat
 import org.koin.core.annotation.Single
 import java.io.IOException
 import java.security.GeneralSecurityException

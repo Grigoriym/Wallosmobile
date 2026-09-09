@@ -275,7 +275,7 @@ Port the six from TaigaMobileNova, renamed to a `wallosmobile.*` prefix:
 | Plugin | Role |
 |---|---|
 | `wallosmobile.android.application` | AGP application module + Compose + Koin compiler plugin |
-| `wallosmobile.kmp.library` | KMP base: targets, coroutines, collections, datetime, `core:logger`, tests, linting |
+| `wallosmobile.kmp.library` | KMP base: targets, coroutines, collections, datetime, `grappim-kit-logger`, tests, linting |
 | `wallosmobile.kmp.library.compose` | Adds Compose Multiplatform + enables `androidResources` for the CMP asset pipeline |
 | `wallosmobile.kmp.di` | `io.insert-koin.compiler.plugin` + Koin BOM/annotations. **Never KSP for DI.** |
 | `wallosmobile.kmp.network` | Ktor with per-platform engines |
@@ -444,9 +444,9 @@ Four details that are easy to miss and annoying to diagnose:
   to maintain; a plural resolved with `pluralStringResource` where it is rendered costs nothing.
   The formatters take primitives and `kotlinx.datetime` types only.
 
-Everything else — coroutines, immutable collections, datetime, `core:logger`, `kotlin("test")`,
-Turbine and `:testing` — arrives through `kmp.library`/`configureTests()`. Modules never declare
-those by hand. The same goes for the Compose set in `configureKmpCompose()`, which carries
+Everything else — coroutines, immutable collections, datetime, `grappim-kit-logger`,
+`kotlin("test")`, Turbine and `:testing` — arrives through `kmp.library`/`configureTests()`.
+Modules never declare those by hand. The same goes for the Compose set in `configureKmpCompose()`, which carries
 **material-icons-core**: material3 does not bring it transitively, so without it `Icons.Filled.*`
 is unresolved — while `ui-graphics` and `animation` *do* arrive via `compose.ui` and
 `compose.foundation` and need no entry of their own. That core artifact is only ~50 icons, and
@@ -1102,7 +1102,7 @@ sees two conflicting bindings — same trick `AndroidModule` already relies on i
 hasn't had a second flavor-swapped binding yet).
 
 **Wiring into the app:** `WallosApp.kt` already plants `Timber.DebugTree()` (debug builds only)
-and calls `TimberLogger.install()` unconditionally — `core:logger`'s `WallosLogger` seam funnels
+and calls `TimberLogger.install()` unconditionally — `grappim-kit-logger`'s `KitLogger` seam funnels
 every `logcat { }` call through `TimberLogger` into real Timber regardless of flavor, so the
 natural hook is a second `Timber.Tree`, planted unconditionally right beside the existing one, that
 forwards `ERROR`-priority logs to the injected `CrashReporter` (a no-op on fdroid, so nothing to
@@ -1429,9 +1429,9 @@ configure here.
 data included. `WallosEnvelopeParser.logShapeMismatch` is the fix shape for any catch block whose
 exception message might carry response or user data: log the real `e` at `WARN` (local Logcat
 only) and a fresh exception with a fixed, data-free message at `ERROR`. The audit technique
-generalizes — `WallosLogger.install()`/`.uninstall()` (`core:logger`) is public, so any module's
-`commonTest` can install a fake and assert on exactly what a given catch block would send to
-Crashlytics, the same shape as `core:logger`'s own `LogcatTest.kt`.
+generalizes — `KitLogger.install()`/`.uninstall()` (`grappim-kit-logger`) is public, so any
+module's `commonTest` can install a fake and assert on exactly what a given catch block would
+send to Crashlytics, the same shape as `WallosEnvelopeParserTest.kt`'s own `RecordingLogger` fake.
 
 ### 4.3 Error mapping
 
