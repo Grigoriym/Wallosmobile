@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.feature.setup.data
 
-import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.kit.logger.logcat
 import kotlinx.coroutines.delay
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds

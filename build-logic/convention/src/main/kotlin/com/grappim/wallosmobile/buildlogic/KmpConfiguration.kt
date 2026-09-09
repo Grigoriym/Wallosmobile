@@ -33,11 +33,7 @@ fun Project.configureKmp() {
                 implementation(libs.findLibrary("kotlinx.date.time").get())
 
                 // Logging is available everywhere without a per-module declaration.
-                // Guarded only against the module depending on itself — a mis-typed path
-                // must fail the build, not be silently skipped.
-                if (project.path != ":core:logger") {
-                    implementation(project(":core:logger"))
-                }
+                implementation(libs.findLibrary("grappim.kit.logger").get())
             }
         }
     }

@@ -2,10 +2,10 @@ package com.grappim.wallosmobile.feature.settings.ui.trustedcerts
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grappim.kit.logger.LogPriority
+import com.grappim.kit.logger.logcat
 import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.core.domain.resultOf
-import com.grappim.wallosmobile.core.logger.LogPriority
-import com.grappim.wallosmobile.core.logger.logcat
 import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.MutableStateFlow

@@ -2,10 +2,10 @@ package com.grappim.wallosmobile.feature.settings.ui.appearance
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grappim.kit.logger.LogPriority
+import com.grappim.kit.logger.logcat
 import com.grappim.wallosmobile.core.crashreportingapi.CrashReporter
 import com.grappim.wallosmobile.core.domain.resultOf
-import com.grappim.wallosmobile.core.logger.LogPriority
-import com.grappim.wallosmobile.core.logger.logcat
 import com.grappim.wallosmobile.core.storage.crashreporting.CrashReportingStorage
 import com.grappim.wallosmobile.core.storage.theme.ThemeMode
 import com.grappim.wallosmobile.core.storage.theme.ThemeStorage
