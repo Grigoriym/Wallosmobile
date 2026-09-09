@@ -81,7 +81,7 @@ grappimKitNavigation = "0.1.3"
 grappimKitUikit = "0.1.3"
 grappimKitLogger = "0.1.3"
 
-compose-bom = "2026.08.00"
+compose-bom = "2026.09.00"
 # `androidx.compose.ui:ui-test-manifest` has no `org.jetbrains.compose.ui` multiplatform
 # wrapper (it's Android-instrumentation-only), so it needs its own version — pinned to what
 # jetbrainsComposeMultiplatform 1.11.1 actually resolves `androidx.compose.ui:*` to for the
