@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.dashboard.ui
 
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.dashboard.domain.calculator.SubscriptionStats
@@ -19,7 +20,6 @@ import com.grappim.wallosmobile.strings.generated.resources.error_not_found
 import com.grappim.wallosmobile.testing.MainDispatcherRule
 import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
 import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
-import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest

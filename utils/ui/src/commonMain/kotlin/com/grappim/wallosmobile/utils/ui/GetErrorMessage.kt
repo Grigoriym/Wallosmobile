@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.utils.ui
 
-import androidx.compose.runtime.Composable
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.core.domain.findPendingCertTrust
 import com.grappim.wallosmobile.strings.RString
@@ -13,31 +13,6 @@ import com.grappim.wallosmobile.strings.generated.resources.error_not_wallos
 import com.grappim.wallosmobile.strings.generated.resources.error_server
 import com.grappim.wallosmobile.strings.generated.resources.error_unreachable
 import com.grappim.wallosmobile.strings.generated.resources.error_validation
-import org.jetbrains.compose.resources.StringResource
-import org.jetbrains.compose.resources.stringResource
-
-/**
- * A string a non-UI layer can produce without touching a resource loader: the ViewModel picks the
- * variant, the Composable resolves it with [asString].
- */
-sealed class NativeText {
-    data object Empty : NativeText()
-
-    data class Simple(val text: String) : NativeText()
-
-    data class Resource(val stringResource: StringResource) : NativeText()
-
-    fun isEmpty(): Boolean = this is Empty
-
-    fun isNotEmpty(): Boolean = this !is Empty
-}
-
-@Composable
-fun NativeText.asString(): String = when (this) {
-    is NativeText.Empty -> ""
-    is NativeText.Simple -> text
-    is NativeText.Resource -> stringResource(stringResource)
-}
 
 /**
  * The one place a [Throwable] becomes something a user reads.

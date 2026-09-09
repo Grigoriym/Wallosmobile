@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.feature.profile.ui
 
-import com.grappim.wallosmobile.utils.ui.NativeText
+import com.grappim.kit.uikit.NativeText
 
 /**
  * No cache behind `get_user`/`set_budget` (mirrors the four M9 catalog screens' own reasoning) —

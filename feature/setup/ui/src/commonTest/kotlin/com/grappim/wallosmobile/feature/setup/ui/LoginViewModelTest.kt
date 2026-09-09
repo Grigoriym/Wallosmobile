@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.setup.ui
 
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.core.domain.UntrustedCertificateException
 import com.grappim.wallosmobile.core.domain.WallosError
@@ -17,7 +18,6 @@ import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_totp
 import com.grappim.wallosmobile.strings.generated.resources.login_error_totp_session_expired
 import com.grappim.wallosmobile.testing.MainDispatcherRule
-import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.compose.resources.StringResource

@@ -10,10 +10,9 @@ kotlin {
             // `RDrawable` can resolve `DrawableResource`.
             api(libs.jetbrains.compose.components.resources)
 
-            // `api`: `TopBarConfig` exposes `NativeText` in its public signature.
-            api(projects.utils.ui)
-
-            implementation(projects.strings)
+            // `api`: `TopBarConfig`/`NativeText`/`TopBar` are grappim-kit-uikit's, exposed in this
+            // module's own public signatures (`WallosMobileTheme`, `WallosMobilePreviewTheme`).
+            api(libs.grappim.kit.uikit)
         }
     }
 }

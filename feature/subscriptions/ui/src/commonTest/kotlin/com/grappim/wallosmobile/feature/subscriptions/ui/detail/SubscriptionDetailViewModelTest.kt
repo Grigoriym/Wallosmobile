@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.subscriptions.ui.detail
 
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
@@ -14,7 +15,6 @@ import com.grappim.wallosmobile.strings.generated.resources.error_not_found
 import com.grappim.wallosmobile.testing.MainDispatcherRule
 import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
 import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
-import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map

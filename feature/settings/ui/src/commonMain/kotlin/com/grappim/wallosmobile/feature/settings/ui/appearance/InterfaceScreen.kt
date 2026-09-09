@@ -21,6 +21,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.grappim.kit.uikit.NativeText
+import com.grappim.kit.uikit.widgets.topbar.LocalTopBarConfig
+import com.grappim.kit.uikit.widgets.topbar.NavigationIconConfig
+import com.grappim.kit.uikit.widgets.topbar.TopBarConfig
 import com.grappim.wallosmobile.core.storage.theme.ThemeMode
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.settings_crash_reporting
@@ -33,10 +37,6 @@ import com.grappim.wallosmobile.strings.generated.resources.settings_theme_light
 import com.grappim.wallosmobile.strings.generated.resources.settings_theme_system
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
-import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
-import com.grappim.wallosmobile.uikit.widgets.topappbar.NavigationIconConfig
-import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarConfig
-import com.grappim.wallosmobile.utils.ui.NativeText
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel

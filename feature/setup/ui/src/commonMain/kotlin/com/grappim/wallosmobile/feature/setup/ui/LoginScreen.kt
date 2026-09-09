@@ -37,6 +37,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.grappim.kit.uikit.NativeText
+import com.grappim.kit.uikit.asString
 import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.strings.RPlurals
 import com.grappim.wallosmobile.strings.RString
@@ -71,8 +73,6 @@ import com.grappim.wallosmobile.uikit.RDrawable
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.generated.resources.wallosmobile_logo
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
-import com.grappim.wallosmobile.utils.ui.NativeText
-import com.grappim.wallosmobile.utils.ui.asString
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource

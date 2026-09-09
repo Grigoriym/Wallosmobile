@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.feature.household.ui.editor
 
-import com.grappim.wallosmobile.utils.ui.NativeText
+import com.grappim.kit.uikit.NativeText
 
 /**
  * The add/edit form and its delete flow together — mirroring `CategoryEditorUiState`. [deleteError]

@@ -24,6 +24,9 @@ kotlin {
 
             implementation(projects.uikit)
             implementation(projects.strings)
+            // `getErrorMessage`/`ObserveAsEvents` — no longer reachable transitively through
+            // `uikit`, which now depends on `grappim-kit-uikit` instead of `utils:ui`.
+            implementation(projects.utils.ui)
 
             // For `BaseUrlProvider` alone: a logo is a bare filename until the instance root is
             // put in front of it (API doc §4) — same reason `feature:subscriptions:ui` and

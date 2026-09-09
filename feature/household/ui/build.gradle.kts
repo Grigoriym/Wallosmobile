@@ -15,6 +15,9 @@ kotlin {
 
             implementation(projects.uikit)
             implementation(projects.strings)
+            // `getErrorMessage`/`ObserveAsEvents` — no longer reachable transitively through
+            // `uikit`, which now depends on `grappim-kit-uikit` instead of `utils:ui`.
+            implementation(projects.utils.ui)
         }
 
         commonTest.dependencies {

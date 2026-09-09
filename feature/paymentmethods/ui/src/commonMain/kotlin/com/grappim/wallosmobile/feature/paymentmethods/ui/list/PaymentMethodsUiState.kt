@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.feature.paymentmethods.ui.list
 
-import com.grappim.wallosmobile.utils.ui.NativeText
+import com.grappim.kit.uikit.NativeText
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 

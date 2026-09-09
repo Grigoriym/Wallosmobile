@@ -15,6 +15,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import com.grappim.kit.uikit.NativeText
+import com.grappim.kit.uikit.widgets.topbar.LocalTopBarConfig
+import com.grappim.kit.uikit.widgets.topbar.NavigationIconConfig
+import com.grappim.kit.uikit.widgets.topbar.TopBarConfig
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.about_build
 import com.grappim.wallosmobile.strings.generated.resources.about_build_debug
@@ -29,10 +33,6 @@ import com.grappim.wallosmobile.strings.generated.resources.about_version_value
 import com.grappim.wallosmobile.strings.generated.resources.settings_about
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
-import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
-import com.grappim.wallosmobile.uikit.widgets.topappbar.NavigationIconConfig
-import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarConfig
-import com.grappim.wallosmobile.utils.ui.NativeText
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel

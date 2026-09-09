@@ -2,12 +2,12 @@ package com.grappim.wallosmobile.feature.categories.ui.editor
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.logger.LogPriority
 import com.grappim.wallosmobile.core.logger.logcat
 import com.grappim.wallosmobile.feature.categories.domain.repo.CategoriesRepository
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.category_editor_error_invalid
-import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
