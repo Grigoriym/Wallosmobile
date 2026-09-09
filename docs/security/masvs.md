@@ -32,7 +32,6 @@ client's supply-chain trust, and MASVS does not cover them.
 | MASVS-CODE-2 | No forced update on either flavour. **Gplay** prompts a Play In-App Update (`AppUpdateCheckerImpl.kt`, `androidApp/src/gplay/kotlin/.../di/AppUpdateCheckerImpl.kt:50`) using `AppUpdateType.FLEXIBLE` only, never `IMMEDIATE` — a dismissible nudge. **F-Droid** has no update-check mechanism at all (confirmed: no equivalent file under `androidApp/src/fdroid/`) | Gplay: a user can dismiss the flexible prompt and keep using an outdated build indefinitely. F-Droid: update delivery is entirely up to the F-Droid client/repo, outside this app's control | Standard for both distribution channels, and already the shape M16 shipped (16.5) rather than something this review changed — F-Droid has no update-enforcement API to call, and forcing updates against a Play flexible-update dismiss would be unusual UX for a self-hosted client with no vendor asset at risk beyond the user's own account |
 | MASVS-CODE-3 | `renovate.json` — Renovate handles Gradle-ecosystem dependency-version PRs and sets `"osvVulnerabilityAlerts": true`, opening PRs when a catalogue dependency has a known OSV.dev advisory, independent of GitHub's own Dependabot alerts | Confirmed the flag is actually present (not just a `renovate.json` existing, which alone wouldn't turn OSV scanning on under `config:recommended`) | The self-contained fix for "nothing checks the catalogue against an advisory feed" — same control, same fix Taiga's own MASVS-CODE-3 task added, already in place here since M14 rather than new this session |
 | MASVS-CODE-4 | Server-response deserialization tolerance: `WallosEnvelopeParser`'s one `Json` instance (`core/api/.../WallosEnvelopeParser.kt:103-106`) sets `ignoreUnknownKeys = true` and `isLenient = true`, and it is the *only* JSON config in the app — `NetworkModule.kt` installs no Ktor `ContentNegotiation` plugin at all (confirmed by grep; responses are read as raw strings and passed through this one parser), so there is no second, differently-configured deserializer anywhere for a response to hit | A malformed or evolving self-hosted server response (missing field, extra field added by a newer Wallos version, PHP's `display_errors` HTML prefix) fails soft — `decodeEnvelope`'s prefix-stripping and the `catch (e: IllegalArgumentException)` around both parse steps turn any decode failure into `WallosError.Malformed` rather than a crash | Standard, safe deserialization posture for a client whose server is explicitly allowed to sit at a different migration level (`CLAUDE.md`'s "no pagination" section) |
-| MASVS-CODE-4 | `LocalUriHandler.openUri()` — exactly two call sites exist in the entire repo (`grep -rn 'LocalUriHandler\|openUri' --include=*.kt .`, excluding `build/`), both in `AboutScreen.kt:81,88`, neither behind a scheme allowlist | Both URLs are build-time-fixed string resources, never user- or server-supplied text: `projectUrl` reads `RString.about_project_url` (`AboutScreen.kt:60`) and `privacyPolicyLink` is picked between `RString.privacy_policy_url`/`privacy_policy_url_gplay` by `AboutViewModel` from `crashReporter.isAvailable` — a build/flavor fact, not a field on any UI state a screen writes (`AboutUiState.kt:17`, `AboutViewModel.kt:28-32`). There is no markdown renderer in the dependency catalogue (confirmed: no `multiplatform-markdown-renderer`/similar in `gradle/libs.versions.toml`) and no other feature screen calls `openUri` at all, so there is no second call site carrying user- or server-controlled text the way Taiga's custom-field URL and markdown links did | A materially different starting shape than Taiga's own MASVS-CODE-4 finding, not the same gap re-found: nothing here ever feeds attacker- or collaborator-controlled text into `openUri`, so the `SafeUriHandler` allowlist Taiga built to close its finding has no analogous input to guard against in this app today. Worth re-checking if a future screen ever renders server-supplied text as a clickable link |
 
 ## Open
 
@@ -125,16 +124,19 @@ client's supply-chain trust, and MASVS does not cover them.
   empty grep. **MASVS-PLATFORM-3**: the login password field has a working reveal toggle
   (`LoginScreen.kt:254-261`, `login_password_show`/`login_password_hide`), hidden by default — see
   the Accepted-deviations table for the `FLAG_SECURE` decision the toggle's existence bounds.
-- **Code (MASVS-CODE-1 through -4)**: all four Accepted, no Open findings. `minSdk`, update
+- **Code (MASVS-CODE-1 through -4)**: all four Accepted or Met, no Open findings. `minSdk`, update
   enforcement and the dependency-advisory scan (CODE-1/2/3) are ported-in or M14/M16 decisions this
   step confirmed rather than designed — see the Accepted table for each. CODE-4 split into two
   checks: the app's one `Json` deserializer (`WallosEnvelopeParser`) is the only JSON config
   anywhere (no Ktor `ContentNegotiation` plugin exists to carry a second, stricter one) and already
-  tolerates unknown keys and lenient parsing; and `LocalUriHandler.openUri()` has exactly two call
-  sites in the whole repo, both in `AboutScreen.kt`, both fed fixed `RString` resources rather than
-  user- or server-supplied text — a materially different shape than the Taiga finding this control
-  is checked against, not the same gap re-found, since there is no markdown renderer or
-  user-editable URL field anywhere in this app today for a scheme allowlist to guard.
+  tolerates unknown keys and lenient parsing; and `LocalUriHandler.openUri()` — originally recorded
+  as an Accepted deviation (no allowlist, but both of the app's two call sites are fixed `RString`
+  resources, not user-/server-supplied text) — is now **Met**: the `grappim-kit-uikit` swap pulled
+  in `KitTheme`'s `SafeUriHandler` (`androidApp`'s theme root, via `uikit`'s `WallosMobileTheme`),
+  which wraps `LocalUriHandler` app-wide and refuses any non-http(s) scheme before delegating, so
+  the accepted-deviation row for this half of CODE-4 was removed rather than kept — the gap the
+  original finding kept open for "a future screen that renders server-supplied text as a link" is
+  closed regardless of whether such a screen exists today.
 - **Privacy (MASVS-PRIVACY-1 through -4)**: all four Accepted, no Open findings.
   **PRIVACY-1** (permission minimization): exactly two permissions declared
   (`androidApp/src/main/AndroidManifest.xml:4-5`), both used —  `INTERNET` by the Ktor OkHttp engine

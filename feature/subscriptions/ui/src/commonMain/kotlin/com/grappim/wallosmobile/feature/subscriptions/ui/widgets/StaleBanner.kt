@@ -14,6 +14,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.grappim.kit.uikit.NativeText
+import com.grappim.kit.uikit.asString
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_stale_offline
@@ -21,8 +23,6 @@ import com.grappim.wallosmobile.strings.generated.resources.subscriptions_stale_
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
-import com.grappim.wallosmobile.utils.ui.NativeText
-import com.grappim.wallosmobile.utils.ui.asString
 import org.jetbrains.compose.resources.stringResource
 
 /**

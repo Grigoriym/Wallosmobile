@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile.feature.paymentmethods.ui.editor
 
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.feature.paymentmethods.domain.model.IconFile
-import com.grappim.wallosmobile.utils.ui.NativeText
 
 /**
  * The add/edit form and its delete flow together — mirroring `HouseholdMemberEditorUiState`.

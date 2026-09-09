@@ -1,21 +1,17 @@
 package com.grappim.wallosmobile.uikit
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.grappim.kit.uikit.KitPreviewTheme
+import com.grappim.kit.uikit.KitTheme
 import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
 import com.grappim.wallosmobile.uikit.widgets.snackbar.LocalSnackbarHostController
 import com.grappim.wallosmobile.uikit.widgets.snackbar.SnackbarHostController
-import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
-import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarController
 
 internal val LightColorScheme = lightColorScheme(
     primary = Navy40,
@@ -92,37 +88,42 @@ internal val DarkColorScheme = darkColorScheme(
 )
 
 /**
- * The `Surface` is the theme's, not a caller's. It is the only thing that paints
- * `colorScheme.surface` and provides `LocalContentColor` on a screen that has no `Scaffold` — and
- * the login screen is exactly that screen. Without it the visible background is the *window's*
- * (see `androidApp`'s `themes.xml`) and Compose's default black wins for any text that doesn't
- * name a colour, which in dark mode is black on white.
+ * [KitTheme] owns the `Surface` that paints `colorScheme.surface` and provides
+ * `LocalContentColor` on a screen that has no `Scaffold` — and the login screen is exactly that
+ * screen. Without it the visible background is the *window's* (see `androidApp`'s `themes.xml`)
+ * and Compose's default black wins for any text that doesn't name a colour, which in dark mode is
+ * black on white. It also hardens [androidx.compose.ui.platform.LocalUriHandler] against
+ * non-http(s) schemes (`SafeUriHandler`) — a superset of what this app needed on its own
+ * (`docs/security/masvs.md`'s MASVS-CODE-4), but free and harmless since both existing
+ * `openUri` call sites are already build-time `https://` URLs.
  */
 @Composable
 fun WallosMobileTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
-        typography = WallosTypography
-    ) {
-        Surface(modifier = Modifier.fillMaxSize(), content = content)
-    }
+    KitTheme(
+        lightColorScheme = LightColorScheme,
+        darkColorScheme = DarkColorScheme,
+        typography = WallosTypography,
+        darkTheme = darkTheme,
+        content = content
+    )
 }
 
 /**
- * The theme every `@Preview` goes through. It adds only the composition locals the shell would
- * otherwise provide: [LocalTopBarConfig], because any screen that declares its own top bar reads it
- * and would crash without it, [LocalIsOffline] for the same reason — a preview of the offline
- * variant provides that one again itself — and [LocalSnackbarHostController] for a screen that
- * ever calls into it directly rather than only through the shell's own collector.
- *
- * It deliberately adds no `Surface` of its own: [WallosMobileTheme] owns that now, so a preview
- * renders on the same background and with the same `LocalContentColor` as the running app.
+ * The theme every `@Preview` goes through. [KitPreviewTheme] wires `LocalTopBarConfig` — any
+ * screen that declares its own top bar reads it and would crash without it. This wraps it with the
+ * two composition locals `grappim-kit-uikit` has no reason to know about: [LocalIsOffline] for the
+ * same crash-without-it reason (a preview of the offline variant provides that one again itself),
+ * and [LocalSnackbarHostController] for a screen that ever calls into it directly rather than only
+ * through the shell's own collector.
  */
 @Composable
 fun WallosMobilePreviewTheme(content: @Composable () -> Unit) {
-    WallosMobileTheme {
+    KitPreviewTheme(
+        lightColorScheme = LightColorScheme,
+        darkColorScheme = DarkColorScheme,
+        typography = WallosTypography
+    ) {
         CompositionLocalProvider(
-            LocalTopBarConfig provides remember { TopBarController() },
             LocalIsOffline provides false,
             LocalSnackbarHostController provides remember { SnackbarHostController() }
         ) {

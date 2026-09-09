@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.utils.ui
 
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.core.domain.UntrustedCertificateException
 import com.grappim.wallosmobile.core.domain.WallosError

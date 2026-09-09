@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile.feature.subscriptions.ui.detail
 
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
-import com.grappim.wallosmobile.utils.ui.NativeText
 
 /**
  * Every field is already the string the screen draws, except [cycle]/[frequency] — "every 6

@@ -225,7 +225,7 @@ aggregates features and owns navigation) → `feature/` → `core/` → `utils/`
 build-logic/convention/          Gradle convention plugins
 androidApp/                      Android application module (entry point, Application class)
 composeApp/                      KMP library: DI root, drawer shell, NavDisplay + entry providers
-uikit/                           Shared Composables, theme, widgets/topappbar (§5.4)
+uikit/                           App theme/colors over grappim-kit-uikit's KitTheme/TopBar (§5.4)
 strings/                         CMP string resources (strings.xml + RString)
 testing/                         Fakes, model factories, MainDispatcherRule
 core/
@@ -239,7 +239,7 @@ core/
   appinfo-api/                   Build info (isDebug, version, debug host)
   logger/                        logcat() + platform loggers
 utils/
-  ui/                            NativeText, ObserveAsEvents, SnackbarDelegate
+  ui/                            getErrorMessage, ObserveAsEvents (NativeText itself is grappim-kit-uikit's)
   formatter/decimal/             Money parsing & currency formatting
   formatter/datetime/            YYYY-MM-DD parsing & formatting
 feature/
@@ -429,9 +429,12 @@ Four details that are easy to miss and annoying to diagnose:
   `art/wallosmobile_logo.png` — no resizing, matching MealieMobile's `ic_icon.png` precedent of
   shipping the source PNG as-is rather than pre-scaling it.
 
-- **`uikit` depends on `utils:ui` as `api`.** `TopBarConfig` carries `NativeText` in its public
-  signature (§5.4), so every consumer of `uikit` resolves `NativeText` transitively and should not
-  list `utils.ui` a second time.
+- **`uikit` depends on `io.github.grigoriym:grappim-kit-uikit` as `api`** (`libs.grappim.kit.uikit`,
+  swapped in from this app's own local `TopBarConfig`/`TopBarController`/`NativeText`/`WallosTopAppBar`
+  once `grappim-kit`'s reconciled `uikit` module published them — see §5.4). `TopBarConfig` carries
+  `NativeText` in its public signature, so every consumer of `uikit` (and `utils:ui`, for
+  `getErrorMessage`'s return type) resolves both types transitively and should not declare
+  `grappim-kit-uikit` a second time.
 
 - **`utils:*` is the bottom of the stack, so it cannot see a domain type.** Anything phrased as
   "format *this domain enum* for the user" belongs to the screen, not to a formatter: the text for
@@ -1909,8 +1912,10 @@ bug-fix-shaped: the `NavigationBackHandler` that closes the drawer is placed **a
 means back navigates the stack while leaving the drawer open. It also checks `isAnimationRunning`,
 not just `isOpen`. (Mealie's other one, suppressing the FAB when offline, waits for the FAB.)
 
-**Top app bar.** A single `WallosTopAppBar` in `uikit`, driven by a `TopBarController` provided
-through `LocalTopBarConfig`. Screens declare their bar; the shell renders it:
+**Top app bar.** A single `TopBar` from `grappim-kit-uikit`, driven by a `TopBarController`
+provided through `LocalTopBarConfig` — both also `grappim-kit-uikit`'s now (swapped in; this app's
+own `uikit` module used to define all three locally). Screens declare their bar; the shell renders
+it:
 
 ```kotlin
 // in the screen
@@ -1935,14 +1940,16 @@ given an override, and `None` hides the bar entirely (the shell keys `isVisible`
 come in icon / vector / text variants. `TopBarConfig` uses `NativeText` and `ImmutableList`, so it
 composes with the existing state conventions.
 
-`NativeText` itself is Mealie's type, trimmed: `utils:ui` holds `Empty` / `Simple` / `Resource`
-plus a `@Composable asString()`, which is everything the bar and a screen title need. The rest of
-Mealie's surface — `Plural`, `Arguments`, `Multi` and `asStringBlocking()` — gets added when a step
-actually needs it.
+`NativeText` itself is `grappim-kit-uikit`'s type (originally Mealie's, reconciled and published
+from there): `Empty` / `Simple` / `Resource` / `Arguments` / `Plural` / `Multi` plus a `@Composable
+asString()` and a blocking `asStringBlocking()`. This app only ever constructs `Empty` / `Simple` /
+`Resource` — the overlapping subset its own trimmed local version held before the swap — so
+adopting the richer union was a mechanical import-path change, not a call-site rewrite.
 
-`getErrorMessage(Throwable)` lives in the same file and is the **only** place an error becomes
-something a user reads. It maps by *failure layer* (§1.1, API doc §5.1), because the layer is what
-tells the user which field to fix:
+`getErrorMessage(Throwable)` lives in `utils:ui`'s `GetErrorMessage.kt` and is the **only** place an
+error becomes something a user reads — app-specific business logic that was never part of the
+shared type. It maps by *failure layer* (§1.1, API doc §5.1), because the layer is what tells the
+user which field to fix:
 
 | Error | Reads as | Points at |
 |---|---|---|
@@ -1964,7 +1971,7 @@ event convention: it collects inside `repeatOnLifecycle(STARTED)`, so an event s
 screen is backgrounded is delivered when it returns rather than acted on off-screen.
 
 Both pull `core:domain` and `strings` into `utils:ui` — the two dependencies its build file
-declares beyond the Compose resources one.
+declares beyond `grappim-kit-uikit` itself (`api`, for `getErrorMessage`'s `NativeText` return type).
 
 This decouples every screen from the shell: a feature `ui` module depends on `uikit`, never on
 `composeApp`.

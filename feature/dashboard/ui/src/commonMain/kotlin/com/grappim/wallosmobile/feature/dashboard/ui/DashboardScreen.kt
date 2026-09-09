@@ -16,6 +16,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.grappim.kit.uikit.NativeText
+import com.grappim.kit.uikit.widgets.topbar.LocalTopBarConfig
+import com.grappim.kit.uikit.widgets.topbar.NavigationIconConfig
+import com.grappim.kit.uikit.widgets.topbar.TopBarConfig
 import com.grappim.wallosmobile.feature.dashboard.ui.widgets.MonthlyBudgetCard
 import com.grappim.wallosmobile.feature.dashboard.ui.widgets.PeriodBudgetCard
 import com.grappim.wallosmobile.feature.dashboard.ui.widgets.UpcomingPaymentRow
@@ -28,10 +32,6 @@ import com.grappim.wallosmobile.strings.generated.resources.dashboard_upcoming_e
 import com.grappim.wallosmobile.strings.generated.resources.dashboard_upcoming_title
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
-import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
-import com.grappim.wallosmobile.uikit.widgets.topappbar.NavigationIconConfig
-import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarConfig
-import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.collections.immutable.persistentListOf
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel

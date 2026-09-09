@@ -5,13 +5,13 @@ import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_empty
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_filter_clear
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_filter_no_match
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
-import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.compose.resources.getString

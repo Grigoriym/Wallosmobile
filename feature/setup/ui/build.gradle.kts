@@ -16,6 +16,9 @@ kotlin {
             // `uikit` carries `utils:ui` as `api`, so `NativeText` needs no declaration here.
             implementation(projects.uikit)
             implementation(projects.strings)
+            // `getErrorMessage`/`ObserveAsEvents` — no longer reachable transitively through
+            // `uikit`, which now depends on `grappim-kit-uikit` instead of `utils:ui`.
+            implementation(projects.utils.ui)
         }
     }
 }
