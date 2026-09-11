@@ -209,3 +209,9 @@ deleted — see `/finalize`.
   range passed cleanly. Rewriting already-public `dev` history for a 12-day-old commit wasn't a real
   option (force-push is blocked on `dev` now anyway); the owner's ruleset bypass on `master` is the
   intended way past a one-time, understood case like this one.
+- The `grappim-kit-testing` swap (chore/grappim-kit-testing) was asked, per the shared-skill
+  convention, to write its findings into `grappim-kit/CONSUMING.md`'s `## testing` stub — a
+  different repo on the same machine. The `Edit` tool call for it was refused outright by the
+  auto-mode permission classifier ("Modify Shared Resources"), unlike every in-repo edit this
+  session made. Finished the wallosmobile-side PR and left the `CONSUMING.md` write-up for the
+  user to do directly or explicitly authorize, rather than routing around the refusal.
