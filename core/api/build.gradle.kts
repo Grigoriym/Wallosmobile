@@ -10,7 +10,7 @@ kotlin {
         commonMain.dependencies {
             implementation(projects.core.domain)
             implementation(projects.core.storage)
-            implementation(projects.core.appinfoApi)
+            implementation(libs.grappim.kit.appinfo)
 
             // Not in `kmp.network`: this is the only module that installs the plugin, and it has
             // to, because the API key travels in the body where Ktor's own sanitizer can't reach.

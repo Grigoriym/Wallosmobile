@@ -49,8 +49,8 @@ dependencies {
     baselineProfile(project(":benchmark"))
 
     implementation(project(":composeApp"))
-    implementation(project(":core:appinfo-api"))
-    implementation(project(":core:crashreporting-api"))
+    implementation(libs.grappim.kit.appinfo)
+    implementation(libs.grappim.kit.crash)
     implementation(libs.grappim.kit.logger)
 
     // `core:storage` itself reaches androidApp transitively via composeApp's `api` dependency on

@@ -81,6 +81,8 @@ grappimKitNavigation = "0.1.4"
 grappimKitUikit = "0.1.4"
 grappimKitLogger = "0.1.4"
 grappimKitCoroutines = "0.1.4"
+grappimKitCrash = "0.1.4"
+grappimKitAppinfo = "0.1.4"
 
 compose-bom = "2026.09.00"
 # `androidx.compose.ui:ui-test-manifest` has no `org.jetbrains.compose.ui` multiplatform
@@ -172,6 +174,8 @@ grappim-kit-navigation = { module = "io.github.grigoriym:grappim-kit-navigation"
 grappim-kit-uikit = { module = "io.github.grigoriym:grappim-kit-uikit", version.ref = "grappimKitUikit" }
 grappim-kit-logger = { module = "io.github.grigoriym:grappim-kit-logger", version.ref = "grappimKitLogger" }
 grappim-kit-coroutines = { module = "io.github.grigoriym:grappim-kit-coroutines", version.ref = "grappimKitCoroutines" }
+grappim-kit-crash = { module = "io.github.grigoriym:grappim-kit-crash", version.ref = "grappimKitCrash" }
+grappim-kit-appinfo = { module = "io.github.grigoriym:grappim-kit-appinfo", version.ref = "grappimKitAppinfo" }
 jetbrains-androidx-savedstate = { module = "org.jetbrains.androidx.savedstate:savedstate", version.ref = "jetbrainsSavedState" }
 jetbrains-compose-icons = { module = "org.jetbrains.compose.material:material-icons-core", version.ref = "jetbrainsComposeIcons" }
 jetbrains-compose-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "jetbrainsComposeIcons" }
