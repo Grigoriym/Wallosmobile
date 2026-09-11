@@ -1,8 +1,8 @@
 package com.grappim.wallosmobile.feature.setup.data
 
+import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
 import com.grappim.wallosmobile.core.storage.ServerUrlStorage

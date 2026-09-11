@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile.core.api
 
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
-import com.grappim.wallosmobile.core.domain.UntrustedCertificateException
+import com.grappim.kit.domain.PendingCertTrust
+import com.grappim.kit.domain.UntrustedCertificateException
 import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
 import kotlinx.coroutines.runBlocking
 import java.net.Socket
@@ -78,7 +78,7 @@ internal class CompositeTrustManager(
             // step further on that a pin cannot satisfy, so a dialog there would only collect an
             // acceptance that can never produce a working connection.
             if (host == null || !hostMatchesCertificate(host, leaf)) throw e
-            throw CertificateException(UntrustedCertificateException(pendingCertTrust(host, leaf)))
+            throw CertificateException(UntrustedCertificateException(pendingCertTrust(host, leaf), cause = e))
         }
     }
 

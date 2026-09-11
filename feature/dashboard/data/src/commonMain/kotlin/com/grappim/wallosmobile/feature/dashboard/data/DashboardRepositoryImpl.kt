@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile.feature.dashboard.data
 
+import com.grappim.kit.domain.resultOf
 import com.grappim.wallosmobile.core.asynckmp.IoDispatcher
-import com.grappim.wallosmobile.core.domain.resultOf
 import com.grappim.wallosmobile.feature.dashboard.data.mapper.MonthlyCostMapper
 import com.grappim.wallosmobile.feature.dashboard.data.mapper.PeriodBudgetMapper
 import com.grappim.wallosmobile.feature.dashboard.domain.model.MonthlyCost

@@ -1,8 +1,8 @@
 package com.grappim.wallosmobile.feature.setup.ui
 
+import com.grappim.kit.domain.PendingCertTrust
+import com.grappim.kit.domain.UntrustedCertificateException
 import com.grappim.kit.uikit.NativeText
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
-import com.grappim.wallosmobile.core.domain.UntrustedCertificateException
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome

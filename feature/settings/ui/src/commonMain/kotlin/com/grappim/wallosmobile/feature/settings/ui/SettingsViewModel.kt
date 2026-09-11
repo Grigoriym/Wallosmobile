@@ -2,10 +2,10 @@ package com.grappim.wallosmobile.feature.settings.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grappim.kit.domain.resultOf
 import com.grappim.kit.logger.LogPriority
 import com.grappim.kit.logger.logcat
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
-import com.grappim.wallosmobile.core.domain.resultOf
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
