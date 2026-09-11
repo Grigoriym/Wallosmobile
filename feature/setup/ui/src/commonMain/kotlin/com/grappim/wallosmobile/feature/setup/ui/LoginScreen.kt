@@ -37,9 +37,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.kit.uikit.NativeText
 import com.grappim.kit.uikit.asString
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
 import com.grappim.wallosmobile.strings.RPlurals
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.login_api_key_hint

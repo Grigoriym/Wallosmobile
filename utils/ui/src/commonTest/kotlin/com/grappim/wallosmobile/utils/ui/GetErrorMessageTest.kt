@@ -1,8 +1,8 @@
 package com.grappim.wallosmobile.utils.ui
 
+import com.grappim.kit.domain.PendingCertTrust
+import com.grappim.kit.domain.UntrustedCertificateException
 import com.grappim.kit.uikit.NativeText
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
-import com.grappim.wallosmobile.core.domain.UntrustedCertificateException
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.error_certificate_changed

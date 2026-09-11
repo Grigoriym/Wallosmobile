@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile.feature.setup.ui
 
+import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.kit.uikit.NativeText
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
 
 /**
  * Both onboarding paths live in one state (plan §1.1): [isApiKeyMode] `false` drives the web login

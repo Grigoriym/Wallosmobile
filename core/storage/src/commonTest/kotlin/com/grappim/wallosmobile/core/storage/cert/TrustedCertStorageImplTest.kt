@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.core.storage.cert
 
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
+import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.wallosmobile.core.storage.FakePreferencesDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest

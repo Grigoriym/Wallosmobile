@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile.core.api
 
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
-import com.grappim.wallosmobile.core.domain.findPendingCertTrust
+import com.grappim.kit.domain.PendingCertTrust
+import com.grappim.kit.domain.findPendingCertTrust
 import com.grappim.wallosmobile.testing.FakeTrustedCertStorage
 import kotlinx.coroutines.test.runTest
 import java.security.cert.CertificateException
