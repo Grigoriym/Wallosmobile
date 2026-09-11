@@ -77,9 +77,9 @@ jetbrainsAndroidxLifecycle = "2.11.0"
 # https://developer.android.com/guide/navigation/navigation-3
 jetbrainsNav3 = "1.1.1"
 # https://github.com/Grigoriym/grappim-kit
-grappimKitNavigation = "0.1.3"
-grappimKitUikit = "0.1.3"
-grappimKitLogger = "0.1.3"
+grappimKitNavigation = "0.1.4"
+grappimKitUikit = "0.1.4"
+grappimKitLogger = "0.1.4"
 
 compose-bom = "2026.09.00"
 # `androidx.compose.ui:ui-test-manifest` has no `org.jetbrains.compose.ui` multiplatform
