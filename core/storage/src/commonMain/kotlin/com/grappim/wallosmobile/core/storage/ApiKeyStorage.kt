@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.core.storage
 
+import com.grappim.kit.storage.SecretCipher
 import kotlinx.coroutines.flow.Flow
 
 /**

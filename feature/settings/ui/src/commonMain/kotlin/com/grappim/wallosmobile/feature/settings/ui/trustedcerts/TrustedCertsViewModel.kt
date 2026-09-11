@@ -6,7 +6,7 @@ import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.kit.domain.resultOf
 import com.grappim.kit.logger.LogPriority
 import com.grappim.kit.logger.logcat
-import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
+import com.grappim.kit.storage.cert.TrustedCertStorage
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

@@ -15,12 +15,15 @@ kotlin {
             // and none of them need it at runtime.
             api(libs.ktor.client.mock)
 
-            // `FakeNetworkMonitor` implements a `core:storage` interface, so consumers resolve it
-            // through here — the same shape TaigaMobileNova's `:testing` uses.
+            // `FakeNetworkMonitor` implements `grappim-kit-storage`'s `NetworkMonitor`, reachable
+            // through `core:storage`'s own `api(libs.grappim.kit.storage)` — the same shape
+            // TaigaMobileNova's `:testing` uses.
             api(projects.core.storage)
 
             // `FakeTrustedCertStorage`'s public surface (`pins`, `getAllFlow`) is `PendingCertTrust`
-            // — `core:storage`'s own dependency on this is `implementation`, not transitive.
+            // — already reachable via `core:storage`'s own `api(libs.grappim.kit.storage)` (which
+            // itself re-exports `grappim-kit-domain`), but kept as its own line for the
+            // `com.grappim.wallosmobile.core.domain` types other fakes here still need.
             api(projects.core.domain)
 
             // `FakeCrashReporter` implements this interface, same reasoning as `core:storage` above.

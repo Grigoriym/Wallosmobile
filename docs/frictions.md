@@ -3,6 +3,12 @@
 Tooling friction hit during work, newest last. One line each. Promoted or fixed entries get
 deleted — see `/finalize`.
 
+- After swapping `CompositeTrustManager` onto `grappim-kit-trustmanager`, `core:api`'s androidHostTest
+  suite failed with "Cannot access ... internal in 'com.grappim.kit.trustmanager.CompositeTrustManager'"
+  on its host-parametrized overload — the modifier looked identical to the pre-swap local class, but
+  Kotlin `internal` is compilation-unit-scoped and a separate published module's own test source set
+  can no longer see it; a real `SSLContext.createSSLEngine(host, port)` through the public `SSLEngine`
+  overload was the fix, not a visibility workaround.
 - `pip install perfetto` failed with a PEP 668 "externally managed environment" error on this
   machine's Python — a venv (`python3 -m venv`) was needed, `--break-system-packages` was not tried.
 - Backgrounding `adb shell perfetto -o ... -t 8s ... &` inside a `(... &)` subshell and pulling the

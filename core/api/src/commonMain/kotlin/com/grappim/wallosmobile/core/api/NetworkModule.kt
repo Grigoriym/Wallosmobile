@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile.core.api
 
 import com.grappim.kit.appinfo.AppInfoProvider
-import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
+import com.grappim.kit.storage.cert.TrustedCertStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage

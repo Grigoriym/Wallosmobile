@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile.testing
 
 import com.grappim.kit.domain.PendingCertTrust
-import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
+import com.grappim.kit.storage.cert.TrustedCertStorage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
