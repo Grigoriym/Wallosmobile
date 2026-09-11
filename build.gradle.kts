@@ -75,8 +75,6 @@ dependencies {
     kover(project(":core:domain"))
     kover(project(":core:storage"))
     kover(project(":core:async-kmp"))
-    kover(project(":core:appinfo-api"))
-    kover(project(":core:crashreporting-api"))
     kover(project(":core:crud"))
 
     kover(project(":utils:ui"))

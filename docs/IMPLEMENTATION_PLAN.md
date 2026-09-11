@@ -236,7 +236,6 @@ core/
   navigation/                    nav3: NavigationState, Navigator, toEntries() — see §5
   serialization/                 Custom serializers (see §4.4)
   async-kmp/                     Dispatcher qualifiers
-  appinfo-api/                   Build info (isDebug, version, debug host)
   logger/                        logcat() + platform loggers
 utils/
   ui/                            getErrorMessage, ObserveAsEvents (NativeText itself is grappim-kit-uikit's)

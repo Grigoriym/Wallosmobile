@@ -43,8 +43,6 @@ include(":core:api")
 include(":core:domain")
 include(":core:storage")
 include(":core:async-kmp")
-include(":core:appinfo-api")
-include(":core:crashreporting-api")
 include(":core:crud")
 
 include(":utils:ui")

@@ -24,7 +24,7 @@ kotlin {
             api(projects.core.domain)
 
             // `FakeCrashReporter` implements this interface, same reasoning as `core:storage` above.
-            api(projects.core.crashreportingApi)
+            api(libs.grappim.kit.crash)
         }
     }
 }

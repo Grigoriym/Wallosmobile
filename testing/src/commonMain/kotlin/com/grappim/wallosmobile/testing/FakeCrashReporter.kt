@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.testing
 
-import com.grappim.wallosmobile.core.crashreportingapi.CrashReporter
+import com.grappim.kit.crash.CrashReporter
 
 class FakeCrashReporter : CrashReporter {
     override var isAvailable: Boolean = false
