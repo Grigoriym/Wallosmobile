@@ -2,13 +2,13 @@ package com.grappim.wallosmobile.feature.setup.data
 
 import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.kit.domain.resultOf
+import com.grappim.kit.storage.cert.TrustedCertStorage
 import com.grappim.wallosmobile.core.api.FormParams
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.post
 import com.grappim.wallosmobile.core.asynckmp.IoDispatcher
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
 import com.grappim.wallosmobile.core.storage.ServerUrlStorage
-import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability

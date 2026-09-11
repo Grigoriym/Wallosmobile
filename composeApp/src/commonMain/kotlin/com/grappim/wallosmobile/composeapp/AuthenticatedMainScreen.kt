@@ -17,6 +17,7 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.grappim.kit.navigation.Navigator
+import com.grappim.kit.storage.NetworkMonitor
 import com.grappim.kit.uikit.asString
 import com.grappim.kit.uikit.widgets.topbar.LocalTopBarConfig
 import com.grappim.kit.uikit.widgets.topbar.NavigationIconConfig
@@ -27,7 +28,6 @@ import com.grappim.wallosmobile.composeapp.nav.DrawerItemsBuilder
 import com.grappim.wallosmobile.composeapp.nav.FabConfig
 import com.grappim.wallosmobile.composeapp.nav.MainNavHost
 import com.grappim.wallosmobile.composeapp.widget.WallosDrawerWidget
-import com.grappim.wallosmobile.core.storage.NetworkMonitor
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.uikit_back_content_description
 import com.grappim.wallosmobile.strings.generated.resources.uikit_menu_content_description

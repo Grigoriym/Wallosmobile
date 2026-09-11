@@ -26,7 +26,11 @@ kotlin {
             implementation(libs.androidx.room.ktx)
         }
         commonMain.dependencies {
-            implementation(projects.core.domain)
+            // NetworkMonitor/SecretCipher/TrustedCertStorage are grappim-kit-storage's, `api` so
+            // every module that reaches them through `implementation(projects.core.storage)`
+            // (core:api, composeApp, feature:settings:ui, feature:setup:data, :testing) keeps
+            // compiling with just an import-line rename.
+            api(libs.grappim.kit.storage)
             implementation(libs.androidx.datastore.core)
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)

@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.testing
 
-import com.grappim.wallosmobile.core.storage.NetworkMonitor
+import com.grappim.kit.storage.NetworkMonitor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

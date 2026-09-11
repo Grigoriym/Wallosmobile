@@ -4,11 +4,11 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.annotation.ExperimentalCoilApi
 import coil3.network.ktor3.KtorNetworkFetcherFactory
+import com.grappim.kit.storage.cert.TrustedCertStorage
 import com.grappim.wallosmobile.core.api.NetworkModule
 import com.grappim.wallosmobile.core.api.createPlatformHttpClientEngine
 import com.grappim.wallosmobile.core.asynckmp.KmpCoroutinesModule
 import com.grappim.wallosmobile.core.storage.StorageModule
-import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
 import com.grappim.wallosmobile.feature.categories.data.CategoriesDataModule
 import com.grappim.wallosmobile.feature.categories.mapper.CategoriesMapperModule
 import com.grappim.wallosmobile.feature.categories.ui.CategoriesUiModule
