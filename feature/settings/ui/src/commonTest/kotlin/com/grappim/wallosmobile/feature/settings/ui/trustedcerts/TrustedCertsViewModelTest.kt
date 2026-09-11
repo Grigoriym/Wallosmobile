@@ -2,8 +2,8 @@ package com.grappim.wallosmobile.feature.settings.ui.trustedcerts
 
 import app.cash.turbine.test
 import com.grappim.kit.domain.PendingCertTrust
-import com.grappim.wallosmobile.testing.FakeTrustedCertStorage
-import com.grappim.wallosmobile.testing.MainDispatcherRule
+import com.grappim.kit.testing.FakeTrustedCertStorage
+import com.grappim.kit.testing.MainDispatcherRule
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest

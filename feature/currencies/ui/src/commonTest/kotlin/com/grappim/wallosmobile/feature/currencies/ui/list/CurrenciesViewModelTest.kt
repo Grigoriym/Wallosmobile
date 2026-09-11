@@ -1,9 +1,9 @@
 package com.grappim.wallosmobile.feature.currencies.ui.list
 
+import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.currencies.domain.model.Currency
 import com.grappim.wallosmobile.feature.currencies.domain.repo.CurrenciesRepository
-import com.grappim.wallosmobile.testing.MainDispatcherRule
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest

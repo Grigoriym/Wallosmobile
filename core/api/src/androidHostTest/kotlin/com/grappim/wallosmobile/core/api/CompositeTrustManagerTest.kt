@@ -3,9 +3,9 @@ package com.grappim.wallosmobile.core.api
 import com.grappim.kit.domain.CertificateHostnameMismatchException
 import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.kit.domain.findPendingCertTrust
+import com.grappim.kit.testing.FakeTrustedCertStorage
 import com.grappim.kit.trustmanager.CompositeTrustManager
 import com.grappim.kit.trustmanager.sha256Fingerprint
-import com.grappim.wallosmobile.testing.FakeTrustedCertStorage
 import kotlinx.coroutines.test.runTest
 import java.security.cert.CertificateException
 import java.security.cert.CertificateExpiredException

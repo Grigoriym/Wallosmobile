@@ -1,10 +1,10 @@
 package com.grappim.wallosmobile.feature.settings.ui.about
 
 import com.grappim.kit.appinfo.AppInfoProvider
+import com.grappim.kit.testing.FakeCrashReporter
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.privacy_policy_url
 import com.grappim.wallosmobile.strings.generated.resources.privacy_policy_url_gplay
-import com.grappim.wallosmobile.testing.FakeCrashReporter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
