@@ -52,8 +52,15 @@ class StorageModule {
     @Single
     fun provideNetworkMonitor(context: Context): NetworkMonitor = NetworkMonitorImpl(context)
 
+    /**
+     * `legacyUnprefixedIsPlaintext = false`: this app's own pre-swap cipher (before 3ba6e6d) wrote
+     * real ciphertext in the same `base64(iv || ciphertext)` shape with no `v1:` prefix, never
+     * plaintext — the `true` default (grappim-kit's TaigaMobileNova case) would misread that
+     * ciphertext as legacy plaintext and return it undecrypted.
+     */
     @Single
-    fun provideSecretCipher(): SecretCipher = KeystoreSecretCipher(keyAlias = KEYSTORE_ALIAS)
+    fun provideSecretCipher(): SecretCipher =
+        KeystoreSecretCipher(keyAlias = KEYSTORE_ALIAS, legacyUnprefixedIsPlaintext = false)
 
     /** Shares the same DataStore file as [provideDataStore], like every other storage class here. */
     @Single
