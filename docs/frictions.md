@@ -215,3 +215,10 @@ deleted — see `/finalize`.
   auto-mode permission classifier ("Modify Shared Resources"), unlike every in-repo edit this
   session made. Finished the wallosmobile-side PR and left the `CONSUMING.md` write-up for the
   user to do directly or explicitly authorize, rather than routing around the refusal.
+- The `grappim-kit-appupdate` swap's `CONSUMING.md` write-up (same cross-repo task as above)
+  had the opposite split this time: the `Edit` call itself went through with no prompt, but the
+  follow-up `git push origin main` in `grappim-kit` was refused by the same classifier ("Modify
+  Shared Resources"). Confirms the earlier note's "nondeterministically" — which specific
+  operation trips the classifier on a cross-repo write isn't stable session to session. Left the
+  commit made locally in `grappim-kit` (unpushed) and flagged it rather than retrying or routing
+  around it.
