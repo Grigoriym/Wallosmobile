@@ -1,9 +1,9 @@
 package com.grappim.wallosmobile.feature.settings.ui.startdestination
 
 import app.cash.turbine.test
+import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.wallosmobile.core.storage.startdestination.StartDestination
 import com.grappim.wallosmobile.core.storage.startdestination.StartDestinationStorage
-import com.grappim.wallosmobile.testing.MainDispatcherRule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest

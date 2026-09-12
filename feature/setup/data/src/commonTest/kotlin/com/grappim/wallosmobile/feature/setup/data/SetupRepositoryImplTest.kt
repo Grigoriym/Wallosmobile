@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.feature.setup.data
 
 import com.grappim.kit.domain.PendingCertTrust
+import com.grappim.kit.testing.FakeTrustedCertStorage
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
 import com.grappim.wallosmobile.core.domain.WallosError
@@ -9,7 +10,6 @@ import com.grappim.wallosmobile.core.storage.ServerUrlStorage
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
-import com.grappim.wallosmobile.testing.FakeTrustedCertStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
