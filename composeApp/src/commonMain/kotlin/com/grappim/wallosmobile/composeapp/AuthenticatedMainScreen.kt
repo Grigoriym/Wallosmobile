@@ -18,7 +18,9 @@ import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.grappim.kit.navigation.Navigator
 import com.grappim.kit.storage.NetworkMonitor
+import com.grappim.kit.uikit.NativeText
 import com.grappim.kit.uikit.asString
+import com.grappim.kit.uikit.widgets.drawer.DrawerWidget
 import com.grappim.kit.uikit.widgets.topbar.LocalTopBarConfig
 import com.grappim.kit.uikit.widgets.topbar.NavigationIconConfig
 import com.grappim.kit.uikit.widgets.topbar.TopBar
@@ -27,8 +29,8 @@ import com.grappim.wallosmobile.composeapp.nav.DrawerDestination
 import com.grappim.wallosmobile.composeapp.nav.DrawerItemsBuilder
 import com.grappim.wallosmobile.composeapp.nav.FabConfig
 import com.grappim.wallosmobile.composeapp.nav.MainNavHost
-import com.grappim.wallosmobile.composeapp.widget.WallosDrawerWidget
 import com.grappim.wallosmobile.strings.RString
+import com.grappim.wallosmobile.strings.generated.resources.app_name
 import com.grappim.wallosmobile.strings.generated.resources.uikit_back_content_description
 import com.grappim.wallosmobile.strings.generated.resources.uikit_menu_content_description
 import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
@@ -66,11 +68,12 @@ fun AuthenticatedMainScreen(
         LocalIsOffline provides !isOnline,
         LocalSnackbarHostController provides snackbarHostController
     ) {
-        WallosDrawerWidget(
+        DrawerWidget(
             modifier = modifier,
             drawerItems = drawerItems,
             currentTopLevelDestination = appState.currentDrawerDestination,
             drawerState = appState.drawerState,
+            headerTitle = NativeText.Resource(RString.app_name),
             onDrawerItemClick = { destination: DrawerDestination ->
                 appState.coroutineScope.launch {
                     appState.drawerState.close()
