@@ -78,7 +78,7 @@ jetbrainsAndroidxLifecycle = "2.11.0"
 jetbrainsNav3 = "1.1.1"
 # https://github.com/Grigoriym/grappim-kit
 grappimKitNavigation = "0.1.4"
-grappimKitUikit = "0.1.4"
+grappimKitUikit = "0.1.5"
 grappimKitLogger = "0.1.4"
 grappimKitCoroutines = "0.1.4"
 grappimKitCrash = "0.1.4"
