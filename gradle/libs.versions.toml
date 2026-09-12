@@ -79,7 +79,7 @@ jetbrainsNav3 = "1.1.1"
 # https://github.com/Grigoriym/grappim-kit
 grappimKitNavigation = "0.1.4"
 grappimKitUikit = "0.1.5"
-grappimKitLogger = "0.1.4"
+grappimKitLogger = "0.1.5"
 grappimKitCoroutines = "0.1.4"
 grappimKitCrash = "0.1.5"
 grappimKitAppinfo = "0.1.4"
