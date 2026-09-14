@@ -28,6 +28,16 @@ The project is built KMP-first: all source lives in `commonMain`, and platform t
 declared in one function in `build-logic`, so adding iOS or Desktop later is a build-logic change
 rather than a refactor.
 
+## Screenshots
+
+| Dashboard | Subscriptions | Navigation drawer |
+|-----------|----------------|--------------------|
+| <img width="260" alt="Dashboard" src="art/screenshot_dashboard.jpg" /> | <img width="260" alt="Subscriptions list" src="art/screenshot_subscriptions.jpg" /> | <img width="260" alt="Navigation drawer" src="art/screenshot_drawer.jpg" /> |
+
+| Settings | Categories | Add subscription |
+|----------|------------|-------------------|
+| <img width="260" alt="Settings" src="art/screenshot_settings.jpg" /> | <img width="260" alt="Categories" src="art/screenshot_categories.jpg" /> | <img width="260" alt="New subscription form" src="art/screenshot_add_subscription.jpg" /> |
+
 ## What's here
 
 Username/password onboarding against your own Wallos instance (or a manually-entered API key),
