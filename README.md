@@ -3,18 +3,30 @@
 An **unofficial** Kotlin Multiplatform client for [Wallos](https://github.com/ellite/Wallos), the
 self-hosted subscription tracker. Not affiliated with the Wallos project.
 
-> **Status: feature-complete, pre-release.** Onboarding (password bridge, manual API key, TOTP),
-> the subscriptions list/detail/add/edit flow, the dashboard, the management screens (categories,
-> payment methods, currencies, household), settings, offline caching, a full MASVS security
-> review and CI/release automation are all in place — but nothing has been tagged or published to
-> a store yet. [`docs/CHECKLIST.md`](docs/CHECKLIST.md) is the single record of how far along it
-> is.
+> **Status: released on Google Play, Android only.** Onboarding (password bridge, manual API key,
+> TOTP), the subscriptions list/detail/add/edit flow, the dashboard, the management screens
+> (categories, payment methods, currencies, household), settings, offline caching, a full MASVS
+> security review and CI/release automation are all in place.
+> [`docs/CHECKLIST.md`](docs/CHECKLIST.md) is the single record of how far along it is.
 
 ## Platforms
 
-**Android only for now.** The project is built KMP-first: all source lives in `commonMain`, and
-platform targets are declared in one function in `build-logic`, so adding iOS or Desktop later is
-a build-logic change rather than a refactor.
+| Platform | Status | Distribution |
+|----------|--------|---------------|
+| Android  | Released | Google Play |
+| F-Droid  | TBD | TBD |
+| iOS      | TBD | TBD |
+| Desktop  | TBD | TBD |
+
+### Android
+
+[<img src="art/google-badge.png"
+alt="Get it on Google Play"
+height="80">](https://play.google.com/store/apps/details?id=com.grappim.wallosmobile)
+
+The project is built KMP-first: all source lives in `commonMain`, and platform targets are
+declared in one function in `build-logic`, so adding iOS or Desktop later is a build-logic change
+rather than a refactor.
 
 ## What's here
 
