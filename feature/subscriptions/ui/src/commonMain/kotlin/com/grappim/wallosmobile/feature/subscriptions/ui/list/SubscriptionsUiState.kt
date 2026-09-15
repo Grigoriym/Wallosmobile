@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile.feature.subscriptions.ui.list
 
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
-import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 

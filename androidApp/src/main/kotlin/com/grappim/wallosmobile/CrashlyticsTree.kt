@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile
 
 import android.util.Log
-import com.grappim.wallosmobile.core.crashreportingapi.CrashReporter
+import com.grappim.kit.crash.CrashReporter
 import timber.log.Timber
 
 /** A no-op on fdroid via [CrashReporter]'s own implementation, so nothing to gate here. */

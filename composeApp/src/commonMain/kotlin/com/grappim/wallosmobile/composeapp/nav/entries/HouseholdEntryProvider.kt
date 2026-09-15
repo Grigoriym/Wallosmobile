@@ -2,7 +2,7 @@ package com.grappim.wallosmobile.composeapp.nav.entries
 
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
-import com.grappim.wallosmobile.core.navigation.Navigator
+import com.grappim.kit.navigation.Navigator
 import com.grappim.wallosmobile.feature.household.ui.editor.HouseholdMemberEditorRoute
 import com.grappim.wallosmobile.feature.household.ui.editor.HouseholdMemberEditorScreen
 import com.grappim.wallosmobile.feature.household.ui.list.HouseholdRoute

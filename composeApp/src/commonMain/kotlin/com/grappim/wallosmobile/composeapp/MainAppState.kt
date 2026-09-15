@@ -10,14 +10,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation3.runtime.NavKey
+import com.grappim.kit.navigation.NavigationState
+import com.grappim.kit.navigation.rememberNavigationState
 import com.grappim.wallosmobile.composeapp.nav.DRAWER_NAV_ITEMS
 import com.grappim.wallosmobile.composeapp.nav.DrawerConfig
 import com.grappim.wallosmobile.composeapp.nav.DrawerDestination
 import com.grappim.wallosmobile.composeapp.nav.RouteConfig
 import com.grappim.wallosmobile.composeapp.nav.RouteConfigProvider
 import com.grappim.wallosmobile.composeapp.nav.navSavedStateConfiguration
-import com.grappim.wallosmobile.core.navigation.NavigationState
-import com.grappim.wallosmobile.core.navigation.rememberNavigationState
 import kotlinx.coroutines.CoroutineScope
 
 @Composable

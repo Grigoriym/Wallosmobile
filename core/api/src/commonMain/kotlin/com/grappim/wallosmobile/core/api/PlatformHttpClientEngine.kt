@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.core.api
 
-import com.grappim.wallosmobile.core.storage.cert.TrustedCertStorage
+import com.grappim.kit.storage.cert.TrustedCertStorage
 import io.ktor.client.engine.HttpClientEngine
 
 /**

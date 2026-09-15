@@ -1,10 +1,10 @@
 package com.grappim.wallosmobile.feature.household.ui.editor
 
 import app.cash.turbine.test
+import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.household.domain.model.HouseholdMember
 import com.grappim.wallosmobile.feature.household.domain.repo.HouseholdRepository
-import com.grappim.wallosmobile.testing.MainDispatcherRule
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest

@@ -2,9 +2,10 @@ package com.grappim.wallosmobile.feature.subscriptions.ui.detail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grappim.kit.logger.LogPriority
+import com.grappim.kit.logger.logcat
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
-import com.grappim.wallosmobile.core.logger.LogPriority
-import com.grappim.wallosmobile.core.logger.logcat
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
@@ -12,7 +13,6 @@ import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsR
 import com.grappim.wallosmobile.feature.subscriptions.ui.toLogoUrl
 import com.grappim.wallosmobile.utils.formatter.datetime.DateFormatter
 import com.grappim.wallosmobile.utils.formatter.decimal.MoneyFormatter
-import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow

@@ -1,8 +1,8 @@
 package com.grappim.wallosmobile.feature.settings.ui.about
 
 import androidx.lifecycle.ViewModel
-import com.grappim.wallosmobile.core.appinfoapi.AppInfoProvider
-import com.grappim.wallosmobile.core.crashreportingapi.CrashReporter
+import com.grappim.kit.appinfo.AppInfoProvider
+import com.grappim.kit.crash.CrashReporter
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.privacy_policy_url
 import com.grappim.wallosmobile.strings.generated.resources.privacy_policy_url_gplay

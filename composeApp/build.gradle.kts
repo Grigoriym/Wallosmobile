@@ -11,7 +11,7 @@ plugins {
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation(projects.core.navigation)
+            implementation(libs.grappim.kit.navigation)
             implementation(projects.uikit)
             implementation(projects.strings)
 
@@ -60,7 +60,7 @@ kotlin {
             implementation(libs.koin.test)
 
             // Test-only: `KoinGraphTest` has to name the one interface `:androidApp` supplies.
-            implementation(projects.core.appinfoApi)
+            implementation(libs.grappim.kit.appinfo)
         }
     }
 }

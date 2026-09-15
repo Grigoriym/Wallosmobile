@@ -37,7 +37,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
+import com.grappim.kit.domain.PendingCertTrust
+import com.grappim.kit.uikit.NativeText
+import com.grappim.kit.uikit.asString
 import com.grappim.wallosmobile.strings.RPlurals
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.login_api_key_hint
@@ -71,8 +73,6 @@ import com.grappim.wallosmobile.uikit.RDrawable
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.generated.resources.wallosmobile_logo
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
-import com.grappim.wallosmobile.utils.ui.NativeText
-import com.grappim.wallosmobile.utils.ui.asString
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
@@ -146,9 +146,8 @@ private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
             )
         }
 
-        // The probe answered before the user typed a password this instance would never look at
-        // (plan §1.1). It replaces the path toggle below rather than joining it: with password
-        // login off there is no choice left to offer, only a reason.
+        // The probe already knows this instance has password login off, so there is no toggle to
+        // offer below — only the reason text (plan §1.1).
         if (uiState.isPasswordLoginDisabled) {
             Text(
                 text = stringResource(RString.login_password_login_disabled),

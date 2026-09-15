@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile.utils.formatter.datetime
 
-import com.grappim.wallosmobile.core.logger.LogPriority
-import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.kit.logger.LogPriority
+import com.grappim.kit.logger.logcat
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.format
 import kotlinx.datetime.format.MonthNames

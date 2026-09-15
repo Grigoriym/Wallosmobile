@@ -11,6 +11,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.grappim.kit.uikit.NativeText
+import com.grappim.kit.uikit.asString
 import com.grappim.wallosmobile.feature.dashboard.ui.MonthlyBudgetCardUiState
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.dashboard_budget_amount
@@ -22,8 +24,6 @@ import com.grappim.wallosmobile.strings.generated.resources.dashboard_monthly_co
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
-import com.grappim.wallosmobile.utils.ui.NativeText
-import com.grappim.wallosmobile.utils.ui.asString
 import org.jetbrains.compose.resources.stringResource
 
 /** Cost always shows; the budget/used/remaining/over-budget rows only when [MonthlyBudgetCardUiState.budgetAmount] is set. */

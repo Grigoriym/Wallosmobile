@@ -3,6 +3,7 @@ package com.grappim.wallosmobile.core.storage
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.cash.turbine.test
+import com.grappim.kit.storage.SecretCipher
 import com.grappim.wallosmobile.core.storage.db.CurrencyDao
 import com.grappim.wallosmobile.core.storage.db.CurrencyEntity
 import com.grappim.wallosmobile.core.storage.db.PriceConversionDao

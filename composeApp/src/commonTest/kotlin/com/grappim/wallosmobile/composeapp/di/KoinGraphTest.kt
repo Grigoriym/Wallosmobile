@@ -1,8 +1,8 @@
 package com.grappim.wallosmobile.composeapp.di
 
 import android.content.Context
-import com.grappim.wallosmobile.core.appinfoapi.AppInfoProvider
-import com.grappim.wallosmobile.core.crashreportingapi.CrashReporter
+import com.grappim.kit.appinfo.AppInfoProvider
+import com.grappim.kit.crash.CrashReporter
 import io.ktor.client.engine.HttpClientEngine
 import org.koin.test.verify.verify
 import kotlin.test.Test

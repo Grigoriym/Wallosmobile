@@ -10,11 +10,17 @@ kotlin {
         commonMain.dependencies {
             implementation(projects.core.domain)
             implementation(projects.core.storage)
-            implementation(projects.core.appinfoApi)
+            implementation(libs.grappim.kit.appinfo)
 
             // Not in `kmp.network`: this is the only module that installs the plugin, and it has
             // to, because the API key travels in the body where Ktor's own sanitizer can't reach.
             implementation(libs.ktor.logging)
+        }
+        androidMain.dependencies {
+            // CompositeTrustManager is androidMain-only in grappim-kit too (X509ExtendedTrustManager
+            // doesn't exist off Android/JVM); nothing outside this module constructs it, so
+            // `implementation` is enough.
+            implementation(libs.grappim.kit.trustmanager)
         }
     }
 }
