@@ -54,6 +54,9 @@ kotlin {
             // `uikit` carries `utils:ui` as `api`, so `NativeText` needs no declaration here.
             implementation(projects.uikit)
             implementation(projects.strings)
+            // `getErrorMessage`/`ObserveAsEvents` — no longer reachable transitively through
+            // `uikit`, which now depends on `grappim-kit-uikit` instead of `utils:ui`.
+            implementation(projects.utils.ui)
 
             // For `BaseUrlProvider` alone: a logo is a bare filename until the instance root is
             // put in front of it (API doc §4), and that is the one place the root is normalized.

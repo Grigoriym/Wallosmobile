@@ -1,8 +1,8 @@
 package com.grappim.wallosmobile.feature.household.data
 
+import com.grappim.kit.domain.resultOf
 import com.grappim.wallosmobile.core.api.FormParams
 import com.grappim.wallosmobile.core.asynckmp.IoDispatcher
-import com.grappim.wallosmobile.core.domain.resultOf
 import com.grappim.wallosmobile.feature.household.domain.model.HouseholdMember
 import com.grappim.wallosmobile.feature.household.domain.repo.HouseholdRepository
 import com.grappim.wallosmobile.feature.household.mapper.HouseholdMemberMapper

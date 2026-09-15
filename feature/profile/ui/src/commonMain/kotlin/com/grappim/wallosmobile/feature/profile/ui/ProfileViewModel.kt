@@ -2,13 +2,13 @@ package com.grappim.wallosmobile.feature.profile.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.grappim.wallosmobile.core.logger.LogPriority
-import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.kit.logger.LogPriority
+import com.grappim.kit.logger.logcat
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.feature.profile.domain.model.BudgetPeriodType
 import com.grappim.wallosmobile.feature.profile.domain.repo.ProfileRepository
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.profile_error_invalid
-import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavKey
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.feature.categories.ui.editor.CategoryEditorRoute
 import com.grappim.wallosmobile.feature.categories.ui.list.CategoriesRoute
 import com.grappim.wallosmobile.feature.currencies.ui.editor.CurrencyEditorRoute
@@ -22,7 +23,6 @@ import com.grappim.wallosmobile.strings.generated.resources.currency_editor_fab_
 import com.grappim.wallosmobile.strings.generated.resources.member_editor_fab_content_description
 import com.grappim.wallosmobile.strings.generated.resources.payment_method_editor_fab_content_description
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_fab_content_description
-import com.grappim.wallosmobile.utils.ui.NativeText
 
 /**
  * How the drawer behaves on a given route.

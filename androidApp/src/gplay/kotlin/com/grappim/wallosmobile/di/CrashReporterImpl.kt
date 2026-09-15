@@ -2,7 +2,7 @@ package com.grappim.wallosmobile.di
 
 import com.google.firebase.Firebase
 import com.google.firebase.crashlytics.crashlytics
-import com.grappim.wallosmobile.core.crashreportingapi.CrashReporter
+import com.grappim.kit.crash.CrashReporter
 import org.koin.core.annotation.Single
 
 @Single(binds = [CrashReporter::class])

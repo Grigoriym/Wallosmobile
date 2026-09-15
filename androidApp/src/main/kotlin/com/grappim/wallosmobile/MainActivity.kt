@@ -9,9 +9,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.lifecycle.lifecycleScope
+import com.grappim.kit.appupdate.AppUpdateChecker
+import com.grappim.kit.appupdate.UpdateState
 import com.grappim.wallosmobile.composeapp.WallosAppContent
-import com.grappim.wallosmobile.di.AppUpdateChecker
-import com.grappim.wallosmobile.di.UpdateState
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.app_update_downloaded
 import com.grappim.wallosmobile.strings.generated.resources.app_update_restart

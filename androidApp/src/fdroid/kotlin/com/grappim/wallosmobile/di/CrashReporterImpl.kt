@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.di
 
-import com.grappim.wallosmobile.core.crashreportingapi.CrashReporter
+import com.grappim.kit.crash.CrashReporter
 import org.koin.core.annotation.Single
 
 @Single(binds = [CrashReporter::class])

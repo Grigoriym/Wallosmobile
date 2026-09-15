@@ -1,8 +1,8 @@
 package com.grappim.wallosmobile.feature.subscriptions.ui.editor
 
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.LogoFile
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.WritableBillingCycle
-import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.datetime.LocalDate

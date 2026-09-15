@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.feature.subscriptions.ui.editor
 
 import androidx.lifecycle.SavedStateHandle
+import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.categories.domain.model.Category
 import com.grappim.wallosmobile.feature.categories.domain.repo.CategoriesRepository
@@ -18,7 +19,6 @@ import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversi
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.WritableBillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
-import com.grappim.wallosmobile.testing.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow

@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.core.api
 
-import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.kit.logger.logcat
 import io.ktor.client.plugins.logging.Logger
 
 /**

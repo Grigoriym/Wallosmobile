@@ -1,8 +1,8 @@
 package com.grappim.wallosmobile.core.api
 
+import com.grappim.kit.logger.KitLogger
+import com.grappim.kit.logger.LogPriority
 import com.grappim.wallosmobile.core.domain.WallosError
-import com.grappim.wallosmobile.core.logger.LogPriority
-import com.grappim.wallosmobile.core.logger.WallosLogger
 import kotlinx.serialization.Serializable
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -29,12 +29,12 @@ class WallosEnvelopeParserTest {
 
     @BeforeTest
     fun setUp() {
-        WallosLogger.install(logger)
+        KitLogger.install(logger)
     }
 
     @AfterTest
     fun tearDown() {
-        WallosLogger.uninstall()
+        KitLogger.uninstall()
     }
 
     private fun parse(body: String, statusCode: Int = HTTP_OK): SubscriptionsEnvelope =
@@ -220,8 +220,7 @@ class WallosEnvelopeParserTest {
         assertEquals(listOf(SubscriptionRow(id = 3, name = "Sonarr")), result.subscriptions)
     }
 
-    // Same shape as core:logger's own LogcatTest.kt fake.
-    private class RecordingLogger : WallosLogger {
+    private class RecordingLogger : KitLogger {
         val entries = mutableListOf<Entry>()
 
         override fun log(priority: LogPriority, tag: String?, throwable: Throwable?, message: () -> String) {

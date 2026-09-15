@@ -15,16 +15,13 @@ kotlin {
             // and none of them need it at runtime.
             api(libs.ktor.client.mock)
 
-            // `FakeNetworkMonitor` implements a `core:storage` interface, so consumers resolve it
-            // through here — the same shape TaigaMobileNova's `:testing` uses.
-            api(projects.core.storage)
-
-            // `FakeTrustedCertStorage`'s public surface (`pins`, `getAllFlow`) is `PendingCertTrust`
-            // — `core:storage`'s own dependency on this is `implementation`, not transitive.
-            api(projects.core.domain)
-
-            // `FakeCrashReporter` implements this interface, same reasoning as `core:storage` above.
-            api(projects.core.crashreportingApi)
+            // `FakeCrashReporter`/`FakeNetworkMonitor`/`FakeTrustedCertStorage`/`MainDispatcherRule`
+            // come from here now — `grappim-kit-testing` re-exports `grappim-kit-crash`/
+            // `grappim-kit-storage` (and, through it, `grappim-kit-domain`) as `api`, so
+            // `CrashReporter`/`NetworkMonitor`/`TrustedCertStorage`/`PendingCertTrust` stay reachable
+            // through this one line the same way they were through the three project/library lines
+            // this replaced.
+            api(libs.grappim.kit.testing)
         }
     }
 }

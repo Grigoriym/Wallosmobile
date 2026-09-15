@@ -12,7 +12,7 @@ val LocalSnackbarHostController = compositionLocalOf<SnackbarHostController> {
 /**
  * The shell owns one of these and renders [hostState] through a `SnackbarHost`; anything reachable
  * through [LocalSnackbarHostController] calls [show] to surface a message — same shape as
- * [com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarController], one level simpler because
+ * [com.grappim.kit.uikit.widgets.topbar.TopBarController], one level simpler because
  * `SnackbarHostState` already carries its own queueing state.
  */
 class SnackbarHostController {
