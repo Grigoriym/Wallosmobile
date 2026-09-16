@@ -119,7 +119,7 @@ androidxTestUiautomator = "2.4.0"
 dataStore = "1.2.1"
 
 # https://github.com/skydoves/colorpicker-compose/releases
-skydovesColorpicker = "1.2.0"
+skydovesColorpicker = "1.3.0"
 markdownRenderer = "0.45.0"
 filekit = "0.16.0"
 
