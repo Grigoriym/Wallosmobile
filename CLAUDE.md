@@ -246,6 +246,14 @@ ComGrappimWallosmobileCoreStorageStorageModuleModuleKt.class | grep "private sta
 # one `emulator-testing` already boots for on-device Verify: lines. Writes straight into
 # androidApp/src/gplayRelease/generated/baselineProfiles/baseline-prof.txt, committed as source.
 ./gradlew :androidApp:generateGplayReleaseBaselineProfile
+
+# Render the full module dependency graph (requires graphviz: apt/brew install graphviz).
+# Ported from HedvigInsurance's gradle/projectDependencyGraph.gradle, itself from
+# chrisbanes/tivi — via TaigaMobileNova's own port (2026-09-01). The scouting doc that
+# originally surfaced this has since been retired/folded into the shared `mobile-patterns`
+# skill (agentic-grappim/skills/mobile-patterns/). Colors nodes by
+# module kind (KMP, Android app, plain Kotlin/JVM) using this repo's actual plugin ids.
+./gradlew generateProjectDependencyGraph   # → build/reports/dependency-graph/project.png
 ```
 
 A step whose `Verify:` line is about the running app is verified **on the emulator**, not by
@@ -280,6 +288,12 @@ vertical slices, **all source in `commonMain`**. This list is the rules; the rat
 worked examples and which step established each one live in `docs/IMPLEMENTATION_PLAN.md`
 (§2, §3.3, §3.4, §4.7, §6) — read there for the "why," not here.
 
+- **A DTO never appears outside its feature's `data`/`dto`/`mapper` modules** — `domain` and `ui`
+  see only mapped domain types. The module split already makes this true everywhere (confirmed
+  2026-09-01: zero `Dto` references outside those layers, repo-wide), so this is naming an
+  existing boundary, not changing one; it exists to catch a future repository method accidentally
+  typed to return a DTO before it ships, the same way `WallosError` is the only thing that leaves
+  `core:api` (see Error handling below).
 - **Shell**: `ModalNavigationDrawer` + a `TopBarController` provided through `LocalTopBarConfig`;
   each screen declares its own `TopBarConfig`. Feature `ui` modules depend on `uikit`, never on
   `composeApp`.
@@ -342,8 +356,8 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   aggregated by an explicit per-module list, so a module left out of it is silently at 0% and
   nothing fails. `:testing` is deliberately absent (fakes, not production code).
 - **Every module of a layer gets the same plugin set** — see plan §3.3 for the table and the
-  standard dependency blocks. Coroutines, datetime, immutable collections, `core:logger` and the
-  test deps come from the convention plugins — never declare them per module. Same for the
+  standard dependency blocks. Coroutines, datetime, immutable collections, `grappim-kit-logger`
+  and the test deps come from the convention plugins — never declare them per module. Same for the
   Compose set, including **material icons** (`Icons.Filled.*`), which material3 does *not* pull
   in transitively and which therefore lives in `configureKmpCompose()`, not in any module.
 - **`material-icons-core` is ~50 icons, and the obvious one is usually missing** — no
@@ -596,7 +610,7 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
 - **Never use bare `try/catch (Exception)` in coroutines** — it swallows `CancellationException`
   and breaks structured concurrency. Use `resultOf` from `core.domain`.
 - **Never swallow an exception silently.** Every `catch` at minimum logs.
-- `logcat { }` from `core:logger` has two overloads, and **inside a class body it always resolves
+- `logcat { }` from `grappim-kit-logger` has two overloads, and **inside a class body it always resolves
   to the `Any.logcat` extension**, which tags the line with the receiver's `simpleName`. The
   receiverless overload (tag stays `null`) is only reachable from top-level code — passing
   `tag = "…"` is the only way to override it from a class.
@@ -761,6 +775,33 @@ Touch only what you must. Don't "improve" adjacent code, comments, or formatting
 what isn't broken. Match existing style even if you'd do it differently. Don't add UI or
 navigation that wasn't asked for. Remove orphans *your* change created; mention pre-existing dead
 code rather than deleting it. **Every changed line should trace directly to the request.**
+
+### Comments
+A comment describes only the *current* code and stands alone — no reference to this codebase's
+own history ("replaces X…", "used to…"), no rejected alternative ("…instead of the old Y", "…not
+Z"), no conversation/process state ("for now", "TBD", "pending design"). Test: would this make
+sense to someone reading cold, with no knowledge of the PR or conversation that produced it? If
+not, cut it — that context belongs in the commit message, not the source.
+
+**A `plan §N` / `docs/WALLOS_API.md §N` citation is not a history reference** — it points at a
+permanent rationale document (`docs/IMPLEMENTATION_PLAN.md` is literally "the reference" per
+Docs, not memory above), not at what the PR changed or what got argued over, and it still makes
+sense to someone reading cold since the doc is one click away. This carve-out is why the
+pervasive `(plan §X)` citations throughout this codebase are not what this rule targets — don't
+strip them; the rule is about narrating change or process, not about citing a stable doc.
+
+**A bare checklist-step citation — `(3.11)`, `M26:`, a `--- 7.9: multipart logo upload ---` test
+divider — is the same kind of reference, not a narrower exception to it.** It points at a
+permanent, numbered record (`docs/CHECKLIST.md` / `docs/archive/CHECKLIST-DONE.md`), the same way
+`plan §N` points at `IMPLEMENTATION_PLAN.md` — provenance instead of rationale, but still a stable
+doc pointer rather than a PR/conversation breadcrumb. Confirmed 2026-09-01 while re-checking this
+rule (~226 sites, grepped, mostly test-file section dividers organizing a file by which step added
+each group of tests): the ones that also *read* like narration on a keyword match ("no longer",
+"replaced", "instead of") turned out on inspection to be describing current runtime behavior or a
+current design choice's rationale, not code history, once the citation itself is set aside — so
+this carve-out doesn't quietly launder a real violation, it just recognizes what the citation
+already was. A comment that narrates an actual change ("previously did X, now does Y") is still a
+violation regardless of whether a step number rides along with it.
 
 ### Goal-driven execution
 Turn tasks into verifiable goals — "fix the bug" → "write a failing test, then make it pass". For

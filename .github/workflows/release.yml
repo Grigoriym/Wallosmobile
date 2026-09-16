@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up Java 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -46,6 +46,8 @@ jobs:
 
       - name: Set up the Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
 
       - name: Restore wallos_mobile_gplay.jks
         run: echo "$ENCODED_GPLAY" | base64 -d > ./wallos_mobile_gplay.jks

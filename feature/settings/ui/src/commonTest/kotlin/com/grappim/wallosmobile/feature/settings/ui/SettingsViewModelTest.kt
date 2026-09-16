@@ -1,8 +1,8 @@
 package com.grappim.wallosmobile.feature.settings.ui
 
+import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
-import com.grappim.wallosmobile.testing.MainDispatcherRule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest

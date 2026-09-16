@@ -3,6 +3,12 @@
 Tooling friction hit during work, newest last. One line each. Promoted or fixed entries get
 deleted — see `/finalize`.
 
+- After swapping `CompositeTrustManager` onto `grappim-kit-trustmanager`, `core:api`'s androidHostTest
+  suite failed with "Cannot access ... internal in 'com.grappim.kit.trustmanager.CompositeTrustManager'"
+  on its host-parametrized overload — the modifier looked identical to the pre-swap local class, but
+  Kotlin `internal` is compilation-unit-scoped and a separate published module's own test source set
+  can no longer see it; a real `SSLContext.createSSLEngine(host, port)` through the public `SSLEngine`
+  overload was the fix, not a visibility workaround.
 - `pip install perfetto` failed with a PEP 668 "externally managed environment" error on this
   machine's Python — a venv (`python3 -m venv`) was needed, `--break-system-packages` was not tried.
 - Backgrounding `adb shell perfetto -o ... -t 8s ... &` inside a `(... &)` subshell and pulling the
@@ -203,3 +209,16 @@ deleted — see `/finalize`.
   range passed cleanly. Rewriting already-public `dev` history for a 12-day-old commit wasn't a real
   option (force-push is blocked on `dev` now anyway); the owner's ruleset bypass on `master` is the
   intended way past a one-time, understood case like this one.
+- The `grappim-kit-testing` swap (chore/grappim-kit-testing) was asked, per the shared-skill
+  convention, to write its findings into `grappim-kit/CONSUMING.md`'s `## testing` stub — a
+  different repo on the same machine. The `Edit` tool call for it was refused outright by the
+  auto-mode permission classifier ("Modify Shared Resources"), unlike every in-repo edit this
+  session made. Finished the wallosmobile-side PR and left the `CONSUMING.md` write-up for the
+  user to do directly or explicitly authorize, rather than routing around the refusal.
+- The `grappim-kit-appupdate` swap's `CONSUMING.md` write-up (same cross-repo task as above)
+  had the opposite split this time: the `Edit` call itself went through with no prompt, but the
+  follow-up `git push origin main` in `grappim-kit` was refused by the same classifier ("Modify
+  Shared Resources"). Confirms the earlier note's "nondeterministically" — which specific
+  operation trips the classifier on a cross-repo write isn't stable session to session. Left the
+  commit made locally in `grappim-kit` (unpushed) and flagged it rather than retrying or routing
+  around it.

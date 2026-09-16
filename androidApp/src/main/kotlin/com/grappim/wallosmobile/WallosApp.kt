@@ -4,11 +4,11 @@ import android.app.Application
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
+import com.grappim.kit.appinfo.AppInfoProvider
+import com.grappim.kit.crash.CrashReporter
+import com.grappim.kit.logger.TimberLogger
 import com.grappim.wallosmobile.composeapp.di.KoinApp
-import com.grappim.wallosmobile.core.appinfoapi.AppInfoProvider
 import com.grappim.wallosmobile.core.asynckmp.ApplicationScope
-import com.grappim.wallosmobile.core.crashreportingapi.CrashReporter
-import com.grappim.wallosmobile.core.logger.TimberLogger
 import com.grappim.wallosmobile.core.storage.crashreporting.CrashReportingStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.launchIn

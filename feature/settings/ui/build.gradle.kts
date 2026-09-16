@@ -17,12 +17,12 @@ kotlin {
             implementation(projects.core.storage)
             implementation(projects.core.domain)
             // The About screen's version and build type (4.4). Same single-seam case as above.
-            implementation(projects.core.appinfoApi)
+            implementation(libs.grappim.kit.appinfo)
             // The connected server row on the Settings screen (11.1). Same single-seam case.
             implementation(projects.core.api)
             // The crash-reporting toggle (16.4) reads `crashReporter.isAvailable` directly —
             // same single-seam case as the storage/appinfo lines above.
-            implementation(projects.core.crashreportingApi)
+            implementation(libs.grappim.kit.crash)
 
             // `uikit` carries `utils:ui` as `api`, so `NativeText` needs no declaration here.
             implementation(projects.uikit)

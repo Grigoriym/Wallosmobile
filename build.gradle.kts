@@ -74,11 +74,7 @@ dependencies {
     kover(project(":core:api"))
     kover(project(":core:domain"))
     kover(project(":core:storage"))
-    kover(project(":core:navigation"))
     kover(project(":core:async-kmp"))
-    kover(project(":core:appinfo-api"))
-    kover(project(":core:crashreporting-api"))
-    kover(project(":core:logger"))
     kover(project(":core:crud"))
 
     kover(project(":utils:ui"))
@@ -196,3 +192,5 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
+
+apply(from = "gradle/projectDependencyGraph.gradle")

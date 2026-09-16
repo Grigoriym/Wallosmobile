@@ -2,7 +2,7 @@ package com.grappim.wallosmobile.composeapp.nav.entries
 
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
-import com.grappim.wallosmobile.core.navigation.Navigator
+import com.grappim.kit.navigation.Navigator
 import com.grappim.wallosmobile.feature.currencies.ui.editor.CurrencyEditorRoute
 import com.grappim.wallosmobile.feature.currencies.ui.editor.CurrencyEditorScreen
 import com.grappim.wallosmobile.feature.currencies.ui.list.CurrenciesRoute

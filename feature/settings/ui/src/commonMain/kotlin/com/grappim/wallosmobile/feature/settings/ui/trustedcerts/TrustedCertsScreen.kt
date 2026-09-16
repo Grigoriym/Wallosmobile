@@ -25,7 +25,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
+import com.grappim.kit.domain.PendingCertTrust
+import com.grappim.kit.uikit.NativeText
+import com.grappim.kit.uikit.widgets.topbar.LocalTopBarConfig
+import com.grappim.kit.uikit.widgets.topbar.NavigationIconConfig
+import com.grappim.kit.uikit.widgets.topbar.TopBarConfig
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.settings_trusted_certificates
 import com.grappim.wallosmobile.strings.generated.resources.trusted_cert_fingerprint
@@ -39,10 +43,6 @@ import com.grappim.wallosmobile.strings.generated.resources.trusted_cert_valid_u
 import com.grappim.wallosmobile.strings.generated.resources.trusted_certs_empty
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
-import com.grappim.wallosmobile.uikit.widgets.topappbar.LocalTopBarConfig
-import com.grappim.wallosmobile.uikit.widgets.topappbar.NavigationIconConfig
-import com.grappim.wallosmobile.uikit.widgets.topappbar.TopBarConfig
-import com.grappim.wallosmobile.utils.ui.NativeText
 import kotlinx.collections.immutable.persistentListOf
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel

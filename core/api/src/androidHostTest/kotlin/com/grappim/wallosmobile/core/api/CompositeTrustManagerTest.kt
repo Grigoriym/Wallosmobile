@@ -1,12 +1,17 @@
 package com.grappim.wallosmobile.core.api
 
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
-import com.grappim.wallosmobile.core.domain.findPendingCertTrust
-import com.grappim.wallosmobile.testing.FakeTrustedCertStorage
+import com.grappim.kit.domain.CertificateHostnameMismatchException
+import com.grappim.kit.domain.PendingCertTrust
+import com.grappim.kit.domain.findPendingCertTrust
+import com.grappim.kit.testing.FakeTrustedCertStorage
+import com.grappim.kit.trustmanager.CompositeTrustManager
+import com.grappim.kit.trustmanager.sha256Fingerprint
 import kotlinx.coroutines.test.runTest
 import java.security.cert.CertificateException
 import java.security.cert.CertificateExpiredException
 import java.util.Date
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLEngine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -18,6 +23,12 @@ import kotlin.test.assertTrue
 /**
  * A host test, not an instrumented one: `javax.net.ssl` is the JDK's, not Android's, and nothing
  * here opens a socket.
+ *
+ * `CompositeTrustManager`'s own host-taking overload (used by its `Socket`/`SSLEngine` overrides)
+ * is `internal` to `grappim-kit-trustmanager` — invisible across the module boundary, unlike when
+ * this class was local. [sslEngine] drives a host through the public `SSLEngine` overload instead,
+ * using a real JDK-provided engine (`SSLContext.createSSLEngine`) rather than hand-faking the
+ * platform's own large `SSLEngine`/`SSLSocket` abstract classes just to carry one string.
  *
  * Test names are camelCase because detekt's `FunctionNaming` exclusions cover `commonTest` and
  * not `androidHostTest` — the same reason `WallosDBTest` (3.3) reads that way.
@@ -32,7 +43,7 @@ class CompositeTrustManagerTest {
         val deviceStore = FakeX509TrustManager(rejectsServer = false)
         val sut = CompositeTrustManager(deviceStore, FakeTrustedCertStorage())
 
-        sut.checkServerTrusted(arrayOf(certificate), AUTH_TYPE, HOST)
+        sut.checkServerTrusted(arrayOf(certificate), AUTH_TYPE, sslEngine(HOST))
 
         assertTrue(deviceStore.checkServerTrustedCalled)
     }
@@ -42,7 +53,7 @@ class CompositeTrustManagerTest {
         val sut = CompositeTrustManager(FakeX509TrustManager(), FakeTrustedCertStorage())
 
         val failure = assertFailsWith<CertificateException> {
-            sut.checkServerTrusted(arrayOf(certificate), AUTH_TYPE, HOST)
+            sut.checkServerTrusted(arrayOf(certificate), AUTH_TYPE, sslEngine(HOST))
         }
 
         val pendingCertTrust = assertNotNull(failure.findPendingCertTrust())
@@ -59,7 +70,7 @@ class CompositeTrustManagerTest {
         trustedCertStorage.trust(pendingCertTrust(HOST, sha256Fingerprint(certificate)))
         val sut = CompositeTrustManager(deviceStore, trustedCertStorage)
 
-        sut.checkServerTrusted(arrayOf(certificate), AUTH_TYPE, HOST)
+        sut.checkServerTrusted(arrayOf(certificate), AUTH_TYPE, sslEngine(HOST))
 
         assertFalse(deviceStore.checkServerTrustedCalled)
     }
@@ -71,7 +82,7 @@ class CompositeTrustManagerTest {
         val sut = CompositeTrustManager(FakeX509TrustManager(), trustedCertStorage)
 
         assertFailsWith<CertificateException> {
-            sut.checkServerTrusted(arrayOf(certificate), AUTH_TYPE, "other.example.com")
+            sut.checkServerTrusted(arrayOf(certificate), AUTH_TYPE, sslEngine("other.example.com"))
         }
     }
 
@@ -82,7 +93,7 @@ class CompositeTrustManagerTest {
         val sut = CompositeTrustManager(FakeX509TrustManager(), trustedCertStorage)
 
         assertFailsWith<CertificateException> {
-            sut.checkServerTrusted(arrayOf(otherCertificate), AUTH_TYPE, HOST)
+            sut.checkServerTrusted(arrayOf(otherCertificate), AUTH_TYPE, sslEngine(HOST))
         }
     }
 
@@ -94,7 +105,7 @@ class CompositeTrustManagerTest {
         val sut = CompositeTrustManager(FakeX509TrustManager(), trustedCertStorage)
 
         assertFailsWith<CertificateExpiredException> {
-            sut.checkServerTrusted(arrayOf(expired), AUTH_TYPE, HOST)
+            sut.checkServerTrusted(arrayOf(expired), AUTH_TYPE, sslEngine(HOST))
         }
     }
 
@@ -106,7 +117,7 @@ class CompositeTrustManagerTest {
         val sut = CompositeTrustManager(deviceStore, trustedCertStorage)
 
         val failure = assertFailsWith<CertificateException> {
-            sut.checkServerTrusted(arrayOf(certificate), AUTH_TYPE, host = null)
+            sut.checkServerTrusted(arrayOf(certificate), AUTH_TYPE)
         }
 
         assertTrue(deviceStore.checkServerTrustedCalled)
@@ -119,11 +130,12 @@ class CompositeTrustManagerTest {
         val sut = CompositeTrustManager(FakeX509TrustManager(), FakeTrustedCertStorage())
 
         val failure = assertFailsWith<CertificateException> {
-            sut.checkServerTrusted(arrayOf(elsewhere), AUTH_TYPE, HOST)
+            sut.checkServerTrusted(arrayOf(elsewhere), AUTH_TYPE, sslEngine(HOST))
         }
 
         // Accepting it would pin something hostname verification rejects anyway.
         assertNull(failure.findPendingCertTrust())
+        assertTrue(failure.cause is CertificateHostnameMismatchException)
     }
 
     @Test
@@ -136,7 +148,7 @@ class CompositeTrustManagerTest {
         val sut = CompositeTrustManager(FakeX509TrustManager(), FakeTrustedCertStorage())
 
         val failure = assertFailsWith<CertificateException> {
-            sut.checkServerTrusted(arrayOf(byIp), AUTH_TYPE, IP)
+            sut.checkServerTrusted(arrayOf(byIp), AUTH_TYPE, sslEngine(IP))
         }
 
         assertNotNull(failure.findPendingCertTrust())
@@ -151,10 +163,11 @@ class CompositeTrustManagerTest {
         val sut = CompositeTrustManager(FakeX509TrustManager(), FakeTrustedCertStorage())
 
         val failure = assertFailsWith<CertificateException> {
-            sut.checkServerTrusted(arrayOf(byIp), AUTH_TYPE, "192.168.0.248")
+            sut.checkServerTrusted(arrayOf(byIp), AUTH_TYPE, sslEngine("192.168.0.248"))
         }
 
         assertNull(failure.findPendingCertTrust())
+        assertTrue(failure.cause is CertificateHostnameMismatchException)
     }
 
     @Test
@@ -162,9 +175,18 @@ class CompositeTrustManagerTest {
         val sut = CompositeTrustManager(FakeX509TrustManager(rejectsServer = false), FakeTrustedCertStorage())
 
         assertFailsWith<CertificateException> {
-            sut.checkServerTrusted(emptyArray(), AUTH_TYPE, HOST)
+            sut.checkServerTrusted(emptyArray(), AUTH_TYPE)
         }
     }
+
+    /**
+     * A real JDK-provided engine, not a fake: [SSLEngine] carries no handshake state until one is
+     * started, so its constructor-supplied [SSLEngine.getPeerHost] is enough to drive
+     * [CompositeTrustManager.checkServerTrusted]'s host-taking overload without hand-implementing
+     * the platform's own abstract class.
+     */
+    private fun sslEngine(host: String): SSLEngine =
+        SSLContext.getInstance("TLS").apply { init(null, null, null) }.createSSLEngine(host, 443)
 
     private fun pendingCertTrust(host: String, sha256Fingerprint: String) = PendingCertTrust(
         host = host,

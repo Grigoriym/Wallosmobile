@@ -49,9 +49,10 @@ dependencies {
     baselineProfile(project(":benchmark"))
 
     implementation(project(":composeApp"))
-    implementation(project(":core:appinfo-api"))
-    implementation(project(":core:crashreporting-api"))
-    implementation(project(":core:logger"))
+    implementation(libs.grappim.kit.appinfo)
+    implementation(libs.grappim.kit.crash)
+    implementation(libs.grappim.kit.logger)
+    implementation(libs.grappim.kit.appupdate)
 
     // `core:storage` itself reaches androidApp transitively via composeApp's `api` dependency on
     // it (composeApp/build.gradle.kts) — only `core:async-kmp` (an `implementation` dependency
@@ -99,5 +100,6 @@ dependencies {
 
     // Play In-App Updates ship in the gplay flavor only — the fdroid flavor never pulls in
     // this proprietary dependency, only a no-op AppUpdateChecker implementation.
-    gplayImplementation(libs.google.inapp.update.ktx)
+    gplayImplementation(libs.grappim.kit.appupdate.gplay)
+    fdroidImplementation(libs.grappim.kit.appupdate.fdroid)
 }

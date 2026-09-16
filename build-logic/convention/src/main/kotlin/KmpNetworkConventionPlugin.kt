@@ -13,8 +13,7 @@ class KmpNetworkConventionPlugin : Plugin<Project> {
                     commonMain.dependencies {
                         implementation(libs.findLibrary("ktor.core").get())
                     }
-                    // Android is the only target for now; the Darwin and CIO engines go here
-                    // when configureKmp() gains those targets.
+                    // The Darwin and CIO engines go here once configureKmp() gains those targets.
                     androidMain.dependencies {
                         implementation(libs.findLibrary("ktor.client.okhttp").get())
                     }

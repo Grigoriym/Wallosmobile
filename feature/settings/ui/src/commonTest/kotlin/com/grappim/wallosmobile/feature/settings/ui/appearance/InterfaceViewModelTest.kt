@@ -1,11 +1,11 @@
 package com.grappim.wallosmobile.feature.settings.ui.appearance
 
 import app.cash.turbine.test
+import com.grappim.kit.testing.FakeCrashReporter
+import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.wallosmobile.core.storage.crashreporting.CrashReportingStorage
 import com.grappim.wallosmobile.core.storage.theme.ThemeMode
 import com.grappim.wallosmobile.core.storage.theme.ThemeStorage
-import com.grappim.wallosmobile.testing.FakeCrashReporter
-import com.grappim.wallosmobile.testing.MainDispatcherRule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest

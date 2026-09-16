@@ -8,6 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import com.grappim.kit.navigation.NavigationState
+import com.grappim.kit.navigation.Navigator
+import com.grappim.kit.navigation.toEntries
 import com.grappim.wallosmobile.composeapp.nav.entries.categoriesEntry
 import com.grappim.wallosmobile.composeapp.nav.entries.currenciesEntry
 import com.grappim.wallosmobile.composeapp.nav.entries.dashboardEntry
@@ -15,9 +18,6 @@ import com.grappim.wallosmobile.composeapp.nav.entries.householdEntry
 import com.grappim.wallosmobile.composeapp.nav.entries.paymentMethodsEntry
 import com.grappim.wallosmobile.composeapp.nav.entries.settingsEntry
 import com.grappim.wallosmobile.composeapp.nav.entries.subscriptionsEntry
-import com.grappim.wallosmobile.core.navigation.NavigationState
-import com.grappim.wallosmobile.core.navigation.Navigator
-import com.grappim.wallosmobile.core.navigation.toEntries
 
 /**
  * Each feature contributes an `EntryProviderScope<NavKey>` extension in `nav/entries/`

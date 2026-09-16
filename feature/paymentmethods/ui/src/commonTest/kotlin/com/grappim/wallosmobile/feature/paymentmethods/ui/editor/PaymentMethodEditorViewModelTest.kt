@@ -1,11 +1,11 @@
 package com.grappim.wallosmobile.feature.paymentmethods.ui.editor
 
 import app.cash.turbine.test
+import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.paymentmethods.domain.model.IconFile
 import com.grappim.wallosmobile.feature.paymentmethods.domain.model.PaymentMethod
 import com.grappim.wallosmobile.feature.paymentmethods.domain.repo.PaymentMethodsRepository
-import com.grappim.wallosmobile.testing.MainDispatcherRule
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest

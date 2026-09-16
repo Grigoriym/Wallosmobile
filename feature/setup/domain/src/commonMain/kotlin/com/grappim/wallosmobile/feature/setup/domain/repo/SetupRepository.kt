@@ -1,6 +1,6 @@
 package com.grappim.wallosmobile.feature.setup.domain.repo
 
-import com.grappim.wallosmobile.core.domain.PendingCertTrust
+import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
 import kotlin.time.Duration

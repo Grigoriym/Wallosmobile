@@ -21,7 +21,7 @@ find . -type d -name compose_reports -exec rm -rf {} +
 # every module with alias(libs.plugins.wallosmobile.kmp.library.compose), plus androidApp
 # (single androidJvm target, no flavor split needed since nothing here touches Firebase/Play Core)
 ./gradlew \
-  :composeApp:compileAndroidMain :core:navigation:compileAndroidMain :strings:compileAndroidMain \
+  :composeApp:compileAndroidMain :strings:compileAndroidMain \
   :uikit:compileAndroidMain :utils:ui:compileAndroidMain \
   :feature:categories:ui:compileAndroidMain :feature:currencies:ui:compileAndroidMain \
   :feature:dashboard:ui:compileAndroidMain :feature:household:ui:compileAndroidMain \

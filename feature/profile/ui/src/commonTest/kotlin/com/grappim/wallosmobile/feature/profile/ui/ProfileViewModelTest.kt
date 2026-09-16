@@ -1,10 +1,10 @@
 package com.grappim.wallosmobile.feature.profile.ui
 
+import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.profile.domain.model.BudgetPeriodType
 import com.grappim.wallosmobile.feature.profile.domain.model.User
 import com.grappim.wallosmobile.feature.profile.domain.repo.ProfileRepository
-import com.grappim.wallosmobile.testing.MainDispatcherRule
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest

@@ -3,8 +3,9 @@ package com.grappim.wallosmobile.feature.subscriptions.ui.editor
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.grappim.wallosmobile.core.logger.LogPriority
-import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.kit.logger.LogPriority
+import com.grappim.kit.logger.logcat
+import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.feature.categories.domain.repo.CategoriesRepository
 import com.grappim.wallosmobile.feature.household.domain.repo.HouseholdRepository
 import com.grappim.wallosmobile.feature.paymentmethods.domain.repo.PaymentMethodsRepository
@@ -15,7 +16,6 @@ import com.grappim.wallosmobile.feature.subscriptions.domain.model.WritableBilli
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
 import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.subscription_editor_error_invalid
-import com.grappim.wallosmobile.utils.ui.NativeText
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.channels.Channel

@@ -1,9 +1,9 @@
 package com.grappim.wallosmobile.feature.paymentmethods.data
 
+import com.grappim.kit.domain.resultOf
 import com.grappim.wallosmobile.core.api.FormParams
 import com.grappim.wallosmobile.core.api.MultipartFile
 import com.grappim.wallosmobile.core.asynckmp.IoDispatcher
-import com.grappim.wallosmobile.core.domain.resultOf
 import com.grappim.wallosmobile.feature.paymentmethods.domain.model.IconFile
 import com.grappim.wallosmobile.feature.paymentmethods.domain.model.PaymentMethod
 import com.grappim.wallosmobile.feature.paymentmethods.domain.repo.PaymentMethodsRepository

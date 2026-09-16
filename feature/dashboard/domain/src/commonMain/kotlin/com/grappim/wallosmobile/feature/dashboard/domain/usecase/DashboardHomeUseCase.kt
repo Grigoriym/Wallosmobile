@@ -1,7 +1,7 @@
 package com.grappim.wallosmobile.feature.dashboard.domain.usecase
 
-import com.grappim.wallosmobile.core.logger.LogPriority
-import com.grappim.wallosmobile.core.logger.logcat
+import com.grappim.kit.logger.LogPriority
+import com.grappim.kit.logger.logcat
 import com.grappim.wallosmobile.feature.dashboard.domain.calculator.SubscriptionStatsCalculator
 import com.grappim.wallosmobile.feature.dashboard.domain.calculator.UpcomingPaymentsCalculator
 import com.grappim.wallosmobile.feature.dashboard.domain.model.DashboardHomeData
