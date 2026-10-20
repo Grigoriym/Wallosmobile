@@ -41,7 +41,7 @@ androidDesugarJdkLibs = "2.1.5"
 buildKonfig = "0.22.0"
 
 # https://github.com/JetBrains/kotlin/releases
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 # https://github.com/Kotlin/kotlinx.coroutines/releases
 coroutines = "1.11.0"
 ksp = "2.3.12"
