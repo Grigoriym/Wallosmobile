@@ -274,7 +274,10 @@ a docs-only commit produces **no CI run**, which is not a failure. The gplay ass
 `androidApp/src/gplay/google-services.json` from the `WALLOS_GOOGLE_SERVICES_GPLAY` secret first
 (`mkdir -p` ahead of the redirect, kept even though `androidApp/src/gplay/` now has other tracked
 files as of 16.3 — a fresh checkout still needs the `mkdir -p` on any commit older than that;
-`docs/CHECKLIST.md`'s 16.2 `Note:`). The
+`docs/CHECKLIST.md`'s 16.2 `Note:`). **A PR from a fork gets no secrets**, so those restore steps
+are gated on a `HAS_SECRETS` env flag and such a run compiles `fdroidDebug` instead of packaging
+it, and assembles/lints gplay without `-PgplayBuild` — first hit by PR #105, where the empty
+keystore surfaced as `KeytoolException: … Tag number over 30 is not supported`. The
 instrumented Room DAO tests are still local/emulator-only — `allTests` doesn't fan out to device
 tests and the CI job has no emulator, so Kover's XML report never sees them either. The second
 workflow, `guardrails.yml` (plan §3.6), has no `paths-ignore` and runs no Gradle, so a docs-only

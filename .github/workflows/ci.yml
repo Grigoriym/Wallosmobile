@@ -33,6 +33,10 @@ jobs:
       WALLOS_STORE_PASS_FDROID_DEBUG: ${{ secrets.WALLOS_STORE_PASS_FDROID_DEBUG }}
       WALLOS_ALIAS_FDROID_DEBUG: ${{ secrets.WALLOS_ALIAS_FDROID_DEBUG }}
       WALLOS_KEY_PASS_FDROID_DEBUG: ${{ secrets.WALLOS_KEY_PASS_FDROID_DEBUG }}
+      # GitHub withholds secrets from a pull_request run opened from a fork, so the steps that
+      # restore and use the keystore and google-services.json are gated on this. Without them, a
+      # run compiles fdroidDebug instead of packaging it and builds gplay without `-PgplayBuild`.
+      HAS_SECRETS: ${{ secrets.WALLOS_FILE_FDROID_DEBUG != '' }}
 
     steps:
       - name: Check out the repo
@@ -55,20 +59,32 @@ jobs:
           packages: 'platform-tools'
 
       - name: Restore google-services.json
+        if: env.HAS_SECRETS == 'true'
         run: |
           mkdir -p androidApp/src/gplay
           echo "$ENCODED_GOOGLE_SERVICES_GPLAY" | base64 -d > androidApp/src/gplay/google-services.json
 
       - name: Restore wallos_mobile_fdroid_debug.jks
+        if: env.HAS_SECRETS == 'true'
         run: echo "$ENCODED_FDROID_DEBUG" | base64 -d > ./wallos_mobile_fdroid_debug.jks
         env:
           ENCODED_FDROID_DEBUG: ${{ secrets.WALLOS_FILE_FDROID_DEBUG }}
 
       - name: Assemble the fdroid debug APK
+        if: env.HAS_SECRETS == 'true'
         run: ./gradlew :androidApp:assembleFdroidDebug
 
+      - name: Compile the fdroid debug sources (no signing secrets)
+        if: env.HAS_SECRETS != 'true'
+        run: ./gradlew :androidApp:compileFdroidDebugKotlin
+
       - name: Assemble the gplay debug APK
+        if: env.HAS_SECRETS == 'true'
         run: ./gradlew :androidApp:assembleGplayDebug -PgplayBuild
+
+      - name: Assemble the gplay debug APK (no google-services.json)
+        if: env.HAS_SECRETS != 'true'
+        run: ./gradlew :androidApp:assembleGplayDebug
 
       - name: Run the unit tests
         run: ./gradlew allTests
@@ -77,7 +93,12 @@ jobs:
         run: ./gradlew detekt ktlintCheck
 
       - name: Run Android/Compose lint
+        if: env.HAS_SECRETS == 'true'
         run: ./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug -PgplayBuild
+
+      - name: Run Android/Compose lint (no google-services.json)
+        if: env.HAS_SECRETS != 'true'
+        run: ./gradlew :androidApp:lintFdroidDebug :androidApp:lintGplayDebug
 
       - name: Generate Kover XML report
         run: ./gradlew koverXmlReport

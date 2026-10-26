@@ -222,3 +222,8 @@ deleted — see `/finalize`.
   operation trips the classifier on a cross-repo write isn't stable session to session. Left the
   commit made locally in `grappim-kit` (unpushed) and flagged it rather than retrying or routing
   around it.
+- 2026-10-26 (reviewing outside PR #105): `git fetch origin pull/105/head` + a worktree +
+  `./gradlew …ktlintCheck …detekt` against a fork's branch was refused by the auto-mode classifier
+  ("Code from External") — running an outside contributor's build scripts locally needs explicit
+  user approval. Reviewed from `gh pr diff` alone and relied on the PR's own CI run, which is
+  what surfaced the fork-secrets gap fixed in #106.
