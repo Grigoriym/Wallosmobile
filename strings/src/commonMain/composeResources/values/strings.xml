@@ -323,4 +323,5 @@
     <string name="error_validation">The server rejected the request.</string>
     <string name="error_in_use">That item is still in use elsewhere.</string>
     <string name="error_server">The Wallos server ran into an error. Try again.</string>
+    <string name="error_proxy_auth">Something in front of Wallos asked for credentials before letting the app through. Check this server's custom headers.</string>
 </resources>

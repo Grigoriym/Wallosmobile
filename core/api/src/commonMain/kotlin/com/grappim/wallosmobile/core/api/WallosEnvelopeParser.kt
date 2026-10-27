@@ -28,10 +28,13 @@ class WallosEnvelopeParser {
     /**
      * Decodes [body] as [T], or throws the [WallosError] the response describes.
      *
-     * @param statusCode the HTTP status. Only `404` and `5xx` mean anything — every API-level
-     * failure arrives as `200`.
+     * @param statusCode the HTTP status. Only `401`/`407`, `404` and `5xx` mean anything — every
+     * API-level failure arrives as `200`, so a `401`/`407` is a proxy in front of Wallos.
      */
     fun <T> parse(statusCode: Int, body: String, deserializer: DeserializationStrategy<T>): T {
+        if (statusCode == HTTP_UNAUTHORIZED || statusCode == HTTP_PROXY_AUTH_REQUIRED) {
+            throw WallosError.ProxyAuthRequired
+        }
         if (statusCode == HTTP_NOT_FOUND) throw WallosError.UnsupportedEndpoint
         if (statusCode >= HTTP_SERVER_ERROR) {
             throw WallosError.Server(body.ifBlank { "HTTP $statusCode" })
@@ -114,7 +117,9 @@ class WallosEnvelopeParser {
         }
 
         const val JSON_START = '{'
+        const val HTTP_UNAUTHORIZED = 401
         const val HTTP_NOT_FOUND = 404
+        const val HTTP_PROXY_AUTH_REQUIRED = 407
         const val HTTP_SERVER_ERROR = 500
 
         const val KEY_SUCCESS = "success"

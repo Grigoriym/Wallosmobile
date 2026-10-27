@@ -1656,9 +1656,14 @@ client certificate — a separate feature (Android `KeyChain` + an `X509KeyManag
   An HTTP-level `401` is never Wallos itself (it answers `200` to everything, §4.3), so it can be
   mapped to "the server asked for authentication — check custom headers" without guessing. So can
   a **cross-host redirect**: Wallos only redirects relatively (`.`, `totp.php`, `login.php`), so a
-  web-login `302` to an absolute URL on another host (today read as `LoggedIn`), or an API
-  response whose final URL left the server's host, is a proxy sending the app to its login page
-  (Pangolin without "Extended Compatibility").
+  `3xx` whose `Location` is an absolute URL on another host is a proxy sending the app to its login
+  page (Pangolin without "Extended Compatibility"). Both become `WallosError.ProxyAuthRequired`
+  (`error_proxy_auth`), decided by one pure predicate, `isProxyRejection` (`core:api`):
+  `WallosEnvelopeParser` handles `401`/`407`; `WallosApiClient` checks the redirect before parsing
+  — it sees the `3xx` itself, because Ktor's `HttpRedirect` follows only `GET`/`HEAD` and every API
+  call is a POST; and the web-login/TOTP interpreters throw it ahead of their outcome tables, where
+  a `401` read as a refused password and a `302` as `LoggedIn`. A same-host absolute redirect
+  (`http` → `https`) stays `Malformed` — that one is the URL's fault.
 
 **Repro.** A throwaway nginx `auth_basic` front in front of the local instance reproduces
 Pangolin's Header Auth exactly (`Authorization: Basic`) — recipe in `docs/local-info.txt`,

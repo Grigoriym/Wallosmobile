@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `6/8`
-**Current step:** 28.7 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro), 28.2 (design questions), 28.3 (`CustomHeadersStorage`), 28.4 (the `CustomHeaders` Ktor plugin on all three clients), 28.5 (login screen's custom-headers section) and 28.6 (Settings sub-screen) done same day. Previously: M27 done 2026-08-15. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `7/8`
+**Current step:** 28.8 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro), 28.2 (design questions), 28.3 (`CustomHeadersStorage`), 28.4 (the `CustomHeaders` Ktor plugin on all three clients), 28.5 (login screen's custom-headers section), 28.6 (Settings sub-screen) and 28.7 (`WallosError.ProxyAuthRequired`) done same day. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -799,7 +799,7 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   error→string mapping are a copy of login's `CustomHeadersSection` — a feature `ui` can't depend
   on another, and `uikit` has neither `:strings` nor `core:storage`. Previews not rendered (no IDE).
 
-- [ ] **28.7 — A proxy `401`/`407` gets its own error message**
+- [x] **28.7 — A proxy `401`/`407` gets its own error message**
   New `WallosError` case (or reuse per 28.2), mapped from the HTTP status (Wallos itself never
   sends one, plan §4.3), copy pointing at custom headers. **Two call sites** (28.1's `Note:`):
   `WallosEnvelopeParser` (API path, today `error_not_wallos`) and `LoginOutcomeInterpreter` (web
@@ -807,6 +807,17 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   cross-host redirect — a web-login `302` with an absolute `Location` on another host, or an API
   response whose final `request.url` host isn't the server's.
   *Verify:* parser + interpreter tests for 401/407 and the cross-host redirect, `getErrorMessage` test, `detekt ktlintCheck`.
+
+  Note: done 2026-10-27. New `WallosError.ProxyAuthRequired` → `error_proxy_auth`. One pure
+  predicate, `isProxyRejection(status, location, requestHost)` (`core:api`), shared by
+  `WallosApiClient` and both web-login interpreters (`totp.php` too — same `401`/`302` misreading);
+  the interpreters **throw** it rather than growing a `WebLoginOutcome` case, so it reaches
+  `getErrorMessage` like any other failure. The parser itself handles `401`/`407` only: 28.2's
+  "final `request.url` host" check was wrong — Ktor's `HttpRedirect` follows only `GET`/`HEAD`
+  (`checkHttpMethod`), and every API call is a POST, so a proxy's redirect reaches
+  `WallosApiClient` as the `3xx` itself; the client checks its `Location` against the host the
+  request went to before parsing. A same-host absolute redirect (`http`→`https`) still reads as
+  `Malformed` (wrong URL), not as the proxy.
 
 - [ ] **28.8 — "After" on device, then close out**
   Same front as 28.1. Without headers → 28.7's message. With

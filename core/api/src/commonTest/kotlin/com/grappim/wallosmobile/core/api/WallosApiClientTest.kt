@@ -13,6 +13,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
+import io.ktor.http.headersOf
 import io.ktor.utils.io.InternalAPI
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -81,6 +82,41 @@ class WallosApiClientTest {
         assertFailsWith<WallosError.Unauthenticated> { client.post<VersionEnvelope>(PATH) }
     }
 
+    // --- 28.7: proxy rejection ------------------------------------------------------------------
+
+    /** Ktor follows no redirect for a POST, so a proxy's login-page redirect arrives as itself. */
+    @Test
+    fun `a redirect to another host is a proxy login page`() = runTest {
+        val client = apiClient(
+            apiKey = "s3cr3tk3y",
+            responseBody = "",
+            status = HttpStatusCode.Found,
+            location = "https://auth.example.com/login?redirect=wallos"
+        )
+
+        assertFailsWith<WallosError.ProxyAuthRequired> { client.post<VersionEnvelope>(PATH) }
+    }
+
+    @Test
+    fun `a redirect that stays on the server is not blamed on a proxy`() = runTest {
+        val client = apiClient(
+            apiKey = "s3cr3tk3y",
+            responseBody = "",
+            status = HttpStatusCode.MovedPermanently,
+            location = "https://localhost/api/status/version.php"
+        )
+
+        assertFailsWith<WallosError.Malformed> { client.post<VersionEnvelope>(PATH) }
+    }
+
+    @Test
+    fun `a 401 is a proxy asking for credentials`() = runTest {
+        val client =
+            apiClient(apiKey = "s3cr3tk3y", responseBody = "<html>401</html>", status = HttpStatusCode.Unauthorized)
+
+        assertFailsWith<WallosError.ProxyAuthRequired> { client.post<VersionEnvelope>(PATH) }
+    }
+
     // --- 7.9: multipart -------------------------------------------------------------------------
 
     @OptIn(InternalAPI::class)
@@ -132,11 +168,13 @@ class WallosApiClientTest {
         apiKey: String?,
         responseBody: String = SUCCESS_BODY,
         status: HttpStatusCode = HttpStatusCode.OK,
+        location: String? = null,
         onRequest: (HttpRequestData) -> Unit = {}
     ): WallosApiClient {
         val engine = MockEngine { request ->
             onRequest(request)
-            respond(content = responseBody, status = status)
+            val headers = location?.let { headersOf(HttpHeaders.Location, it) } ?: headersOf()
+            respond(content = responseBody, status = status, headers = headers)
         }
         return WallosApiClient(
             httpClient = HttpClient(engine),

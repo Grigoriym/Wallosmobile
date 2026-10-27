@@ -11,6 +11,7 @@ import com.grappim.wallosmobile.strings.generated.resources.error_in_use
 import com.grappim.wallosmobile.strings.generated.resources.error_invalid_api_key
 import com.grappim.wallosmobile.strings.generated.resources.error_not_found
 import com.grappim.wallosmobile.strings.generated.resources.error_not_wallos
+import com.grappim.wallosmobile.strings.generated.resources.error_proxy_auth
 import com.grappim.wallosmobile.strings.generated.resources.error_server
 import com.grappim.wallosmobile.strings.generated.resources.error_unreachable
 import com.grappim.wallosmobile.strings.generated.resources.error_validation
@@ -31,7 +32,8 @@ class GetErrorMessageTest {
         WallosError.NotFound("Unauthorized or Not Found") to RString.error_not_found,
         WallosError.Validation("Error", "name is required") to RString.error_validation,
         WallosError.InUse("Category in use") to RString.error_in_use,
-        WallosError.Server("Database error") to RString.error_server
+        WallosError.Server("Database error") to RString.error_server,
+        WallosError.ProxyAuthRequired to RString.error_proxy_auth
     )
 
     @Test
