@@ -51,6 +51,9 @@ N" trigger and launch the step immediately. Corrected 2026-08-11.
    2026-08-14, in the same breath as asking for PRs at all — the user merges, watching costs
    usage for no benefit. One commit still lands on `dev` per step; the PR is a checkpoint before it
    lands, not a batching mechanism.
+   **Edit a PR's body with `gh api repos/Grigoriym/Wallosmobile/pulls/<n> -X PATCH -F body=@file`,
+   not `gh pr edit`** — the latter fails on this repo with `GraphQL: Projects (classic) is being
+   deprecated … (repository.pullRequest.projectCards)` (hit twice: PR #14, PR #107).
 
 **Decomposing a new milestone is its own commit, made the moment it happens — not left
 for the session that does step 1 to discover via `git status`.** Every milestone from M3
