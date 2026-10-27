@@ -130,6 +130,41 @@ placeholders until they recompose (scroll them off and on).
 
 
 ================================================================================
+Reverse-proxy header auth (Pangolin-style) — a throwaway Basic-auth front, M28
+================================================================================
+
+Pangolin's resource "Header Auth" checks `Authorization: Basic base64(user:pass)`; nginx's
+`auth_basic` is the same check. Plain HTTP is fine — header auth is independent of TLS.
+
+  mkdir headerauth && cd headerauth
+  printf 'pangolin:%s\n' "$(openssl passwd -apr1 secret)" > htpasswd
+  cat > nginx.conf <<'EOF'
+  server {
+      listen 8285;
+      client_max_body_size 10m;
+      location / {
+          auth_basic "Pangolin header auth (test)";
+          auth_basic_user_file /etc/nginx/htpasswd;
+          proxy_set_header Host $http_host;
+          proxy_set_header Authorization "";
+          proxy_pass http://wallos:80;
+      }
+  }
+  EOF
+  docker run -d --name wallos-headerauth --network wallos_default -p 8285:8285 \
+    -v $(pwd)/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
+    -v $(pwd)/htpasswd:/etc/nginx/htpasswd:ro nginx:alpine
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8285/api/status/version.php  # 401
+  curl -s -u pangolin:secret http://localhost:8285/api/status/version.php                 # Wallos JSON
+
+App server URL: `http://10.0.2.2:8285`. Header to configure in the app:
+`Authorization: Basic cGFuZ29saW46c2VjcmV0` (`echo -n pangolin:secret | base64`).
+`docker logs wallos-headerauth` shows 401 vs 200 per request — the proof for Coil's logo loads,
+which the Ktor logger never sees. `docker rm -f wallos-headerauth` when done.
+
+
+================================================================================
 Any other server-side setting — build a scratch instance the same way
 ================================================================================
 

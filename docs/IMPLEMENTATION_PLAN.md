@@ -1586,6 +1586,53 @@ The prompt itself is 3.8, and it lives on the **login screen only**:
   — **decided against, 2026-08-09** (`docs/CHECKLIST.md`'s "To review": not worth ~13 extra call
   sites for a rare event that already has a working, if clunkier, fallback message).
 
+### 4.5b Custom request headers — reverse-proxy auth (planned 2026-10-27, M28)
+
+**Why.** Users who expose Wallos through an authenticating reverse proxy can't get past the proxy:
+the app never sends what the proxy asks for, so the very first request (`api/status/version.php`,
+the login probe) is rejected before it reaches Wallos. Surfaced by PR #105 (an outside
+contribution adding "allow self-signed", declined — it disabled all chain *and* hostname checks
+globally and did not address the reporter's actual failure). The reporter runs Wallos behind
+**Pangolin**, whose resource **Header Auth** checks `Authorization: Basic base64(user:pass)`
+([docs](https://docs.pangolin.net/manage/resources/public/authentication)); other proxies use
+other names (Cloudflare Access's `CF-Access-Client-Id`/`-Secret`, arbitrary `X-…` tokens). So the
+feature is **user-defined headers sent on every request to the server**, not a Pangolin-specific
+Basic-auth field.
+
+**Not this milestone: mTLS.** The reporter's logcat
+(`TLSV1_ALERT_CERTIFICATE_REQUIRED`) shows their Pangolin resource was *also* set to require a
+client certificate — a separate feature (Android `KeyChain` + an `X509KeyManager` in the engine's
+`SSLContext`, an Activity-bound picker in `androidApp`), much larger, and with no confirmed user
+(their mTLS fails in other apps too). Revisit only on demand.
+
+**Shape, to be confirmed by M28's own checks (28.2) before code:**
+
+- **Storage** — a `CustomHeadersStorage` in `core:storage`, same shape as `ServerUrlStorage`: a
+  **non-suspend cached read**, because the consumer is Ktor's `defaultRequest` block (§4.1), which
+  can't suspend. Values are credentials, so encrypted with `SecretCipher` like the API key (§4.7).
+  It belongs to the *server*, not the account: survives `ApiKeyStorage.clear()` the way the URL
+  does.
+- **Applied to all three clients** — `provideHttpClient`, `provideWebSessionHttpClient`
+  (`NetworkModule`) and Coil's client in `AppModule.provideImageLoader`. Coil's is the easy one to
+  miss: without it logos 401 behind the proxy while data loads (the same trap §4.5 hit with the
+  trust engine).
+- **Scoped to the server's host.** Headers go only on requests whose host/port matches the stored
+  server URL — a credential must never ride along to a third-party host (an external logo URL).
+- **Never logged.** `Logging` at `LogLevel.ALL` prints request headers; `RedactingLogger` only
+  scrubs form-body params. Header *values* need Ktor's `sanitizeHeader { }` for every configured
+  name.
+- **Entered on the login screen** (an "Advanced" section, collapsed by default), since the probe is
+  the first request and must already carry them; editable afterwards from Settings.
+- **A proxy rejection gets its own message.** A `401`/`407` from the proxy today falls through
+  `WallosEnvelopeParser` (only `404`/`5xx` mean anything there) into `Malformed` or a generic error.
+  An HTTP-level `401` is never Wallos itself (it answers `200` to everything, §4.3), so it can be
+  mapped to "the server asked for authentication — check custom headers" without guessing.
+
+**Repro.** A throwaway nginx `auth_basic` front in front of the local instance reproduces
+Pangolin's Header Auth exactly (`Authorization: Basic`) — recipe in `docs/local-info.txt`,
+"Reverse-proxy header auth". Confirmed 2026-10-27: no header → `401` nginx HTML; with
+`-u pangolin:secret` → Wallos's own JSON.
+
 ### 4.6 Version gating
 
 Originally planned as: store the `api/status/version.php` result at setup and after each

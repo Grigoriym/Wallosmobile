@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done**
-**Current step:** M27 done 2026-08-15 — next up is decomposing a new milestone. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `0/8`
+**Current step:** 28.1 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -656,6 +656,78 @@ once rather than booting the emulator repeatedly.
   first-enable permission-dialog gotcha) went in `docs/EMULATOR_TESTING.md`; the generic
   enable/disable/touch-exploration/dump-as-audio-substitute technique went into the shared
   `emulator-testing` skill, left uncommitted in `agentic-grappim` for review.
+
+---
+
+## M28 — Custom request headers for reverse-proxy auth (not in plan §8's phase order)
+
+Decomposed 2026-10-27 from PR #105's follow-up (an outside user behind Pangolin couldn't log in).
+Design and rationale: plan §4.5b. **One PR for the whole milestone** (user's call, 2026-10-27):
+this planning commit opens it, the steps below land on the same branch, and it merges once 28.8
+passes. 28.1/28.2 are checks only — no production code — and gate everything after them.
+
+- [ ] **28.1 — Reproduce the "before" state on device**
+  Bring up the `wallos-headerauth` front (`docs/local-info.txt`, "Reverse-proxy header auth"),
+  confirm the two `curl`s (401 / JSON). On the emulator, point the current app at
+  `http://10.0.2.2:8285`, try both login paths, and record exactly what the user sees (error copy,
+  whether the probe misreads it as "not a Wallos server" or "can't reach"), plus the Ktor log line.
+  That copy is what 28.7 replaces and 28.8 compares against.
+  *Verify:* a screenshot + the observed message written into this step's `Note:`.
+
+- [ ] **28.2 — Settle the open design questions (checks, no code)**
+  Each answered in a `Note:` here, and folded into plan §4.5b if it changes the shape:
+  - **Header model**: a list of name/value pairs vs. a single header. Check what Immich/Nextcloud/
+    Jellyfin-style clients offer (list is the common shape) and whether a "Basic auth" convenience
+    (user + password → computed header) is worth it over asking for the base64 value.
+  - **Ktor hook**: `defaultRequest { headers }` vs. a small custom plugin — which one can apply
+    the host-scoping rule (plan §4.5b), and whether `defaultRequest` headers reach absolute-URL
+    requests (Coil's logo loads).
+  - **Log redaction**: confirm Ktor `Logging`'s `sanitizeHeader` API on the pinned Ktor version
+    (sources jar in `~/.gradle/caches`), and that it covers dynamically configured names.
+  - **Header validation**: which names to refuse (`Host`, `Content-Length`, `Content-Type`,
+    `Cookie` — would break Wallos or the web login) and how Ktor treats an invalid name/value.
+  - **What a proxy rejection looks like** across proxies: nginx `401` HTML (28.1); Pangolin
+    without "Extended Compatibility" may redirect to its login page instead (`302` → HTML `200`) —
+    decide whether that case is detectable or just stays generic.
+  - **Settings edit**: where it lives (Settings → server section, next to the connected server
+    from M11) and whether changing headers needs a re-probe or just applies on the next request.
+  *Verify:* every bullet has an answer in this step's `Note:`.
+
+- [ ] **28.3 — `CustomHeadersStorage` in `core:storage`**
+  Interface + DataStore impl per plan §4.5b: encrypted values, non-suspend cached read for
+  `defaultRequest`, a `Flow` for the UI, survives `ApiKeyStorage.clear()`. Fake in `:testing`.
+  *Verify:* `core:storage` host tests (round-trip, encryption at rest, cache served after first
+  read, survives `clear()`), then `detekt ktlintCheck`.
+
+- [ ] **28.4 — Send the headers from all three HTTP clients, host-scoped and redacted**
+  `provideHttpClient`, `provideWebSessionHttpClient`, Coil's client in `AppModule`. Only to the
+  stored server's host; header values sanitized in `Logging`.
+  *Verify:* `MockEngine` host tests — headers present on a server-host request, absent on another
+  host, absent from logged output; `KoinGraphTest`; `detekt ktlintCheck`.
+
+- [ ] **28.5 — Login screen: "Advanced → custom headers" section**
+  Collapsed by default; add/remove rows; saved before the probe runs so the first request carries
+  them. Previews for collapsed/expanded. Strings via `RString`.
+  *Verify:* `LoginViewModelTest` (headers saved before probe; validation from 28.2), previews
+  render, `detekt ktlintCheck`.
+
+- [ ] **28.6 — Settings: edit custom headers after login**
+  Per 28.2's answer. Offline → disabled, like other writes.
+  *Verify:* ViewModel tests, `detekt ktlintCheck`.
+
+- [ ] **28.7 — A proxy `401`/`407` gets its own error message**
+  New `WallosError` case (or reuse per 28.2), mapped in `WallosEnvelopeParser` from the HTTP status
+  (Wallos itself never sends one, plan §4.3), copy pointing at custom headers.
+  *Verify:* parser tests for 401/407, `getErrorMessage` test, `detekt ktlintCheck`.
+
+- [ ] **28.8 — "After" on device, then close out**
+  Same front as 28.1. Without headers → 28.7's message. With
+  `Authorization: Basic cGFuZ29saW46c2VjcmV0` → both login paths succeed, list + dashboard load,
+  **logos load** (`docker logs wallos-headerauth` shows `200` on `images/uploads/logos`, after
+  clearing Coil's disk cache), edit headers in Settings to a wrong value → 28.7's message on
+  refresh. Plain `http://10.0.2.2:8282` with no headers still works (no regression). Reply on PR
+  #105 pointing at this PR.
+  *Verify:* all of the above observed; `allTests detekt ktlintCheck` and both lint tasks green.
 
 ---
 
