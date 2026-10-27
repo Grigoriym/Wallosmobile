@@ -227,3 +227,8 @@ deleted — see `/finalize`.
   ("Code from External") — running an outside contributor's build scripts locally needs explicit
   user approval. Reviewed from `gh pr diff` alone and relied on the PR's own CI run, which is
   what surfaced the fork-secrets gap fixed in #106.
+- 2026-10-27 (28.1): re-running the `wallos-headerauth` `docker run` after the session scratchpad
+  had been emptied made Docker create root-owned *directories* at the missing bind-mount source
+  paths (`nginx.conf/`, `htpasswd/`), so the next attempt failed with "not a directory" and
+  couldn't `rm` them. Recreated the files in a fresh directory instead; the `local-info.txt`
+  recipe builds them in a new `headerauth/` dir every time, which avoids it.
