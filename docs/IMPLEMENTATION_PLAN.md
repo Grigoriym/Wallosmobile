@@ -1605,31 +1605,47 @@ client certificate — a separate feature (Android `KeyChain` + an `X509KeyManag
 `SSLContext`, an Activity-bound picker in `androidApp`), much larger, and with no confirmed user
 (their mTLS fails in other apps too). Revisit only on demand.
 
-**Shape, to be confirmed by M28's own checks (28.2) before code:**
+**Shape** (design questions settled by 28.2, 2026-10-27 — evidence in that step's `Note:`):
 
 - **Storage** — a `CustomHeadersStorage` in `core:storage`, same shape as `ServerUrlStorage`: a
   **non-suspend cached read**, because the consumer is Ktor's `defaultRequest` block (§4.1), which
   can't suspend. Values are credentials, so encrypted with `SecretCipher` like the API key (§4.7).
   It belongs to the *server*, not the account: survives `ApiKeyStorage.clear()` the way the URL
   does.
+- **A list of name/value pairs**, not a single header and no Basic-auth helper — the value hint
+  shows `Basic <base64>` for the Pangolin case.
 - **Applied to all three clients** — `provideHttpClient`, `provideWebSessionHttpClient`
-  (`NetworkModule`) and Coil's client in `AppModule.provideImageLoader`. Coil's is the easy one to
+  (`NetworkModule`) and Coil's client in `AppModule.provideImageLoader` — by one small
+  `createClientPlugin` whose `onRequest` adds them. Not `defaultRequest`: its block never sees the
+  request's URL, so it can't host-scope, and `onRequest` (`HttpRequestPipeline.State`) runs after
+  `DefaultRequest`'s URL merge (`Before`), so the host it checks is final. Coil's is the easy one to
   miss: without it logos 401 behind the proxy while data loads (the same trap §4.5 hit with the
   trust engine).
 - **Scoped to the server's host.** Headers go only on requests whose host/port matches the stored
   server URL — a credential must never ride along to a third-party host (an external logo URL).
 - **Never logged.** `Logging` at `LogLevel.ALL` prints request headers; `RedactingLogger` only
-  scrubs form-body params. Header *values* need Ktor's `sanitizeHeader { }` for every configured
-  name.
+  scrubs form-body params. Header *values* need Ktor's `sanitizeHeader { }`, whose predicate runs
+  per header at log time — so it reads the storage cache and matches configured names
+  `ignoreCase`.
+- **Validated to OkHttp's rule, not Ktor's** — the engine is stricter (printable ASCII only, and
+  it throws at request time): name `0x21..0x7E` minus delimiters, value `0x20..0x7E` or tab,
+  no duplicates, and `Host`/`Content-Length`/`Content-Type`/`Transfer-Encoding`/`Upgrade`/
+  `Connection`/`Cookie` refused.
 - **Entered on the login screen** (an "Advanced" section, collapsed by default), since the probe is
-  the first request and must already carry them; editable afterwards from Settings.
+  the first request and must already carry them; editable afterwards from a Settings sub-screen
+  under the Server field. An edit needs no re-probe — it applies on the next request, and a wrong
+  value surfaces as the proxy-rejection message below on the next refresh.
 - **A proxy rejection gets its own message.** Today a `401`/`407` from the proxy is misreported
   on both login paths (confirmed on device, 28.1): the API-key path falls through
   `WallosEnvelopeParser` (only `404`/`5xx` mean anything there) into `Malformed` → "Nothing that
   looks like Wallos answered", and the password path's `LoginOutcomeInterpreter` reads the
   non-`302` as "Wallos didn't accept that username and password".
   An HTTP-level `401` is never Wallos itself (it answers `200` to everything, §4.3), so it can be
-  mapped to "the server asked for authentication — check custom headers" without guessing.
+  mapped to "the server asked for authentication — check custom headers" without guessing. So can
+  a **cross-host redirect**: Wallos only redirects relatively (`.`, `totp.php`, `login.php`), so a
+  web-login `302` to an absolute URL on another host (today read as `LoggedIn`), or an API
+  response whose final URL left the server's host, is a proxy sending the app to its login page
+  (Pangolin without "Extended Compatibility").
 
 **Repro.** A throwaway nginx `auth_basic` front in front of the local instance reproduces
 Pangolin's Header Auth exactly (`Authorization: Basic`) — recipe in `docs/local-info.txt`,

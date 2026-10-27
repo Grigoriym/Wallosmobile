@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `1/8`
-**Current step:** 28.2 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro) done same day. Previously: M27 done 2026-08-15. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `2/8`
+**Current step:** 28.3 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro) and 28.2 (design questions) done same day. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -687,7 +687,7 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   So 28.7 has two call sites, not one: the envelope parser **and** the web-login outcome
   interpreter must both recognise an HTTP `401`/`407` as the proxy.
 
-- [ ] **28.2 — Settle the open design questions (checks, no code)**
+- [x] **28.2 — Settle the open design questions (checks, no code)**
   Each answered in a `Note:` here, and folded into plan §4.5b if it changes the shape:
   - **Header model**: a list of name/value pairs vs. a single header. Check what Immich/Nextcloud/
     Jellyfin-style clients offer (list is the common shape) and whether a "Basic auth" convenience
@@ -706,6 +706,38 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
     from M11) and whether changing headers needs a re-probe or just applies on the next request.
   *Verify:* every bullet has an answer in this step's `Note:`.
 
+  Note: done 2026-10-27, read off Ktor 3.5.2's sources jars and Pangolin's docs; folded into plan
+  §4.5b.
+  - **Header model** → a **list** of name/value pairs (Immich's "custom proxy headers" shape). No
+    Basic-auth convenience this milestone: the value field's hint shows `Basic <base64>`.
+  - **Ktor hook** → a **custom `createClientPlugin`**, not `defaultRequest`. The `defaultRequest`
+    block only sees its own fresh `DefaultRequestBuilder` (headers + an empty url), never the
+    request's URL, so it can't host-scope — and on Coil's client, whose requests are absolute
+    URLs, it would add the headers to every host. `onRequest` runs in `HttpRequestPipeline.State`,
+    *after* `DefaultRequest`'s `Before`-phase URL merge, so `request.url.host`/`port` is final.
+  - **Log redaction** → `LoggingConfig.sanitizeHeader(placeholder, predicate: (String) -> Boolean)`
+    exists on 3.5.2; the predicate runs per header at log time (`SendHook`, after `onRequest`), so
+    reading the storage cache inside it covers dynamically configured names. It receives the name
+    as appended — compare `ignoreCase`. Output is `name: ██`.
+  - **Header validation** → Ktor's `HeadersBuilder` rejects names with chars `<= ' '` or
+    delimiters and values with control chars, but the **OkHttp engine is stricter** (printable
+    ASCII only, throws at request time on non-ASCII), so the validator enforces OkHttp's rule:
+    name non-empty, `0x21..0x7E`, no `"(),/:;<=>?@[\]{}`; value `0x20..0x7E` or tab. Refused names
+    (case-insensitive): `Host`, `Content-Length`, `Content-Type`, `Transfer-Encoding`/`Upgrade`
+    (Ktor's `UnsafeHeadersList` — the engine throws `UnsafeHeaderException`), `Connection`,
+    `Cookie` (the web login's session). Duplicate names refused.
+  - **Proxy rejection** → `401`/`407` is the confirmed shape (nginx, 28.1; Pangolin's docs say
+    "Extended Compatibility" exists to force a `401`). The redirect-to-login case **is detectable**:
+    Wallos only ever redirects *relatively* (`.`, `totp.php`, `login.php`), so a web-login `302`
+    whose `Location` is an absolute URL on another host, or an API response whose final
+    `request.url` host differs from the server's (that client follows redirects), is the proxy.
+    Today `interpretLoginOutcome` reads such a `302` as `LoggedIn`. Added to 28.7 as a second
+    trigger; unconfirmed against a real Pangolin, so `MockEngine` tests only.
+  - **Settings edit** → a "Custom headers" row under the Server field opens its own sub-screen
+    route (registered in `NavKeySerializers`). **No re-probe**: the plugin reads the cache per
+    request, so a change applies on the next request, and a wrong value surfaces as 28.7's message
+    on the next refresh — exactly what 28.8 checks.
+
 - [ ] **28.3 — `CustomHeadersStorage` in `core:storage`**
   Interface + DataStore impl per plan §4.5b: encrypted values, non-suspend cached read for
   `defaultRequest`, a `Flow` for the UI, survives `ApiKeyStorage.clear()`. Fake in `:testing`.
@@ -713,8 +745,9 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   read, survives `clear()`), then `detekt ktlintCheck`.
 
 - [ ] **28.4 — Send the headers from all three HTTP clients, host-scoped and redacted**
-  `provideHttpClient`, `provideWebSessionHttpClient`, Coil's client in `AppModule`. Only to the
-  stored server's host; header values sanitized in `Logging`.
+  `provideHttpClient`, `provideWebSessionHttpClient`, Coil's client in `AppModule`, via one
+  `createClientPlugin` (`onRequest`, 28.2). Only to the stored server's host; header values
+  sanitized in `Logging` via `sanitizeHeader`.
   *Verify:* `MockEngine` host tests — headers present on a server-host request, absent on another
   host, absent from logged output; `KoinGraphTest`; `detekt ktlintCheck`.
 
@@ -732,8 +765,10 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   New `WallosError` case (or reuse per 28.2), mapped from the HTTP status (Wallos itself never
   sends one, plan §4.3), copy pointing at custom headers. **Two call sites** (28.1's `Note:`):
   `WallosEnvelopeParser` (API path, today `error_not_wallos`) and `LoginOutcomeInterpreter` (web
-  login, today "Wallos didn't accept that username and password").
-  *Verify:* parser + interpreter tests for 401/407, `getErrorMessage` test, `detekt ktlintCheck`.
+  login, today "Wallos didn't accept that username and password"). Second trigger (28.2): a
+  cross-host redirect — a web-login `302` with an absolute `Location` on another host, or an API
+  response whose final `request.url` host isn't the server's.
+  *Verify:* parser + interpreter tests for 401/407 and the cross-host redirect, `getErrorMessage` test, `detekt ktlintCheck`.
 
 - [ ] **28.8 — "After" on device, then close out**
   Same front as 28.1. Without headers → 28.7's message. With
