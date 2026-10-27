@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.core.api
 
 import com.grappim.kit.appinfo.AppInfoProvider
 import com.grappim.kit.storage.cert.TrustedCertStorage
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage
@@ -41,7 +42,8 @@ class NetworkModule {
     fun provideHttpClient(
         baseUrlProvider: BaseUrlProvider,
         appInfoProvider: AppInfoProvider,
-        trustedCertStorage: TrustedCertStorage
+        trustedCertStorage: TrustedCertStorage,
+        customHeadersStorage: CustomHeadersStorage
     ): HttpClient = HttpClient(createPlatformHttpClientEngine(trustedCertStorage)) {
         // Wallos answers 200 to auth and validation failures alike; the status carries no
         // API-level meaning, so raising on it would be raising on nothing.
@@ -49,9 +51,14 @@ class NetworkModule {
         defaultRequest {
             url(baseUrlProvider.getBaseUrl())
         }
+        install(CustomHeaders) {
+            storage = customHeadersStorage
+            serverUrl = baseUrlProvider::getBaseUrl
+        }
         install(Logging) {
             logger = RedactingLogger(tag = "Ktor")
             level = if (appInfoProvider.isDebug()) LogLevel.ALL else LogLevel.NONE
+            sanitizeCustomHeaders(customHeadersStorage)
         }
         install(HttpRequestRetry) {
             retryOnExceptionIf(maxRetries = 1) { request, _ ->
@@ -69,7 +76,8 @@ class NetworkModule {
     fun provideWebSessionHttpClient(
         baseUrlProvider: BaseUrlProvider,
         appInfoProvider: AppInfoProvider,
-        trustedCertStorage: TrustedCertStorage
+        trustedCertStorage: TrustedCertStorage,
+        customHeadersStorage: CustomHeadersStorage
     ): HttpClient = HttpClient(createPlatformHttpClientEngine(trustedCertStorage)) {
         // The redirect *is* the result: 302 means the credentials were accepted, and a
         // `Location` of `totp.php` means a second factor is pending (plan §1.1).
@@ -78,12 +86,17 @@ class NetworkModule {
         defaultRequest {
             url(baseUrlProvider.getBaseUrl())
         }
+        install(CustomHeaders) {
+            storage = customHeadersStorage
+            serverUrl = baseUrlProvider::getBaseUrl
+        }
         install(HttpCookies) {
             storage = AcceptAllCookiesStorage()
         }
         install(Logging) {
             logger = RedactingLogger(tag = "KtorWeb")
             level = if (appInfoProvider.isDebug()) LogLevel.ALL else LogLevel.NONE
+            sanitizeCustomHeaders(customHeadersStorage)
         }
     }
 }

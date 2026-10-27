@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `3/8`
-**Current step:** 28.4 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro), 28.2 (design questions) and 28.3 (`CustomHeadersStorage`) done same day. Previously: M27 done 2026-08-15. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `4/8`
+**Current step:** 28.5 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro), 28.2 (design questions), 28.3 (`CustomHeadersStorage`) and 28.4 (the `CustomHeaders` Ktor plugin on all three clients) done same day. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -754,12 +754,22 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   both storage tests share it. Survives-`clear()` lives in `ApiKeyStorageImplTest`, next to the
   theme-mode one.
 
-- [ ] **28.4 — Send the headers from all three HTTP clients, host-scoped and redacted**
+- [x] **28.4 — Send the headers from all three HTTP clients, host-scoped and redacted**
   `provideHttpClient`, `provideWebSessionHttpClient`, Coil's client in `AppModule`, via one
   `createClientPlugin` (`onRequest`, 28.2). Only to the stored server's host; header values
   sanitized in `Logging` via `sanitizeHeader`.
   *Verify:* `MockEngine` host tests — headers present on a server-host request, absent on another
   host, absent from logged output; `KoinGraphTest`; `detekt ktlintCheck`.
+
+  Note: done 2026-10-27. `CustomHeaders` (`core:api`) hooks **`SendingRequest`, not `onRequest`**
+  — 28.2 missed that `onRequest` runs for the first hop only while `HttpRedirect` copies headers
+  onto every hop and strips only `Authorization` cross-authority, so the API client (which follows
+  redirects) and Coil's would have sent an `X-…` token to wherever a redirect pointed. Each hop now
+  removes the configured names and re-adds them only on the server's origin — scheme + host + port
+  (`isServerOrigin`), slightly stricter than "host/port". Coil's client reads `ServerUrlStorage`,
+  not `BaseUrlProvider` (not on `:androidApp`'s classpath for `AppModule`'s re-check). Tests
+  mutation-checked: dropping the per-hop removal fails the redirect test, dropping
+  `sanitizeCustomHeaders` fails the log test. Plan §4.5b updated.
 
 - [ ] **28.5 — Login screen: "Advanced → custom headers" section**
   Collapsed by default; add/remove rows; saved before the probe runs so the first request carries

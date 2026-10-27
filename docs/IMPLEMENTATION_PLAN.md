@@ -1618,13 +1618,19 @@ client certificate — a separate feature (Android `KeyChain` + an `X509KeyManag
   shows `Basic <base64>` for the Pangolin case.
 - **Applied to all three clients** — `provideHttpClient`, `provideWebSessionHttpClient`
   (`NetworkModule`) and Coil's client in `AppModule.provideImageLoader` — by one small
-  `createClientPlugin` whose `onRequest` adds them. Not `defaultRequest`: its block never sees the
-  request's URL, so it can't host-scope, and `onRequest` (`HttpRequestPipeline.State`) runs after
-  `DefaultRequest`'s URL merge (`Before`), so the host it checks is final. Coil's is the easy one to
-  miss: without it logos 401 behind the proxy while data loads (the same trap §4.5 hit with the
-  trust engine).
-- **Scoped to the server's host.** Headers go only on requests whose host/port matches the stored
-  server URL — a credential must never ride along to a third-party host (an external logo URL).
+  `createClientPlugin`, `CustomHeaders` (`core:api`), hooked on **`SendingRequest`**. Not
+  `defaultRequest`: its block never sees the request's URL, so it can't host-scope. Not
+  `onRequest` either (28.2's first answer, corrected in 28.4): that runs for the first hop only,
+  and `HttpRedirect` copies the original request's headers onto every redirected hop, stripping
+  only `Authorization` across authorities — so an `X-…` token would follow a redirect off the
+  server. `SendingRequest` (`HttpSendPipeline.State`) runs once per hop, after `DefaultRequest`'s
+  URL merge and before `Logging`'s `Monitoring`-phase hook; each hop removes the configured names
+  and re-adds them only while it is still on the server. Coil's is the easy one to miss: without
+  it logos 401 behind the proxy while data loads (the same trap §4.5 hit with the trust engine);
+  it reads `ServerUrlStorage` directly, since `BaseUrlProvider` isn't on `:androidApp`'s classpath.
+- **Scoped to the server's origin** — scheme, host (case-insensitive) and port must all match the
+  stored server URL (`isServerOrigin`), so a credential never rides along to a third-party host
+  (an external logo URL, a proxy's login page) or over plain `http` to an `https` server.
 - **Never logged.** `Logging` at `LogLevel.ALL` prints request headers; `RedactingLogger` only
   scrubs form-body params. Header *values* need Ktor's `sanitizeHeader { }`, whose predicate runs
   per header at log time — so it reads the storage cache and matches configured names
