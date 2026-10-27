@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `0/8`
-**Current step:** 28.1 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27. Previously: M27 done 2026-08-15. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `1/8`
+**Current step:** 28.2 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro) done same day. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -666,13 +666,26 @@ Design and rationale: plan §4.5b. **One PR for the whole milestone** (user's ca
 this planning commit opens it, the steps below land on the same branch, and it merges once 28.8
 passes. 28.1/28.2 are checks only — no production code — and gate everything after them.
 
-- [ ] **28.1 — Reproduce the "before" state on device**
+- [x] **28.1 — Reproduce the "before" state on device**
   Bring up the `wallos-headerauth` front (`docs/local-info.txt`, "Reverse-proxy header auth"),
   confirm the two `curl`s (401 / JSON). On the emulator, point the current app at
   `http://10.0.2.2:8285`, try both login paths, and record exactly what the user sees (error copy,
   whether the probe misreads it as "not a Wallos server" or "can't reach"), plus the Ktor log line.
   That copy is what 28.7 replaces and 28.8 compares against.
   *Verify:* a screenshot + the observed message written into this step's `Note:`.
+
+  Note: done 2026-10-27, current `dev` app, `http://10.0.2.2:8285`, front answering `401` to
+  every request without the header. **Both paths blame the wrong thing, differently:**
+  - **Password path** → *"Wallos didn't accept that username and password."* The probe's
+    `GET login.php` gets `401` (→ `Unknown`, so the path stays offered), then `POST login.php`
+    gets `401` (`KtorWeb : RESPONSE: 401 Unauthorized`) and `LoginOutcomeInterpreter` reads a
+    non-`302` as rejected credentials. Worst of the two: it sends the user to retype a correct
+    password.
+  - **API-key path** → *"Nothing that looks like Wallos answered at that address. Check the server
+    URL."* (`error_not_wallos`): `api/status/version.php` gets `401` + nginx HTML
+    (`Ktor : RESPONSE: 401 Unauthorized`), which `WallosEnvelopeParser` turns into `Malformed`.
+  So 28.7 has two call sites, not one: the envelope parser **and** the web-login outcome
+  interpreter must both recognise an HTTP `401`/`407` as the proxy.
 
 - [ ] **28.2 — Settle the open design questions (checks, no code)**
   Each answered in a `Note:` here, and folded into plan §4.5b if it changes the shape:
@@ -716,9 +729,11 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   *Verify:* ViewModel tests, `detekt ktlintCheck`.
 
 - [ ] **28.7 — A proxy `401`/`407` gets its own error message**
-  New `WallosError` case (or reuse per 28.2), mapped in `WallosEnvelopeParser` from the HTTP status
-  (Wallos itself never sends one, plan §4.3), copy pointing at custom headers.
-  *Verify:* parser tests for 401/407, `getErrorMessage` test, `detekt ktlintCheck`.
+  New `WallosError` case (or reuse per 28.2), mapped from the HTTP status (Wallos itself never
+  sends one, plan §4.3), copy pointing at custom headers. **Two call sites** (28.1's `Note:`):
+  `WallosEnvelopeParser` (API path, today `error_not_wallos`) and `LoginOutcomeInterpreter` (web
+  login, today "Wallos didn't accept that username and password").
+  *Verify:* parser + interpreter tests for 401/407, `getErrorMessage` test, `detekt ktlintCheck`.
 
 - [ ] **28.8 — "After" on device, then close out**
   Same front as 28.1. Without headers → 28.7's message. With

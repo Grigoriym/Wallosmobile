@@ -1623,8 +1623,11 @@ client certificate — a separate feature (Android `KeyChain` + an `X509KeyManag
   name.
 - **Entered on the login screen** (an "Advanced" section, collapsed by default), since the probe is
   the first request and must already carry them; editable afterwards from Settings.
-- **A proxy rejection gets its own message.** A `401`/`407` from the proxy today falls through
-  `WallosEnvelopeParser` (only `404`/`5xx` mean anything there) into `Malformed` or a generic error.
+- **A proxy rejection gets its own message.** Today a `401`/`407` from the proxy is misreported
+  on both login paths (confirmed on device, 28.1): the API-key path falls through
+  `WallosEnvelopeParser` (only `404`/`5xx` mean anything there) into `Malformed` → "Nothing that
+  looks like Wallos answered", and the password path's `LoginOutcomeInterpreter` reads the
+  non-`302` as "Wallos didn't accept that username and password".
   An HTTP-level `401` is never Wallos itself (it answers `200` to everything, §4.3), so it can be
   mapped to "the server asked for authentication — check custom headers" without guessing.
 
