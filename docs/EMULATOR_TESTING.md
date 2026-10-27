@@ -71,6 +71,10 @@ section and `docs/local-info.txt` — this file only covers the device side.
   again is the fastest way onto a known-clean state when verifying against a different
   Wallos instance. The **stale banner** ("Showing saved data") over a full list is the
   tell that on-screen rows belong to a server that's no longer the configured one.
+- **Re-opening a drawer screen sends no request when its cache is fresh** — to make the
+  Subscriptions list hit the server (e.g. to see a changed header or a dead server surface as the
+  stale banner), pull to refresh (`adb shell input swipe 540 600 540 1600 500`); navigating back to
+  it alone logs nothing (28.8).
 - **Proving a request happened**: `adb logcat -c`, act, then
   `grep -E "REQUEST:|RESPONSE: |failed with exception"` — never `grep Ktor` alone, since
   one `get_subscriptions.php` response body is ~35 rows of JSON that buries everything

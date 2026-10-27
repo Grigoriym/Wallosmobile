@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `7/8`
-**Current step:** 28.8 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro), 28.2 (design questions), 28.3 (`CustomHeadersStorage`), 28.4 (the `CustomHeaders` Ktor plugin on all three clients), 28.5 (login screen's custom-headers section), 28.6 (Settings sub-screen) and 28.7 (`WallosError.ProxyAuthRequired`) done same day. Previously: M27 done 2026-08-15. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `8/8` — **M28 done**
+**Current step:** none — M28 (custom request headers, plan §4.5b) done 2026-10-27, all eight steps on one branch/PR; 28.8's device pass confirmed both login paths with and without the header, logos, the Settings edit and no regression on `:8282`. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -819,7 +819,7 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   request went to before parsing. A same-host absolute redirect (`http`→`https`) still reads as
   `Malformed` (wrong URL), not as the proxy.
 
-- [ ] **28.8 — "After" on device, then close out**
+- [x] **28.8 — "After" on device, then close out**
   Same front as 28.1. Without headers → 28.7's message. With
   `Authorization: Basic cGFuZ29saW46c2VjcmV0` → both login paths succeed, list + dashboard load,
   **logos load** (`docker logs wallos-headerauth` shows `200` on `images/uploads/logos`, after
@@ -827,6 +827,17 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   refresh. Plain `http://10.0.2.2:8282` with no headers still works (no regression). Reply on PR
   #105 pointing at this PR.
   *Verify:* all of the above observed; `allTests detekt ktlintCheck` and both lint tasks green.
+
+  Note: done 2026-10-27, `Medium_Phone_API_36.1`, `wallos-headerauth` on `:8285`. Without headers
+  both paths now show `error_proxy_auth` (*"Something in front of Wallos asked for credentials…"*;
+  `login.php` / `version.php` → `401`) in place of 28.1's two misreadings. With
+  `Authorization: Basic cGFuZ29saW46c2VjcmV0` both paths log in, dashboard + list load, every
+  logged request shows `-> Authorization: ***` and the base64 value appears nowhere in logcat;
+  after a `pm clear` (fresh Coil cache) `docker logs` shows `200 … pangolin` on
+  `images/uploads/logos/*`. A wrong value saved from Settings → Custom headers surfaces on the
+  list's **pull-to-refresh** as the stale banner with the same copy (merely re-opening the list
+  sends no request — the cache is fresh). `http://10.0.2.2:8282`, no headers: password login +
+  dashboard fine, no `Authorization` header logged.
 
 ---
 

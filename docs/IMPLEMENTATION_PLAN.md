@@ -1586,7 +1586,7 @@ The prompt itself is 3.8, and it lives on the **login screen only**:
   — **decided against, 2026-08-09** (`docs/CHECKLIST.md`'s "To review": not worth ~13 extra call
   sites for a rare event that already has a working, if clunkier, fallback message).
 
-### 4.5b Custom request headers — reverse-proxy auth (planned 2026-10-27, M28)
+### 4.5b Custom request headers — reverse-proxy auth (M28, 2026-10-27)
 
 **Why.** Users who expose Wallos through an authenticating reverse proxy can't get past the proxy:
 the app never sends what the proxy asks for, so the very first request (`api/status/version.php`,
@@ -1668,7 +1668,10 @@ client certificate — a separate feature (Android `KeyChain` + an `X509KeyManag
 **Repro.** A throwaway nginx `auth_basic` front in front of the local instance reproduces
 Pangolin's Header Auth exactly (`Authorization: Basic`) — recipe in `docs/local-info.txt`,
 "Reverse-proxy header auth". Confirmed 2026-10-27: no header → `401` nginx HTML; with
-`-u pangolin:secret` → Wallos's own JSON.
+`-u pangolin:secret` → Wallos's own JSON. Confirmed on device the same day (28.8): both login paths, the list,
+the dashboard and Coil's logo loads go through with the header and fail with `error_proxy_auth`
+without it. The cross-host-redirect trigger is covered by `MockEngine` tests only — never seen
+against a real Pangolin.
 
 ### 4.6 Version gating
 
