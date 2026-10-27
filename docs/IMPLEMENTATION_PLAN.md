@@ -1607,11 +1607,13 @@ client certificate — a separate feature (Android `KeyChain` + an `X509KeyManag
 
 **Shape** (design questions settled by 28.2, 2026-10-27 — evidence in that step's `Note:`):
 
-- **Storage** — a `CustomHeadersStorage` in `core:storage`, same shape as `ServerUrlStorage`: a
-  **non-suspend cached read**, because the consumer is Ktor's `defaultRequest` block (§4.1), which
-  can't suspend. Values are credentials, so encrypted with `SecretCipher` like the API key (§4.7).
-  It belongs to the *server*, not the account: survives `ApiKeyStorage.clear()` the way the URL
-  does.
+- **Storage** — `CustomHeadersStorage` (`core:storage`, `customheaders/`), same shape as
+  `ServerUrlStorage`: a **non-suspend cached read** (`currentHeaders`), because the consumer is
+  the per-request Ktor plugin below, plus a `headers` `Flow` for the UI. The whole list is one
+  JSON blob encrypted with `SecretCipher` like the API key (§4.7); a blob that no longer decrypts
+  or decodes reads as no headers, logged without the throwable (its message would carry the
+  decrypted JSON). It belongs to the *server*, not the account: survives `ApiKeyStorage.clear()`
+  the way the URL does.
 - **A list of name/value pairs**, not a single header and no Basic-auth helper — the value hint
   shows `Basic <base64>` for the Pangolin case.
 - **Applied to all three clients** — `provideHttpClient`, `provideWebSessionHttpClient`
