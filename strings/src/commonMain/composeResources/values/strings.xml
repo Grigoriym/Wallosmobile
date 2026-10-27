@@ -272,6 +272,10 @@
     <string name="trusted_cert_revoke_confirm">Revoke</string>
     <string name="trusted_cert_revoke_cancel">Cancel</string>
 
+    <string name="settings_custom_headers">Custom headers</string>
+    <string name="settings_custom_headers_description">Headers a reverse proxy in front of the server asks for</string>
+    <string name="custom_headers_save">Save</string>
+
     <string name="settings_about">About</string>
     <string name="settings_about_description">Version and build info</string>
     <string name="about_version">Version</string>

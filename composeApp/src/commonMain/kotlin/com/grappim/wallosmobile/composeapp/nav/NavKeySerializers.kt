@@ -15,6 +15,7 @@ import com.grappim.wallosmobile.feature.profile.ui.ProfileRoute
 import com.grappim.wallosmobile.feature.settings.ui.SettingsRoute
 import com.grappim.wallosmobile.feature.settings.ui.about.AboutRoute
 import com.grappim.wallosmobile.feature.settings.ui.appearance.InterfaceRoute
+import com.grappim.wallosmobile.feature.settings.ui.customheaders.CustomHeadersRoute
 import com.grappim.wallosmobile.feature.settings.ui.startdestination.StartDestinationRoute
 import com.grappim.wallosmobile.feature.settings.ui.trustedcerts.TrustedCertsRoute
 import com.grappim.wallosmobile.feature.subscriptions.ui.detail.SubscriptionDetailRoute
@@ -42,6 +43,7 @@ internal val navKeySerializersModule = SerializersModule {
         subclass(InterfaceRoute::class)
         subclass(StartDestinationRoute::class)
         subclass(TrustedCertsRoute::class)
+        subclass(CustomHeadersRoute::class)
         subclass(AboutRoute::class)
         subclass(ProfileRoute::class)
         subclass(CategoriesRoute::class)

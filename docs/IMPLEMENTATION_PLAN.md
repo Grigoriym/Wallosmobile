@@ -1645,7 +1645,8 @@ client certificate — a separate feature (Android `KeyChain` + an `X509KeyManag
   stored ones are offered back, since Connect saves whatever the rows hold), since the probe is
   the first request and must already carry them: `LoginViewModel` probes off `combine(url,
   headers)`, saves the headers before asking, and re-probes when they change; editable afterwards from a Settings sub-screen
-  under the Server field. An edit needs no re-probe — it applies on the next request, and a wrong
+  under the Server field (`CustomHeadersRoute`), which saves on an explicit Save — offered only
+  while the rows are valid and differ from what's stored — rather than per keystroke. An edit needs no re-probe — it applies on the next request, and a wrong
   value surfaces as the proxy-rejection message below on the next refresh.
 - **A proxy rejection gets its own message.** Today a `401`/`407` from the proxy is misreported
   on both login paths (confirmed on device, 28.1): the API-key path falls through

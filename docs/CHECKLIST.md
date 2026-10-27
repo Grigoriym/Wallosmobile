@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `5/8`
-**Current step:** 28.6 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro), 28.2 (design questions), 28.3 (`CustomHeadersStorage`), 28.4 (the `CustomHeaders` Ktor plugin on all three clients) and 28.5 (login screen's custom-headers section) done same day. Previously: M27 done 2026-08-15. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `6/8`
+**Current step:** 28.7 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro), 28.2 (design questions), 28.3 (`CustomHeadersStorage`), 28.4 (the `CustomHeaders` Ktor plugin on all three clients), 28.5 (login screen's custom-headers section) and 28.6 (Settings sub-screen) done same day. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -787,9 +787,17 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   the rows hold, so a screen that didn't offer them back would delete them. Previews compile but
   weren't rendered (no IDE in this session); the screen is exercised on device in 28.8.
 
-- [ ] **28.6 — Settings: edit custom headers after login**
+- [x] **28.6 — Settings: edit custom headers after login**
   Per 28.2's answer. Offline → disabled, like other writes.
   *Verify:* ViewModel tests, `detekt ktlintCheck`.
+
+  Note: done 2026-10-27. `customheaders/` in `feature:settings:ui` (`CustomHeadersRoute`, registered
+  in `NavKeySerializers`; a "Custom headers" row under the Server field). Unlike login, edits are
+  **not** saved as typed: an explicit Save, offered only while the rows are valid and differ from
+  what's stored (`isSaveEnabled`, derived), disabled offline. Storage emissions replace the rows
+  only while they still match `saved`, so an edit in progress survives one. The row fields and
+  error→string mapping are a copy of login's `CustomHeadersSection` — a feature `ui` can't depend
+  on another, and `uikit` has neither `:strings` nor `core:storage`. Previews not rendered (no IDE).
 
 - [ ] **28.7 — A proxy `401`/`407` gets its own error message**
   New `WallosError` case (or reuse per 28.2), mapped from the HTTP status (Wallos itself never
