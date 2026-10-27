@@ -60,7 +60,11 @@ onward has one (`git log --oneline | grep decompos`), subject `docs: plan M<N> �
 next session only caught it by noticing the initial `git status` still showed those two
 files modified before it had touched anything. Recovered by splitting the pending diff
 into the missing planning commit plus the step's own — but don't rely on that recovery
-path; commit the decomposition before ending the planning session. Same PR flow as any other
+path; commit the decomposition before ending the planning session. **Planning means writing the
+checks down, not running them** — mid-way through M28's decomposition (2026-10-27) the session
+started booting the emulator to capture the "before" state, and the user stopped it: "let's not go
+that deep, just write down what needs to be done/checked." A cheap confirming `curl` is fine; a
+device repro or a design spike is a step of its own (M28's 28.1/28.2), run when that step is. Same PR flow as any other
 `dev` commit since 2026-08-14 (below) — a milestone-decomposition commit is docs-only, so it
 skips CI but still needs Guardrails green before merging.
 
