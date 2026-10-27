@@ -51,6 +51,20 @@
     <string name="login_cert_trust_confirm">Trust and connect</string>
     <string name="login_cert_trust_cancel">Cancel</string>
 
+    <string name="login_custom_headers_toggle">Advanced: custom headers</string>
+    <string name="custom_headers_description">Sent with every request to this server. Add them when a reverse proxy in front of Wallos asks for authentication.</string>
+    <string name="custom_headers_name_label">Header name</string>
+    <string name="custom_headers_name_placeholder">Authorization</string>
+    <string name="custom_headers_value_label">Value</string>
+    <string name="custom_headers_value_hint">For basic auth: Basic, a space, then user:password in base64.</string>
+    <string name="custom_headers_add">Add header</string>
+    <string name="custom_headers_remove">Remove header</string>
+    <string name="custom_headers_error_missing_name">Enter a header name.</string>
+    <string name="custom_headers_error_invalid_name">Not a valid header name. Use plain letters, digits and dashes.</string>
+    <string name="custom_headers_error_reserved_name">The app sets this header itself.</string>
+    <string name="custom_headers_error_duplicate_name">This header is already in the list.</string>
+    <string name="custom_headers_error_invalid_value">Values can only contain plain ASCII characters.</string>
+
     <string name="login_error_invalid_credentials">Wallos didn't accept that username and password.</string>
     <string name="login_error_invalid_totp">That code wasn't accepted. Codes change every 30 seconds — wait for the next one and try again.</string>
     <string name="login_error_totp_session_expired">The sign-in didn't get as far as the code. Enter your username and password again.</string>

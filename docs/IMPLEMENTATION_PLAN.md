@@ -1638,9 +1638,13 @@ client certificate — a separate feature (Android `KeyChain` + an `X509KeyManag
 - **Validated to OkHttp's rule, not Ktor's** — the engine is stricter (printable ASCII only, and
   it throws at request time): name `0x21..0x7E` minus delimiters, value `0x20..0x7E` or tab,
   no duplicates, and `Host`/`Content-Length`/`Content-Type`/`Transfer-Encoding`/`Upgrade`/
-  `Connection`/`Cookie` refused.
-- **Entered on the login screen** (an "Advanced" section, collapsed by default), since the probe is
-  the first request and must already carry them; editable afterwards from a Settings sub-screen
+  `Connection`/`Cookie` refused. One pure class, `CustomHeaderValidator` (`core:storage`, beside the
+  model, so login and Settings share it), returning a `CustomHeaderError?` per row; a row with
+  both fields blank is unfilled, not wrong, and is never sent.
+- **Entered on the login screen** (an "Advanced" section, collapsed by default — expanded when
+  stored ones are offered back, since Connect saves whatever the rows hold), since the probe is
+  the first request and must already carry them: `LoginViewModel` probes off `combine(url,
+  headers)`, saves the headers before asking, and re-probes when they change; editable afterwards from a Settings sub-screen
   under the Server field. An edit needs no re-probe — it applies on the next request, and a wrong
   value surfaces as the proxy-rejection message below on the next refresh.
 - **A proxy rejection gets its own message.** Today a `401`/`407` from the proxy is misreported

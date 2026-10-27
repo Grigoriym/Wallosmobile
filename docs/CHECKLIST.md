@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `4/8`
-**Current step:** 28.5 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro), 28.2 (design questions), 28.3 (`CustomHeadersStorage`) and 28.4 (the `CustomHeaders` Ktor plugin on all three clients) done same day. Previously: M27 done 2026-08-15. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `5/8`
+**Current step:** 28.6 — M28 (custom request headers, plan §4.5b) decomposed 2026-10-27; 28.1 (before-state repro), 28.2 (design questions), 28.3 (`CustomHeadersStorage`), 28.4 (the `CustomHeaders` Ktor plugin on all three clients) and 28.5 (login screen's custom-headers section) done same day. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -771,11 +771,21 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   mutation-checked: dropping the per-hop removal fails the redirect test, dropping
   `sanitizeCustomHeaders` fails the log test. Plan §4.5b updated.
 
-- [ ] **28.5 — Login screen: "Advanced → custom headers" section**
+- [x] **28.5 — Login screen: "Advanced → custom headers" section**
   Collapsed by default; add/remove rows; saved before the probe runs so the first request carries
   them. Previews for collapsed/expanded. Strings via `RString`.
   *Verify:* `LoginViewModelTest` (headers saved before probe; validation from 28.2), previews
   render, `detekt ktlintCheck`.
+
+  Note: done 2026-10-27. 28.2's rule became `CustomHeaderValidator` (+ `CustomHeaderError`) in
+  `core:storage`'s `customheaders/`, beside the model, so 28.6 reuses it; blank rows are skipped,
+  not errors, and rows are trimmed before validating/saving. `LoginViewModel` injects
+  `CustomHeadersStorage` directly (one storage call, no repository — `feature:setup:ui` gained
+  `core:storage`). The probe now runs off `combine(url, headers)`, saves the headers itself before
+  asking, and **re-probes when they change**; Connect saves them again (skipped at the TOTP step,
+  where the section is hidden). Stored headers are offered back **expanded** — Connect saves what
+  the rows hold, so a screen that didn't offer them back would delete them. Previews compile but
+  weren't rendered (no IDE in this session); the screen is exercised on device in 28.8.
 
 - [ ] **28.6 — Settings: edit custom headers after login**
   Per 28.2's answer. Offline → disabled, like other writes.

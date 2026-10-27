@@ -5,6 +5,10 @@ import com.grappim.kit.domain.UntrustedCertificateException
 import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeader
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeaderError
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeaderValidator
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorage
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
@@ -18,6 +22,7 @@ import com.grappim.wallosmobile.strings.generated.resources.login_error_cert_not
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_credentials
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_totp
 import com.grappim.wallosmobile.strings.generated.resources.login_error_totp_session_expired
+import com.grappim.wallosmobile.testing.FakeCustomHeadersStorage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.compose.resources.StringResource
@@ -32,7 +37,8 @@ import kotlin.time.Duration.Companion.seconds
 
 class LoginViewModelTest {
 
-    private val repository = FakeSetupRepository()
+    private val customHeadersStorage = FakeCustomHeadersStorage()
+    private val repository = FakeSetupRepository(customHeadersStorage)
     private val mainDispatcherRule = MainDispatcherRule()
 
     @BeforeTest
@@ -45,7 +51,14 @@ class LoginViewModelTest {
         mainDispatcherRule.tearDown()
     }
 
-    private fun viewModel() = LoginViewModel(repository)
+    private fun viewModel() = LoginViewModel(repository, customHeadersStorage, CustomHeaderValidator())
+
+    private fun LoginViewModel.addHeader(header: CustomHeader) {
+        uiState.value.onCustomHeaderAdd()
+        val index = uiState.value.customHeaders.lastIndex
+        uiState.value.onCustomHeaderNameChange(index, header.name)
+        uiState.value.onCustomHeaderValueChange(index, header.value)
+    }
 
     private fun LoginViewModel.fillCredentials() {
         with(uiState.value) {
@@ -526,6 +539,132 @@ class LoginViewModelTest {
         assertTrue(repository.probeCalls.isEmpty())
     }
 
+    // --- 28.5: custom headers on the login screen ---
+
+    /** The HTTP clients read storage, so the very first request only carries what is saved by then. */
+    @Test
+    fun `headers are saved before the probe runs`() = runTest {
+        val sut = viewModel()
+
+        sut.addHeader(AUTH_HEADER)
+        sut.uiState.value.onServerUrlChange(SERVER_URL)
+        settleProbe()
+
+        assertEquals(listOf(listOf(AUTH_HEADER)), repository.probeHeaders)
+    }
+
+    @Test
+    fun `headers are saved before connect`() = runTest {
+        repository.connectResult = Result.success(Unit)
+        val sut = viewModel()
+        sut.fillApiKey()
+        sut.addHeader(AUTH_HEADER)
+
+        sut.uiState.value.onConnectClick()
+
+        assertEquals(listOf(AUTH_HEADER), repository.connectHeaders)
+    }
+
+    /** Without them the probe was asked a question the proxy answered, not the instance. */
+    @Test
+    fun `changing the headers probes the same url again`() = runTest {
+        val sut = viewModel()
+        sut.uiState.value.onServerUrlChange(SERVER_URL)
+        settleProbe()
+
+        sut.addHeader(AUTH_HEADER)
+        settleProbe()
+
+        assertEquals(listOf(SERVER_URL, SERVER_URL), repository.probeCalls)
+        assertEquals(listOf(emptyList(), listOf(AUTH_HEADER)), repository.probeHeaders)
+    }
+
+    @Test
+    fun `an invalid header holds back connect and is never saved`() = runTest {
+        val sut = viewModel()
+        sut.fillCredentials()
+
+        sut.addHeader(CustomHeader("Host", "wallos.lan"))
+        settleProbe()
+
+        assertEquals(CustomHeaderError.ReservedName, sut.uiState.value.customHeaders.single().error)
+        assertFalse(sut.uiState.value.canConnect)
+        assertTrue(customHeadersStorage.currentHeaders.isEmpty())
+        assertTrue(repository.probeCalls.isEmpty())
+    }
+
+    /** A duplicate belongs to the list, so removing the first copy has to clear the second's error. */
+    @Test
+    fun `removing a row revalidates the rest`() = runTest {
+        val sut = viewModel()
+        sut.addHeader(AUTH_HEADER)
+        sut.addHeader(AUTH_HEADER)
+        assertEquals(CustomHeaderError.DuplicateName, sut.uiState.value.customHeaders[1].error)
+
+        sut.uiState.value.onCustomHeaderRemove(0)
+
+        assertEquals(listOf(CustomHeaderRow(AUTH_HEADER.name, AUTH_HEADER.value)), sut.uiState.value.customHeaders)
+    }
+
+    @Test
+    fun `an unfilled row is neither an error nor sent`() = runTest {
+        repository.connectResult = Result.success(Unit)
+        val sut = viewModel()
+        sut.fillApiKey()
+        sut.addHeader(AUTH_HEADER)
+        sut.uiState.value.onCustomHeaderAdd()
+
+        assertTrue(sut.uiState.value.canConnect)
+        sut.uiState.value.onConnectClick()
+
+        assertEquals(listOf(AUTH_HEADER), repository.connectHeaders)
+    }
+
+    @Test
+    fun `values are saved trimmed`() = runTest {
+        repository.connectResult = Result.success(Unit)
+        val sut = viewModel()
+        sut.fillApiKey()
+        sut.addHeader(CustomHeader(" Authorization ", " ${AUTH_HEADER.value} "))
+
+        sut.uiState.value.onConnectClick()
+
+        assertEquals(listOf(AUTH_HEADER), repository.connectHeaders)
+    }
+
+    /** They survive disconnect, and Connect saves the rows — so not offering them back deletes them. */
+    @Test
+    fun `stored headers are offered back, expanded`() = runTest {
+        customHeadersStorage.setHeaders(listOf(AUTH_HEADER))
+
+        val sut = viewModel()
+
+        assertEquals(listOf(CustomHeaderRow(AUTH_HEADER.name, AUTH_HEADER.value)), sut.uiState.value.customHeaders)
+        assertTrue(sut.uiState.value.isCustomHeadersExpanded)
+    }
+
+    @Test
+    fun `the section starts collapsed when nothing is stored`() {
+        val sut = viewModel()
+
+        assertFalse(sut.uiState.value.isCustomHeadersExpanded)
+        sut.uiState.value.onCustomHeadersExpandedChange(true)
+        assertTrue(sut.uiState.value.isCustomHeadersExpanded)
+    }
+
+    /** The pending code answers a session that went through with the saved headers. */
+    @Test
+    fun `a totp answer leaves the saved headers alone`() = runTest {
+        repository.totpResult = Result.success(LoginOutcome.Connected)
+        val sut = totpChallenge()
+        val savesBefore = customHeadersStorage.setHeadersCalledWith.size
+
+        sut.uiState.value.onTotpCodeChange(TOTP_CODE)
+        sut.uiState.value.onConnectClick()
+
+        assertEquals(savesBefore, customHeadersStorage.setHeadersCalledWith.size)
+    }
+
     /** The debounce is parked on the main dispatcher's scheduler, so that is what has to move. */
     private fun settleProbe() {
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
@@ -696,7 +835,7 @@ class LoginViewModelTest {
      * Private to this file on purpose: `:testing` is for doubles *other* modules need, and
      * `feature:setup:ui` is the only consumer of this one (CLAUDE.md).
      */
-    private class FakeSetupRepository : SetupRepository {
+    private class FakeSetupRepository(private val customHeadersStorage: CustomHeadersStorage) : SetupRepository {
         var loginResult: Result<LoginOutcome>? = null
         var connectResult: Result<Unit>? = null
         var totpResult: Result<LoginOutcome>? = null
@@ -712,8 +851,13 @@ class LoginViewModelTest {
         var probeResult: Result<PasswordLoginAvailability> = Result.success(PasswordLoginAvailability.Available)
         val probeCalls = mutableListOf<String>()
 
+        /** What storage held as each call went out — the HTTP clients read it from there. */
+        val probeHeaders = mutableListOf<List<CustomHeader>>()
+        var connectHeaders: List<CustomHeader>? = null
+
         override suspend fun probePasswordLogin(serverUrl: String): Result<PasswordLoginAvailability> {
             probeCalls += serverUrl
+            probeHeaders += customHeadersStorage.currentHeaders
             return probeResult
         }
 
@@ -751,6 +895,7 @@ class LoginViewModelTest {
 
         override suspend fun connectWithApiKey(serverUrl: String, apiKey: String): Result<Unit> {
             connectCall = serverUrl to apiKey
+            connectHeaders = customHeadersStorage.currentHeaders
             connectCallCount++
             return connectResult ?: error("connectResult not set")
         }
@@ -772,6 +917,8 @@ class LoginViewModelTest {
         const val PASSWORD = "demo"
         const val API_KEY = "5c1e0b2a9f"
         const val TOTP_CODE = "123456"
+
+        val AUTH_HEADER = CustomHeader("Authorization", "Basic cGFuZ29saW46c2VjcmV0")
 
         val PENDING_CERT_TRUST = PendingCertTrust(
             host = "wallos.lan",

@@ -209,6 +209,11 @@ private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
                 )
             }
         }
+
+        // A pending code answers a session that already went through with the saved headers.
+        if (!uiState.isTotpRequired) {
+            CustomHeadersSection(uiState = uiState)
+        }
     }
 }
 

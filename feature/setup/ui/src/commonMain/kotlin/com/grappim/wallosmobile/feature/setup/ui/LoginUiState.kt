@@ -2,6 +2,9 @@ package com.grappim.wallosmobile.feature.setup.ui
 
 import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.kit.uikit.NativeText
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeaderError
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
  * Both onboarding paths live in one state (plan §1.1): [isApiKeyMode] `false` drives the web login
@@ -23,6 +26,10 @@ import com.grappim.kit.uikit.NativeText
  * [throttleWaitSeconds] is a number and not a phrase because the copy is a `<plurals>` the
  * composable resolves (CLAUDE.md). It exists only while an attempt is in flight — the wait is
  * spent inside the call — so it is written and cleared by that call and by nothing else.
+ *
+ * [customHeaders] is common to both paths, like [serverUrl]: a reverse proxy in front of Wallos
+ * rejects the probe and either path's first request alike (plan §4.5b). Indices in its callbacks
+ * are positions in that list.
  */
 data class LoginUiState(
     val serverUrl: String = "",
@@ -38,6 +45,8 @@ data class LoginUiState(
     val throttleWaitSeconds: Int = 0,
     val error: NativeText = NativeText.Empty,
     val pendingCertTrust: PendingCertTrust? = null,
+    val customHeaders: ImmutableList<CustomHeaderRow> = persistentListOf(),
+    val isCustomHeadersExpanded: Boolean = false,
     val onServerUrlChange: (String) -> Unit = {},
     val onUsernameChange: (String) -> Unit = {},
     val onPasswordChange: (String) -> Unit = {},
@@ -47,7 +56,12 @@ data class LoginUiState(
     val onApiKeyModeChange: (Boolean) -> Unit = {},
     val onConnectClick: () -> Unit = {},
     val onCertTrustConfirm: () -> Unit = {},
-    val onCertTrustDismiss: () -> Unit = {}
+    val onCertTrustDismiss: () -> Unit = {},
+    val onCustomHeadersExpandedChange: (Boolean) -> Unit = {},
+    val onCustomHeaderAdd: () -> Unit = {},
+    val onCustomHeaderRemove: (Int) -> Unit = {},
+    val onCustomHeaderNameChange: (Int, String) -> Unit = { _, _ -> },
+    val onCustomHeaderValueChange: (Int, String) -> Unit = { _, _ -> }
 ) {
 
     /**
@@ -57,9 +71,12 @@ data class LoginUiState(
     val isThrottled: Boolean
         get() = throttleWaitSeconds > 0
 
-    /** Only the visible path's fields count — the hidden ones keep whatever the user typed. */
+    /**
+     * Only the visible path's fields count — the hidden ones keep whatever the user typed. A header
+     * the engine would refuse holds back both paths, since every request would carry it.
+     */
     val canConnect: Boolean
-        get() = !isLoading && serverUrl.isNotBlank() &&
+        get() = !isLoading && serverUrl.isNotBlank() && customHeaders.none { it.error != null } &&
             when {
                 isApiKeyMode -> apiKey.isNotBlank()
                 isTotpRequired -> totpCode.isNotBlank()
@@ -87,3 +104,6 @@ data class LoginUiState(
         const val CLEARTEXT_SCHEME = "http://"
     }
 }
+
+/** One editable header; [error] is the validator's verdict on the row as it stands. */
+data class CustomHeaderRow(val name: String = "", val value: String = "", val error: CustomHeaderError? = null)
