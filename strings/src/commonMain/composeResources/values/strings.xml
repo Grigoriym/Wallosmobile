@@ -51,7 +51,8 @@
     <string name="login_cert_trust_confirm">Trust and connect</string>
     <string name="login_cert_trust_cancel">Cancel</string>
 
-    <string name="login_custom_headers_toggle">Advanced: custom headers</string>
+    <string name="login_custom_headers">Custom headers</string>
+    <string name="login_custom_headers_count">Custom headers (%1$d)</string>
     <string name="custom_headers_description">Sent with every request to this server. Add them when a reverse proxy in front of Wallos asks for authentication.</string>
     <string name="custom_headers_name_label">Header name</string>
     <string name="custom_headers_name_placeholder">Authorization</string>

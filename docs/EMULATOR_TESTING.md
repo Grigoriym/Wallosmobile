@@ -32,6 +32,9 @@ section and `docs/local-info.txt` — this file only covers the device side.
   a session, install succeeding with no error). Always `adb devices -l` before trusting an install
   reached `Medium_Phone_API_36.1`, and boot the AVD explicitly rather than assuming it's the only
   device attached — the skill's own generic warning about this, not a one-off.
+  A second real device turns up too: a Pixel 11 Pro over **wireless** adb (serial
+  `adb-68131FDKX001L0-…._adb-tls-connect._tcp`, 28.9) — no cable to notice, so pass
+  `-s emulator-5554` / `ANDROID_SERIAL=emulator-5554` to every `adb` and install call.
 
 - **`screencap` is 1080×2400 while the returned image is scaled** — multiply screenshot
   coordinates by the display factor before `input tap`, or better, read a

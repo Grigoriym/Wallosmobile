@@ -1641,13 +1641,19 @@ client certificate — a separate feature (Android `KeyChain` + an `X509KeyManag
   `Connection`/`Cookie` refused. One pure class, `CustomHeaderValidator` (`core:storage`, beside the
   model, so login and Settings share it), returning a `CustomHeaderError?` per row; a row with
   both fields blank is unfilled, not wrong, and is never sent.
-- **Entered on the login screen** (an "Advanced" section, collapsed by default — expanded when
-  stored ones are offered back, since Connect saves whatever the rows hold), since the probe is
-  the first request and must already carry them: `LoginViewModel` probes off `combine(url,
-  headers)`, saves the headers before asking, and re-probes when they change; editable afterwards from a Settings sub-screen
-  under the Server field (`CustomHeadersRoute`), which saves on an explicit Save — offered only
-  while the rows are valid and differ from what's stored — rather than per keystroke. An edit needs no re-probe — it applies on the next request, and a wrong
-  value surfaces as the proxy-rejection message below on the next refresh.
+- **Edited on one screen, reached from two places** — `CustomHeadersScreen` (`feature:settings:ui`,
+  `customheaders/`), which saves on an explicit Save, offered only while the rows are valid and
+  differ from what's stored, rather than per keystroke. Settings opens it as a route
+  (`CustomHeadersRoute`, a row under the Server field); login opens it from a "Custom headers"
+  button (with the stored count) as **state**, not a route — login has no shell or back stack, so
+  `composeApp`'s `LoginBranch` swaps it in for `LoginScreen` behind a `rememberSaveable` flag and
+  provides the `LocalTopBarConfig`/`LocalIsOffline` the shell otherwise would. Both entry points get the same
+  `CustomHeadersViewModel` instance — ViewModels here are activity-scoped (§5.5 item 6) — so an
+  unsaved edit made from login is still there when Settings opens the screen. `LoginViewModel` never
+  writes headers: the probe is the first request and must already carry them, so it probes off
+  `combine(url, storedHeaders)` and re-probes when a save changes them. An edit needs no re-probe
+  elsewhere — it applies on the next request, and a wrong value surfaces as the proxy-rejection
+  message below on the next refresh.
 - **A proxy rejection gets its own message.** Today a `401`/`407` from the proxy is misreported
   on both login paths (confirmed on device, 28.1): the API-key path falls through
   `WallosEnvelopeParser` (only `404`/`5xx` mean anything there) into `Malformed` → "Nothing that

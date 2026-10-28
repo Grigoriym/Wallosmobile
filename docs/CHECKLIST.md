@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `8/8` — **M28 done**
-**Current step:** none — M28 (custom request headers, plan §4.5b) done 2026-10-27, all eight steps on one branch/PR; 28.8's device pass confirmed both login paths with and without the header, logos, the Settings edit and no regression on `:8282`. Previously: M27 done 2026-08-15. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `9/9` — **M28 done**
+**Current step:** none — M28 (custom request headers, plan §4.5b) done 2026-10-27, all eight steps on one branch/PR; 28.8's device pass confirmed both login paths with and without the header, logos, the Settings edit and no regression on `:8282`. 28.9 (2026-10-28, user review of PR #107) moved the login-screen header editing onto the Settings screen, opened from a login button. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -838,6 +838,21 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   list's **pull-to-refresh** as the stale banner with the same copy (merely re-opening the list
   sends no request — the cache is fresh). `http://10.0.2.2:8282`, no headers: password login +
   dashboard fine, no `Authorization` header logged.
+
+- [x] **28.9 — Move login's custom headers onto their own screen**
+  Added 2026-10-28 from the user's review of PR #107: an "Advanced" section on the login screen is
+  too much up front. Login gets a button; the editing lives on a separate screen.
+  *Verify:* `LoginViewModelTest`, `KoinGraphTest`, `detekt ktlintCheck`; on device, login → button →
+  add + Save → back shows the count; the open screen survives `am kill`.
+
+  Note: done 2026-10-28. The separate screen is 28.6's `CustomHeadersScreen`, reused rather than
+  copied: `composeApp`'s new `LoginBranch` swaps it in for `LoginScreen` behind a
+  `rememberSaveable` flag (login isn't a route) and provides the `LocalTopBarConfig`/`LocalIsOffline`
+  it reads from the shell, with its own `TopBar` and a `NavigationBackHandler`. `LoginViewModel`
+  lost the rows, the validator and every `setHeaders` call — it probes off the stored headers and
+  exposes only `customHeaderCount` for the button ("Custom headers (1)"). `CustomHeadersSection.kt`
+  and `login_custom_headers_toggle` deleted. Behaviour change: headers are saved by the screen's
+  Save, no longer implicitly by Connect. Verified on `Medium_Phone_API_36.1`.
 
 ---
 

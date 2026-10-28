@@ -7,10 +7,7 @@ import com.grappim.kit.domain.findPendingCertTrust
 import com.grappim.kit.logger.LogPriority
 import com.grappim.kit.logger.logcat
 import com.grappim.kit.uikit.NativeText
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeader
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeaderValidator
 import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorage
-import com.grappim.wallosmobile.core.storage.customheaders.isBlank
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
@@ -22,7 +19,6 @@ import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_totp
 import com.grappim.wallosmobile.strings.generated.resources.login_error_totp_session_expired
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,9 +27,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -50,8 +44,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @KoinViewModel
 class LoginViewModel(
     private val setupRepository: SetupRepository,
-    private val customHeadersStorage: CustomHeadersStorage,
-    private val customHeaderValidator: CustomHeaderValidator
+    private val customHeadersStorage: CustomHeadersStorage
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -65,12 +58,7 @@ class LoginViewModel(
             onApiKeyModeChange = ::onApiKeyModeChange,
             onConnectClick = ::onConnectClick,
             onCertTrustConfirm = ::onCertTrustConfirm,
-            onCertTrustDismiss = ::onCertTrustDismiss,
-            onCustomHeadersExpandedChange = ::onCustomHeadersExpandedChange,
-            onCustomHeaderAdd = ::onCustomHeaderAdd,
-            onCustomHeaderRemove = ::onCustomHeaderRemove,
-            onCustomHeaderNameChange = ::onCustomHeaderNameChange,
-            onCustomHeaderValueChange = ::onCustomHeaderValueChange
+            onCertTrustDismiss = ::onCertTrustDismiss
         )
     )
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
@@ -81,16 +69,9 @@ class LoginViewModel(
      */
     private val serverUrlInput = MutableStateFlow("")
 
-    /**
-     * The headers the rows would send, beside the state for the same reason as [serverUrlInput].
-     * `null` while there is nothing sendable to probe with: before the stored ones have been
-     * offered back, and while a row doesn't validate.
-     */
-    private val customHeadersInput = MutableStateFlow<List<CustomHeader>?>(null)
-
     init {
         observeServerUrl()
-        viewModelScope.launch { onStoredCustomHeaders(customHeadersStorage.headers.first()) }
+        observeCustomHeaders()
         viewModelScope.launch {
             setupRepository.getStoredServerUrl()
                 .onSuccess(::onStoredServerUrl)
@@ -104,17 +85,23 @@ class LoginViewModel(
      * password. Debounced because it is fired by typing, and filtered to an explicit scheme
      * because the app infers none anywhere else — half a URL is not an instance to ask.
      *
-     * The headers ride along because a proxy in front of the instance rejects the probe without
-     * them (plan §4.5b) — so a change to them is a new question for the same URL.
+     * The stored headers ride along because a proxy in front of the instance rejects the probe
+     * without them (plan §4.5b) — so saving new ones on their own screen is a new question for the
+     * same URL. The HTTP clients read them from storage, so only the change has to be observed here.
      */
     @OptIn(FlowPreview::class)
     private fun observeServerUrl() {
-        combine(serverUrlInput, customHeadersInput) { url, headers -> headers?.let { url.trim() to it } }
+        combine(serverUrlInput, customHeadersStorage.headers) { url, headers -> url.trim() to headers }
             .debounce(PROBE_DEBOUNCE)
-            .mapNotNull { it }
             .filter { (url, _) -> SCHEMES.any { url.startsWith(it, ignoreCase = true) } }
             .distinctUntilChanged()
-            .onEach { (url, headers) -> probePasswordLogin(url, headers) }
+            .onEach { (url, _) -> probePasswordLogin(url) }
+            .launchIn(viewModelScope)
+    }
+
+    private fun observeCustomHeaders() {
+        customHeadersStorage.headers
+            .onEach { headers -> _uiState.update { it.copy(customHeaderCount = headers.size) } }
             .launchIn(viewModelScope)
     }
 
@@ -123,13 +110,11 @@ class LoginViewModel(
      * typing, so an unreachable host here is not news — and raising the trust prompt off a
      * keystroke would be a modal dialog nobody asked for. Connect still reports both.
      */
-    private suspend fun probePasswordLogin(serverUrl: String, customHeaders: List<CustomHeader>) {
+    private suspend fun probePasswordLogin(serverUrl: String) {
         // `login.php` clears the session's pending TOTP challenge as it renders, so a probe here
         // would turn the next code into `TotpSessionExpired` (`SetupRepository.probePasswordLogin`).
         if (_uiState.value.isTotpRequired) return
 
-        // The HTTP clients read the headers from storage, not from here — so they are saved first.
-        customHeadersStorage.setHeaders(customHeaders)
         setupRepository.probePasswordLogin(serverUrl)
             .onSuccess(::onPasswordLoginAvailability)
             .onFailure { logcat(priority = LogPriority.WARN, throwable = it) { "Could not probe $serverUrl" } }
@@ -158,56 +143,6 @@ class LoginViewModel(
         if (url.isEmpty()) return
         _uiState.update { if (it.serverUrl.isEmpty()) it.copy(serverUrl = url) else it }
         serverUrlInput.value = _uiState.value.serverUrl
-    }
-
-    /**
-     * They survive disconnect with the URL (plan §4.5b), and Connect saves what the rows hold — so
-     * a screen that didn't offer them back would delete them. Rows the user has already started win.
-     */
-    private fun onStoredCustomHeaders(headers: List<CustomHeader>) {
-        if (_uiState.value.customHeaders.isNotEmpty()) return
-        _uiState.update {
-            it.copy(
-                customHeaders = headers.map { header -> CustomHeaderRow(header.name, header.value) }.toImmutableList(),
-                // Headers being sent shouldn't be hidden behind a collapsed section.
-                isCustomHeadersExpanded = headers.isNotEmpty()
-            )
-        }
-        customHeadersInput.value = headers
-    }
-
-    private fun onCustomHeadersExpandedChange(isExpanded: Boolean) {
-        _uiState.update { it.copy(isCustomHeadersExpanded = isExpanded) }
-    }
-
-    private fun onCustomHeaderAdd() {
-        updateCustomHeaders { it + CustomHeaderRow() }
-    }
-
-    private fun onCustomHeaderRemove(index: Int) {
-        updateCustomHeaders { rows -> rows.filterIndexed { i, _ -> i != index } }
-    }
-
-    private fun onCustomHeaderNameChange(index: Int, name: String) {
-        updateCustomHeaders { rows -> rows.mapIndexed { i, row -> if (i == index) row.copy(name = name) else row } }
-    }
-
-    private fun onCustomHeaderValueChange(index: Int, value: String) {
-        updateCustomHeaders { rows -> rows.mapIndexed { i, row -> if (i == index) row.copy(value = value) else row } }
-    }
-
-    /** Re-validates every row, since a duplicate is a property of the list, not of one row. */
-    private fun updateCustomHeaders(transform: (List<CustomHeaderRow>) -> List<CustomHeaderRow>) {
-        val rows = transform(_uiState.value.customHeaders)
-        val headers = rows.toCustomHeaders()
-        val errors = customHeaderValidator.validate(headers)
-        _uiState.update { state ->
-            state.copy(
-                customHeaders = rows.mapIndexed { i, row -> row.copy(error = errors[i]) }.toImmutableList(),
-                error = NativeText.Empty
-            )
-        }
-        customHeadersInput.value = headers.filterNot { it.isBlank() }.takeIf { errors.all { it == null } }
     }
 
     private fun onServerUrlChange(url: String) {
@@ -257,11 +192,6 @@ class LoginViewModel(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, throttleWaitSeconds = 0, error = NativeText.Empty) }
-
-            // The challenge belongs to a session that already went through with the saved ones.
-            if (!state.isTotpRequired) {
-                customHeadersStorage.setHeaders(state.customHeaders.toCustomHeaders().filterNot { it.isBlank() })
-            }
 
             when {
                 state.isApiKeyMode ->
@@ -398,9 +328,6 @@ class LoginViewModel(
     private fun showError(resource: StringResource) {
         _uiState.update { it.copy(isLoading = false, error = NativeText.Resource(resource)) }
     }
-
-    private fun List<CustomHeaderRow>.toCustomHeaders(): List<CustomHeader> =
-        map { CustomHeader(it.name.trim(), it.value.trim()) }
 
     private companion object {
         val PROBE_DEBOUNCE = 700.milliseconds
