@@ -13,3 +13,11 @@ fun interface LocalNetworkPermissionRequest {
 
 @Composable
 expect fun rememberLocalNetworkPermissionRequest(): LocalNetworkPermissionRequest
+
+/** Whether [serverUrl] is on the local network with the permission off, checked again on every resume. */
+@Composable
+expect fun rememberIsLocalNetworkBlocked(serverUrl: String): Boolean
+
+/** Opens the system's page for this app, the way back once the permission dialog no longer appears. */
+@Composable
+expect fun rememberOpenAppSettings(): () -> Unit

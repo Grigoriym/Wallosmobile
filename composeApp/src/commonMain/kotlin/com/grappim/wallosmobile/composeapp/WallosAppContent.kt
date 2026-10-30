@@ -14,16 +14,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.grappim.wallosmobile.composeapp.nav.StartDestinationMapper
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
-import com.grappim.wallosmobile.core.storage.ServerUrlStorage
 import com.grappim.wallosmobile.core.storage.startdestination.StartDestination
 import com.grappim.wallosmobile.core.storage.startdestination.StartDestinationStorage
 import com.grappim.wallosmobile.core.storage.theme.ThemeMode
 import com.grappim.wallosmobile.core.storage.theme.ThemeStorage
 import com.grappim.wallosmobile.uikit.WallosMobileTheme
-import com.grappim.wallosmobile.uikit.permission.rememberLocalNetworkPermissionRequest
 import com.grappim.wallosmobile.uikit.widgets.snackbar.SnackbarHostController
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 
 /**
@@ -39,7 +35,6 @@ fun WallosAppContent(
     apiKeyStorage: ApiKeyStorage = koinInject(),
     themeStorage: ThemeStorage = koinInject(),
     startDestinationStorage: StartDestinationStorage = koinInject(),
-    serverUrlStorage: ServerUrlStorage = koinInject(),
     onDarkThemeChange: (Boolean) -> Unit = {},
     snackbarHostController: SnackbarHostController = remember { SnackbarHostController() }
 ) {
@@ -98,21 +93,12 @@ fun WallosAppContent(
             // a stutter.
             null -> Box(modifier = Modifier.fillMaxSize())
 
-            true -> {
-                // Someone connected before this permission existed never passes through Connect.
-                val localNetworkPermission = rememberLocalNetworkPermissionRequest()
-                LaunchedEffect(Unit) {
-                    val serverUrl = withContext(Dispatchers.Default) { serverUrlStorage.serverUrl }
-                    localNetworkPermission.request(serverUrl = serverUrl, onAllowed = {}, onDenied = {})
-                }
-
-                AuthenticatedMainScreen(
-                    appState = rememberMainAppState(
-                        startDestination = StartDestinationMapper.toNavKey(startDestination)
-                    ),
-                    snackbarHostController = snackbarHostController
-                )
-            }
+            true -> AuthenticatedMainScreen(
+                appState = rememberMainAppState(
+                    startDestination = StartDestinationMapper.toNavKey(startDestination)
+                ),
+                snackbarHostController = snackbarHostController
+            )
 
             false -> LoginBranch()
         }

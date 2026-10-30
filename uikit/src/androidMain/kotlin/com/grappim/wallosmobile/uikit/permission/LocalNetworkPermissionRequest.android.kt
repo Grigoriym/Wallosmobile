@@ -2,15 +2,21 @@ package com.grappim.wallosmobile.uikit.permission
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.grappim.kit.logger.LogPriority
 import com.grappim.kit.logger.logcat
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +49,36 @@ actual fun rememberLocalNetworkPermissionRequest(): LocalNetworkPermissionReques
                     onAllowed()
                 }
             }
+        }
+    }
+}
+
+@Composable
+actual fun rememberIsLocalNetworkBlocked(serverUrl: String): Boolean {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isBlocked by remember { mutableStateOf(false) }
+
+    LifecycleResumeEffect(serverUrl) {
+        val check = scope.launch {
+            isBlocked = context.needsLocalNetworkPermission() && resolvesToLocalNetwork(serverUrl)
+        }
+        onPauseOrDispose { check.cancel() }
+    }
+    return isBlocked
+}
+
+@Composable
+actual fun rememberOpenAppSettings(): () -> Unit {
+    val context = LocalContext.current
+    return remember(context) {
+        {
+            context.startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.fromParts("package", context.packageName, null)
+                )
+            )
         }
     }
 }

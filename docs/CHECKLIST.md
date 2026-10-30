@@ -863,9 +863,12 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   Note: done 2026-10-30. Diagnosis: on the phone, as the app's UID `nc` timed out to the host and
   the router while `1.1.1.1:443` connected; as the adb shell UID the host connected. Allow on the
   dialog was followed by `POST /login.php` → `401` from `192.168.0.197` in the proxy log, and
-  `error_proxy_auth` on screen. **Not yet exercised on device:** Don't allow, and the prompt for an
-  already-connected install. A `pm grant` + `run-as nc` shortcut was inconclusive with the screen
-  off, because the public control failed too.
+  `error_proxy_auth` on screen. Don't allow at login showed `login_error_local_network_denied`. The
+  already-connected case was run by turning the permission off in system settings, since an old
+  build can't log in on Android 17 and an API 36 AVD never asks: the dialog came up over the
+  dashboard. The user's review of that (a loader with no reason) added `LocalNetworkBanner`; checked
+  on the same phone across screens, gone on return after allowing. A `pm grant` + `run-as nc`
+  shortcut was inconclusive with the screen off, because the public control failed too.
 
 ---
 

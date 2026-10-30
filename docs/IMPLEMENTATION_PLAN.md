@@ -1695,12 +1695,17 @@ is a normal setup, and 1.0.4 already targets 37 without the permission.
   has to raising the trust prompt.
 - **Denied at login means no request**, and `login_error_local_network_denied` says why, since the
   request could only time out and blame the URL.
-- **Asked once more on opening the shell**, in `WallosAppContent`'s connected branch, for someone
-  who connected before the permission existed.
+- **Asked once more on opening the shell**, for someone who connected before the permission
+  existed. That's `LocalNetworkBanner`, composed above `MainNavHost` in `AuthenticatedMainScreen`.
+- **Blocked while connected means one banner above every screen**, with an "Open settings" action,
+  rather than a message per request or screen: every screen fails the same way. It re-checks on
+  each resume (`rememberIsLocalNetworkBlocked`), so it leaves by itself once allowed. Android has
+  no public link to a single permission, so the action opens the app's settings page.
 
-Known limits: a denial while already connected still reads as `error_unreachable` on the stale
-banner, and the password-login probe doesn't re-run after a grant, because it runs off the URL and
-headers only (`Disabled` is then discovered by the failed login instead of hiding that path early).
+Known limits: screens don't reload when the permission is allowed, so that takes Try again or pull
+to refresh; screens below the banner still show their own `error_unreachable` until then. The
+password-login probe doesn't re-run after a grant, because it runs off the URL and headers only
+(`Disabled` is then discovered by the failed login instead of hiding that path early).
 
 ### 4.6 Version gating
 

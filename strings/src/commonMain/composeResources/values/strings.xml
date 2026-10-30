@@ -70,6 +70,8 @@
     <string name="login_error_invalid_totp">That code wasn't accepted. Codes change every 30 seconds — wait for the next one and try again.</string>
     <string name="login_error_totp_session_expired">The sign-in didn't get as far as the code. Enter your username and password again.</string>
     <string name="login_error_api_key_missing">Signed in, but this account has no API key yet. Generate one in the Wallos web UI (Profile → API Key), then paste it here.</string>
+    <string name="local_network_banner_message">Local network access is off. Wallos can't load without it.</string>
+    <string name="local_network_banner_open_settings">Open settings</string>
     <string name="login_error_local_network_denied">Not connected — this server is on your local network, and the app isn't allowed to reach it. Turn on local network access for this app in Android settings.</string>
     <string name="login_error_cert_not_trusted">Not connected — that certificate wasn't trusted.</string>
 
