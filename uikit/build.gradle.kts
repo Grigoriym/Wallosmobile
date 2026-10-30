@@ -14,6 +14,11 @@ kotlin {
             // module's own public signatures (`WallosMobileTheme`, `WallosMobilePreviewTheme`).
             api(libs.grappim.kit.uikit)
         }
+
+        // `rememberLauncherForActivityResult`, behind `rememberLocalNetworkPermissionRequest`.
+        androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
+        }
     }
 }
 

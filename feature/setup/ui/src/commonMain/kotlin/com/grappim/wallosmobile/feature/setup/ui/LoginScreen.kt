@@ -55,6 +55,8 @@ import com.grappim.wallosmobile.strings.generated.resources.login_cert_trust_val
 import com.grappim.wallosmobile.strings.generated.resources.login_cert_trust_validity_range
 import com.grappim.wallosmobile.strings.generated.resources.login_cleartext_warning
 import com.grappim.wallosmobile.strings.generated.resources.login_connect
+import com.grappim.wallosmobile.strings.generated.resources.login_custom_headers
+import com.grappim.wallosmobile.strings.generated.resources.login_custom_headers_count
 import com.grappim.wallosmobile.strings.generated.resources.login_password_hide
 import com.grappim.wallosmobile.strings.generated.resources.login_password_label
 import com.grappim.wallosmobile.strings.generated.resources.login_password_login_disabled
@@ -72,6 +74,7 @@ import com.grappim.wallosmobile.strings.generated.resources.login_username_label
 import com.grappim.wallosmobile.uikit.RDrawable
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.generated.resources.wallosmobile_logo
+import com.grappim.wallosmobile.uikit.permission.rememberLocalNetworkPermissionRequest
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
@@ -85,14 +88,29 @@ import org.koin.compose.viewmodel.koinViewModel
  * owners, and the one that disconnect (2.6) also has to flip is the flow.
  */
 @Composable
-fun LoginScreen(viewModel: LoginViewModel = koinViewModel<LoginViewModel>()) {
+fun LoginScreen(viewModel: LoginViewModel = koinViewModel<LoginViewModel>(), onCustomHeadersClick: () -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
+    val localNetworkPermission = rememberLocalNetworkPermissionRequest()
 
-    LoginContent(uiState = uiState)
+    // Here rather than in the Button, so the keyboard's Done goes through it as well.
+    LoginContent(
+        uiState = uiState.copy(
+            onConnectClick = {
+                if (uiState.canConnect) {
+                    localNetworkPermission.request(
+                        serverUrl = uiState.serverUrl,
+                        onAllowed = uiState.onConnectClick,
+                        onDenied = uiState.onLocalNetworkDenied
+                    )
+                }
+            }
+        ),
+        onCustomHeadersClick = onCustomHeadersClick
+    )
 }
 
 @Composable
-private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
+private fun LoginContent(uiState: LoginUiState, onCustomHeadersClick: () -> Unit, modifier: Modifier = Modifier) {
     val focusManager = LocalFocusManager.current
 
     val pendingCertTrust = uiState.pendingCertTrust
@@ -206,6 +224,19 @@ private fun LoginContent(uiState: LoginUiState, modifier: Modifier = Modifier) {
                     stringResource(
                         if (uiState.isApiKeyMode) RString.login_use_password else RString.login_use_api_key
                     )
+                )
+            }
+        }
+
+        // A pending code answers a session that already went through with the saved headers.
+        if (!uiState.isTotpRequired) {
+            TextButton(onClick = onCustomHeadersClick, enabled = !uiState.isLoading) {
+                Text(
+                    if (uiState.customHeaderCount > 0) {
+                        stringResource(RString.login_custom_headers_count, uiState.customHeaderCount)
+                    } else {
+                        stringResource(RString.login_custom_headers)
+                    }
                 )
             }
         }
@@ -383,7 +414,7 @@ private val LOGO_SIZE = 96.dp
 @PreviewWallosDarkLight
 @Composable
 private fun LoginContentPreview() = WallosMobilePreviewTheme {
-    LoginContent(uiState = LoginUiState())
+    LoginContent(uiState = LoginUiState(), onCustomHeadersClick = {})
 }
 
 @PreviewWallosDarkLight
@@ -394,7 +425,8 @@ private fun LoginContentFilledPreview() = WallosMobilePreviewTheme {
             serverUrl = "https://wallos.example.com",
             username = "demo",
             password = "demo"
-        )
+        ),
+        onCustomHeadersClick = {}
     )
 }
 
@@ -407,7 +439,8 @@ private fun LoginContentLoadingPreview() = WallosMobilePreviewTheme {
             username = "demo",
             password = "demo",
             isLoading = true
-        )
+        ),
+        onCustomHeadersClick = {}
     )
 }
 
@@ -422,7 +455,8 @@ private fun LoginContentThrottledPreview() = WallosMobilePreviewTheme {
             password = "demo",
             isLoading = true,
             throttleWaitSeconds = 4
-        )
+        ),
+        onCustomHeadersClick = {}
     )
 }
 
@@ -435,7 +469,8 @@ private fun LoginContentErrorPreview() = WallosMobilePreviewTheme {
             username = "demo",
             password = "wrong",
             error = NativeText.Simple("Wallos didn't accept that username and password.")
-        )
+        ),
+        onCustomHeadersClick = {}
     )
 }
 
@@ -447,7 +482,8 @@ private fun LoginContentCleartextPreview() = WallosMobilePreviewTheme {
             serverUrl = "http://wallos.lan:8282",
             username = "demo",
             password = "demo"
-        )
+        ),
+        onCustomHeadersClick = {}
     )
 }
 
@@ -468,7 +504,8 @@ private fun LoginContentCertTrustPreview() = WallosMobilePreviewTheme {
                 sha256Fingerprint = "3A:7B:1C:04:9E:22:F0:5D:8A:16:BB:71:C3:0F:49:E8:" +
                     "2D:65:90:AC:11:74:3E:52:D8:06:9B:CF:27:41:6A:E3"
             )
-        )
+        ),
+        onCustomHeadersClick = {}
     )
 }
 
@@ -481,7 +518,8 @@ private fun LoginContentTotpPreview() = WallosMobilePreviewTheme {
             username = "demo",
             totpCode = "123456",
             isTotpRequired = true
-        )
+        ),
+        onCustomHeadersClick = {}
     )
 }
 
@@ -494,7 +532,8 @@ private fun LoginContentPasswordLoginDisabledPreview() = WallosMobilePreviewThem
             serverUrl = "https://wallos.example.com",
             isApiKeyMode = true,
             isPasswordLoginDisabled = true
-        )
+        ),
+        onCustomHeadersClick = {}
     )
 }
 
@@ -506,6 +545,7 @@ private fun LoginContentApiKeyPreview() = WallosMobilePreviewTheme {
             serverUrl = "https://wallos.example.com",
             apiKey = "5c1e0b2a9f",
             isApiKeyMode = true
-        )
+        ),
+        onCustomHeadersClick = {}
     )
 }

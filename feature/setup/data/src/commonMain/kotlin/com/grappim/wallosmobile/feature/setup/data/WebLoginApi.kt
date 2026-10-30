@@ -6,6 +6,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.request
 import io.ktor.http.HttpHeaders
 import io.ktor.http.parameters
 import org.koin.core.annotation.Factory
@@ -81,7 +82,11 @@ internal class WebLoginApiImpl(@param:WebSessionHttpClient private val webClient
                 append(PARAM_PASSWORD, password)
             }
         )
-        return interpretLoginOutcome(response.status.value, response.headers[HttpHeaders.Location])
+        return interpretLoginOutcome(
+            statusCode = response.status.value,
+            location = response.headers[HttpHeaders.Location],
+            requestHost = response.request.url.host
+        )
     }
 
     override suspend fun submitTotpCode(code: String): WebTotpOutcome {
@@ -91,7 +96,11 @@ internal class WebLoginApiImpl(@param:WebSessionHttpClient private val webClient
                 append(PARAM_ONE_TIME_CODE, code)
             }
         )
-        return interpretTotpOutcome(response.status.value, response.headers[HttpHeaders.Location])
+        return interpretTotpOutcome(
+            statusCode = response.status.value,
+            location = response.headers[HttpHeaders.Location],
+            requestHost = response.request.url.host
+        )
     }
 
     override suspend fun fetchApiKey(): String? = scrapeApiKey(webClient.get(PROFILE_PATH).bodyAsText())

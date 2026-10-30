@@ -33,4 +33,11 @@ sealed class WallosError : Exception() {
 
     /** Body wasn't JSON, or PHP diagnostics were mixed in. */
     data class Malformed(val body: String) : WallosError()
+
+    /**
+     * Something in front of Wallos turned the request away before it arrived — a `401`/`407`, or a
+     * redirect to another host's login page (plan §4.5b). Wallos itself does neither, so this is
+     * never about the API key: keep it, and point the user at the server's custom headers.
+     */
+    data object ProxyAuthRequired : WallosError()
 }

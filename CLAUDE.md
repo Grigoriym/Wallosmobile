@@ -51,6 +51,9 @@ N" trigger and launch the step immediately. Corrected 2026-08-11.
    2026-08-14, in the same breath as asking for PRs at all — the user merges, watching costs
    usage for no benefit. One commit still lands on `dev` per step; the PR is a checkpoint before it
    lands, not a batching mechanism.
+   **Edit a PR's body with `gh api repos/Grigoriym/Wallosmobile/pulls/<n> -X PATCH -F body=@file`,
+   not `gh pr edit`** — the latter fails on this repo with `GraphQL: Projects (classic) is being
+   deprecated … (repository.pullRequest.projectCards)` (hit twice: PR #14, PR #107).
 
 **Decomposing a new milestone is its own commit, made the moment it happens — not left
 for the session that does step 1 to discover via `git status`.** Every milestone from M3
@@ -60,7 +63,11 @@ onward has one (`git log --oneline | grep decompos`), subject `docs: plan M<N> �
 next session only caught it by noticing the initial `git status` still showed those two
 files modified before it had touched anything. Recovered by splitting the pending diff
 into the missing planning commit plus the step's own — but don't rely on that recovery
-path; commit the decomposition before ending the planning session. Same PR flow as any other
+path; commit the decomposition before ending the planning session. **Planning means writing the
+checks down, not running them** — mid-way through M28's decomposition (2026-10-27) the session
+started booting the emulator to capture the "before" state, and the user stopped it: "let's not go
+that deep, just write down what needs to be done/checked." A cheap confirming `curl` is fine; a
+device repro or a design spike is a step of its own (M28's 28.1/28.2), run when that step is. Same PR flow as any other
 `dev` commit since 2026-08-14 (below) — a milestone-decomposition commit is docs-only, so it
 skips CI but still needs Guardrails green before merging.
 
@@ -468,6 +475,15 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   Koin module class) reached only through another module's `implementation` dependency needs its
   own direct line too (worked examples, `DashboardDomainModule`/`Subscription`: plan §6, the Koin
   bullet under Architecture patterns).
+  **`KoinGraphTest` doesn't check qualifiers either** — removing `@IgnoreUnknownKeysJson` from its
+  provider still passed it (28.11), so a qualifier mismatch is a runtime crash. To confirm one, read
+  the generated module with the `javap` recipe under Build commands and look for `typeQualifier`.
+- **`Json` comes from DI: the plain default unqualified, a configured one behind its own `@Qualifier`**
+  (`@LenientJson` for the envelope parser, `@IgnoreUnknownKeysJson` for `WallosCrudApi`, both in
+  `NetworkModule`). A test takes the real config from `NetworkModule().provide…Json()` rather than
+  repeating it. The exception is `SubscriptionsViewModel` and `SubscriptionEditorViewModel`, which
+  keep plain `Json` for their `SavedStateHandle` string: both already sit at detekt's
+  constructor-parameter limit, and nothing there depends on configuration (user's call, 2026-10-30).
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`. Every
   new route must be registered in the polymorphic `SerializersModule` in `NavKeySerializers.kt`,
@@ -758,6 +774,11 @@ next step, not the reasoning that got there.
   the artifact and this file's other rules call for.
 - If something genuinely doesn't compress — a real tradeoff, a caveat that changes the
   answer — explain it in full. Don't let that become the default excuse for length.
+- **A test the user runs by hand is a short numbered list and one expected result**, one test at a
+  time, with no background unless asked. Work out that it can actually be run before handing it
+  over, and don't offer options alongside it. 28.10's update test went wrong this way (2026-10-30):
+  several rounds of explanation, and steps that contradicted an earlier claim, until the user asked
+  for nothing but the steps.
 
 ## Coding guidelines
 

@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.core.api
 
 import com.grappim.kit.appinfo.AppInfoProvider
 import com.grappim.kit.storage.cert.TrustedCertStorage
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage
@@ -9,6 +10,7 @@ import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
+import kotlinx.serialization.json.Json
 import org.koin.core.annotation.ComponentScan
 import org.koin.core.annotation.Configuration
 import org.koin.core.annotation.Factory
@@ -25,10 +27,33 @@ import org.koin.core.annotation.Single
 @Qualifier
 annotation class WebSessionHttpClient
 
+/** Decodes whole response envelopes in [WallosEnvelopeParser]. */
+@Retention(AnnotationRetention.BINARY)
+@Qualifier
+annotation class LenientJson
+
+/** Decodes single rows out of an already-parsed envelope in `WallosCrudApi`. */
+@Retention(AnnotationRetention.BINARY)
+@Qualifier
+annotation class IgnoreUnknownKeysJson
+
 @Module
 @Configuration
 @ComponentScan("com.grappim.wallosmobile.core.api")
 class NetworkModule {
+
+    /**
+     * Mandatory, not a nicety: responses are raw DB rows and self-hosted instances sit at
+     * different migration levels.
+     */
+    @[Single LenientJson]
+    fun provideLenientJson(): Json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
+
+    @[Single IgnoreUnknownKeysJson]
+    fun provideIgnoreUnknownKeysJson(): Json = Json { ignoreUnknownKeys = true }
 
     /**
      * Note what is *absent*, versus MealieMobile's equivalent (plan §4.1): no `AuthHeaderPlugin`
@@ -41,7 +66,8 @@ class NetworkModule {
     fun provideHttpClient(
         baseUrlProvider: BaseUrlProvider,
         appInfoProvider: AppInfoProvider,
-        trustedCertStorage: TrustedCertStorage
+        trustedCertStorage: TrustedCertStorage,
+        customHeadersStorage: CustomHeadersStorage
     ): HttpClient = HttpClient(createPlatformHttpClientEngine(trustedCertStorage)) {
         // Wallos answers 200 to auth and validation failures alike; the status carries no
         // API-level meaning, so raising on it would be raising on nothing.
@@ -49,9 +75,14 @@ class NetworkModule {
         defaultRequest {
             url(baseUrlProvider.getBaseUrl())
         }
+        install(CustomHeaders) {
+            storage = customHeadersStorage
+            serverUrl = baseUrlProvider::getBaseUrl
+        }
         install(Logging) {
             logger = RedactingLogger(tag = "Ktor")
             level = if (appInfoProvider.isDebug()) LogLevel.ALL else LogLevel.NONE
+            sanitizeCustomHeaders(customHeadersStorage)
         }
         install(HttpRequestRetry) {
             retryOnExceptionIf(maxRetries = 1) { request, _ ->
@@ -69,7 +100,8 @@ class NetworkModule {
     fun provideWebSessionHttpClient(
         baseUrlProvider: BaseUrlProvider,
         appInfoProvider: AppInfoProvider,
-        trustedCertStorage: TrustedCertStorage
+        trustedCertStorage: TrustedCertStorage,
+        customHeadersStorage: CustomHeadersStorage
     ): HttpClient = HttpClient(createPlatformHttpClientEngine(trustedCertStorage)) {
         // The redirect *is* the result: 302 means the credentials were accepted, and a
         // `Location` of `totp.php` means a second factor is pending (plan §1.1).
@@ -78,12 +110,17 @@ class NetworkModule {
         defaultRequest {
             url(baseUrlProvider.getBaseUrl())
         }
+        install(CustomHeaders) {
+            storage = customHeadersStorage
+            serverUrl = baseUrlProvider::getBaseUrl
+        }
         install(HttpCookies) {
             storage = AcceptAllCookiesStorage()
         }
         install(Logging) {
             logger = RedactingLogger(tag = "KtorWeb")
             level = if (appInfoProvider.isDebug()) LogLevel.ALL else LogLevel.NONE
+            sanitizeCustomHeaders(customHeadersStorage)
         }
     }
 }

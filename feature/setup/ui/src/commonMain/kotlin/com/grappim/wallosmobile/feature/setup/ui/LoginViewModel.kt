@@ -7,6 +7,7 @@ import com.grappim.kit.domain.findPendingCertTrust
 import com.grappim.kit.logger.LogPriority
 import com.grappim.kit.logger.logcat
 import com.grappim.kit.uikit.NativeText
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorage
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
@@ -16,17 +17,18 @@ import com.grappim.wallosmobile.strings.generated.resources.login_error_api_key_
 import com.grappim.wallosmobile.strings.generated.resources.login_error_cert_not_trusted
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_credentials
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_totp
+import com.grappim.wallosmobile.strings.generated.resources.login_error_local_network_denied
 import com.grappim.wallosmobile.strings.generated.resources.login_error_totp_session_expired
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -41,7 +43,10 @@ import kotlin.time.Duration.Companion.milliseconds
  * a process death gets a clean cookie jar.
  */
 @KoinViewModel
-class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel() {
+class LoginViewModel(
+    private val setupRepository: SetupRepository,
+    private val customHeadersStorage: CustomHeadersStorage
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
         LoginUiState(
@@ -54,7 +59,8 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
             onApiKeyModeChange = ::onApiKeyModeChange,
             onConnectClick = ::onConnectClick,
             onCertTrustConfirm = ::onCertTrustConfirm,
-            onCertTrustDismiss = ::onCertTrustDismiss
+            onCertTrustDismiss = ::onCertTrustDismiss,
+            onLocalNetworkDenied = ::onLocalNetworkDenied
         )
     )
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
@@ -67,6 +73,7 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
 
     init {
         observeServerUrl()
+        observeCustomHeaders()
         viewModelScope.launch {
             setupRepository.getStoredServerUrl()
                 .onSuccess(::onStoredServerUrl)
@@ -79,15 +86,24 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
      * The probe runs off the URL field, not off Connect: its whole point is to be earlier than the
      * password. Debounced because it is fired by typing, and filtered to an explicit scheme
      * because the app infers none anywhere else — half a URL is not an instance to ask.
+     *
+     * The stored headers ride along because a proxy in front of the instance rejects the probe
+     * without them (plan §4.5b) — so saving new ones on their own screen is a new question for the
+     * same URL. The HTTP clients read them from storage, so only the change has to be observed here.
      */
     @OptIn(FlowPreview::class)
     private fun observeServerUrl() {
-        serverUrlInput
+        combine(serverUrlInput, customHeadersStorage.headers) { url, headers -> url.trim() to headers }
             .debounce(PROBE_DEBOUNCE)
-            .map { it.trim() }
-            .filter { url -> SCHEMES.any { url.startsWith(it, ignoreCase = true) } }
+            .filter { (url, _) -> SCHEMES.any { url.startsWith(it, ignoreCase = true) } }
             .distinctUntilChanged()
-            .onEach(::probePasswordLogin)
+            .onEach { (url, _) -> probePasswordLogin(url) }
+            .launchIn(viewModelScope)
+    }
+
+    private fun observeCustomHeaders() {
+        customHeadersStorage.headers
+            .onEach { headers -> _uiState.update { it.copy(customHeaderCount = headers.size) } }
             .launchIn(viewModelScope)
     }
 
@@ -309,6 +325,11 @@ class LoginViewModel(private val setupRepository: SetupRepository) : ViewModel()
     private fun onCertTrustDismiss() {
         _uiState.update { it.copy(pendingCertTrust = null) }
         showError(RString.login_error_cert_not_trusted)
+    }
+
+    /** Connect never ran: the request would only have timed out and blamed the URL. */
+    private fun onLocalNetworkDenied() {
+        showError(RString.login_error_local_network_denied)
     }
 
     private fun showError(resource: StringResource) {

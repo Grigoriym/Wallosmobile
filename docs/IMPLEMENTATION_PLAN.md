@@ -1586,6 +1586,127 @@ The prompt itself is 3.8, and it lives on the **login screen only**:
   — **decided against, 2026-08-09** (`docs/CHECKLIST.md`'s "To review": not worth ~13 extra call
   sites for a rare event that already has a working, if clunkier, fallback message).
 
+### 4.5b Custom request headers — reverse-proxy auth (M28, 2026-10-27)
+
+**Why.** Users who expose Wallos through an authenticating reverse proxy can't get past the proxy:
+the app never sends what the proxy asks for, so the very first request (`api/status/version.php`,
+the login probe) is rejected before it reaches Wallos. Surfaced by PR #105 (an outside
+contribution adding "allow self-signed", declined — it disabled all chain *and* hostname checks
+globally and did not address the reporter's actual failure). The reporter runs Wallos behind
+**Pangolin**, whose resource **Header Auth** checks `Authorization: Basic base64(user:pass)`
+([docs](https://docs.pangolin.net/manage/resources/public/authentication)); other proxies use
+other names (Cloudflare Access's `CF-Access-Client-Id`/`-Secret`, arbitrary `X-…` tokens). So the
+feature is **user-defined headers sent on every request to the server**, not a Pangolin-specific
+Basic-auth field.
+
+**Not this milestone: mTLS.** The reporter's logcat
+(`TLSV1_ALERT_CERTIFICATE_REQUIRED`) shows their Pangolin resource was *also* set to require a
+client certificate — a separate feature (Android `KeyChain` + an `X509KeyManager` in the engine's
+`SSLContext`, an Activity-bound picker in `androidApp`), much larger, and with no confirmed user
+(their mTLS fails in other apps too). Revisit only on demand.
+
+**Shape** (design questions settled by 28.2, 2026-10-27 — evidence in that step's `Note:`):
+
+- **Storage** — `CustomHeadersStorage` (`core:storage`, `customheaders/`), same shape as
+  `ServerUrlStorage`: a **non-suspend cached read** (`currentHeaders`), because the consumer is
+  the per-request Ktor plugin below, plus a `headers` `Flow` for the UI. The whole list is one
+  JSON blob encrypted with `SecretCipher` like the API key (§4.7); a blob that no longer decrypts
+  or decodes reads as no headers, logged without the throwable (its message would carry the
+  decrypted JSON). It belongs to the *server*, not the account: survives `ApiKeyStorage.clear()`
+  the way the URL does.
+- **A list of name/value pairs**, not a single header and no Basic-auth helper — the value hint
+  shows `Basic <base64>` for the Pangolin case.
+- **Applied to all three clients** — `provideHttpClient`, `provideWebSessionHttpClient`
+  (`NetworkModule`) and Coil's client in `AppModule.provideImageLoader` — by one small
+  `createClientPlugin`, `CustomHeaders` (`core:api`), hooked on **`SendingRequest`**. Not
+  `defaultRequest`: its block never sees the request's URL, so it can't host-scope. Not
+  `onRequest` either (28.2's first answer, corrected in 28.4): that runs for the first hop only,
+  and `HttpRedirect` copies the original request's headers onto every redirected hop, stripping
+  only `Authorization` across authorities — so an `X-…` token would follow a redirect off the
+  server. `SendingRequest` (`HttpSendPipeline.State`) runs once per hop, after `DefaultRequest`'s
+  URL merge and before `Logging`'s `Monitoring`-phase hook; each hop removes the configured names
+  and re-adds them only while it is still on the server. Coil's is the easy one to miss: without
+  it logos 401 behind the proxy while data loads (the same trap §4.5 hit with the trust engine);
+  it reads `ServerUrlStorage` directly, since `BaseUrlProvider` isn't on `:androidApp`'s classpath.
+- **Scoped to the server's origin** — scheme, host (case-insensitive) and port must all match the
+  stored server URL (`isServerOrigin`), so a credential never rides along to a third-party host
+  (an external logo URL, a proxy's login page) or over plain `http` to an `https` server.
+- **Never logged.** `Logging` at `LogLevel.ALL` prints request headers; `RedactingLogger` only
+  scrubs form-body params. Header *values* need Ktor's `sanitizeHeader { }`, whose predicate runs
+  per header at log time — so it reads the storage cache and matches configured names
+  `ignoreCase`.
+- **Validated to OkHttp's rule, not Ktor's** — the engine is stricter (printable ASCII only, and
+  it throws at request time): name `0x21..0x7E` minus delimiters, value `0x20..0x7E` or tab,
+  no duplicates, and `Host`/`Content-Length`/`Content-Type`/`Transfer-Encoding`/`Upgrade`/
+  `Connection`/`Cookie` refused. One pure class, `CustomHeaderValidator` (`core:storage`, beside the
+  model, so login and Settings share it), returning a `CustomHeaderError?` per row; a row with
+  both fields blank is unfilled, not wrong, and is never sent.
+- **Edited on one screen, reached from two places** — `CustomHeadersScreen` (`feature:settings:ui`,
+  `customheaders/`), which saves on an explicit Save, offered only while the rows are valid and
+  differ from what's stored, rather than per keystroke. Settings opens it as a route
+  (`CustomHeadersRoute`, a row under the Server field); login opens it from a "Custom headers"
+  button (with the stored count) as **state**, not a route — login has no shell or back stack, so
+  `composeApp`'s `LoginBranch` swaps it in for `LoginScreen` behind a `rememberSaveable` flag and
+  provides the `LocalTopBarConfig`/`LocalIsOffline` the shell otherwise would. Both entry points get the same
+  `CustomHeadersViewModel` instance — ViewModels here are activity-scoped (§5.5 item 6) — so an
+  unsaved edit made from login is still there when Settings opens the screen. `LoginViewModel` never
+  writes headers: the probe is the first request and must already carry them, so it probes off
+  `combine(url, storedHeaders)` and re-probes when a save changes them. An edit needs no re-probe
+  elsewhere — it applies on the next request, and a wrong value surfaces as the proxy-rejection
+  message below on the next refresh.
+- **A proxy rejection gets its own message.** Today a `401`/`407` from the proxy is misreported
+  on both login paths (confirmed on device, 28.1): the API-key path falls through
+  `WallosEnvelopeParser` (only `404`/`5xx` mean anything there) into `Malformed` → "Nothing that
+  looks like Wallos answered", and the password path's `LoginOutcomeInterpreter` reads the
+  non-`302` as "Wallos didn't accept that username and password".
+  An HTTP-level `401` is never Wallos itself (it answers `200` to everything, §4.3), so it can be
+  mapped to "the server asked for authentication — check custom headers" without guessing. So can
+  a **cross-host redirect**: Wallos only redirects relatively (`.`, `totp.php`, `login.php`), so a
+  `3xx` whose `Location` is an absolute URL on another host is a proxy sending the app to its login
+  page (Pangolin without "Extended Compatibility"). Both become `WallosError.ProxyAuthRequired`
+  (`error_proxy_auth`), decided by one pure predicate, `isProxyRejection` (`core:api`):
+  `WallosEnvelopeParser` handles `401`/`407`; `WallosApiClient` checks the redirect before parsing
+  — it sees the `3xx` itself, because Ktor's `HttpRedirect` follows only `GET`/`HEAD` and every API
+  call is a POST; and the web-login/TOTP interpreters throw it ahead of their outcome tables, where
+  a `401` read as a refused password and a `302` as `LoggedIn`. A same-host absolute redirect
+  (`http` → `https`) stays `Malformed` — that one is the URL's fault.
+
+**Repro.** A throwaway nginx `auth_basic` front in front of the local instance reproduces
+Pangolin's Header Auth exactly (`Authorization: Basic`) — recipe in `docs/local-info.txt`,
+"Reverse-proxy header auth". Confirmed 2026-10-27: no header → `401` nginx HTML; with
+`-u pangolin:secret` → Wallos's own JSON. Confirmed on device the same day (28.8): both login paths, the list,
+the dashboard and Coil's logo loads go through with the header and fail with `error_proxy_auth`
+without it. The cross-host-redirect trigger is covered by `MockEngine` tests only — never seen
+against a real Pangolin.
+
+### 4.5c Local network permission (28.10, 2026-10-30)
+
+With `targetSdk` 37 on Android 17, an app without the runtime permission
+`ACCESS_LOCAL_NETWORK` cannot reach anything on the LAN: the connection times out while the
+internet still works, so it surfaces as `error_unreachable`. Self-hosted Wallos on a LAN address
+is a normal setup, and 1.0.4 already targets 37 without the permission.
+
+- **Asked only for a server that needs it.** `rememberLocalNetworkPermissionRequest` (`uikit`,
+  `expect`/`actual`) resolves the URL's host and prompts only on API 37+, permission not granted,
+  and an address that is RFC 1918, link-local or `fc00::/7`. It resolves rather than reads the name
+  because a hostname on a public domain can point at a private address.
+- **Asked at Connect**, wrapped around `onConnectClick` in `LoginScreen` so the keyboard's Done goes
+  through it too, not off the URL field: a dialog fired by typing is the same objection the probe
+  has to raising the trust prompt.
+- **Denied at login means no request**, and `login_error_local_network_denied` says why, since the
+  request could only time out and blame the URL.
+- **Asked once more on opening the shell**, for someone who connected before the permission
+  existed. That's `LocalNetworkBanner`, composed above `MainNavHost` in `AuthenticatedMainScreen`.
+- **Blocked while connected means one banner above every screen**, with an "Open settings" action,
+  rather than a message per request or screen: every screen fails the same way. It re-checks on
+  each resume (`rememberIsLocalNetworkBlocked`), so it leaves by itself once allowed. Android has
+  no public link to a single permission, so the action opens the app's settings page.
+
+Known limits: screens don't reload when the permission is allowed, so that takes Try again or pull
+to refresh; screens below the banner still show their own `error_unreachable` until then. The
+password-login probe doesn't re-run after a grant, because it runs off the URL and headers only
+(`Disabled` is then discovered by the failed login instead of hiding that path early).
+
 ### 4.6 Version gating
 
 Originally planned as: store the `api/status/version.php` result at setup and after each

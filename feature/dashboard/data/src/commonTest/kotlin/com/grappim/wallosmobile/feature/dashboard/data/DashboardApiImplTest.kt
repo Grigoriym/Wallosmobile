@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.dashboard.data
 
+import com.grappim.wallosmobile.core.api.NetworkModule
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
 import com.grappim.wallosmobile.core.domain.WallosError
@@ -87,7 +88,7 @@ class DashboardApiImplTest {
             WallosApiClient(
                 httpClient = HttpClient(engine),
                 apiKeyStorage = FakeApiKeyStorage,
-                envelopeParser = WallosEnvelopeParser()
+                envelopeParser = WallosEnvelopeParser(NetworkModule().provideLenientJson())
             )
         )
     }

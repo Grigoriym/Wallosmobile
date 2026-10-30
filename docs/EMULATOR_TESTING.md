@@ -26,12 +26,22 @@ section and `docs/local-info.txt` — this file only covers the device side.
 
 ## App-specific gotchas
 
+- **`Medium_Phone_API_36.1` cannot reproduce Android 17's local network block** (plan §4.5c), and
+  `10.0.2.2` isn't a real LAN path either. Anything about `ACCESS_LOCAL_NETWORK` needs the Pixel 11
+  Pro. `run-as <pkg> nc` probes reach only with the screen on; include a public control
+  (`1.1.1.1 443`), since with the phone dozing it fails too and the result means nothing. Read
+  `dumpsys activity activities | grep topResumedActivity` before any `pm clear`/`pm revoke`: the
+  user tests on `fdroid.debug` there, and a command aimed at `.debug` silently hits the wrong app.
+
 - **This machine can have a real phone (`SM-A920F`, a Samsung Galaxy A9 on Android 10) connected
   over USB**, and `adb`/an `installXxxDebug` task silently prefers it over the AVD whenever no
   emulator is booted yet (16.5: `installGplayDebug -PgplayBuild` landed there on its first run of
   a session, install succeeding with no error). Always `adb devices -l` before trusting an install
   reached `Medium_Phone_API_36.1`, and boot the AVD explicitly rather than assuming it's the only
   device attached — the skill's own generic warning about this, not a one-off.
+  A second real device turns up too: a Pixel 11 Pro over **wireless** adb (serial
+  `adb-68131FDKX001L0-…._adb-tls-connect._tcp`, 28.9) — no cable to notice, so pass
+  `-s emulator-5554` / `ANDROID_SERIAL=emulator-5554` to every `adb` and install call.
 
 - **`screencap` is 1080×2400 while the returned image is scaled** — multiply screenshot
   coordinates by the display factor before `input tap`, or better, read a
@@ -71,6 +81,10 @@ section and `docs/local-info.txt` — this file only covers the device side.
   again is the fastest way onto a known-clean state when verifying against a different
   Wallos instance. The **stale banner** ("Showing saved data") over a full list is the
   tell that on-screen rows belong to a server that's no longer the configured one.
+- **Re-opening a drawer screen sends no request when its cache is fresh** — to make the
+  Subscriptions list hit the server (e.g. to see a changed header or a dead server surface as the
+  stale banner), pull to refresh (`adb shell input swipe 540 600 540 1600 500`); navigating back to
+  it alone logs nothing (28.8).
 - **Proving a request happened**: `adb logcat -c`, act, then
   `grep -E "REQUEST:|RESPONSE: |failed with exception"` — never `grep Ktor` alone, since
   one `get_subscriptions.php` response body is ~35 rows of JSON that buries everything

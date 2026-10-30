@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.feature.household.data
 
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.NetworkModule
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
 import com.grappim.wallosmobile.core.domain.WallosError
@@ -93,8 +94,9 @@ class HouseholdApiImplTest {
             WallosApiClient(
                 httpClient = HttpClient(engine),
                 apiKeyStorage = FakeApiKeyStorage,
-                envelopeParser = WallosEnvelopeParser()
-            )
+                envelopeParser = WallosEnvelopeParser(NetworkModule().provideLenientJson())
+            ),
+            json = NetworkModule().provideIgnoreUnknownKeysJson()
         )
     }
 

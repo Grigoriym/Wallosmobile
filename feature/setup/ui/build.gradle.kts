@@ -12,6 +12,8 @@ kotlin {
             // Carries `core:domain` as `api` — `PendingCertTrust` is in `SetupRepository`'s
             // signature and in this screen's state, so it needs no declaration here either.
             implementation(projects.feature.setup.domain)
+            // `CustomHeadersStorage` and its validator — a single storage call, so no repository.
+            implementation(projects.core.storage)
 
             // `uikit` carries `utils:ui` as `api`, so `NativeText` needs no declaration here.
             implementation(projects.uikit)

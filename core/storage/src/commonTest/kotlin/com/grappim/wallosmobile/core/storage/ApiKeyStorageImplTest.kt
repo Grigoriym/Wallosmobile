@@ -3,7 +3,8 @@ package com.grappim.wallosmobile.core.storage
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.cash.turbine.test
-import com.grappim.kit.storage.SecretCipher
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeader
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorageImpl
 import com.grappim.wallosmobile.core.storage.db.CurrencyDao
 import com.grappim.wallosmobile.core.storage.db.CurrencyEntity
 import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
@@ -15,6 +16,7 @@ import com.grappim.wallosmobile.core.storage.theme.ThemeStorageImpl
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -112,6 +114,20 @@ class ApiKeyStorageImplTest {
         }
     }
 
+    /** The proxy guards the server, not the account (plan §4.5b). */
+    @Test
+    fun `clear keeps the custom headers`() = runTest {
+        val headersStorage = CustomHeadersStorageImpl(dataStore, cipher, Json)
+        val headers = listOf(CustomHeader("Authorization", "Basic cGFuZ29saW46c2VjcmV0"))
+        headersStorage.setHeaders(headers)
+        storage.setKey("abc123")
+
+        storage.clear()
+
+        assertNull(storage.getKey())
+        assertEquals(headers, CustomHeadersStorageImpl(dataStore, cipher, Json).currentHeaders)
+    }
+
     /** The cached rows belong to the account whose key is being dropped (3.4). */
     @Test
     fun `clear empties the cache along with the key`() = runTest {
@@ -190,21 +206,6 @@ private class FakeCurrencyDao : CurrencyDao {
 
     override suspend fun insertAll(currencies: List<CurrencyEntity>) {
         rows = rows.filterNot { row -> currencies.any { it.id == row.id } } + currencies
-    }
-}
-
-/**
- * Reversible stand-in for the Keystore: `encrypt` is observable in the stored value, and anything
- * it did not produce fails to decrypt — the restored-backup case.
- */
-private class FakeSecretCipher : SecretCipher {
-
-    override fun encrypt(value: String): String = PREFIX + value
-
-    override fun decrypt(value: String): String? = value.removePrefix(PREFIX).takeIf { value.startsWith(PREFIX) }
-
-    companion object {
-        const val PREFIX = "enc:"
     }
 }
 

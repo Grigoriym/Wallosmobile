@@ -24,7 +24,7 @@ private data class SubscriptionRow(val id: Int, val name: String)
 
 class WallosEnvelopeParserTest {
 
-    private val sut = WallosEnvelopeParser()
+    private val sut = WallosEnvelopeParser(NetworkModule().provideLenientJson())
     private val logger = RecordingLogger()
 
     @BeforeTest
@@ -85,6 +85,16 @@ class WallosEnvelopeParserTest {
     fun `404 means the endpoint is absent on this Wallos version`() {
         assertFailsWith<WallosError.UnsupportedEndpoint> {
             parse(body = "<html>404 Not Found</html>", statusCode = HTTP_NOT_FOUND)
+        }
+    }
+
+    /** Wallos answers 200 to its own auth failures, so these come from whatever is in front of it. */
+    @Test
+    fun `401 and 407 are a proxy asking for credentials, not a malformed body`() {
+        listOf(HTTP_UNAUTHORIZED, HTTP_PROXY_AUTH_REQUIRED).forEach { status ->
+            assertFailsWith<WallosError.ProxyAuthRequired>("$status") {
+                parse(body = "<html><h1>401 Authorization Required</h1></html>", statusCode = status)
+            }
         }
     }
 
@@ -232,7 +242,9 @@ class WallosEnvelopeParserTest {
 
     private companion object {
         const val HTTP_OK = 200
+        const val HTTP_UNAUTHORIZED = 401
         const val HTTP_NOT_FOUND = 404
+        const val HTTP_PROXY_AUTH_REQUIRED = 407
         const val HTTP_INTERNAL_ERROR = 500
         const val HTTP_BAD_GATEWAY = 502
     }

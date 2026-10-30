@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.core.crud
 
 import com.grappim.wallosmobile.core.api.FormParams
 import com.grappim.wallosmobile.core.api.MultipartFile
+import com.grappim.wallosmobile.core.api.NetworkModule
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
 import com.grappim.wallosmobile.core.domain.WallosError
@@ -129,10 +130,11 @@ class WallosCrudApiTest {
             apiClient = WallosApiClient(
                 httpClient = HttpClient(engine),
                 apiKeyStorage = FakeApiKeyStorage,
-                envelopeParser = WallosEnvelopeParser()
+                envelopeParser = WallosEnvelopeParser(NetworkModule().provideLenientJson())
             ),
             endpoint = ENDPOINT,
-            itemDeserializer = FakeCrudResource.serializer()
+            itemDeserializer = FakeCrudResource.serializer(),
+            json = NetworkModule().provideIgnoreUnknownKeysJson()
         )
     }
 

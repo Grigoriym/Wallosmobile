@@ -5,6 +5,8 @@ import com.grappim.kit.domain.UntrustedCertificateException
 import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeader
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorage
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
@@ -17,7 +19,9 @@ import com.grappim.wallosmobile.strings.generated.resources.login_error_api_key_
 import com.grappim.wallosmobile.strings.generated.resources.login_error_cert_not_trusted
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_credentials
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_totp
+import com.grappim.wallosmobile.strings.generated.resources.login_error_local_network_denied
 import com.grappim.wallosmobile.strings.generated.resources.login_error_totp_session_expired
+import com.grappim.wallosmobile.testing.FakeCustomHeadersStorage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.compose.resources.StringResource
@@ -32,7 +36,8 @@ import kotlin.time.Duration.Companion.seconds
 
 class LoginViewModelTest {
 
-    private val repository = FakeSetupRepository()
+    private val customHeadersStorage = FakeCustomHeadersStorage()
+    private val repository = FakeSetupRepository(customHeadersStorage)
     private val mainDispatcherRule = MainDispatcherRule()
 
     @BeforeTest
@@ -45,7 +50,7 @@ class LoginViewModelTest {
         mainDispatcherRule.tearDown()
     }
 
-    private fun viewModel() = LoginViewModel(repository)
+    private fun viewModel() = LoginViewModel(repository, customHeadersStorage)
 
     private fun LoginViewModel.fillCredentials() {
         with(uiState.value) {
@@ -526,6 +531,57 @@ class LoginViewModelTest {
         assertTrue(repository.probeCalls.isEmpty())
     }
 
+    @Test
+    fun `a denied local network says so and sends nothing`() = runTest {
+        val sut = viewModel()
+        sut.fillCredentials()
+
+        sut.uiState.value.onLocalNetworkDenied()
+
+        assertEquals(resource(RString.login_error_local_network_denied), sut.uiState.value.error)
+        assertEquals(0, repository.loginCallCount)
+    }
+
+    // --- 28.5: custom headers, edited on their own screen ---
+
+    /** Without them the probe was asked a question the proxy answered, not the instance. */
+    @Test
+    fun `saving headers probes the same url again`() = runTest {
+        val sut = viewModel()
+        sut.uiState.value.onServerUrlChange(SERVER_URL)
+        settleProbe()
+
+        customHeadersStorage.setHeaders(listOf(AUTH_HEADER))
+        settleProbe()
+
+        assertEquals(listOf(SERVER_URL, SERVER_URL), repository.probeCalls)
+        assertEquals(listOf(emptyList(), listOf(AUTH_HEADER)), repository.probeHeaders)
+    }
+
+    @Test
+    fun `connect sends the stored headers without writing them`() = runTest {
+        customHeadersStorage.setHeaders(listOf(AUTH_HEADER))
+        repository.connectResult = Result.success(Unit)
+        val sut = viewModel()
+        sut.fillApiKey()
+        val savesBefore = customHeadersStorage.setHeadersCalledWith.size
+
+        sut.uiState.value.onConnectClick()
+
+        assertEquals(listOf(AUTH_HEADER), repository.connectHeaders)
+        assertEquals(savesBefore, customHeadersStorage.setHeadersCalledWith.size)
+    }
+
+    @Test
+    fun `the stored headers are counted`() = runTest {
+        val sut = viewModel()
+        assertEquals(0, sut.uiState.value.customHeaderCount)
+
+        customHeadersStorage.setHeaders(listOf(AUTH_HEADER, CustomHeader("X-Token", "abc")))
+
+        assertEquals(2, sut.uiState.value.customHeaderCount)
+    }
+
     /** The debounce is parked on the main dispatcher's scheduler, so that is what has to move. */
     private fun settleProbe() {
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
@@ -696,7 +752,7 @@ class LoginViewModelTest {
      * Private to this file on purpose: `:testing` is for doubles *other* modules need, and
      * `feature:setup:ui` is the only consumer of this one (CLAUDE.md).
      */
-    private class FakeSetupRepository : SetupRepository {
+    private class FakeSetupRepository(private val customHeadersStorage: CustomHeadersStorage) : SetupRepository {
         var loginResult: Result<LoginOutcome>? = null
         var connectResult: Result<Unit>? = null
         var totpResult: Result<LoginOutcome>? = null
@@ -712,8 +768,13 @@ class LoginViewModelTest {
         var probeResult: Result<PasswordLoginAvailability> = Result.success(PasswordLoginAvailability.Available)
         val probeCalls = mutableListOf<String>()
 
+        /** What storage held as each call went out — the HTTP clients read it from there. */
+        val probeHeaders = mutableListOf<List<CustomHeader>>()
+        var connectHeaders: List<CustomHeader>? = null
+
         override suspend fun probePasswordLogin(serverUrl: String): Result<PasswordLoginAvailability> {
             probeCalls += serverUrl
+            probeHeaders += customHeadersStorage.currentHeaders
             return probeResult
         }
 
@@ -751,6 +812,7 @@ class LoginViewModelTest {
 
         override suspend fun connectWithApiKey(serverUrl: String, apiKey: String): Result<Unit> {
             connectCall = serverUrl to apiKey
+            connectHeaders = customHeadersStorage.currentHeaders
             connectCallCount++
             return connectResult ?: error("connectResult not set")
         }
@@ -772,6 +834,8 @@ class LoginViewModelTest {
         const val PASSWORD = "demo"
         const val API_KEY = "5c1e0b2a9f"
         const val TOTP_CODE = "123456"
+
+        val AUTH_HEADER = CustomHeader("Authorization", "Basic cGFuZ29saW46c2VjcmV0")
 
         val PENDING_CERT_TRUST = PendingCertTrust(
             host = "wallos.lan",

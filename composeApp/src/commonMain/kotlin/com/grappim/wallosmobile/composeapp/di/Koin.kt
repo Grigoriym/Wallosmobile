@@ -5,10 +5,13 @@ import coil3.PlatformContext
 import coil3.annotation.ExperimentalCoilApi
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import com.grappim.kit.storage.cert.TrustedCertStorage
+import com.grappim.wallosmobile.core.api.CustomHeaders
 import com.grappim.wallosmobile.core.api.NetworkModule
 import com.grappim.wallosmobile.core.api.createPlatformHttpClientEngine
 import com.grappim.wallosmobile.core.asynckmp.KmpCoroutinesModule
+import com.grappim.wallosmobile.core.storage.ServerUrlStorage
 import com.grappim.wallosmobile.core.storage.StorageModule
+import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorage
 import com.grappim.wallosmobile.feature.categories.data.CategoriesDataModule
 import com.grappim.wallosmobile.feature.categories.mapper.CategoriesMapperModule
 import com.grappim.wallosmobile.feature.categories.ui.CategoriesUiModule
@@ -115,20 +118,33 @@ class AppModule {
      * jank.md`, traced live: 18 `DiskLruCache` lock-contention events, 50.6ms total, across 8
      * threads on one cold scroll). A cap doesn't remove the work, only serializes enough of it to
      * stop the pile-up while still loading several logos in parallel.
+     *
+     * [CustomHeaders] goes on this client too: behind an authenticating proxy, the logos are
+     * requests to the same server and are refused without them (plan §4.5b). It reads
+     * [ServerUrlStorage] rather than `BaseUrlProvider` for the same classpath reason as above.
      */
     @OptIn(ExperimentalCoilApi::class)
     @Single
-    fun provideImageLoader(context: PlatformContext, trustedCertStorage: TrustedCertStorage): ImageLoader =
-        ImageLoader.Builder(context)
-            .components {
-                add(
-                    KtorNetworkFetcherFactory(
-                        HttpClient(createPlatformHttpClientEngine(trustedCertStorage))
-                    )
+    fun provideImageLoader(
+        context: PlatformContext,
+        trustedCertStorage: TrustedCertStorage,
+        customHeadersStorage: CustomHeadersStorage,
+        serverUrlStorage: ServerUrlStorage
+    ): ImageLoader = ImageLoader.Builder(context)
+        .components {
+            add(
+                KtorNetworkFetcherFactory(
+                    HttpClient(createPlatformHttpClientEngine(trustedCertStorage)) {
+                        install(CustomHeaders) {
+                            storage = customHeadersStorage
+                            serverUrl = { serverUrlStorage.serverUrl }
+                        }
+                    }
                 )
-            }
-            .fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(COIL_FETCH_PARALLELISM))
-            .build()
+            )
+        }
+        .fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(COIL_FETCH_PARALLELISM))
+        .build()
 
     private companion object {
         private const val COIL_FETCH_PARALLELISM = 4
