@@ -879,7 +879,7 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   them would make `WallosCrudApi` lenient. `core:api` exposes the JSON library as `api`, because the
   type is now in its public signatures. The two saved-state ViewModels keep plain `Json` (CLAUDE.md).
   `KoinGraphTest` turned out not to check qualifiers, so the wiring was read from the generated
-  bytecode. **Not run on a device.**
+  bytecode, then the user ran the app (start, Categories, Subscriptions refresh) without a problem.
 
 ---
 
