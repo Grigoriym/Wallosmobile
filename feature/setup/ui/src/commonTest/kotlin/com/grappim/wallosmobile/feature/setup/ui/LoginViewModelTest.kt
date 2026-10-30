@@ -19,6 +19,7 @@ import com.grappim.wallosmobile.strings.generated.resources.login_error_api_key_
 import com.grappim.wallosmobile.strings.generated.resources.login_error_cert_not_trusted
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_credentials
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_totp
+import com.grappim.wallosmobile.strings.generated.resources.login_error_local_network_denied
 import com.grappim.wallosmobile.strings.generated.resources.login_error_totp_session_expired
 import com.grappim.wallosmobile.testing.FakeCustomHeadersStorage
 import kotlinx.coroutines.CompletableDeferred
@@ -528,6 +529,17 @@ class LoginViewModelTest {
         settleProbe()
 
         assertTrue(repository.probeCalls.isEmpty())
+    }
+
+    @Test
+    fun `a denied local network says so and sends nothing`() = runTest {
+        val sut = viewModel()
+        sut.fillCredentials()
+
+        sut.uiState.value.onLocalNetworkDenied()
+
+        assertEquals(resource(RString.login_error_local_network_denied), sut.uiState.value.error)
+        assertEquals(0, repository.loginCallCount)
     }
 
     // --- 28.5: custom headers, edited on their own screen ---

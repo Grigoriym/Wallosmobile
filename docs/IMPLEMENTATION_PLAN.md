@@ -1679,6 +1679,29 @@ the dashboard and Coil's logo loads go through with the header and fail with `er
 without it. The cross-host-redirect trigger is covered by `MockEngine` tests only — never seen
 against a real Pangolin.
 
+### 4.5c Local network permission (28.10, 2026-10-30)
+
+With `targetSdk` 37 on Android 17, an app without the runtime permission
+`ACCESS_LOCAL_NETWORK` cannot reach anything on the LAN: the connection times out while the
+internet still works, so it surfaces as `error_unreachable`. Self-hosted Wallos on a LAN address
+is a normal setup, and 1.0.4 already targets 37 without the permission.
+
+- **Asked only for a server that needs it.** `rememberLocalNetworkPermissionRequest` (`uikit`,
+  `expect`/`actual`) resolves the URL's host and prompts only on API 37+, permission not granted,
+  and an address that is RFC 1918, link-local or `fc00::/7`. It resolves rather than reads the name
+  because a hostname on a public domain can point at a private address.
+- **Asked at Connect**, wrapped around `onConnectClick` in `LoginScreen` so the keyboard's Done goes
+  through it too, not off the URL field: a dialog fired by typing is the same objection the probe
+  has to raising the trust prompt.
+- **Denied at login means no request**, and `login_error_local_network_denied` says why, since the
+  request could only time out and blame the URL.
+- **Asked once more on opening the shell**, in `WallosAppContent`'s connected branch, for someone
+  who connected before the permission existed.
+
+Known limits: a denial while already connected still reads as `error_unreachable` on the stale
+banner, and the password-login probe doesn't re-run after a grant, because it runs off the URL and
+headers only (`Disabled` is then discovered by the failed login instead of hiding that path early).
+
 ### 4.6 Version gating
 
 Originally planned as: store the `api/status/version.php` result at setup and after each

@@ -74,6 +74,7 @@ import com.grappim.wallosmobile.strings.generated.resources.login_username_label
 import com.grappim.wallosmobile.uikit.RDrawable
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.generated.resources.wallosmobile_logo
+import com.grappim.wallosmobile.uikit.permission.rememberLocalNetworkPermissionRequest
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
@@ -89,8 +90,23 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun LoginScreen(viewModel: LoginViewModel = koinViewModel<LoginViewModel>(), onCustomHeadersClick: () -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
+    val localNetworkPermission = rememberLocalNetworkPermissionRequest()
 
-    LoginContent(uiState = uiState, onCustomHeadersClick = onCustomHeadersClick)
+    // Here rather than in the Button, so the keyboard's Done goes through it as well.
+    LoginContent(
+        uiState = uiState.copy(
+            onConnectClick = {
+                if (uiState.canConnect) {
+                    localNetworkPermission.request(
+                        serverUrl = uiState.serverUrl,
+                        onAllowed = uiState.onConnectClick,
+                        onDenied = uiState.onLocalNetworkDenied
+                    )
+                }
+            }
+        ),
+        onCustomHeadersClick = onCustomHeadersClick
+    )
 }
 
 @Composable

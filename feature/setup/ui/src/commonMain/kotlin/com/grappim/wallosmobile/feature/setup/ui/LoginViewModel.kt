@@ -17,6 +17,7 @@ import com.grappim.wallosmobile.strings.generated.resources.login_error_api_key_
 import com.grappim.wallosmobile.strings.generated.resources.login_error_cert_not_trusted
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_credentials
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_totp
+import com.grappim.wallosmobile.strings.generated.resources.login_error_local_network_denied
 import com.grappim.wallosmobile.strings.generated.resources.login_error_totp_session_expired
 import com.grappim.wallosmobile.utils.ui.getErrorMessage
 import kotlinx.coroutines.FlowPreview
@@ -58,7 +59,8 @@ class LoginViewModel(
             onApiKeyModeChange = ::onApiKeyModeChange,
             onConnectClick = ::onConnectClick,
             onCertTrustConfirm = ::onCertTrustConfirm,
-            onCertTrustDismiss = ::onCertTrustDismiss
+            onCertTrustDismiss = ::onCertTrustDismiss,
+            onLocalNetworkDenied = ::onLocalNetworkDenied
         )
     )
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
@@ -323,6 +325,11 @@ class LoginViewModel(
     private fun onCertTrustDismiss() {
         _uiState.update { it.copy(pendingCertTrust = null) }
         showError(RString.login_error_cert_not_trusted)
+    }
+
+    /** Connect never ran: the request would only have timed out and blamed the URL. */
+    private fun onLocalNetworkDenied() {
+        showError(RString.login_error_local_network_denied)
     }
 
     private fun showError(resource: StringResource) {

@@ -26,6 +26,11 @@ section and `docs/local-info.txt` — this file only covers the device side.
 
 ## App-specific gotchas
 
+- **`Medium_Phone_API_36.1` cannot reproduce Android 17's local network block** (plan §4.5c), and
+  `10.0.2.2` isn't a real LAN path either. Anything about `ACCESS_LOCAL_NETWORK` needs the Pixel 11
+  Pro. `run-as <pkg> nc` probes reach only with the screen on; include a public control
+  (`1.1.1.1 443`), since with the phone dozing it fails too and the result means nothing.
+
 - **This machine can have a real phone (`SM-A920F`, a Samsung Galaxy A9 on Android 10) connected
   over USB**, and `adb`/an `installXxxDebug` task silently prefers it over the AVD whenever no
   emulator is booted yet (16.5: `installGplayDebug -PgplayBuild` landed there on its first run of

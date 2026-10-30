@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `9/9` — **M28 done**
-**Current step:** none — M28 (custom request headers, plan §4.5b) done 2026-10-27, all eight steps on one branch/PR; 28.8's device pass confirmed both login paths with and without the header, logos, the Settings edit and no regression on `:8282`. 28.9 (2026-10-28, user review of PR #107) moved the login-screen header editing onto the Settings screen, opened from a login button. Previously: M27 done 2026-08-15. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `10/10` — **M28 done**
+**Current step:** none — M28 (custom request headers, plan §4.5b) done 2026-10-27, all eight steps on one branch/PR; 28.8's device pass confirmed both login paths with and without the header, logos, the Settings edit and no regression on `:8282`. 28.9 (2026-10-28, user review of PR #107) moved the login-screen header editing onto the Settings screen, opened from a login button; 28.10 (2026-10-30) added Android 17's `ACCESS_LOCAL_NETWORK`, found by testing that PR on a real phone. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -853,6 +853,19 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   exposes only `customHeaderCount` for the button ("Custom headers (1)"). `CustomHeadersSection.kt`
   and `login_custom_headers_toggle` deleted. Behaviour change: headers are saved by the screen's
   Save, no longer implicitly by Connect. Verified on `Medium_Phone_API_36.1`.
+
+- [x] **28.10 — Ask for local network access on Android 17**
+  Added 2026-10-30 from testing PR #107 on a Pixel 11 Pro (Android 17): login from the LAN failed
+  with `error_unreachable`, and nothing reached the proxy. Design: plan §4.5c.
+  *Verify:* on a real Android 17 device, Connect to a LAN URL shows the dialog, Allow reaches the
+  server; `detekt ktlintCheck`, `lintFdroidDebug`, host tests.
+
+  Note: done 2026-10-30. Diagnosis: on the phone, as the app's UID `nc` timed out to the host and
+  the router while `1.1.1.1:443` connected; as the adb shell UID the host connected. Allow on the
+  dialog was followed by `POST /login.php` → `401` from `192.168.0.197` in the proxy log, and
+  `error_proxy_auth` on screen. **Not yet exercised on device:** Don't allow, and the prompt for an
+  already-connected install. A `pm grant` + `run-as nc` shortcut was inconclusive with the screen
+  off, because the public control failed too.
 
 ---
 

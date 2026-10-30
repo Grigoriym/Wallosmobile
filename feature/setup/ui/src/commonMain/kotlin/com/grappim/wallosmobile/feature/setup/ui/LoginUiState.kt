@@ -51,7 +51,8 @@ data class LoginUiState(
     val onApiKeyModeChange: (Boolean) -> Unit = {},
     val onConnectClick: () -> Unit = {},
     val onCertTrustConfirm: () -> Unit = {},
-    val onCertTrustDismiss: () -> Unit = {}
+    val onCertTrustDismiss: () -> Unit = {},
+    val onLocalNetworkDenied: () -> Unit = {}
 ) {
 
     /**

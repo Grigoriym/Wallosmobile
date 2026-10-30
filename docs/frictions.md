@@ -228,3 +228,4 @@ deleted — see `/finalize`.
   paths (`nginx.conf/`, `htpasswd/`), so the next attempt failed with "not a directory" and
   couldn't `rm` them. Recreated the files in a fresh directory instead; the `local-info.txt`
   recipe builds them in a new `headerauth/` dir every time, which avoids it.
+- Ran a `pm grant` + `run-as nc` check on the Pixel with the screen off; the public control timed out too, so the result meant nothing. Had to hand the check to the real dialog instead.
