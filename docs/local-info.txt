@@ -158,7 +158,8 @@ Pangolin's resource "Header Auth" checks `Authorization: Basic base64(user:pass)
   curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8285/api/status/version.php  # 401
   curl -s -u pangolin:secret http://localhost:8285/api/status/version.php                 # Wallos JSON
 
-App server URL: `http://10.0.2.2:8285`. Header to configure in the app:
+App server URL: `http://10.0.2.2:8285`, or the host's LAN IP from a real phone
+(`ip -4 route get 1.1.1.1`; 192.168.0.241 on 2026-10-30). Header to configure in the app:
 `Authorization: Basic cGFuZ29saW46c2VjcmV0` (`echo -n pangolin:secret | base64`).
 `docker logs wallos-headerauth` shows 401 vs 200 per request — the proof for Coil's logo loads,
 which the Ktor logger never sees. `docker rm -f wallos-headerauth` when done.

@@ -774,6 +774,11 @@ next step, not the reasoning that got there.
   the artifact and this file's other rules call for.
 - If something genuinely doesn't compress — a real tradeoff, a caveat that changes the
   answer — explain it in full. Don't let that become the default excuse for length.
+- **A test the user runs by hand is a short numbered list and one expected result**, one test at a
+  time, with no background unless asked. Work out that it can actually be run before handing it
+  over, and don't offer options alongside it. 28.10's update test went wrong this way (2026-10-30):
+  several rounds of explanation, and steps that contradicted an earlier claim, until the user asked
+  for nothing but the steps.
 
 ## Coding guidelines
 
