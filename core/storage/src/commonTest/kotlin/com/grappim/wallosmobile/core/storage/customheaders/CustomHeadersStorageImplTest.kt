@@ -7,6 +7,7 @@ import app.cash.turbine.test
 import com.grappim.wallosmobile.core.storage.FakePreferencesDataStore
 import com.grappim.wallosmobile.core.storage.FakeSecretCipher
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -15,7 +16,7 @@ import kotlin.test.assertTrue
 class CustomHeadersStorageImplTest {
 
     private val dataStore = FakePreferencesDataStore()
-    private val storage = CustomHeadersStorageImpl(dataStore, FakeSecretCipher())
+    private val storage = CustomHeadersStorageImpl(dataStore, FakeSecretCipher(), Json)
 
     private val headers = listOf(
         CustomHeader("Authorization", "Basic cGFuZ29saW46c2VjcmV0"),
@@ -46,14 +47,14 @@ class CustomHeadersStorageImplTest {
 
         val stored = dataStore.current[KEY].orEmpty()
         assertTrue(stored.startsWith(FakeSecretCipher.PREFIX))
-        assertEquals(headers, CustomHeadersStorageImpl(dataStore, FakeSecretCipher()).currentHeaders)
+        assertEquals(headers, CustomHeadersStorageImpl(dataStore, FakeSecretCipher(), Json).currentHeaders)
     }
 
     @Test
     fun `a list persisted before construction is read without suspending`() = runTest {
         storage.setHeaders(headers)
         val persisted = mutablePreferencesOf(KEY to dataStore.current[KEY].orEmpty())
-        val reopened = CustomHeadersStorageImpl(FakePreferencesDataStore(persisted), FakeSecretCipher())
+        val reopened = CustomHeadersStorageImpl(FakePreferencesDataStore(persisted), FakeSecretCipher(), Json)
 
         assertEquals(headers, reopened.currentHeaders)
     }

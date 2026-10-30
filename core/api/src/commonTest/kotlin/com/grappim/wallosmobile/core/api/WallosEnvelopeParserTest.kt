@@ -24,7 +24,7 @@ private data class SubscriptionRow(val id: Int, val name: String)
 
 class WallosEnvelopeParserTest {
 
-    private val sut = WallosEnvelopeParser()
+    private val sut = WallosEnvelopeParser(NetworkModule().provideLenientJson())
     private val logger = RecordingLogger()
 
     @BeforeTest

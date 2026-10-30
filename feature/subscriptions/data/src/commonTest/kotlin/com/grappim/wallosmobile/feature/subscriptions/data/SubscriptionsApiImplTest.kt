@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.feature.subscriptions.data
 
 import com.grappim.wallosmobile.core.api.FormParams
 import com.grappim.wallosmobile.core.api.MultipartFile
+import com.grappim.wallosmobile.core.api.NetworkModule
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
 import com.grappim.wallosmobile.core.domain.WallosError
@@ -276,7 +277,7 @@ class SubscriptionsApiImplTest {
             WallosApiClient(
                 httpClient = HttpClient(engine),
                 apiKeyStorage = FakeApiKeyStorage,
-                envelopeParser = WallosEnvelopeParser()
+                envelopeParser = WallosEnvelopeParser(NetworkModule().provideLenientJson())
             )
         )
     }

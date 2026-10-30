@@ -10,6 +10,7 @@ import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
+import kotlinx.serialization.json.Json
 import org.koin.core.annotation.ComponentScan
 import org.koin.core.annotation.Configuration
 import org.koin.core.annotation.Factory
@@ -26,10 +27,33 @@ import org.koin.core.annotation.Single
 @Qualifier
 annotation class WebSessionHttpClient
 
+/** Decodes whole response envelopes in [WallosEnvelopeParser]. */
+@Retention(AnnotationRetention.BINARY)
+@Qualifier
+annotation class LenientJson
+
+/** Decodes single rows out of an already-parsed envelope in `WallosCrudApi`. */
+@Retention(AnnotationRetention.BINARY)
+@Qualifier
+annotation class IgnoreUnknownKeysJson
+
 @Module
 @Configuration
 @ComponentScan("com.grappim.wallosmobile.core.api")
 class NetworkModule {
+
+    /**
+     * Mandatory, not a nicety: responses are raw DB rows and self-hosted instances sit at
+     * different migration levels.
+     */
+    @[Single LenientJson]
+    fun provideLenientJson(): Json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
+
+    @[Single IgnoreUnknownKeysJson]
+    fun provideIgnoreUnknownKeysJson(): Json = Json { ignoreUnknownKeys = true }
 
     /**
      * Note what is *absent*, versus MealieMobile's equivalent (plan §4.1): no `AuthHeaderPlugin`

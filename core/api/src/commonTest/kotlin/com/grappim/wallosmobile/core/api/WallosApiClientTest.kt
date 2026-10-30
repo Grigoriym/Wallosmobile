@@ -179,7 +179,7 @@ class WallosApiClientTest {
         return WallosApiClient(
             httpClient = HttpClient(engine),
             apiKeyStorage = FakeApiKeyStorage(apiKey),
-            envelopeParser = WallosEnvelopeParser()
+            envelopeParser = WallosEnvelopeParser(NetworkModule().provideLenientJson())
         )
     }
 

@@ -16,8 +16,8 @@ import kotlinx.serialization.json.intOrNull
 /**
  * The one implementation of [CrudApi], parameterized per resource by [endpoint] and
  * [itemDeserializer]. A feature's data module composes it by delegation —
- * `class CategoriesApiImpl(apiClient: WallosApiClient) : CategoriesApi,
- * CrudApi<CategoryDTO> by WallosCrudApi(apiClient, CATEGORIES_ENDPOINT, CategoryDTO.serializer())`
+ * `class CategoriesApiImpl(apiClient: WallosApiClient, @IgnoreUnknownKeysJson json: Json) : CategoriesApi,
+ * CrudApi<CategoryDTO> by WallosCrudApi(apiClient, CATEGORIES_ENDPOINT, CategoryDTO.serializer(), json)`
  * — rather than reimplementing the four calls per feature.
  *
  * `success: false` on any of the four calls surfaces as a [WallosError] straight out of
@@ -27,7 +27,8 @@ import kotlinx.serialization.json.intOrNull
 class WallosCrudApi<T : CrudResource>(
     private val apiClient: WallosApiClient,
     private val endpoint: CrudEndpoint,
-    private val itemDeserializer: DeserializationStrategy<T>
+    private val itemDeserializer: DeserializationStrategy<T>,
+    private val json: Json
 ) : CrudApi<T> {
 
     override suspend fun getAll(): List<T> {
@@ -80,8 +81,6 @@ class WallosCrudApi<T : CrudResource>(
     private fun FormParams.withAction(action: String): FormParams = put(ACTION_KEY, action)
 
     private companion object {
-        val json = Json { ignoreUnknownKeys = true }
-
         const val ACTION_KEY = "action"
         const val ACTION_ADD = "add"
         const val ACTION_EDIT = "edit"

@@ -1,12 +1,14 @@
 package com.grappim.wallosmobile.feature.currencies.data
 
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.IgnoreUnknownKeysJson
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.post
 import com.grappim.wallosmobile.core.crud.CrudEndpoint
 import com.grappim.wallosmobile.core.crud.WallosCrudApi
 import com.grappim.wallosmobile.feature.currencies.dto.CurrenciesResponse
 import com.grappim.wallosmobile.feature.currencies.dto.CurrencyDTO
+import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 
 /**
@@ -32,9 +34,10 @@ interface CurrenciesApi {
 data class CurrenciesPayload(val currencies: List<CurrencyDTO>, val mainCurrencyId: Int?)
 
 @Single(binds = [CurrenciesApi::class])
-internal class CurrenciesApiImpl(private val apiClient: WallosApiClient) : CurrenciesApi {
+internal class CurrenciesApiImpl(private val apiClient: WallosApiClient, @IgnoreUnknownKeysJson json: Json) :
+    CurrenciesApi {
 
-    private val crud = WallosCrudApi(apiClient, CURRENCIES_ENDPOINT, CurrencyDTO.serializer())
+    private val crud = WallosCrudApi(apiClient, CURRENCIES_ENDPOINT, CurrencyDTO.serializer(), json)
 
     override suspend fun getAll(): CurrenciesPayload =
         apiClient.post<CurrenciesResponse>(CURRENCIES_ENDPOINT.getPath).let { response ->

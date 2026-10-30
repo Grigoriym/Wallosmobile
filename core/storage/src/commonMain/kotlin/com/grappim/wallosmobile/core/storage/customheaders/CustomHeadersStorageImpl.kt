@@ -26,7 +26,8 @@ import kotlin.concurrent.Volatile
 @Single(binds = [CustomHeadersStorage::class])
 internal class CustomHeadersStorageImpl(
     private val dataStore: DataStore<Preferences>,
-    private val secretCipher: SecretCipher
+    private val secretCipher: SecretCipher,
+    private val json: Json
 ) : CustomHeadersStorage {
 
     @Volatile
@@ -48,7 +49,7 @@ internal class CustomHeadersStorageImpl(
             if (headers.isEmpty()) {
                 prefs.remove(KEY_CUSTOM_HEADERS)
             } else {
-                prefs[KEY_CUSTOM_HEADERS] = secretCipher.encrypt(Json.encodeToString(headers))
+                prefs[KEY_CUSTOM_HEADERS] = secretCipher.encrypt(json.encodeToString(headers))
             }
         }
         cached = headers
@@ -66,7 +67,7 @@ internal class CustomHeadersStorageImpl(
             return emptyList()
         }
         return try {
-            Json.decodeFromString<List<CustomHeader>>(plain)
+            json.decodeFromString<List<CustomHeader>>(plain)
         } catch (_: IllegalArgumentException) {
             logcat(priority = LogPriority.WARN) { "stored custom headers failed to decode; reading as none" }
             emptyList()

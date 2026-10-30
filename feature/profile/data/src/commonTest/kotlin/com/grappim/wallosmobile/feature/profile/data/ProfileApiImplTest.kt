@@ -1,6 +1,7 @@
 package com.grappim.wallosmobile.feature.profile.data
 
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.NetworkModule
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
@@ -67,7 +68,7 @@ class ProfileApiImplTest {
             WallosApiClient(
                 httpClient = HttpClient(engine),
                 apiKeyStorage = FakeApiKeyStorage,
-                envelopeParser = WallosEnvelopeParser()
+                envelopeParser = WallosEnvelopeParser(NetworkModule().provideLenientJson())
             )
         )
     }

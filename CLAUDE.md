@@ -475,6 +475,15 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   Koin module class) reached only through another module's `implementation` dependency needs its
   own direct line too (worked examples, `DashboardDomainModule`/`Subscription`: plan §6, the Koin
   bullet under Architecture patterns).
+  **`KoinGraphTest` doesn't check qualifiers either** — removing `@IgnoreUnknownKeysJson` from its
+  provider still passed it (28.11), so a qualifier mismatch is a runtime crash. To confirm one, read
+  the generated module with the `javap` recipe under Build commands and look for `typeQualifier`.
+- **`Json` comes from DI: the plain default unqualified, a configured one behind its own `@Qualifier`**
+  (`@LenientJson` for the envelope parser, `@IgnoreUnknownKeysJson` for `WallosCrudApi`, both in
+  `NetworkModule`). A test takes the real config from `NetworkModule().provide…Json()` rather than
+  repeating it. The exception is `SubscriptionsViewModel` and `SubscriptionEditorViewModel`, which
+  keep plain `Json` for their `SavedStateHandle` string: both already sit at detekt's
+  constructor-parameter limit, and nothing there depends on configuration (user's call, 2026-10-30).
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`. Every
   new route must be registered in the polymorphic `SerializersModule` in `NavKeySerializers.kt`,

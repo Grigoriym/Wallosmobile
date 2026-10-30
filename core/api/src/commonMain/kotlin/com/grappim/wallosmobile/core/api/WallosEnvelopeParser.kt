@@ -23,7 +23,7 @@ import org.koin.core.annotation.Single
  * makes it a pure unit-test target. See `docs/WALLOS_API.md` §5 and plan §4.2.
  */
 @Single
-class WallosEnvelopeParser {
+class WallosEnvelopeParser(@LenientJson private val json: Json) {
 
     /**
      * Decodes [body] as [T], or throws the [WallosError] the response describes.
@@ -107,15 +107,6 @@ class WallosEnvelopeParser {
         ((this[KEY_NOTES] as? JsonArray)?.firstOrNull() as? JsonPrimitive)?.contentOrNull
 
     private companion object {
-        /**
-         * Mandatory, not a nicety: responses are raw DB rows and self-hosted instances sit at
-         * different migration levels.
-         */
-        val json = Json {
-            ignoreUnknownKeys = true
-            isLenient = true
-        }
-
         const val JSON_START = '{'
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_NOT_FOUND = 404

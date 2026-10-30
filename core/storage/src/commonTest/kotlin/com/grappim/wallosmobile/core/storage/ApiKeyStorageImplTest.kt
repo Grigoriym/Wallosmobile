@@ -16,6 +16,7 @@ import com.grappim.wallosmobile.core.storage.theme.ThemeStorageImpl
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -116,7 +117,7 @@ class ApiKeyStorageImplTest {
     /** The proxy guards the server, not the account (plan §4.5b). */
     @Test
     fun `clear keeps the custom headers`() = runTest {
-        val headersStorage = CustomHeadersStorageImpl(dataStore, cipher)
+        val headersStorage = CustomHeadersStorageImpl(dataStore, cipher, Json)
         val headers = listOf(CustomHeader("Authorization", "Basic cGFuZ29saW46c2VjcmV0"))
         headersStorage.setHeaders(headers)
         storage.setKey("abc123")
@@ -124,7 +125,7 @@ class ApiKeyStorageImplTest {
         storage.clear()
 
         assertNull(storage.getKey())
-        assertEquals(headers, CustomHeadersStorageImpl(dataStore, cipher).currentHeaders)
+        assertEquals(headers, CustomHeadersStorageImpl(dataStore, cipher, Json).currentHeaders)
     }
 
     /** The cached rows belong to the account whose key is being dropped (3.4). */

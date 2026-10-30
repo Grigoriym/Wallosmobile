@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `10/10` — **M28 done**
-**Current step:** none — M28 (custom request headers, plan §4.5b) done 2026-10-27, all eight steps on one branch/PR; 28.8's device pass confirmed both login paths with and without the header, logos, the Settings edit and no regression on `:8282`. 28.9 (2026-10-28, user review of PR #107) moved the login-screen header editing onto the Settings screen, opened from a login button; 28.10 (2026-10-30) added Android 17's `ACCESS_LOCAL_NETWORK`, found by testing that PR on a real phone. Previously: M27 done 2026-08-15. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `11/11` — **M28 done**
+**Current step:** none — M28 (custom request headers, plan §4.5b) done 2026-10-27, all eight steps on one branch/PR; 28.8's device pass confirmed both login paths with and without the header, logos, the Settings edit and no regression on `:8282`. 28.9 (2026-10-28, user review of PR #107) moved the login-screen header editing onto the Settings screen, opened from a login button; 28.10 (2026-10-30) added Android 17's `ACCESS_LOCAL_NETWORK`, found by testing that PR on a real phone; 28.11 moved `Json` into DI. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -869,6 +869,17 @@ passes. 28.1/28.2 are checks only — no production code — and gate everything
   dashboard. The user's review of that (a loader with no reason) added `LocalNetworkBanner`; checked
   on the same phone across screens, gone on return after allowing. A `pm grant` + `run-as nc`
   shortcut was inconclusive with the screen off, because the public control failed too.
+
+- [x] **28.11 — Provide `Json` through DI**
+  Added 2026-10-30 at the user's request while reviewing `CustomHeadersStorageImpl`.
+  *Verify:* `allTests detekt ktlintCheck`, `lintFdroidDebug`, both flavors compile.
+
+  Note: done 2026-10-30. Plain `Json` from `StorageModule`, `@LenientJson` and
+  `@IgnoreUnknownKeysJson` from `NetworkModule`. The two custom ones stay separate, since merging
+  them would make `WallosCrudApi` lenient. `core:api` exposes the JSON library as `api`, because the
+  type is now in its public signatures. The two saved-state ViewModels keep plain `Json` (CLAUDE.md).
+  `KoinGraphTest` turned out not to check qualifiers, so the wiring was read from the generated
+  bytecode. **Not run on a device.**
 
 ---
 
