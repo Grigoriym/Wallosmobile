@@ -75,7 +75,7 @@ jetbrainsSavedState = "1.4.0"
 jetbrainsComposeIcons = "1.7.3"
 jetbrainsAndroidxLifecycle = "2.11.0"
 # https://developer.android.com/guide/navigation/navigation-3
-jetbrainsNav3 = "1.1.1"
+jetbrainsNav3 = "1.2.0"
 # https://github.com/Grigoriym/grappim-kit — one shared VERSION_NAME for every wired module
 grappimKit = "0.1.7"
 
