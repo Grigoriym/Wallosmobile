@@ -13,8 +13,7 @@ self-hosted subscription tracker. Not affiliated with the Wallos project.
 
 | Platform | Status | Distribution |
 |----------|--------|---------------|
-| Android  | Released | Google Play |
-| F-Droid  | TBD | TBD |
+| Android  | Released | Google Play & F-Droid |
 | iOS      | TBD | TBD |
 | Desktop  | TBD | TBD |
 
@@ -23,6 +22,9 @@ self-hosted subscription tracker. Not affiliated with the Wallos project.
 [<img src="art/google-badge.png"
 alt="Get it on Google Play"
 height="80">](https://play.google.com/store/apps/details?id=com.grappim.wallosmobile)
+[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
+alt="Get it on F-Droid"
+height="80">](https://f-droid.org/en/packages/com.grappim.wallosmobile.fdroid/)
 
 The project is built KMP-first: all source lives in `commonMain`, and platform targets are
 declared in one function in `build-logic`, so adding iOS or Desktop later is a build-logic change

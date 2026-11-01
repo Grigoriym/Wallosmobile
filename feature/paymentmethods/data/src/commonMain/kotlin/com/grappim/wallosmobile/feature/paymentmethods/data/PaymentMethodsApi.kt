@@ -1,12 +1,14 @@
 package com.grappim.wallosmobile.feature.paymentmethods.data
 
 import com.grappim.wallosmobile.core.api.FormParams
+import com.grappim.wallosmobile.core.api.IgnoreUnknownKeysJson
 import com.grappim.wallosmobile.core.api.MultipartFile
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.crud.CrudApi
 import com.grappim.wallosmobile.core.crud.CrudEndpoint
 import com.grappim.wallosmobile.core.crud.WallosCrudApi
 import com.grappim.wallosmobile.feature.paymentmethods.dto.PaymentMethodDTO
+import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 
 /**
@@ -27,9 +29,10 @@ interface PaymentMethodsApi : CrudApi<PaymentMethodDTO> {
  * of [CrudApi] and so aren't reachable through a `by` delegate.
  */
 @Single(binds = [PaymentMethodsApi::class])
-internal class PaymentMethodsApiImpl(apiClient: WallosApiClient) : PaymentMethodsApi {
+internal class PaymentMethodsApiImpl(apiClient: WallosApiClient, @IgnoreUnknownKeysJson json: Json) :
+    PaymentMethodsApi {
 
-    private val crud = WallosCrudApi(apiClient, PAYMENT_METHODS_ENDPOINT, PaymentMethodDTO.serializer())
+    private val crud = WallosCrudApi(apiClient, PAYMENT_METHODS_ENDPOINT, PaymentMethodDTO.serializer(), json)
 
     override suspend fun getAll(): List<PaymentMethodDTO> = crud.getAll()
 

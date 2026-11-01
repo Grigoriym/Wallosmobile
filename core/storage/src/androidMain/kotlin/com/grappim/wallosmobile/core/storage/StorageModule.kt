@@ -17,6 +17,7 @@ import com.grappim.wallosmobile.core.storage.db.CurrencyDao
 import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
 import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
 import com.grappim.wallosmobile.core.storage.db.WallosDB
+import kotlinx.serialization.json.Json
 import okio.Path.Companion.toPath
 import org.koin.core.annotation.ComponentScan
 import org.koin.core.annotation.Configuration
@@ -48,6 +49,9 @@ class StorageModule {
     fun provideDataStore(context: Context): DataStore<Preferences> = PreferenceDataStoreFactory.createWithPath(
         produceFile = { context.preferencesDataStoreFile(STORAGE_FILE_NAME).absolutePath.toPath() }
     )
+
+    @Single
+    fun provideJson(): Json = Json
 
     @Single
     fun provideNetworkMonitor(context: Context): NetworkMonitor = NetworkMonitorImpl(context)

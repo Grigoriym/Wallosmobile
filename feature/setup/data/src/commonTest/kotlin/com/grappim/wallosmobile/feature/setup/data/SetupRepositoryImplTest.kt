@@ -2,6 +2,7 @@ package com.grappim.wallosmobile.feature.setup.data
 
 import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.kit.testing.FakeTrustedCertStorage
+import com.grappim.wallosmobile.core.api.NetworkModule
 import com.grappim.wallosmobile.core.api.WallosApiClient
 import com.grappim.wallosmobile.core.api.WallosEnvelopeParser
 import com.grappim.wallosmobile.core.domain.WallosError
@@ -394,7 +395,7 @@ class SetupRepositoryImplTest {
             wallosApiClient = WallosApiClient(
                 httpClient = HttpClient(engine),
                 apiKeyStorage = apiKeyStorage,
-                envelopeParser = WallosEnvelopeParser()
+                envelopeParser = WallosEnvelopeParser(NetworkModule().provideLenientJson())
             ),
             serverUrlStorage = serverUrlStorage,
             apiKeyStorage = apiKeyStorage,

@@ -2,5 +2,23 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended"],
     "prHourlyLimit": 3,
-    "osvVulnerabilityAlerts": true
+    "osvVulnerabilityAlerts": true,
+    "packageRules": [
+        {
+            "description": "These test pins follow the Kotlin version detekt is built against, not the project's. See the comment in the file.",
+            "matchFileNames": ["detekt-rules/build.gradle.kts"],
+            "matchPackageNames": ["org.jetbrains.kotlin:kotlin-compiler", "org.jetbrains.kotlin:kotlin-reflect"],
+            "enabled": false
+        },
+        {
+            "description": "The -0.6.x-compat builds keep the old 0.6 API for libraries that still need it. Renovate reads the suffix as newer than the plain release.",
+            "matchPackageNames": ["org.jetbrains.kotlinx:kotlinx-datetime"],
+            "allowedVersions": "!/-compat$/"
+        },
+        {
+            "description": "The build compiles on the toolchain and daemon JDK set in build-logic and gradle-daemon-jvm.properties, whatever setup-java installs. Change all of them together, by hand.",
+            "matchPackageNames": ["java-jdk"],
+            "enabled": false
+        }
+    ]
 }
