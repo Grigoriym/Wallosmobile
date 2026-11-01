@@ -23,6 +23,9 @@ import com.grappim.kit.uikit.NativeText
  * [throttleWaitSeconds] is a number and not a phrase because the copy is a `<plurals>` the
  * composable resolves (CLAUDE.md). It exists only while an attempt is in flight — the wait is
  * spent inside the call — so it is written and cleared by that call and by nothing else.
+ *
+ * [customHeaderCount] is how many headers are stored. They are edited on their own screen (plan
+ * §4.5b), so the login screen only needs to say that some are being sent.
  */
 data class LoginUiState(
     val serverUrl: String = "",
@@ -38,6 +41,7 @@ data class LoginUiState(
     val throttleWaitSeconds: Int = 0,
     val error: NativeText = NativeText.Empty,
     val pendingCertTrust: PendingCertTrust? = null,
+    val customHeaderCount: Int = 0,
     val onServerUrlChange: (String) -> Unit = {},
     val onUsernameChange: (String) -> Unit = {},
     val onPasswordChange: (String) -> Unit = {},
@@ -47,7 +51,8 @@ data class LoginUiState(
     val onApiKeyModeChange: (Boolean) -> Unit = {},
     val onConnectClick: () -> Unit = {},
     val onCertTrustConfirm: () -> Unit = {},
-    val onCertTrustDismiss: () -> Unit = {}
+    val onCertTrustDismiss: () -> Unit = {},
+    val onLocalNetworkDenied: () -> Unit = {}
 ) {
 
     /**

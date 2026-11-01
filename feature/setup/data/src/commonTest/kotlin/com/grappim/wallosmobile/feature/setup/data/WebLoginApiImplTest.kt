@@ -1,5 +1,6 @@
 package com.grappim.wallosmobile.feature.setup.data
 
+import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -15,6 +16,7 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 class WebLoginApiImplTest {
@@ -53,6 +55,16 @@ class WebLoginApiImplTest {
         assertEquals(WebLoginOutcome.LoggedIn, loggedIn.login("demo", "demo"))
         assertEquals(WebLoginOutcome.NeedsTotp, totp.login("demo", "demo"))
         assertEquals(WebLoginOutcome.InvalidCredentials, rejected.login("demo", "wrong"))
+    }
+
+    /** The whole chain, so the host handed to the interpreter is the one the request really went to. */
+    @Test
+    fun `a proxy in front of login php is not reported as a wrong password`() = runTest {
+        val challenged = webLoginApi(status = HttpStatusCode.Unauthorized, body = "<html>401</html>")
+        val redirected = webLoginApi(status = HttpStatusCode.Found, location = "https://auth.example.com/login")
+
+        assertFailsWith<WallosError.ProxyAuthRequired> { challenged.login("demo", "demo") }
+        assertFailsWith<WallosError.ProxyAuthRequired> { redirected.login("demo", "demo") }
     }
 
     @Test

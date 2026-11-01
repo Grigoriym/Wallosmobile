@@ -18,7 +18,6 @@ import com.grappim.wallosmobile.core.storage.startdestination.StartDestination
 import com.grappim.wallosmobile.core.storage.startdestination.StartDestinationStorage
 import com.grappim.wallosmobile.core.storage.theme.ThemeMode
 import com.grappim.wallosmobile.core.storage.theme.ThemeStorage
-import com.grappim.wallosmobile.feature.setup.ui.LoginScreen
 import com.grappim.wallosmobile.uikit.WallosMobileTheme
 import com.grappim.wallosmobile.uikit.widgets.snackbar.SnackbarHostController
 import org.koin.compose.koinInject
@@ -101,7 +100,7 @@ fun WallosAppContent(
                 snackbarHostController = snackbarHostController
             )
 
-            false -> LoginScreen()
+            false -> LoginBranch()
         }
     }
 }

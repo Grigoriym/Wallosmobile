@@ -11,6 +11,8 @@ import com.grappim.wallosmobile.feature.settings.ui.about.AboutRoute
 import com.grappim.wallosmobile.feature.settings.ui.about.AboutScreen
 import com.grappim.wallosmobile.feature.settings.ui.appearance.InterfaceRoute
 import com.grappim.wallosmobile.feature.settings.ui.appearance.InterfaceScreen
+import com.grappim.wallosmobile.feature.settings.ui.customheaders.CustomHeadersRoute
+import com.grappim.wallosmobile.feature.settings.ui.customheaders.CustomHeadersScreen
 import com.grappim.wallosmobile.feature.settings.ui.startdestination.StartDestinationRoute
 import com.grappim.wallosmobile.feature.settings.ui.startdestination.StartDestinationScreen
 import com.grappim.wallosmobile.feature.settings.ui.trustedcerts.TrustedCertsRoute
@@ -20,7 +22,7 @@ import com.grappim.wallosmobile.feature.settings.ui.trustedcerts.TrustedCertsScr
  * Disconnect still navigates nowhere — clearing the key flips `ApiKeyStorage.isConnected` and the
  * startup branch swaps the shell for login (plan §7.1). The [Navigator] is here for the sub-screens
  * that hang off the settings root: Interface (4.3), About (4.4), Profile (9.9), the start
- * destination picker (12.2) and the trusted-certificates list (18.2).
+ * destination picker (12.2), the trusted-certificates list (18.2) and the custom headers (28.6).
  */
 fun EntryProviderScope<NavKey>.settingsEntry(navigator: Navigator) {
     entry<SettingsRoute> {
@@ -29,7 +31,8 @@ fun EntryProviderScope<NavKey>.settingsEntry(navigator: Navigator) {
             onStartDestinationClick = { navigator.navigate(StartDestinationRoute) },
             onAboutClick = { navigator.navigate(AboutRoute) },
             onProfileClick = { navigator.navigate(ProfileRoute) },
-            onTrustedCertsClick = { navigator.navigate(TrustedCertsRoute) }
+            onTrustedCertsClick = { navigator.navigate(TrustedCertsRoute) },
+            onCustomHeadersClick = { navigator.navigate(CustomHeadersRoute) }
         )
     }
     entry<InterfaceRoute> {
@@ -46,5 +49,8 @@ fun EntryProviderScope<NavKey>.settingsEntry(navigator: Navigator) {
     }
     entry<TrustedCertsRoute> {
         TrustedCertsScreen(onBackClick = { navigator.goBack() })
+    }
+    entry<CustomHeadersRoute> {
+        CustomHeadersScreen(onBackClick = { navigator.goBack() })
     }
 }

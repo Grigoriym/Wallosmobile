@@ -115,3 +115,28 @@ adding the marker interfaces/split/queue speculatively would be exactly the kind
 (or a second tab-parking-style shell need) is actually planned — that session should read
 `docs/architecture/navigation-and-di.md` in `/home/gregory/proj/HedvigInsurance` for the worked
 mechanism rather than re-deriving it.
+
+## 6. Android 17 local network access: what 28.10 left open
+
+**Plan §4.5c has the design.** Found 2026-10-30 testing PR #107 on a Pixel 11 Pro.
+
+- **1.0.4 has the bug and the fix isn't released.** It targets SDK 37 without
+  `ACCESS_LOCAL_NETWORK`, so a LAN server is probably unreachable for anyone on Android 17. This is
+  the urgent one: it needs a release once #107 is merged.
+- **Screens don't reload when the permission is allowed.** `LocalNetworkBanner` clears by itself,
+  but the screen under it needs Try again or pull to refresh. A real fix means signalling the grant
+  to ViewModels that load once in `init` (`DashboardViewModel`), and ViewModels here are
+  activity-scoped, so they don't get rebuilt.
+- **The refused message on login has no "Open settings" action**, only text pointing at settings.
+- **Not tried on a device:** `https` on a local address, a hostname resolving to a private address,
+  and a real update from 1.0.4, which can't be staged (the old build can't log in on Android 17, and
+  an API 36 AVD never asks). Turning the permission off in system settings stood in for the update.
+
+Delete each bullet as it's closed.
+
+## 7. CI never runs `:detekt-rules:test`
+
+`ci.yml`'s `allTests` only covers KMP modules, and `:detekt-rules` is plain Kotlin/JVM. So a broken
+test there can't fail a PR. Found 2026-11-01: Renovate's #60 moved the module's Kotlin test pins to
+2.4.21, which failed all 4 tests with `NoClassDefFoundError`, and its CI couldn't have shown that.
+The fix is to add the task to `ci.yml`, a `.github/` change that needs a `Gate-change:` line.
