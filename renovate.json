@@ -2,5 +2,13 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended"],
     "prHourlyLimit": 3,
-    "osvVulnerabilityAlerts": true
+    "osvVulnerabilityAlerts": true,
+    "packageRules": [
+        {
+            "description": "These test pins follow the Kotlin version detekt is built against, not the project's. See the comment in the file.",
+            "matchFileNames": ["detekt-rules/build.gradle.kts"],
+            "matchPackageNames": ["org.jetbrains.kotlin:kotlin-compiler", "org.jetbrains.kotlin:kotlin-reflect"],
+            "enabled": false
+        }
+    ]
 }

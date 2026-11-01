@@ -133,3 +133,10 @@ mechanism rather than re-deriving it.
   an API 36 AVD never asks). Turning the permission off in system settings stood in for the update.
 
 Delete each bullet as it's closed.
+
+## 7. CI never runs `:detekt-rules:test`
+
+`ci.yml`'s `allTests` only covers KMP modules, and `:detekt-rules` is plain Kotlin/JVM. So a broken
+test there can't fail a PR. Found 2026-11-01: Renovate's #60 moved the module's Kotlin test pins to
+2.4.21, which failed all 4 tests with `NoClassDefFoundError`, and its CI couldn't have shown that.
+The fix is to add the task to `ci.yml`, a `.github/` change that needs a `Gate-change:` line.
