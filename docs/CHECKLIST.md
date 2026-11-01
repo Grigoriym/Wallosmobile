@@ -11,8 +11,8 @@ M8 `4/4` — **M8 done** · M9 `9/9` — **M9 done** · M10 `9/9` — **M10 done
 M15 `4/4` — **M15 done** · M16 `5/5` — **M16 done** · M17 `8/8` — **M17 done** · M18 `2/2` —
 **M18 done** · M19 `2/2` — **M19 done** · M20 `4/4` — **M20 done** · M21 `3/3` — **M21 done** ·
 M22 `1/1` — **M22 done** · M23 `1/1` — **M23 done** · M24 `1/1` — **M24 done** · M25 `1/1` —
-**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done**
-**Current step:** M27 done 2026-08-15 — next up is decomposing a new milestone. 27.5 closed
+**M25 done** · M26 `1/1` — **M26 done** · M27 `5/5` — **M27 done** · M28 `11/11` — **M28 done**
+**Current step:** none — M28 (custom request headers, plan §4.5b) done 2026-10-27, all eight steps on one branch/PR; 28.8's device pass confirmed both login paths with and without the header, logos, the Settings edit and no regression on `:8282`. 28.9 (2026-10-28, user review of PR #107) moved the login-screen header editing onto the Settings screen, opened from a login button; 28.10 (2026-10-30) added Android 17's `ACCESS_LOCAL_NETWORK`, found by testing that PR on a real phone; 28.11 moved `Json` into DI. Previously: M27 done 2026-08-15. 27.5 closed
 2026-08-15: device pass on `Medium_Phone_API_36.1`. Enabled TalkBack
 (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`, found via
 `dumpsys package`'s Service Resolver Table — see `docs/EMULATOR_TESTING.md`) and, since a headless
@@ -656,6 +656,230 @@ once rather than booting the emulator repeatedly.
   first-enable permission-dialog gotcha) went in `docs/EMULATOR_TESTING.md`; the generic
   enable/disable/touch-exploration/dump-as-audio-substitute technique went into the shared
   `emulator-testing` skill, left uncommitted in `agentic-grappim` for review.
+
+---
+
+## M28 — Custom request headers for reverse-proxy auth (not in plan §8's phase order)
+
+Decomposed 2026-10-27 from PR #105's follow-up (an outside user behind Pangolin couldn't log in).
+Design and rationale: plan §4.5b. **One PR for the whole milestone** (user's call, 2026-10-27):
+this planning commit opens it, the steps below land on the same branch, and it merges once 28.8
+passes. 28.1/28.2 are checks only — no production code — and gate everything after them.
+
+- [x] **28.1 — Reproduce the "before" state on device**
+  Bring up the `wallos-headerauth` front (`docs/local-info.txt`, "Reverse-proxy header auth"),
+  confirm the two `curl`s (401 / JSON). On the emulator, point the current app at
+  `http://10.0.2.2:8285`, try both login paths, and record exactly what the user sees (error copy,
+  whether the probe misreads it as "not a Wallos server" or "can't reach"), plus the Ktor log line.
+  That copy is what 28.7 replaces and 28.8 compares against.
+  *Verify:* a screenshot + the observed message written into this step's `Note:`.
+
+  Note: done 2026-10-27, current `dev` app, `http://10.0.2.2:8285`, front answering `401` to
+  every request without the header. **Both paths blame the wrong thing, differently:**
+  - **Password path** → *"Wallos didn't accept that username and password."* The probe's
+    `GET login.php` gets `401` (→ `Unknown`, so the path stays offered), then `POST login.php`
+    gets `401` (`KtorWeb : RESPONSE: 401 Unauthorized`) and `LoginOutcomeInterpreter` reads a
+    non-`302` as rejected credentials. Worst of the two: it sends the user to retype a correct
+    password.
+  - **API-key path** → *"Nothing that looks like Wallos answered at that address. Check the server
+    URL."* (`error_not_wallos`): `api/status/version.php` gets `401` + nginx HTML
+    (`Ktor : RESPONSE: 401 Unauthorized`), which `WallosEnvelopeParser` turns into `Malformed`.
+  So 28.7 has two call sites, not one: the envelope parser **and** the web-login outcome
+  interpreter must both recognise an HTTP `401`/`407` as the proxy.
+
+- [x] **28.2 — Settle the open design questions (checks, no code)**
+  Each answered in a `Note:` here, and folded into plan §4.5b if it changes the shape:
+  - **Header model**: a list of name/value pairs vs. a single header. Check what Immich/Nextcloud/
+    Jellyfin-style clients offer (list is the common shape) and whether a "Basic auth" convenience
+    (user + password → computed header) is worth it over asking for the base64 value.
+  - **Ktor hook**: `defaultRequest { headers }` vs. a small custom plugin — which one can apply
+    the host-scoping rule (plan §4.5b), and whether `defaultRequest` headers reach absolute-URL
+    requests (Coil's logo loads).
+  - **Log redaction**: confirm Ktor `Logging`'s `sanitizeHeader` API on the pinned Ktor version
+    (sources jar in `~/.gradle/caches`), and that it covers dynamically configured names.
+  - **Header validation**: which names to refuse (`Host`, `Content-Length`, `Content-Type`,
+    `Cookie` — would break Wallos or the web login) and how Ktor treats an invalid name/value.
+  - **What a proxy rejection looks like** across proxies: nginx `401` HTML (28.1); Pangolin
+    without "Extended Compatibility" may redirect to its login page instead (`302` → HTML `200`) —
+    decide whether that case is detectable or just stays generic.
+  - **Settings edit**: where it lives (Settings → server section, next to the connected server
+    from M11) and whether changing headers needs a re-probe or just applies on the next request.
+  *Verify:* every bullet has an answer in this step's `Note:`.
+
+  Note: done 2026-10-27, read off Ktor 3.5.2's sources jars and Pangolin's docs; folded into plan
+  §4.5b.
+  - **Header model** → a **list** of name/value pairs (Immich's "custom proxy headers" shape). No
+    Basic-auth convenience this milestone: the value field's hint shows `Basic <base64>`.
+  - **Ktor hook** → a **custom `createClientPlugin`**, not `defaultRequest`. The `defaultRequest`
+    block only sees its own fresh `DefaultRequestBuilder` (headers + an empty url), never the
+    request's URL, so it can't host-scope — and on Coil's client, whose requests are absolute
+    URLs, it would add the headers to every host. `onRequest` runs in `HttpRequestPipeline.State`,
+    *after* `DefaultRequest`'s `Before`-phase URL merge, so `request.url.host`/`port` is final.
+  - **Log redaction** → `LoggingConfig.sanitizeHeader(placeholder, predicate: (String) -> Boolean)`
+    exists on 3.5.2; the predicate runs per header at log time (`SendHook`, after `onRequest`), so
+    reading the storage cache inside it covers dynamically configured names. It receives the name
+    as appended — compare `ignoreCase`. Output is `name: ██`.
+  - **Header validation** → Ktor's `HeadersBuilder` rejects names with chars `<= ' '` or
+    delimiters and values with control chars, but the **OkHttp engine is stricter** (printable
+    ASCII only, throws at request time on non-ASCII), so the validator enforces OkHttp's rule:
+    name non-empty, `0x21..0x7E`, no `"(),/:;<=>?@[\]{}`; value `0x20..0x7E` or tab. Refused names
+    (case-insensitive): `Host`, `Content-Length`, `Content-Type`, `Transfer-Encoding`/`Upgrade`
+    (Ktor's `UnsafeHeadersList` — the engine throws `UnsafeHeaderException`), `Connection`,
+    `Cookie` (the web login's session). Duplicate names refused.
+  - **Proxy rejection** → `401`/`407` is the confirmed shape (nginx, 28.1; Pangolin's docs say
+    "Extended Compatibility" exists to force a `401`). The redirect-to-login case **is detectable**:
+    Wallos only ever redirects *relatively* (`.`, `totp.php`, `login.php`), so a web-login `302`
+    whose `Location` is an absolute URL on another host, or an API response whose final
+    `request.url` host differs from the server's (that client follows redirects), is the proxy.
+    Today `interpretLoginOutcome` reads such a `302` as `LoggedIn`. Added to 28.7 as a second
+    trigger; unconfirmed against a real Pangolin, so `MockEngine` tests only.
+  - **Settings edit** → a "Custom headers" row under the Server field opens its own sub-screen
+    route (registered in `NavKeySerializers`). **No re-probe**: the plugin reads the cache per
+    request, so a change applies on the next request, and a wrong value surfaces as 28.7's message
+    on the next refresh — exactly what 28.8 checks.
+
+- [x] **28.3 — `CustomHeadersStorage` in `core:storage`**
+  Interface + DataStore impl per plan §4.5b: encrypted values, non-suspend cached read for
+  `defaultRequest`, a `Flow` for the UI, survives `ApiKeyStorage.clear()`. Fake in `:testing`.
+  *Verify:* `core:storage` host tests (round-trip, encryption at rest, cache served after first
+  read, survives `clear()`), then `detekt ktlintCheck`.
+
+  Note: done 2026-10-27. `customheaders/` package: `CustomHeader(name, value)` (`@Serializable`),
+  `headers: Flow` + non-suspend `currentHeaders`, `setHeaders(list)`. The whole list is **one
+  encrypted JSON blob** under `custom_headers` (names say which proxy guards the server too); an
+  empty list removes the key; a blob that won't decrypt or decode reads as empty and logs a fixed
+  `WARN` with no throwable (the decoder's message would carry the decrypted JSON). `:testing` gained
+  `api(projects.core.storage)` back for `FakeCustomHeadersStorage`; `ApiKeyStorageImplTest`'s
+  private `FakeSecretCipher` moved to its own `internal` file in `core:storage`'s `commonTest` so
+  both storage tests share it. Survives-`clear()` lives in `ApiKeyStorageImplTest`, next to the
+  theme-mode one.
+
+- [x] **28.4 — Send the headers from all three HTTP clients, host-scoped and redacted**
+  `provideHttpClient`, `provideWebSessionHttpClient`, Coil's client in `AppModule`, via one
+  `createClientPlugin` (`onRequest`, 28.2). Only to the stored server's host; header values
+  sanitized in `Logging` via `sanitizeHeader`.
+  *Verify:* `MockEngine` host tests — headers present on a server-host request, absent on another
+  host, absent from logged output; `KoinGraphTest`; `detekt ktlintCheck`.
+
+  Note: done 2026-10-27. `CustomHeaders` (`core:api`) hooks **`SendingRequest`, not `onRequest`**
+  — 28.2 missed that `onRequest` runs for the first hop only while `HttpRedirect` copies headers
+  onto every hop and strips only `Authorization` cross-authority, so the API client (which follows
+  redirects) and Coil's would have sent an `X-…` token to wherever a redirect pointed. Each hop now
+  removes the configured names and re-adds them only on the server's origin — scheme + host + port
+  (`isServerOrigin`), slightly stricter than "host/port". Coil's client reads `ServerUrlStorage`,
+  not `BaseUrlProvider` (not on `:androidApp`'s classpath for `AppModule`'s re-check). Tests
+  mutation-checked: dropping the per-hop removal fails the redirect test, dropping
+  `sanitizeCustomHeaders` fails the log test. Plan §4.5b updated.
+
+- [x] **28.5 — Login screen: "Advanced → custom headers" section**
+  Collapsed by default; add/remove rows; saved before the probe runs so the first request carries
+  them. Previews for collapsed/expanded. Strings via `RString`.
+  *Verify:* `LoginViewModelTest` (headers saved before probe; validation from 28.2), previews
+  render, `detekt ktlintCheck`.
+
+  Note: done 2026-10-27. 28.2's rule became `CustomHeaderValidator` (+ `CustomHeaderError`) in
+  `core:storage`'s `customheaders/`, beside the model, so 28.6 reuses it; blank rows are skipped,
+  not errors, and rows are trimmed before validating/saving. `LoginViewModel` injects
+  `CustomHeadersStorage` directly (one storage call, no repository — `feature:setup:ui` gained
+  `core:storage`). The probe now runs off `combine(url, headers)`, saves the headers itself before
+  asking, and **re-probes when they change**; Connect saves them again (skipped at the TOTP step,
+  where the section is hidden). Stored headers are offered back **expanded** — Connect saves what
+  the rows hold, so a screen that didn't offer them back would delete them. Previews compile but
+  weren't rendered (no IDE in this session); the screen is exercised on device in 28.8.
+
+- [x] **28.6 — Settings: edit custom headers after login**
+  Per 28.2's answer. Offline → disabled, like other writes.
+  *Verify:* ViewModel tests, `detekt ktlintCheck`.
+
+  Note: done 2026-10-27. `customheaders/` in `feature:settings:ui` (`CustomHeadersRoute`, registered
+  in `NavKeySerializers`; a "Custom headers" row under the Server field). Unlike login, edits are
+  **not** saved as typed: an explicit Save, offered only while the rows are valid and differ from
+  what's stored (`isSaveEnabled`, derived), disabled offline. Storage emissions replace the rows
+  only while they still match `saved`, so an edit in progress survives one. The row fields and
+  error→string mapping are a copy of login's `CustomHeadersSection` — a feature `ui` can't depend
+  on another, and `uikit` has neither `:strings` nor `core:storage`. Previews not rendered (no IDE).
+
+- [x] **28.7 — A proxy `401`/`407` gets its own error message**
+  New `WallosError` case (or reuse per 28.2), mapped from the HTTP status (Wallos itself never
+  sends one, plan §4.3), copy pointing at custom headers. **Two call sites** (28.1's `Note:`):
+  `WallosEnvelopeParser` (API path, today `error_not_wallos`) and `LoginOutcomeInterpreter` (web
+  login, today "Wallos didn't accept that username and password"). Second trigger (28.2): a
+  cross-host redirect — a web-login `302` with an absolute `Location` on another host, or an API
+  response whose final `request.url` host isn't the server's.
+  *Verify:* parser + interpreter tests for 401/407 and the cross-host redirect, `getErrorMessage` test, `detekt ktlintCheck`.
+
+  Note: done 2026-10-27. New `WallosError.ProxyAuthRequired` → `error_proxy_auth`. One pure
+  predicate, `isProxyRejection(status, location, requestHost)` (`core:api`), shared by
+  `WallosApiClient` and both web-login interpreters (`totp.php` too — same `401`/`302` misreading);
+  the interpreters **throw** it rather than growing a `WebLoginOutcome` case, so it reaches
+  `getErrorMessage` like any other failure. The parser itself handles `401`/`407` only: 28.2's
+  "final `request.url` host" check was wrong — Ktor's `HttpRedirect` follows only `GET`/`HEAD`
+  (`checkHttpMethod`), and every API call is a POST, so a proxy's redirect reaches
+  `WallosApiClient` as the `3xx` itself; the client checks its `Location` against the host the
+  request went to before parsing. A same-host absolute redirect (`http`→`https`) still reads as
+  `Malformed` (wrong URL), not as the proxy.
+
+- [x] **28.8 — "After" on device, then close out**
+  Same front as 28.1. Without headers → 28.7's message. With
+  `Authorization: Basic cGFuZ29saW46c2VjcmV0` → both login paths succeed, list + dashboard load,
+  **logos load** (`docker logs wallos-headerauth` shows `200` on `images/uploads/logos`, after
+  clearing Coil's disk cache), edit headers in Settings to a wrong value → 28.7's message on
+  refresh. Plain `http://10.0.2.2:8282` with no headers still works (no regression). Reply on PR
+  #105 pointing at this PR.
+  *Verify:* all of the above observed; `allTests detekt ktlintCheck` and both lint tasks green.
+
+  Note: done 2026-10-27, `Medium_Phone_API_36.1`, `wallos-headerauth` on `:8285`. Without headers
+  both paths now show `error_proxy_auth` (*"Something in front of Wallos asked for credentials…"*;
+  `login.php` / `version.php` → `401`) in place of 28.1's two misreadings. With
+  `Authorization: Basic cGFuZ29saW46c2VjcmV0` both paths log in, dashboard + list load, every
+  logged request shows `-> Authorization: ***` and the base64 value appears nowhere in logcat;
+  after a `pm clear` (fresh Coil cache) `docker logs` shows `200 … pangolin` on
+  `images/uploads/logos/*`. A wrong value saved from Settings → Custom headers surfaces on the
+  list's **pull-to-refresh** as the stale banner with the same copy (merely re-opening the list
+  sends no request — the cache is fresh). `http://10.0.2.2:8282`, no headers: password login +
+  dashboard fine, no `Authorization` header logged.
+
+- [x] **28.9 — Move login's custom headers onto their own screen**
+  Added 2026-10-28 from the user's review of PR #107: an "Advanced" section on the login screen is
+  too much up front. Login gets a button; the editing lives on a separate screen.
+  *Verify:* `LoginViewModelTest`, `KoinGraphTest`, `detekt ktlintCheck`; on device, login → button →
+  add + Save → back shows the count; the open screen survives `am kill`.
+
+  Note: done 2026-10-28. The separate screen is 28.6's `CustomHeadersScreen`, reused rather than
+  copied: `composeApp`'s new `LoginBranch` swaps it in for `LoginScreen` behind a
+  `rememberSaveable` flag (login isn't a route) and provides the `LocalTopBarConfig`/`LocalIsOffline`
+  it reads from the shell, with its own `TopBar` and a `NavigationBackHandler`. `LoginViewModel`
+  lost the rows, the validator and every `setHeaders` call — it probes off the stored headers and
+  exposes only `customHeaderCount` for the button ("Custom headers (1)"). `CustomHeadersSection.kt`
+  and `login_custom_headers_toggle` deleted. Behaviour change: headers are saved by the screen's
+  Save, no longer implicitly by Connect. Verified on `Medium_Phone_API_36.1`.
+
+- [x] **28.10 — Ask for local network access on Android 17**
+  Added 2026-10-30 from testing PR #107 on a Pixel 11 Pro (Android 17): login from the LAN failed
+  with `error_unreachable`, and nothing reached the proxy. Design: plan §4.5c.
+  *Verify:* on a real Android 17 device, Connect to a LAN URL shows the dialog, Allow reaches the
+  server; `detekt ktlintCheck`, `lintFdroidDebug`, host tests.
+
+  Note: done 2026-10-30. Diagnosis: on the phone, as the app's UID `nc` timed out to the host and
+  the router while `1.1.1.1:443` connected; as the adb shell UID the host connected. Allow on the
+  dialog was followed by `POST /login.php` → `401` from `192.168.0.197` in the proxy log, and
+  `error_proxy_auth` on screen. Don't allow at login showed `login_error_local_network_denied`. The
+  already-connected case was run by turning the permission off in system settings, since an old
+  build can't log in on Android 17 and an API 36 AVD never asks: the dialog came up over the
+  dashboard. The user's review of that (a loader with no reason) added `LocalNetworkBanner`; checked
+  on the same phone across screens, gone on return after allowing. A `pm grant` + `run-as nc`
+  shortcut was inconclusive with the screen off, because the public control failed too.
+
+- [x] **28.11 — Provide `Json` through DI**
+  Added 2026-10-30 at the user's request while reviewing `CustomHeadersStorageImpl`.
+  *Verify:* `allTests detekt ktlintCheck`, `lintFdroidDebug`, both flavors compile.
+
+  Note: done 2026-10-30. Plain `Json` from `StorageModule`, `@LenientJson` and
+  `@IgnoreUnknownKeysJson` from `NetworkModule`. The two custom ones stay separate, since merging
+  them would make `WallosCrudApi` lenient. `core:api` exposes the JSON library as `api`, because the
+  type is now in its public signatures. The two saved-state ViewModels keep plain `Json` (CLAUDE.md).
+  `KoinGraphTest` turned out not to check qualifiers, so the wiring was read from the generated
+  bytecode, then the user ran the app (start, Categories, Subscriptions refresh) without a problem.
 
 ---
 

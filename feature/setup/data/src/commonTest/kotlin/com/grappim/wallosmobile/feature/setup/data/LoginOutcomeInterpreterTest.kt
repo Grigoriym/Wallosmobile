@@ -1,7 +1,9 @@
 package com.grappim.wallosmobile.feature.setup.data
 
+import com.grappim.wallosmobile.core.domain.WallosError
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 /** The API doc §9.2 response table, as a test. */
 class LoginOutcomeInterpreterTest {
@@ -17,19 +19,19 @@ class LoginOutcomeInterpreterTest {
         )
 
         cases.forEach { (status, location, expected) ->
-            assertEquals(expected, interpretLoginOutcome(status, location), "$status → $location")
+            assertEquals(expected, interpretLoginOutcome(status, location, HOST), "$status → $location")
         }
     }
 
     /** A subpath install redirects to `/wallos/totp.php`; the marker is the filename, not the path. */
     @Test
     fun `recognises the totp redirect under a subpath install`() {
-        assertEquals(WebLoginOutcome.NeedsTotp, interpretLoginOutcome(302, "/wallos/totp.php"))
+        assertEquals(WebLoginOutcome.NeedsTotp, interpretLoginOutcome(302, "/wallos/totp.php", HOST))
     }
 
     @Test
     fun `treats a 302 with no Location as logged in`() {
-        assertEquals(WebLoginOutcome.LoggedIn, interpretLoginOutcome(302, null))
+        assertEquals(WebLoginOutcome.LoggedIn, interpretLoginOutcome(302, null, HOST))
     }
 
     /** `totp.php`'s own three branches, read off its source rather than off the API doc. */
@@ -44,12 +46,34 @@ class LoginOutcomeInterpreterTest {
         )
 
         cases.forEach { (status, location, expected) ->
-            assertEquals(expected, interpretTotpOutcome(status, location), "$status → $location")
+            assertEquals(expected, interpretTotpOutcome(status, location, HOST), "$status → $location")
         }
     }
 
     @Test
     fun `recognises the expired-session redirect under a subpath install`() {
-        assertEquals(WebTotpOutcome.SessionExpired, interpretTotpOutcome(302, "/wallos/login.php"))
+        assertEquals(WebTotpOutcome.SessionExpired, interpretTotpOutcome(302, "/wallos/login.php", HOST))
+    }
+
+    /** Read as a non-`302`, a proxy's `401` would send the user to retype a correct password. */
+    @Test
+    fun `a proxy 401 or 407 is not a rejected password`() {
+        listOf(401, 407).forEach { status ->
+            assertFailsWith<WallosError.ProxyAuthRequired>("$status") { interpretLoginOutcome(status, null, HOST) }
+            assertFailsWith<WallosError.ProxyAuthRequired>("$status") { interpretTotpOutcome(status, null, HOST) }
+        }
+    }
+
+    /** Read as a `302`, a proxy's login-page redirect would claim a login that never happened. */
+    @Test
+    fun `a redirect to another host is a proxy login page, not a login`() {
+        val location = "https://auth.example.com/auth/resource/wallos"
+
+        assertFailsWith<WallosError.ProxyAuthRequired> { interpretLoginOutcome(302, location, HOST) }
+        assertFailsWith<WallosError.ProxyAuthRequired> { interpretTotpOutcome(302, location, HOST) }
+    }
+
+    private companion object {
+        const val HOST = "wallos.example.com"
     }
 }

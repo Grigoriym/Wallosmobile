@@ -157,10 +157,6 @@ deleted — see `/finalize`.
   `com.android.kotlin.multiplatform.library` module exposes only a `lintAnalyzeAndroidHostTest`
   task, no task that lints its own `androidMain`/`commonMain` production source at all — there is
   currently nothing to propagate. `docs/revisit.md` #1 tracks a real fix.
-- `gh pr edit 14 --body ...` failed with `GraphQL: Projects (classic) is being deprecated ...
-  (repository.pullRequest.projectCards)` on this repo (gh 2.45.0) — the mutation path it uses
-  queries a deprecated Projects-classic field unrelated to the edit itself. `gh api
-  repos/<owner>/<repo>/pulls/<n> -X PATCH -f body=...` (plain REST) worked around it.
 - First pass at narrowing `check-guardrails.sh`'s `gradle/libs.versions.toml` wire to
   gate-relevant keys silently passed on a synthetic `detekt` version bump it should have caught —
   the diff-line regex anchored `^detekt` against a line that still carried its leading `+`/`-`
@@ -227,3 +223,10 @@ deleted — see `/finalize`.
   ("Code from External") — running an outside contributor's build scripts locally needs explicit
   user approval. Reviewed from `gh pr diff` alone and relied on the PR's own CI run, which is
   what surfaced the fork-secrets gap fixed in #106.
+- 2026-10-27 (28.1): re-running the `wallos-headerauth` `docker run` after the session scratchpad
+  had been emptied made Docker create root-owned *directories* at the missing bind-mount source
+  paths (`nginx.conf/`, `htpasswd/`), so the next attempt failed with "not a directory" and
+  couldn't `rm` them. Recreated the files in a fresh directory instead; the `local-info.txt`
+  recipe builds them in a new `headerauth/` dir every time, which avoids it.
+- 2026-10-30 (28.10): ran a `pm grant` + `run-as nc` check on the Pixel with the screen off; the public control timed out too, so the result meant nothing. Had to hand the check to the real dialog instead.
+- 2026-10-30 (28.10): ran `pm clear`/`pm revoke` against `com.grappim.wallosmobile.debug` on the Pixel while the user was testing `com.grappim.wallosmobile.fdroid.debug`; assumed the package instead of reading `topResumedActivity`, and told the user the app had been reset when it had not.

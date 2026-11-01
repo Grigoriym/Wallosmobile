@@ -1,11 +1,14 @@
 package com.grappim.wallosmobile.core.api
 
+import com.grappim.wallosmobile.core.domain.WallosError
 import com.grappim.wallosmobile.core.storage.ApiKeyStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.forms.submitFormWithBinaryData
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.request
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import kotlinx.serialization.DeserializationStrategy
@@ -36,7 +39,7 @@ class WallosApiClient(
             url = path,
             formParameters = params.withApiKey(apiKeyStorage.getKey()).build()
         )
-        return envelopeParser.parse(response.status.value, response.bodyAsText(), deserializer)
+        return parse(response, deserializer)
     }
 
     /**
@@ -63,7 +66,19 @@ class WallosApiClient(
                 )
             }
         )
-        return envelopeParser.parse(response.status.value, response.bodyAsText(), deserializer)
+        return parse(response, deserializer)
+    }
+
+    /**
+     * A redirect never reaches [envelopeParser] as anything it can read: Ktor follows none for a
+     * POST, and Wallos's API sends none. One to another host is a proxy's login page (plan §4.5b).
+     */
+    private suspend fun <T> parse(response: HttpResponse, deserializer: DeserializationStrategy<T>): T {
+        val status = response.status.value
+        if (isProxyRejection(status, response.headers[HttpHeaders.Location], response.request.url.host)) {
+            throw WallosError.ProxyAuthRequired
+        }
+        return envelopeParser.parse(status, response.bodyAsText(), deserializer)
     }
 }
 

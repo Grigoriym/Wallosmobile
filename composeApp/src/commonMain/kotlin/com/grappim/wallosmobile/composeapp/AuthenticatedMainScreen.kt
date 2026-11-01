@@ -1,6 +1,8 @@
 package com.grappim.wallosmobile.composeapp
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.FloatingActionButton
@@ -126,13 +128,20 @@ private fun MainScaffold(
             }
         }
     ) { innerPadding ->
-        MainNavHost(
+        Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize(),
-            navigationState = appState.navigationState,
-            navigator = navigator
-        )
+                .fillMaxSize()
+        ) {
+            LocalNetworkBanner()
+            MainNavHost(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                navigationState = appState.navigationState,
+                navigator = navigator
+            )
+        }
 
         /**
          * Composed *after* [MainNavHost] deliberately: of several enabled back handlers the one
