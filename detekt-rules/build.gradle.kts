@@ -45,6 +45,9 @@ dependencies {
     // reach into `detekt-test` for (`TestConfig`, the `Rule.lint(String)` extension) need nothing
     // from the missing test-fixtures artifact.
     testImplementation(libs.detekt.test) { isTransitive = false }
+    // These two follow the Kotlin version detekt itself is built against (2.4.10 for 2.0.0-alpha.6),
+    // not the project's `kotlin` version: 2.4.21 fails every test here with `NoClassDefFoundError:
+    // ClsKotlinBinaryClassCache`. Bump them by hand with `detekt`; renovate.json leaves them alone.
     testImplementation("org.jetbrains.kotlin:kotlin-compiler:2.4.10")
     testImplementation("org.jetbrains.kotlin:kotlin-reflect:2.4.10")
 
