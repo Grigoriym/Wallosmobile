@@ -120,9 +120,6 @@ mechanism rather than re-deriving it.
 
 **Plan §4.5c has the design.** Found 2026-10-30 testing PR #107 on a Pixel 11 Pro.
 
-- **1.0.4 has the bug and the fix isn't released.** It targets SDK 37 without
-  `ACCESS_LOCAL_NETWORK`, so a LAN server is probably unreachable for anyone on Android 17. This is
-  the urgent one: it needs a release once #107 is merged.
 - **Screens don't reload when the permission is allowed.** `LocalNetworkBanner` clears by itself,
   but the screen under it needs Try again or pull to refresh. A real fix means signalling the grant
   to ViewModels that load once in `init` (`DashboardViewModel`), and ViewModels here are

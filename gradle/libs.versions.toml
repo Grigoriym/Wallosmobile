@@ -1,8 +1,8 @@
 [versions]
 #noinspection UnusedVersionCatalogEntry
-version-code = "5"
+version-code = "6"
 #noinspection UnusedVersionCatalogEntry
-version-name = "1.0.4"
+version-name = "1.1.0"
 #noinspection UnusedVersionCatalogEntry
 app-pkg = "com.grappim.wallosmobile"
 #noinspection UnusedVersionCatalogEntry
