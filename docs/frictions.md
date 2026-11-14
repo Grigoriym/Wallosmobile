@@ -230,3 +230,4 @@ deleted — see `/finalize`.
   recipe builds them in a new `headerauth/` dir every time, which avoids it.
 - 2026-10-30 (28.10): ran a `pm grant` + `run-as nc` check on the Pixel with the screen off; the public control timed out too, so the result meant nothing. Had to hand the check to the real dialog instead.
 - 2026-10-30 (28.10): ran `pm clear`/`pm revoke` against `com.grappim.wallosmobile.debug` on the Pixel while the user was testing `com.grappim.wallosmobile.fdroid.debug`; assumed the package instead of reading `topResumedActivity`, and told the user the app had been reset when it had not.
+- 2026-11-14: a `git worktree` of `origin/dev` (to build the pre-swap APK for an upgrade test) failed `SDK location not found` — `local.properties` and `google-services.json` are gitignored, so both have to be copied into the worktree by hand.
