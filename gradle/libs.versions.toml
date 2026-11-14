@@ -77,7 +77,7 @@ jetbrainsAndroidxLifecycle = "2.11.0"
 # https://developer.android.com/guide/navigation/navigation-3
 jetbrainsNav3 = "1.2.0"
 # https://github.com/Grigoriym/grappim-kit — one shared VERSION_NAME for every wired module
-grappimKit = "0.1.7"
+grappimKit = "0.1.8"
 
 compose-bom = "2026.09.00"
 # `androidx.compose.ui:ui-test-manifest` has no `org.jetbrains.compose.ui` multiplatform
@@ -172,6 +172,7 @@ grappim-kit-appinfo = { module = "io.github.grigoriym:grappim-kit-appinfo", vers
 grappim-kit-domain = { module = "io.github.grigoriym:grappim-kit-domain", version.ref = "grappimKit" }
 grappim-kit-storage = { module = "io.github.grigoriym:grappim-kit-storage", version.ref = "grappimKit" }
 grappim-kit-trustmanager = { module = "io.github.grigoriym:grappim-kit-trustmanager", version.ref = "grappimKit" }
+grappim-kit-customheaders = { module = "io.github.grigoriym:grappim-kit-customheaders", version.ref = "grappimKit" }
 grappim-kit-testing = { module = "io.github.grigoriym:grappim-kit-testing", version.ref = "grappimKit" }
 grappim-kit-appupdate = { module = "io.github.grigoriym:grappim-kit-appupdate", version.ref = "grappimKit" }
 grappim-kit-appupdate-gplay = { module = "io.github.grigoriym:grappim-kit-appupdate-gplay", version.ref = "grappimKit" }

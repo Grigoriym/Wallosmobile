@@ -1638,9 +1638,17 @@ client certificate — a separate feature (Android `KeyChain` + an `X509KeyManag
 - **Validated to OkHttp's rule, not Ktor's** — the engine is stricter (printable ASCII only, and
   it throws at request time): name `0x21..0x7E` minus delimiters, value `0x20..0x7E` or tab,
   no duplicates, and `Host`/`Content-Length`/`Content-Type`/`Transfer-Encoding`/`Upgrade`/
-  `Connection`/`Cookie` refused. One pure class, `CustomHeaderValidator` (`core:storage`, beside the
-  model, so login and Settings share it), returning a `CustomHeaderError?` per row; a row with
-  both fields blank is unfilled, not wrong, and is never sent.
+  `Connection`/`Cookie` refused. One pure class, `CustomHeaderValidator`, returning a
+  `CustomHeaderError?` per row; a row with both fields blank is unfilled, not wrong, and is never
+  sent.
+- **The non-UI half is `io.github.grigoriym:grappim-kit-customheaders`** (package
+  `com.grappim.kit.customheaders`: model, validator, `CustomHeadersStorage`/`Impl`, the `CustomHeaders`
+  plugin, `sanitizeCustomHeaders`), reached through `core:storage`'s `api` dependency. The kit carries
+  no DI annotations, so `StorageModule` binds the storage (same DataStore file and `SecretCipher` as
+  the API key, so stored headers are read as before) and the validator with its default reserved
+  list — Wallos sets neither `Authorization` nor `User-Agent` itself, unlike TaigaMobileNova, which
+  adds both. `FakeCustomHeadersStorage` is `grappim-kit-testing`'s. The screen, ViewModel, route and
+  login wiring stay here.
 - **Edited on one screen, reached from two places** — `CustomHeadersScreen` (`feature:settings:ui`,
   `customheaders/`), which saves on an explicit Save, offered only while the rows are valid and
   differ from what's stored, rather than per keystroke. Settings opens it as a route
