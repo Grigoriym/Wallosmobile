@@ -22,10 +22,6 @@ kotlin {
             // through this one line the same way they were through the three project/library lines
             // this replaced.
             api(libs.grappim.kit.testing)
-
-            // `FakeCustomHeadersStorage` implements `core:storage`'s own `CustomHeadersStorage`,
-            // which core:api, the login screen and Settings all consume.
-            api(projects.core.storage)
         }
     }
 }

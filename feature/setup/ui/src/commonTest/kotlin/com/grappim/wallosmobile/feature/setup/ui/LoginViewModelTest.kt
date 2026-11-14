@@ -1,12 +1,13 @@
 package com.grappim.wallosmobile.feature.setup.ui
 
+import com.grappim.kit.customheaders.CustomHeader
+import com.grappim.kit.customheaders.CustomHeadersStorage
 import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.kit.domain.UntrustedCertificateException
+import com.grappim.kit.testing.FakeCustomHeadersStorage
 import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.domain.WallosError
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeader
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorage
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability
@@ -21,7 +22,6 @@ import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_
 import com.grappim.wallosmobile.strings.generated.resources.login_error_invalid_totp
 import com.grappim.wallosmobile.strings.generated.resources.login_error_local_network_denied
 import com.grappim.wallosmobile.strings.generated.resources.login_error_totp_session_expired
-import com.grappim.wallosmobile.testing.FakeCustomHeadersStorage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.compose.resources.StringResource

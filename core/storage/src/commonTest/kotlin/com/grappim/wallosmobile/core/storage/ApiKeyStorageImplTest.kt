@@ -3,8 +3,8 @@ package com.grappim.wallosmobile.core.storage
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.cash.turbine.test
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeader
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorageImpl
+import com.grappim.kit.customheaders.CustomHeader
+import com.grappim.kit.customheaders.CustomHeadersStorageImpl
 import com.grappim.wallosmobile.core.storage.db.CurrencyDao
 import com.grappim.wallosmobile.core.storage.db.CurrencyEntity
 import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
