@@ -92,7 +92,7 @@ activity-compose = "1.13.0"
 # `:benchmark`-generated profile self-apply outside Google Play (13.1/13.2 shipped the profile
 # file itself; nothing made ART actually consume it on a sideloaded/F-Droid install until this).
 profileinstaller = "1.4.1"
-lifecycle = "2.11.0"
+lifecycle = "2.11.1"
 paging = "3.5.3"
 room = "2.8.5"
 sqlite = "2.7.1"
