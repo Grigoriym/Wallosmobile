@@ -79,7 +79,7 @@ jetbrainsNav3 = "1.2.0"
 # https://github.com/Grigoriym/grappim-kit — one shared VERSION_NAME for every wired module
 grappimKit = "0.1.8"
 
-compose-bom = "2026.09.00"
+compose-bom = "2026.11.01"
 # `androidx.compose.ui:ui-test-manifest` has no `org.jetbrains.compose.ui` multiplatform
 # wrapper (it's Android-instrumentation-only), so it needs its own version — pinned to what
 # jetbrainsComposeMultiplatform 1.11.1 actually resolves `androidx.compose.ui:*` to for the
