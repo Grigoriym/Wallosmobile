@@ -31,6 +31,10 @@ kotlin {
             // (core:api, composeApp, feature:settings:ui, feature:setup:data, :testing) keeps
             // compiling with just an import-line rename.
             api(libs.grappim.kit.storage)
+            // CustomHeadersStorage/CustomHeaderValidator are bound in StorageModule; `api` for the
+            // same reason as grappim-kit-storage above (core:api, composeApp, feature:settings:ui,
+            // feature:setup:ui reach them through core:storage).
+            api(libs.grappim.kit.customheaders)
             implementation(libs.androidx.datastore.core)
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)

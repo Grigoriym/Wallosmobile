@@ -2,12 +2,12 @@ package com.grappim.wallosmobile.feature.settings.ui.customheaders
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grappim.kit.customheaders.CustomHeader
+import com.grappim.kit.customheaders.CustomHeaderValidator
+import com.grappim.kit.customheaders.CustomHeadersStorage
 import com.grappim.kit.domain.resultOf
 import com.grappim.kit.logger.LogPriority
 import com.grappim.kit.logger.logcat
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeader
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeaderValidator
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorage
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

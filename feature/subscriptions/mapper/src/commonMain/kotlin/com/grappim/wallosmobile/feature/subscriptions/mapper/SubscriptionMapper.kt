@@ -22,7 +22,7 @@ class SubscriptionMapper(private val dateFormatter: DateFormatter, private val h
     fun toDomain(dto: SubscriptionDTO, currencySymbol: String): Subscription = Subscription(
         id = dto.id,
         name = htmlUnescaper.unescape(dto.name),
-        logo = dto.logo,
+        logo = dto.logo.orEmpty(),
         price = dto.price,
         currencyId = dto.currencyId,
         currencySymbol = currencySymbol,
@@ -35,7 +35,7 @@ class SubscriptionMapper(private val dateFormatter: DateFormatter, private val h
         isActive = dto.inactive == INACTIVE_FALSE,
         notes = htmlUnescaper.unescape(dto.notes),
         // Not unescaped: a URL is a URL, and the server stores it raw.
-        url = dto.url,
+        url = dto.url.orEmpty(),
         // Resolved server-side, and never null in practice — an unmatched id comes back as
         // "No category" / "Unknown member" / "Unknown payment method".
         categoryName = htmlUnescaper.unescape(dto.categoryName.orEmpty()),

@@ -7,6 +7,9 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import com.grappim.kit.customheaders.CustomHeaderValidator
+import com.grappim.kit.customheaders.CustomHeadersStorage
+import com.grappim.kit.customheaders.CustomHeadersStorageImpl
 import com.grappim.kit.storage.KeystoreSecretCipher
 import com.grappim.kit.storage.NetworkMonitor
 import com.grappim.kit.storage.NetworkMonitorImpl
@@ -70,6 +73,21 @@ class StorageModule {
     @Single
     fun provideTrustedCertStorage(dataStore: DataStore<Preferences>): TrustedCertStorage =
         TrustedCertStorageImpl(dataStore)
+
+    /**
+     * Same DataStore file and [SecretCipher] as the API key, so headers saved before this binding
+     * moved here still decrypt (grappim-kit `CONSUMING.md`'s `customheaders` section).
+     */
+    @Single
+    fun provideCustomHeadersStorage(
+        dataStore: DataStore<Preferences>,
+        secretCipher: SecretCipher,
+        json: Json
+    ): CustomHeadersStorage = CustomHeadersStorageImpl(dataStore, secretCipher, json)
+
+    /** The default reserved names: Wallos sets neither `Authorization` nor `User-Agent` itself. */
+    @Single
+    fun provideCustomHeaderValidator(): CustomHeaderValidator = CustomHeaderValidator()
 
     /**
      * `BundledSQLiteDriver` ships its own SQLite rather than using the one on the device, so
