@@ -1,1 +1,1 @@
-What's new in v1.1.1
+- Fixed the Subscriptions list failing to load with "Nothing that looks like Wallos answered at that address" when a subscription has no logo. The Dashboard was empty in the same case.
