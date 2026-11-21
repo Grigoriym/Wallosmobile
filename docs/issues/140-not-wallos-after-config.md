@@ -1,6 +1,6 @@
 # 140 — "Nothing that looks like Wallos answered at that address. Check the server URL"
 
-**Status:** In review
+**Status:** Done
 **Link:** https://github.com/Grigoriym/Wallosmobile/issues/140   **Updated:** 2026-11-20
 
 ## Report
@@ -194,3 +194,5 @@ On branch `fix/140-null-logo-url` (off `dev`):
   - **After** (this branch, installed over the same login): the list loads, the logo-less row
     renders with its letter placeholder, its detail screen (`get_subscription.php`) opens, and the
     Dashboard shows the real totals.
+- Merged in #146 and released in v1.1.1 (2026-11-21). An in-place upgrade from the published v1.1.0
+  APK kept the login, the cache and settings, and loaded the list with the logo-less row.
