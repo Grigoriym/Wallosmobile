@@ -959,11 +959,10 @@ maintainer), the `guardrails` status check required, force-push/deletion blocked
 docs-only commits, so a required `ci` check would leave a docs-only PR unmergeable forever. This
 retired the gap this section used to describe (`GITHUB_TOKEN` sufficing for the back-merge): with
 `dev` now protected, `release-finalize.yml`'s "Back-merge master into dev" step needs
-`RELEASE_PAT` exactly as predicted above, and the workflow was updated to use it. **`RELEASE_PAT`
-does not exist as a repo secret yet** (confirmed via `gh api .../actions/secrets`) — it has to be
-a PAT from the owner's own account (the bypass actor), added as a repo secret before
-`release-finalize.yml` next runs, or the back-merge step fails with a push rejection while the
-tag and GitHub Release from the same run still succeed.
+`RELEASE_PAT` exactly as predicted above, and the workflow was updated to use it. `RELEASE_PAT` is
+a repo secret, a PAT from the owner's own account (the bypass actor); the v1.1.0 and v1.1.1
+releases' back-merges both ran on it. If it expires or is removed, the back-merge step fails with a
+push rejection while the tag and GitHub Release from the same run still succeed.
 
 **Post-M15 check, not a fifth step: does `androidApp/proguard-rules.pro` need anything?** The
 `release` build type has carried `isMinifyEnabled = true`/`isShrinkResources = true` since before
