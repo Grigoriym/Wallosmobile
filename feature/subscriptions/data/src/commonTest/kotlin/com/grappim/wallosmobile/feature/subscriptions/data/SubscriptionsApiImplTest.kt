@@ -23,6 +23,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SubscriptionsApiImplTest {
@@ -38,6 +39,17 @@ class SubscriptionsApiImplTest {
         // Straight off the wire — unescaping is the mapper's job, not the api's.
         assertEquals("1&amp;1 Telekom", result[1].name)
         assertEquals("", result[1].startDate)
+    }
+
+    @Test
+    fun `reads a null logo and url as null rather than failing the whole list`() = runTest {
+        val api = api(SubscriptionsJsonFixtures.SUBSCRIPTIONS_WITH_NULL_LOGO_AND_URL)
+
+        val result = api.getSubscriptions(convertCurrency = false).single()
+
+        assertEquals("NoLogoTest", result.name)
+        assertNull(result.logo)
+        assertNull(result.url)
     }
 
     @Test

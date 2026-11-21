@@ -127,6 +127,14 @@ class SubscriptionMapperTest {
     }
 
     @Test
+    fun `reads a null logo and url as blank`() {
+        val result = mapper.toDomain(subscriptionDTO(logo = null, url = null), currencySymbol = "€")
+
+        assertEquals("", result.logo)
+        assertEquals("", result.url)
+    }
+
+    @Test
     fun `carries a blank symbol through, for a currency the instance no longer has`() {
         assertEquals("", mapper.toDomain(subscriptionDTO(), currencySymbol = "").currencySymbol)
     }
@@ -145,11 +153,13 @@ class SubscriptionMapperTest {
         paymentMethodName: String? = "Direct Debit",
         payerUserName: String? = "gregorz",
         autoRenew: Int = 1,
-        notify: Int = 1
+        notify: Int = 1,
+        logo: String? = "1732556915-Fiton.png",
+        url: String? = "https://fitonapp.com"
     ) = SubscriptionDTO(
         id = 4,
         name = name,
-        logo = "1732556915-Fiton.png",
+        logo = logo,
         price = price,
         currencyId = currencyId,
         startDate = startDate,
@@ -163,7 +173,7 @@ class SubscriptionMapperTest {
         categoryId = 2,
         notify = notify,
         notifyDaysBefore = 5,
-        url = "https://fitonapp.com",
+        url = url,
         inactive = inactive,
         categoryName = categoryName,
         payerUserName = payerUserName,

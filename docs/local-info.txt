@@ -12,6 +12,14 @@ http://localhost:8282/
 gregorz
 Unequal2-Reawake9-Vessel3-Delouse8-Resonate9
 
+This file is the contract every machine meets: the URL, port and account above. The project is
+worked on from more than one machine, so where the instance lives on a given machine (folder,
+container, Wallos version, what data it holds, which of the throwaway instances below exist) is in
+that machine's `docs/machine.local.md` (gitignored). Read it first. If it is missing, this machine
+has no instance yet: build one to this contract and write the file. Paths below such as
+`/home/gregory/data/...` are what the recipes used where they were written; check
+`machine.local.md` before assuming they exist.
+
 
 ================================================================================
 The 2FA instance — port 8283, off by default

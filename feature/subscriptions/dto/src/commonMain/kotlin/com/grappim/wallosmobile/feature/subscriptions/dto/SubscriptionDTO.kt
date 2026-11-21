@@ -18,12 +18,16 @@ import kotlinx.serialization.Serializable
  * later one carries a default. The schema grows by incremental migration, so a column added
  * after an older instance was installed simply isn't in its response, and a missing field must
  * not turn a readable subscription into a `Malformed`.
+ *
+ * [logo] and [url] are nullable because the server does send `null` for them: the web form leaves
+ * `logo` `NULL` on a subscription added without one, and `url` is `NULL` on rows that predate the
+ * column (migration `000004`). A non-null `String` there fails the whole list as `Malformed`.
  */
 @Serializable
 data class SubscriptionDTO(
     val id: Int,
     val name: String,
-    val logo: String = "",
+    val logo: String? = null,
     val price: Double,
     @SerialName("currency_id") val currencyId: Int,
     @SerialName("start_date") val startDate: String? = null,
@@ -37,7 +41,7 @@ data class SubscriptionDTO(
     @SerialName("category_id") val categoryId: Int? = null,
     val notify: Int = 0,
     @SerialName("notify_days_before") val notifyDaysBefore: Int? = null,
-    val url: String = "",
+    val url: String? = null,
     val inactive: Int = 0,
     @SerialName("cancellation_date") val cancellationDate: String? = null,
     @SerialName("replacement_subscription_id") val replacementSubscriptionId: Int? = null,

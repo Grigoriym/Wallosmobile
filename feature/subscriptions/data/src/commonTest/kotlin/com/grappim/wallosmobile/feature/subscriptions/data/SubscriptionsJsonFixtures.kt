@@ -24,6 +24,24 @@ internal object SubscriptionsJsonFixtures {
          "payer_user_name":"gregorz","payment_method_name":"Direct Debit"}],"notes":[]}
     """.trimIndent()
 
+    /**
+     * Recorded off Wallos v5.11.2 for a subscription added in the web UI with no logo, which the web
+     * form stores as `NULL` (docs/issues/140-not-wallos-after-config.md). `url` is `null` as well,
+     * as on rows that predate the column (migration `000004`).
+     */
+    val SUBSCRIPTIONS_WITH_NULL_LOGO_AND_URL = """
+        {"success":true,"title":"subscriptions","subscriptions":[
+        {"id":1,"name":"NoLogoTest","logo":null,"price":9.99,"currency_id":1,
+         "next_payment":"2026-12-01","cycle":3,"frequency":1,"notes":"","payment_method_id":1,
+         "payer_user_id":1,"category_id":1,"notify":0,"url":null,"inactive":0,
+         "notify_days_before":0,"user_id":1,"cancellation_date":null,
+         "replacement_subscription_id":null,"start_date":"","auto_renew":1,
+         "logo_text_color":null,"logo_variant":null,"paid_at":null,"folder_id":null,
+         "category_ids":[1],"category_names":["无分类"],"category_name":"无分类",
+         "payer_user_ids":[1],"payer_user_names":["tester"],"payer_user_name":"tester",
+         "payment_method_name":"PayPal"}],"notes":[]}
+    """.trimIndent()
+
     /** What a user with no subscriptions gets: `success: true` and an empty array. */
     const val NO_SUBSCRIPTIONS = """{"success":true,"title":"subscriptions","subscriptions":[],"notes":[]}"""
 

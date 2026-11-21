@@ -22,3 +22,4 @@ node_modules/
 
 # The fdroid flavor's src/fdroid/google-services.json is a harmless placeholder and IS committed.
 /androidApp/src/gplay/google-services.json
+*.local.md
