@@ -2,12 +2,12 @@ package com.grappim.wallosmobile.feature.setup.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grappim.kit.customheaders.CustomHeadersStorage
 import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.kit.domain.findPendingCertTrust
 import com.grappim.kit.logger.LogPriority
 import com.grappim.kit.logger.logcat
 import com.grappim.kit.uikit.NativeText
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorage
 import com.grappim.wallosmobile.feature.setup.domain.model.ApiKeyNotFound
 import com.grappim.wallosmobile.feature.setup.domain.model.LoginOutcome
 import com.grappim.wallosmobile.feature.setup.domain.model.PasswordLoginAvailability

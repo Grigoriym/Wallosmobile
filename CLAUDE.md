@@ -15,6 +15,14 @@ Anything a session learns that the next one should know goes in this file or `do
 valid destination for a project fact, a convention, or an instruction they gave directly; write it
 down where they can find and correct it instead.
 
+## Machine specifics stay off the repo
+
+The project is worked on from more than one machine. Committed docs say which services and values
+the project needs (the contract: URLs, ports, accounts). Paths, AVD names, container names, and
+what a given instance holds on one machine go in `docs/machine.local.md` (gitignored,
+`*.local.md`). **Read it before the first Gradle, emulator or container command.** If it's missing,
+this machine has nothing set up yet: build to the contract and write the file.
+
 ## How work happens here
 
 **One checklist step per session, with context cleared in between.**
@@ -713,7 +721,9 @@ rebuild each — read that file rather than re-deriving any of it here. It's com
 the instance is LAN-only, and the user has said so explicitly. **Every on-device `Verify:` line
 means this instance**, unless a step needs one of the throwaway ones instead.
 
-Its data has holes worth knowing before planning a verify: **`notes` and `url` are `""` on every
+**What data the instance holds is machine-specific** — `docs/machine.local.md` says; a fresh
+instance has no subscriptions, and a verify has to seed what it needs. Where it was built from the
+original dataset, that data has holes worth knowing before planning a verify: **`notes` and `url` are `""` on every
 subscription**, and `start_date` is `""` on a good few, so anything rendering those fields can only
 be proven by unit test and preview. Pick the row deliberately — `Fiton` (id 4) has a start date and
 a `&` in its category name. It is also single-currency (conversion off, rates never fetched) — see
@@ -724,8 +734,9 @@ a `&` in its category name. It is also single-currency (conversion off, rates ne
 
 ### Before decomposing anything sizeable, check the actual web UI too — not just the API
 
-`/home/gregory/proj/other/Wallos` is a git checkout of `ellite/Wallos`, kept on the same version as
-the docker instance (`includes/version.php` — confirmed `v5.4.2` in both, 2026-08-08). `api/*.php`
+A git checkout of `ellite/Wallos` (where it lives on this machine: `docs/machine.local.md`) is kept
+on the same version as the docker instance — compare both `includes/version.php` before relying on
+a match. `api/*.php`
 is what a client calls, but `index.php`, `subscriptions.php`, `settings.php`, `profile.php` and
 `includes/*_calculations.php` are what the *product* actually is — what a screen shows, hides,
 gates behind a condition, or computes a value from is frequently a decision the API surface alone

@@ -1,10 +1,10 @@
 package com.grappim.wallosmobile.feature.settings.ui.customheaders
 
+import com.grappim.kit.customheaders.CustomHeader
+import com.grappim.kit.customheaders.CustomHeaderError
+import com.grappim.kit.customheaders.CustomHeaderValidator
+import com.grappim.kit.testing.FakeCustomHeadersStorage
 import com.grappim.kit.testing.MainDispatcherRule
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeader
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeaderError
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeaderValidator
-import com.grappim.wallosmobile.testing.FakeCustomHeadersStorage
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest

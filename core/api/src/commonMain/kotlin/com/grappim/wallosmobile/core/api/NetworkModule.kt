@@ -1,8 +1,10 @@
 package com.grappim.wallosmobile.core.api
 
 import com.grappim.kit.appinfo.AppInfoProvider
+import com.grappim.kit.customheaders.CustomHeaders
+import com.grappim.kit.customheaders.CustomHeadersStorage
+import com.grappim.kit.customheaders.sanitizeCustomHeaders
 import com.grappim.kit.storage.cert.TrustedCertStorage
-import com.grappim.wallosmobile.core.storage.customheaders.CustomHeadersStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage

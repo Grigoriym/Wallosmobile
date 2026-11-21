@@ -14,7 +14,8 @@ section and `docs/local-info.txt` — this file only covers the device side.
 
 ## Device facts
 
-- AVD: `Medium_Phone_API_36.1`
+- AVD: machine-specific — `docs/machine.local.md`. The notes below were found on
+  `Medium_Phone_API_36.1` (Medium Phone, API 36.1).
 - Package ids: `com.grappim.wallosmobile.debug` (gplay, no suffix — use this day to day),
   `com.grappim.wallosmobile.fdroid.debug` (fdroid — substitute `installFdroidDebug`)
 - Activity: `com.grappim.wallosmobile.MainActivity` (fully-qualified form required once
@@ -32,6 +33,9 @@ section and `docs/local-info.txt` — this file only covers the device side.
   (`1.1.1.1 443`), since with the phone dozing it fails too and the result means nothing. Read
   `dumpsys activity activities | grep topResumedActivity` before any `pm clear`/`pm revoke`: the
   user tests on `fdroid.debug` there, and a command aimed at `.debug` silently hits the wrong app.
+- **An API 37 AVD does show the local-network prompt** ("Allow … to find, connect to, and determine
+  the relative position of nearby devices?") on the first Connect to `http://10.0.2.2:8282`, and
+  login waits behind it. Tap "Allow" by its dump bounds (2026-11-21, #140 verify).
 
 - **This machine can have a real phone (`SM-A920F`, a Samsung Galaxy A9 on Android 10) connected
   over USB**, and `adb`/an `installXxxDebug` task silently prefers it over the AVD whenever no
