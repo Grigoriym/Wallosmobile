@@ -36,6 +36,12 @@ section and `docs/local-info.txt` — this file only covers the device side.
 - **An API 37 AVD does show the local-network prompt** ("Allow … to find, connect to, and determine
   the relative position of nearby devices?") on the first Connect to `http://10.0.2.2:8282`, and
   login waits behind it. Tap "Allow" by its dump bounds (2026-11-21, #140 verify).
+- **Upgrade test from the last published release** (2026-11-21, v1.1.0 → #140 fix): `gh release
+  download v<last> -p androidApp-fdroid-release.apk`, build `:androidApp:assembleFdroidRelease`
+  locally (signing env needed, `docs/machine.local.md`), and confirm both carry the same
+  `apksigner verify --print-certs` digest before `adb install -r`. The release APK's package is
+  `com.grappim.wallosmobile.fdroid` (no `.debug`). Prove survival by changing a setting first
+  (Startup screen) and checking it plus "no login prompt" after a cold start.
 
 - **This machine can have a real phone (`SM-A920F`, a Samsung Galaxy A9 on Android 10) connected
   over USB**, and `adb`/an `installXxxDebug` task silently prefers it over the AVD whenever no

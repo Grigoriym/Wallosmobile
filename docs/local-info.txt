@@ -191,6 +191,20 @@ files — `rm -f /tmp/sess_*` inside the container is how you make a live sessio
 **Rotate any copied API key**, or a disposable container is holding a working credential for the
 real instance.
 
+**When the *write path* is the point, go through the web endpoint, not SQL** — #140's `NULL` logo
+only exists because `endpoints/subscription/add.php` leaves `:logo` unbound, which a hand-written
+`INSERT` would never reproduce. Log in with a cookie jar, scrape the CSRF token off
+`settings.php` (`index.php`'s first response carries none), and send it both ways:
+
+  T=$(curl -s -b $J -c $J $B/settings.php | grep -o 'csrf[^>]*' | grep -o '[a-f0-9]\{32,\}' | head -1)
+  curl -s -b $J -X POST $B/endpoints/subscription/add.php -H "X-CSRF-Token: $T" -d csrf_token=$T \
+    --data-urlencode "name=No Logo" -d price=4.99 -d currency_id=1 -d next_payment=2026-12-05 \
+    -d cycle=3 -d frequency=1 -d notes= -d url= -d payment_method_id=1 -d payer_user_id=1 \
+    -d category_id=1 -d notify_days_before=0 -d start_date= -d auto_renew=1 -d logo-url=
+
+The same token works for `endpoints/currency/update_exchange.php?force=true` (POST) — with
+`fixer.provider = 2` (frankfurter) it fetches real rates with no API key.
+
 **OIDC needs no identity provider to test against**: `login.php` only reads
 `password_login_disabled` when OIDC is enabled *and* `is_configured`, and `is_configured` is a
 non-empty check on seven strings that are never dereferenced unless somebody clicks the button. So

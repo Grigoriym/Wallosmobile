@@ -137,3 +137,16 @@ Delete each bullet as it's closed.
 test there can't fail a PR. Found 2026-11-01: Renovate's #60 moved the module's Kotlin test pins to
 2.4.21, which failed all 4 tests with `NoClassDefFoundError`, and its CI couldn't have shown that.
 The fix is to add the task to `ci.yml`, a `.github/` change that needs a `Gate-change:` line.
+
+## 8. Converted-price detection can trust rates the server isn't using
+
+`SubscriptionsRepositoryImpl.haveRates()` treats any `rate != 1` as "the server converted these
+prices" (`docs/WALLOS_API.md` §5's stand-in for the unexposed `last_exchange_update` row). Found
+2026-11-21 while reproducing #140 on v5.11.2: the settings page's rate update
+(`endpoints/currency/update_exchange.php`) writes real rates but only `UPDATE`s
+`last_exchange_update`, so on an install with no row yet `get_subscriptions.php` keeps returning
+prices in each subscription's own currency while the app would label them as converted. The row
+appears once the daily cron or a profile save (`save_user.php`) runs, so the window is usually under
+a day, but it is a wrong total, not a cosmetic one. A real fix needs a signal the server actually
+uses: compare a known non-main-currency row's returned price against its stored one, or ask
+upstream to expose the row. Not reproduced in the app itself yet, only on the server side.

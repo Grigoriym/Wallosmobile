@@ -152,7 +152,7 @@ DB row plus three resolved names. Fields (post-migration schema as of v5.4.2):
 |---|---|---|
 | `id` | int | |
 | `name` | string | |
-| `logo` | string | **Filename only.** Full URL = `{base}/images/uploads/logos/{logo}`. Empty string when none. |
+| `logo` | string \| null | **Filename only.** Full URL = `{base}/images/uploads/logos/{logo}`. `""` when none was set through the API, but **`null` when the subscription was added in the web UI without one**: `endpoints/subscription/add.php` never binds `:logo` then (v5.4.2–v5.11.2). Corrected 2026-11-21 (#140); the old "empty string when none" row is what let a non-null DTO field ship. |
 | `logo_text_color` | string \| null | `"light"`/`"dark"` classification, only set when "remove background" is on |
 | `logo_variant` | string \| null | Themed logo filename, same directory as `logo` |
 | `price` | number | JSON number (SQLite REAL) |
@@ -168,7 +168,7 @@ DB row plus three resolved names. Fields (post-migration schema as of v5.4.2):
 | `category_id` | int \| null | |
 | `notify` | int | 1/0 |
 | `notify_days_before` | int \| null | |
-| `url` | string | |
+| `url` | string \| null | `null` on rows that predate the column (migration `000004` added it with no default). |
 | `inactive` | int | 1 = disabled/cancelled, 0 = active |
 | `cancellation_date` | string \| null | `YYYY-MM-DD` |
 | `replacement_subscription_id` | int \| null | Only meaningful when `inactive = 1` |
@@ -641,9 +641,14 @@ These are worth guarding against in the UI because the call reports `success: tr
     only thing that says what a converted price is denominated in;
   - **whether rates exist.** The server gates on a `last_exchange_update` row that **no endpoint
     exposes**. The observable stand-in is the rate table: `createdatabase.php` seeds every rate
-    at exactly `1` and only an exchange update writes both the rates and that row, so any
-    `rate != 1` proves an update ran. Where the two disagree it costs nothing — `price / 1` is
-    the same amount in either currency.
+    at exactly `1`, so `rate != 1` means rates were fetched. Where the two disagree because rates
+    are all `1`, it costs nothing — `price / 1` is the same amount in either currency. **They can
+    also disagree the other way** (corrected 2026-11-21, v5.11.2): the settings page's rate
+    update, `endpoints/currency/update_exchange.php`, writes the rates but only `UPDATE`s
+    `last_exchange_update`, so it creates no row. Only the daily cron
+    (`endpoints/cronjobs/updateexchange.php`) and `endpoints/user/save_user.php` `INSERT` one.
+    Until one of them runs, rates are real while the server still returns unconverted prices.
+    `docs/revisit.md` §8.
 
   `get_monthly_cost.php` reads `last_exchange_update` with **no `user_id` filter**
   (`SELECT * FROM last_exchange_update`, then the first row), so on a multi-user install its

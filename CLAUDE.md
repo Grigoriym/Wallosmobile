@@ -709,6 +709,13 @@ those before trusting a `Ref:` line into it as more than the previous session's 
   than writing a second one.
 - **Unset dates are `""`, not `null`** (`cancellation_date`, `start_date`), so a nullable field is
   not enough — blank has to read as absent.
+- **…but a nullable column does come back `null` through some write path, and one `null` in a
+  non-null DTO field fails the whole list as `Malformed`.** The lenient `Json` doesn't coerce
+  `null` to a property's default. #140: `logo` is `null` for a subscription added in the web UI
+  without one, which the live instance's own data never had, so every fixture said `""`. Before
+  typing a DTO field non-null, check the column three ways: `PRAGMA table_info`, every `INSERT`
+  that names it (a conditionally bound parameter stores `NULL`), and every migration that `ADD
+  COLUMN`s it without a default. The audit, done for every DTO: `docs/issues/140-*.md`.
 - `cycle=5` (One-time) is readable but **rejected on write**, and `Unauthorized or Not Found` is a
   per-row ownership error that must **not** clear the stored key.
 
