@@ -49,7 +49,8 @@ class SubscriptionsViewModel(
     private val moneyFormatter: MoneyFormatter,
     private val dateFormatter: DateFormatter,
     private val subscriptionSorter: SubscriptionSorter,
-    private val criteriaStorage: SubscriptionCriteriaStorage
+    private val criteriaStorage: SubscriptionCriteriaStorage,
+    private val json: Json
 ) : ViewModel() {
 
     private val filter = MutableStateFlow(SubscriptionFilter())
@@ -138,7 +139,7 @@ class SubscriptionsViewModel(
     private fun persistCriteria() {
         combine(filter, sort, SubscriptionFilter::toSaved)
             .drop(1)
-            .onEach { criteriaStorage.setCriteria(Json.encodeToString(it)) }
+            .onEach { criteriaStorage.setCriteria(json.encodeToString(it)) }
             .launchIn(viewModelScope)
     }
 
@@ -149,7 +150,7 @@ class SubscriptionsViewModel(
     }
 
     private fun decodeCriteria(stored: String): SavedCriteria? = try {
-        Json.decodeFromString<SavedCriteria>(stored)
+        json.decodeFromString<SavedCriteria>(stored)
     } catch (e: IllegalArgumentException) {
         // A build that renamed a sort or a status leaves the previous one's state unreadable.
         // Pre-v1 that state is disposable, but discarding it is not the same as crashing on it.

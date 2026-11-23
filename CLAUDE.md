@@ -346,8 +346,9 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
 - **A repository over the cache is `observe*` + `refresh*`, never `get*`.** The DAO `Flow` is the
   only thing a screen reads and it cannot fail; the network only writes to the database. So a
   failed refresh changes nothing but the error, and the loading spinner belongs to the *empty*
-  cache alone. Such a repository runs into detekt's **`allowedConstructorParameters: 6`** fast —
-  split the DAO half into its own class rather than widening the rule; when the seventh thing has
+  cache alone. Such a repository runs into detekt's **`allowedConstructorParameters: 7`** fast —
+  split the DAO half into its own class rather than widening the rule (it was 6 until the user
+  raised it on 2026-11-23 so `SubscriptionsViewModel` could take `Json` from DI); when the eighth thing has
   **no dependencies of its own**, the other way past it is to stop injecting it (a `private val`
   constructed by its owner instead).
 - **What a repository has to say *during* a call is a callback parameter, not a flow beside it**
@@ -500,10 +501,9 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
 - **`Json` comes from DI: the plain default unqualified, a configured one behind its own `@Qualifier`**
   (`@LenientJson` for the envelope parser, `@IgnoreUnknownKeysJson` for `WallosCrudApi`, both in
   `NetworkModule`). A test takes the real config from `NetworkModule().provide…Json()` rather than
-  repeating it. The exception is `SubscriptionsViewModel` and `SubscriptionEditorViewModel`, which
-  keep plain `Json` for their stored JSON string (the list's in `SubscriptionCriteriaStorage`, the
-  editor's in its `SavedStateHandle`): both already sit at detekt's
-  constructor-parameter limit, and nothing there depends on configuration (user's call, 2026-10-30).
+  repeating it. The one exception left is `SubscriptionEditorViewModel`, which keeps plain `Json`
+  for its `SavedStateHandle` string (user's call, 2026-10-30, when it sat at detekt's
+  constructor-parameter limit; nothing there depends on configuration).
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`. Every
   new route must be registered in the polymorphic `SerializersModule` in `NavKeySerializers.kt`,

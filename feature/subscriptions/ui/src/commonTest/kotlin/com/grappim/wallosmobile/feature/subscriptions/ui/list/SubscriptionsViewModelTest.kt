@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.json.Json
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -61,7 +62,8 @@ class SubscriptionsViewModelTest {
         moneyFormatter = MoneyFormatter(),
         dateFormatter = DateFormatter(),
         subscriptionSorter = SubscriptionSorter(),
-        criteriaStorage = criteriaStorage
+        criteriaStorage = criteriaStorage,
+        json = Json
     )
 
     @Test

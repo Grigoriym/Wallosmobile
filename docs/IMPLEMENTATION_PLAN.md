@@ -173,7 +173,7 @@ Consequences for the design:
   **Shipped in 3.10** as `LoginThrottle`, a counter *inside* `SetupRepositoryImpl` — not injected,
   because it has no dependencies and the lifetime it wants is already that object's (one login
   screen), and because it would otherwise be a seventh constructor parameter against detekt's
-  `allowedConstructorParameters: 6`. Three decisions in it:
+  `allowedConstructorParameters` (6 at the time). Three decisions in it:
   - **The wait is spent before the next attempt, inside the call the spinner is already up for**,
     so there is nothing for the user to dismiss. Three attempts are free — the first
     failures are typos — then 1s, 2s, 4s, 8s and a cap. The cap is what keeps it a backoff rather
@@ -2477,7 +2477,7 @@ test helper. Build one canonical fixture and `.copy()` off it.
 **`UnusedParameter` applies to `commonTest` too**, so a test that ignores a callback passes `{ }` at
 the call site — a named `private fun ignore(wait: Duration) = Unit` fails detekt.
 
-**`LongParameterList`'s `allowedConstructorParameters: 6` does not, in practice, gate a fake's
+**`LongParameterList`'s `allowedConstructorParameters` (7) does not, in practice, gate a fake's
 constructor** — `FakeSubscriptionsApi` sat at 9 named/defaulted params pre-7.5 and reached 13 after
 it, both real `./gradlew detekt` runs, both clean. Don't pre-split a fake's constructor to dodge it.
 
@@ -2660,7 +2660,7 @@ every later feature's repository should copy:
   `Unauthorized or Not Found` is an ownership answer as much as a deletion (API doc §3.3).
 - **The repository is two classes.** `SubscriptionsCache` holds the DAOs and the entity mappers and
   speaks domain models only; `SubscriptionsRepositoryImpl` holds the API, the wire mappers and the
-  order things happen in. detekt's `allowedConstructorParameters: 6` is what forced the split, and
+  order things happen in. detekt's `allowedConstructorParameters` (6 then) is what forced the split, and
   the line it drew is the right one — everything about the cache being *rows* stops at the first
   class. It is also why 3.11's third DAO and mapper cost the repository nothing: they went behind
   the seam, where they belong, and `SubscriptionsCache` is at the limit of 6 exactly.
