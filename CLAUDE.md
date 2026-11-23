@@ -62,6 +62,15 @@ N" trigger and launch the step immediately. Corrected 2026-08-11.
    **Edit a PR's body with `gh api repos/Grigoriym/Wallosmobile/pulls/<n> -X PATCH -F body=@file`,
    not `gh pr edit`** — the latter fails on this repo with `GraphQL: Projects (classic) is being
    deprecated … (repository.pullRequest.projectCards)` (hit twice: PR #14, PR #107).
+   **A PR that changes something visible on screen carries before/after screenshots in its
+   body** — the user's rule, 2026-11-23. Before = `dev`'s code (`git stash -u`, `git checkout
+   dev -- <changed paths>`, install, screenshot, then restore), after = the PR, same AVD and same
+   screen state, side by side (`ffmpeg … hstack` — no ImageMagick/Pillow on this machine). `gh`
+   can't attach images to a PR, so commit them to the orphan `pr-assets` branch under
+   `pr-<n>/` and embed `https://raw.githubusercontent.com/Grigoriym/Wallosmobile/<sha>/pr-<n>/…`
+   with `<img width="600">`. Never delete `pr-assets` — merged PRs' images point into it. The
+   repo is public, so the screenshots are too; avoid screens that show more than the change
+   needs (Household lists a real email address).
 
 **Decomposing a new milestone is its own commit, made the moment it happens — not left
 for the session that does step 1 to discover via `git status`.** Every milestone from M3
