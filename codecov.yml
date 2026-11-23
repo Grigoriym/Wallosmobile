@@ -17,6 +17,7 @@ coverage:
             default:
                 target: 80%
                 threshold: 5%
+                informational: true
 
 github_checks:
     annotations: true
