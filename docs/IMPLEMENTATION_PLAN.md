@@ -825,6 +825,10 @@ Three adjustments from a straight port, all because Taiga's repo shape differs f
   can't set branch protection without GitHub Pro — confirmed via `gh api .../branches/master/
   protection` → 403) can't block anything yet regardless. Declining the Kover floor doesn't argue
   against this one.
+  **Patch status turned `informational: true` on 2026-11-23** (user's call, after PR #153): a
+  change that is all composables or `androidMain` platform code (a permission effect, say) has no
+  host test that can run it, so `codecov/patch` went red on almost every UI-only PR and stopped
+  meaning anything. The project status still fails on a drop of more than 1%.
 - **CI wiring** — §3.5 called the Codecov upload a *deliberate* omission because the repo had no
   `CODECOV_TOKEN`. **The secret was missing at this session's start too** (`gh secret list`
   returned empty on 2026-08-10, despite the user's earlier belief it was already added); the user
