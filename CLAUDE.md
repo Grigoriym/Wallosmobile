@@ -501,7 +501,8 @@ Rationale and mechanism for the dense ones below (DI, Nav3, Testing) live in
   (`@LenientJson` for the envelope parser, `@IgnoreUnknownKeysJson` for `WallosCrudApi`, both in
   `NetworkModule`). A test takes the real config from `NetworkModule().provide…Json()` rather than
   repeating it. The exception is `SubscriptionsViewModel` and `SubscriptionEditorViewModel`, which
-  keep plain `Json` for their `SavedStateHandle` string: both already sit at detekt's
+  keep plain `Json` for their stored JSON string (the list's in `SubscriptionCriteriaStorage`, the
+  editor's in its `SavedStateHandle`): both already sit at detekt's
   constructor-parameter limit, and nothing there depends on configuration (user's call, 2026-10-30).
 - **Navigation 3, not nav2.** `NavDisplay` + `entryProvider`; no `NavController`/`NavHost`.
   `org.jetbrains.androidx.navigation3:*` in `commonMain` — never `androidx.navigation3:*`. Every

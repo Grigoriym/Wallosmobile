@@ -8,6 +8,7 @@ import com.grappim.kit.storage.SecretCipher
 import com.grappim.wallosmobile.core.storage.db.CurrencyDao
 import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
 import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
+import com.grappim.wallosmobile.core.storage.subscriptions.SubscriptionCriteriaStorageImpl
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -43,6 +44,8 @@ internal class ApiKeyStorageImpl(
     /**
      * The cache goes with the key. It is emptied *before* the key, so there is no window in which
      * a screen observing the tables can read one account's rows with no credential behind them.
+     * The subscriptions list's saved filter names that account's payers and categories, so it goes
+     * in the same edit as the key.
      */
     override suspend fun clear() {
         subscriptionDao.deleteAll()
@@ -50,6 +53,7 @@ internal class ApiKeyStorageImpl(
         priceConversionDao.deleteAll()
         dataStore.edit { prefs ->
             prefs.remove(KEY_API_KEY)
+            prefs.remove(SubscriptionCriteriaStorageImpl.KEY_CRITERIA)
         }
     }
 

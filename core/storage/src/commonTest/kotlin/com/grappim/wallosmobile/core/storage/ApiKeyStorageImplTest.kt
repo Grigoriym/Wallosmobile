@@ -11,6 +11,7 @@ import com.grappim.wallosmobile.core.storage.db.PriceConversionDao
 import com.grappim.wallosmobile.core.storage.db.PriceConversionEntity
 import com.grappim.wallosmobile.core.storage.db.SubscriptionDao
 import com.grappim.wallosmobile.core.storage.db.SubscriptionEntity
+import com.grappim.wallosmobile.core.storage.subscriptions.SubscriptionCriteriaStorageImpl
 import com.grappim.wallosmobile.core.storage.theme.ThemeMode
 import com.grappim.wallosmobile.core.storage.theme.ThemeStorageImpl
 import kotlinx.coroutines.flow.Flow
@@ -126,6 +127,20 @@ class ApiKeyStorageImplTest {
 
         assertNull(storage.getKey())
         assertEquals(headers, CustomHeadersStorageImpl(dataStore, cipher, Json).currentHeaders)
+    }
+
+    /** The saved filter names the dropped account's payers and categories. */
+    @Test
+    fun `clear drops the saved subscriptions filter`() = runTest {
+        val criteriaStorage = SubscriptionCriteriaStorageImpl(dataStore)
+        criteriaStorage.setCriteria("""{"categories":["Internet"]}""")
+        storage.setKey("abc123")
+
+        storage.clear()
+
+        criteriaStorage.criteria.test {
+            assertNull(awaitItem())
+        }
     }
 
     /** The cached rows belong to the account whose key is being dropped (3.4). */

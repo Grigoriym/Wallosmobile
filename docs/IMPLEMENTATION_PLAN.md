@@ -1947,12 +1947,12 @@ Route arguments reach the ViewModel through the screen via
 route extraction — that is the nav2 pattern and does not apply here. The receiving constructor
 property takes **`@InjectedParam`**, which `KoinGraphTest` cannot enforce (§6.1).
 
-That rules out `SavedStateHandle` as a *route argument* vehicle, not as a vehicle. 5.2 injects one
-into `SubscriptionsViewModel` for state that belongs to no route at all — the filter and sort, which
-the back stack was carefully serializing around while they reset on every process death. It takes
-the same `@InjectedParam` (Koin builds it from the `CreationExtras`, not from the graph), and there
-`KoinGraphTest` *does* enforce it, since `SavedStateHandle` is not one of `verify()`'s whitelisted
-primitives.
+That rules out `SavedStateHandle` as a *route argument* vehicle, not as a vehicle.
+`SubscriptionEditorViewModel` injects one for its in-progress form, which belongs to no route. It
+takes the same `@InjectedParam` (Koin builds it from the `CreationExtras`, not from the graph), and
+there `KoinGraphTest` *does* enforce it, since `SavedStateHandle` is not one of `verify()`'s
+whitelisted primitives. (The list's filter and sort rode one too, from 5.2 until they moved to
+DataStore so they would survive a relaunch — see §7.1's criteria bullet.)
 
 `NavKeySerializersTest` walks `DrawerDestination.entries`, so it checks the *top-level* routes and
 nothing else. A detail or editor route left out of `navKeySerializersModule` passes every gate in
@@ -2692,22 +2692,22 @@ the server-resolved `category_name` / `payer_user_name` / `payment_method_name`.
 - **The criteria are `MutableStateFlow`s beside the state**, `combine`d with the DAO flow rather
   than copied into the UI state and read back out of it. So "the filter changed" and "a refresh
   arrived" render through one path, and re-sorting provably costs no refetch.
-  **Since 5.2 they also outlive the process**, through a `SavedStateHandle` — the shape above is
-  untouched, and the handle is written from a `combine(filter, sort)` rather than from each of the
-  three setters, so the saved copy is driven off the flows and cannot disagree with them. The stored
-  form is one JSON string under one key, not an encoded `SavedState`: on Android
-  `androidx.savedstate`'s `SavedState` **is** `Bundle`, so `encodeToSavedState`, the `saved { }`
-  property delegate and `savedState { }` all need an Android runtime — unreachable from a host
-  test, and Robolectric is out. `SavedStateHandle()` itself, `get`, `set` and
-  `getMutableStateFlow` are pure Kotlin, so a `String` value is testable in both directions while
-  anything Bundle-shaped is testable in neither. `SubscriptionFilter`'s `ImmutableSet`s have no
-  kotlinx serializer either, so what gets written is a small `@Serializable` companion type
-  (`SavedCriteria`) with plain `Set`s — the same DTO-beside-the-model instinct the wire layer uses.
-  Decoding it catches `IllegalArgumentException`: pre-v1 stored state is disposable, but
-  *discarding* it has to be a default screen rather than a crash in the ViewModel's constructor.
-  The UI state's `filters` is *seeded* from the restored values as well as set by `onCached`,
-  because the first frame after a restore is drawn before the
-  DAO flow has emitted anything.
+  **They also outlive the launch**, through `SubscriptionCriteriaStorage` (`core:storage`,
+  DataStore) — 5.2 first kept them in a `SavedStateHandle`, which covered process death but reset
+  on every fresh launch. The shape above is untouched, and the store is written from a
+  `combine(filter, sort).drop(1)` rather than from each of the three setters, so the saved copy is
+  driven off the flows and cannot disagree with them, and merely opening the screen writes nothing.
+  `core:storage` cannot name `feature:subscriptions:ui`'s types (and must not depend on a feature),
+  so the stored value is one opaque JSON string the ViewModel encodes: `SubscriptionFilter`'s
+  `ImmutableSet`s have no kotlinx serializer, so what gets written is a small `@Serializable`
+  companion type (`SavedCriteria`) with plain `Set`s — the same DTO-beside-the-model instinct the
+  wire layer uses. Decoding it catches `IllegalArgumentException`: pre-v1 stored state is
+  disposable, but *discarding* it has to be a default screen rather than a crash.
+  The ViewModel's `init` reads the store **before** it starts observing the cache, persisting, or
+  loading — DataStore is async, so starting the cache observer first would draw the unfiltered
+  list for a frame and then jump. The values are **account state**: they name one instance's
+  payers and categories, so `ApiKeyStorage.clear()` removes the key in the same edit as the API
+  key, alongside the Room cache.
 - **Sorting is a pure class** (`SubscriptionSorter`), because §3.2 fixes the direction *per field*
   — `price` and `id` descend, everything else ascends — and a table like that is worth a test
   rather than a `sortedWith` in a ViewModel. Three of its fields are ids this app never receives,

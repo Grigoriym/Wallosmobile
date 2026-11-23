@@ -1,10 +1,10 @@
 package com.grappim.wallosmobile.feature.subscriptions.ui.list
 
-import androidx.lifecycle.SavedStateHandle
 import com.grappim.kit.testing.MainDispatcherRule
 import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
 import com.grappim.wallosmobile.core.domain.WallosError
+import com.grappim.wallosmobile.core.storage.subscriptions.SubscriptionCriteriaStorage
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.AddSubscriptionParams
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.BillingCycle
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Currency
@@ -50,12 +50,8 @@ class SubscriptionsViewModelTest {
         mainDispatcherRule.tearDown()
     }
 
-    /**
-     * The handle a real one is given, minus the registry owner behind it: what the system would
-     * have restored is whatever a previous [viewModel] wrote into this same instance, which is
-     * exactly the process boundary 5.2 is about.
-     */
-    private val savedStateHandle = SavedStateHandle()
+    /** Shared by every [viewModel] in a test, so a second one reads what the first one wrote. */
+    private val criteriaStorage = FakeSubscriptionCriteriaStorage()
 
     // The formatters are pure classes with no seam worth faking (plan §6.1), so the assertions
     // below are on the strings the app really renders.
@@ -65,7 +61,7 @@ class SubscriptionsViewModelTest {
         moneyFormatter = MoneyFormatter(),
         dateFormatter = DateFormatter(),
         subscriptionSorter = SubscriptionSorter(),
-        savedStateHandle = savedStateHandle
+        criteriaStorage = criteriaStorage
     )
 
     @Test
@@ -455,14 +451,11 @@ class SubscriptionsViewModelTest {
         assertEquals(1, sut.uiState.value.items.size)
     }
 
-    // --- 5.2: the criteria outlive the process -------------------------------------------------
+    // --- the criteria outlive the screen, the process and the launch ---------------------------
 
-    /**
-     * The whole step in one test: a second ViewModel over the same handle is what the system builds
-     * after an `am kill`, and it has to come back narrowed and ordered the way the first one was.
-     */
+    /** A second ViewModel over the same storage is a relaunch, or a return to the screen. */
     @Test
-    fun `a rebuilt ViewModel comes back with the filter and the sort it was killed with`() = runTest {
+    fun `a rebuilt ViewModel comes back with the filter and the sort it was left with`() = runTest {
         repository.result = Result.success(listOf(disney, internet))
         val before = viewModel()
         before.uiState.value.filters.onFilterChange(
@@ -499,13 +492,25 @@ class SubscriptionsViewModelTest {
     @Test
     fun `state a newer build cannot read is dropped, not thrown`() = runTest {
         repository.result = Result.success(listOf(disney, internet))
-        savedStateHandle["subscriptions_criteria"] = """{"sort":"BY_SOMETHING_REMOVED"}"""
+        criteriaStorage.stored.value = """{"sort":"BY_SOMETHING_REMOVED"}"""
 
         val state = viewModel().uiState.value
 
         assertEquals(SubscriptionFilter(), state.filters.filter)
         assertEquals(SubscriptionSort.NEXT_PAYMENT, state.filters.sort)
         assertEquals(2, state.items.size)
+    }
+
+    /** Opening the screen is not a choice; writing the defaults on open would be noise on disk. */
+    @Test
+    fun `opening the screen writes nothing, a change writes it`() = runTest {
+        repository.result = Result.success(listOf(disney, internet))
+        val sut = viewModel()
+        assertEquals(null, criteriaStorage.stored.value)
+
+        sut.uiState.value.filters.onSortChange(SubscriptionSort.NAME)
+
+        assertEquals(SubscriptionSort.NAME, viewModel().uiState.value.filters.sort)
     }
 
     // --- 3.11: the conversion banner ----------------------------------------------------------
@@ -789,5 +794,16 @@ class SubscriptionsViewModelTest {
         var url: String = "$SERVER_URL/"
 
         override fun getBaseUrl(): String = url
+    }
+}
+
+private class FakeSubscriptionCriteriaStorage : SubscriptionCriteriaStorage {
+
+    val stored = MutableStateFlow<String?>(null)
+
+    override val criteria: Flow<String?> = stored
+
+    override suspend fun setCriteria(value: String) {
+        stored.value = value
     }
 }
