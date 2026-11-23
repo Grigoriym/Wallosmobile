@@ -18,6 +18,13 @@ expect fun rememberLocalNetworkPermissionRequest(): LocalNetworkPermissionReques
 @Composable
 expect fun rememberIsLocalNetworkBlocked(serverUrl: String): Boolean
 
+/**
+ * Calls [onAllow] when local network access turns on while this is composed, from the dialog or
+ * from the system settings page, so a screen that failed while it was off loads again (plan §4.5c).
+ */
+@Composable
+expect fun LocalNetworkAllowEffect(onAllow: () -> Unit)
+
 /** Opens the system's page for this app, the way back once the permission dialog no longer appears. */
 @Composable
 expect fun rememberOpenAppSettings(): () -> Unit

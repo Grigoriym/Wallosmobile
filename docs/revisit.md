@@ -98,10 +98,6 @@ mechanism rather than re-deriving it.
 
 **Plan §4.5c has the design.** Found 2026-10-30 testing PR #107 on a Pixel 11 Pro.
 
-- **Screens don't reload when the permission is allowed.** `LocalNetworkBanner` clears by itself,
-  but the screen under it needs Try again or pull to refresh. A real fix means signalling the grant
-  to ViewModels that load once in `init` (`DashboardViewModel`), and ViewModels here are
-  activity-scoped, so they don't get rebuilt.
 - **Not tried on a device:** `https` on a local address, a hostname resolving to a private address,
   and a real update from 1.0.4, which can't be staged (the old build can't log in on Android 17, and
   an API 36 AVD never asks). Turning the permission off in system settings stood in for the update.

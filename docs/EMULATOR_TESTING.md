@@ -38,6 +38,10 @@ section and `docs/local-info.txt` — this file only covers the device side.
   login waits behind it. Tap "Allow" by its dump bounds (2026-11-21, #140 verify).
   The deny button's label is `Don’t allow` with a typographic apostrophe (U+2019); pass it to `ui.py tap` exactly as `ui.py list` prints it, not as
   `"Don't allow"`. A fresh install (`adb uninstall` first) asks again (2026-11-23).
+  Once the prompt has been denied, `pm revoke` (even with `pm clear-permission-flags … user-set
+  user-fixed`) leaves it suppressed; `adb shell pm reset-permissions -p <pkg>` brings it back
+  without losing the login. The AVD really blocks `10.0.2.2` while it's off: requests time out
+  after ~10 s (2026-11-23).
 
 - **This machine can have a real phone (`SM-A920F`, a Samsung Galaxy A9 on Android 10) connected
   over USB**, and `adb`/an `installXxxDebug` task silently prefers it over the AVD whenever no

@@ -1711,9 +1711,17 @@ is a normal setup, and 1.0.4 already targets 37 without the permission.
   each resume (`rememberIsLocalNetworkBlocked`), so it leaves by itself once allowed. Android has
   no public link to a single permission, so the action opens the app's settings page.
 
-Known limits: screens don't reload when the permission is allowed, so that takes Try again or pull
-to refresh; screens below the banner still show their own `error_unreachable` until then. The
-password-login probe doesn't re-run after a grant, because it runs off the URL and headers only
+- **A screen loads again once the permission is allowed.** `LocalNetworkAllowEffect` (`uikit`)
+  checks the permission on every resume and calls the screen's own `onRetryClick` when it goes from
+  off to on. Both ways in come back through a resume: the dialog and the settings page. It sits in
+  each network-backed `*Screen` rather than in the shell, because the shell can't reach a
+  ViewModel. ViewModels are activity-scoped and `DashboardViewModel` loads only in `init`, so
+  nothing else would run again. A request already in flight at the grant went on to succeed on the
+  API 37 AVD, so the two loads didn't race to an error.
+
+Known limits: only the screen on top reloads. A screen below it in the back stack that loads only
+in `init` (Dashboard, Subscriptions, a subscription's detail) keeps its error until Try again or
+pull to refresh. The password-login probe doesn't re-run after a grant, because it runs off the URL and headers only
 (`Disabled` is then discovered by the failed login instead of hiding that path early).
 
 ### 4.6 Version gating

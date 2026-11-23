@@ -35,6 +35,7 @@ import com.grappim.wallosmobile.strings.generated.resources.profile_save
 import com.grappim.wallosmobile.strings.generated.resources.profile_title
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
+import com.grappim.wallosmobile.uikit.permission.LocalNetworkAllowEffect
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
 import org.jetbrains.compose.resources.stringResource
@@ -58,6 +59,8 @@ fun ProfileScreen(viewModel: ProfileViewModel = koinViewModel<ProfileViewModel>(
     // fresh composition — the first open and a return trip after process death disposes and
     // restarts this Nav3 entry — is the refresh.
     LaunchedEffect(Unit) { uiState.onRetryClick() }
+
+    LocalNetworkAllowEffect(onAllow = uiState.onRetryClick)
 
     ProfileContent(uiState = uiState)
 }

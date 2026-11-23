@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -66,6 +67,20 @@ actual fun rememberIsLocalNetworkBlocked(serverUrl: String): Boolean {
         onPauseOrDispose { check.cancel() }
     }
     return isBlocked
+}
+
+@Composable
+actual fun LocalNetworkAllowEffect(onAllow: () -> Unit) {
+    val context = LocalContext.current
+    val currentOnAllowed by rememberUpdatedState(onAllow)
+    val wasBlocked = remember(context) { booleanArrayOf(context.needsLocalNetworkPermission()) }
+
+    LifecycleResumeEffect(context) {
+        val isBlocked = context.needsLocalNetworkPermission()
+        if (wasBlocked[0] && !isBlocked) currentOnAllowed()
+        wasBlocked[0] = isBlocked
+        onPauseOrDispose {}
+    }
 }
 
 @Composable
