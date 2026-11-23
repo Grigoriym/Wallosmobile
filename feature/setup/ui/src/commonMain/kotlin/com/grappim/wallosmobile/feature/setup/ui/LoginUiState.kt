@@ -2,6 +2,8 @@ package com.grappim.wallosmobile.feature.setup.ui
 
 import com.grappim.kit.domain.PendingCertTrust
 import com.grappim.kit.uikit.NativeText
+import com.grappim.wallosmobile.strings.RString
+import com.grappim.wallosmobile.strings.generated.resources.login_error_local_network_denied
 
 /**
  * Both onboarding paths live in one state (plan §1.1): [isApiKeyMode] `false` drives the web login
@@ -52,8 +54,16 @@ data class LoginUiState(
     val onConnectClick: () -> Unit = {},
     val onCertTrustConfirm: () -> Unit = {},
     val onCertTrustDismiss: () -> Unit = {},
-    val onLocalNetworkDenied: () -> Unit = {}
+    val onLocalNetworkDenied: () -> Unit = {},
+    val onOpenSettingsClick: () -> Unit = {}
 ) {
+
+    /**
+     * The one error the user fixes outside the app, so it carries a way there. Read off [error]
+     * rather than stored beside it, so the two can't disagree.
+     */
+    val isLocalNetworkDenied: Boolean
+        get() = error == NativeText.Resource(RString.login_error_local_network_denied)
 
     /**
      * A held-back attempt *is* a wait with seconds left to name, so there is no second flag beside

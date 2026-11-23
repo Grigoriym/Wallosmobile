@@ -73,6 +73,7 @@
     <string name="local_network_banner_message">Local network access is off. Wallos can't load without it.</string>
     <string name="local_network_banner_open_settings">Open settings</string>
     <string name="login_error_local_network_denied">Not connected — this server is on your local network, and the app isn't allowed to reach it. Turn on local network access for this app in Android settings.</string>
+    <string name="login_open_settings">Open settings</string>
     <string name="login_error_cert_not_trusted">Not connected — that certificate wasn't trusted.</string>
 
     <plurals name="login_throttle_wait">

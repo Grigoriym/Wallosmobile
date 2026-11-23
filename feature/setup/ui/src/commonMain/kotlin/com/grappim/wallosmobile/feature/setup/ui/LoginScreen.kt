@@ -57,6 +57,8 @@ import com.grappim.wallosmobile.strings.generated.resources.login_cleartext_warn
 import com.grappim.wallosmobile.strings.generated.resources.login_connect
 import com.grappim.wallosmobile.strings.generated.resources.login_custom_headers
 import com.grappim.wallosmobile.strings.generated.resources.login_custom_headers_count
+import com.grappim.wallosmobile.strings.generated.resources.login_error_local_network_denied
+import com.grappim.wallosmobile.strings.generated.resources.login_open_settings
 import com.grappim.wallosmobile.strings.generated.resources.login_password_hide
 import com.grappim.wallosmobile.strings.generated.resources.login_password_label
 import com.grappim.wallosmobile.strings.generated.resources.login_password_login_disabled
@@ -75,6 +77,7 @@ import com.grappim.wallosmobile.uikit.RDrawable
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.generated.resources.wallosmobile_logo
 import com.grappim.wallosmobile.uikit.permission.rememberLocalNetworkPermissionRequest
+import com.grappim.wallosmobile.uikit.permission.rememberOpenAppSettings
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
@@ -91,6 +94,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun LoginScreen(viewModel: LoginViewModel = koinViewModel<LoginViewModel>(), onCustomHeadersClick: () -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
     val localNetworkPermission = rememberLocalNetworkPermissionRequest()
+    val openAppSettings = rememberOpenAppSettings()
 
     // Here rather than in the Button, so the keyboard's Done goes through it as well.
     LoginContent(
@@ -103,7 +107,8 @@ fun LoginScreen(viewModel: LoginViewModel = koinViewModel<LoginViewModel>(), onC
                         onDenied = uiState.onLocalNetworkDenied
                     )
                 }
-            }
+            },
+            onOpenSettingsClick = openAppSettings
         ),
         onCustomHeadersClick = onCustomHeadersClick
     )
@@ -185,6 +190,13 @@ private fun LoginContent(uiState: LoginUiState, onCustomHeadersClick: () -> Unit
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium
             )
+        }
+
+        // Android has no link to a single permission, so this opens the app's settings page.
+        if (uiState.isLocalNetworkDenied) {
+            TextButton(onClick = uiState.onOpenSettingsClick) {
+                Text(stringResource(RString.login_open_settings))
+            }
         }
 
         if (uiState.isLoading) {
@@ -469,6 +481,20 @@ private fun LoginContentErrorPreview() = WallosMobilePreviewTheme {
             username = "demo",
             password = "wrong",
             error = NativeText.Simple("Wallos didn't accept that username and password.")
+        ),
+        onCustomHeadersClick = {}
+    )
+}
+
+@PreviewWallosDarkLight
+@Composable
+private fun LoginContentLocalNetworkDeniedPreview() = WallosMobilePreviewTheme {
+    LoginContent(
+        uiState = LoginUiState(
+            serverUrl = "http://192.168.1.20:8282",
+            username = "demo",
+            password = "demo",
+            error = NativeText.Resource(RString.login_error_local_network_denied)
         ),
         onCustomHeadersClick = {}
     )

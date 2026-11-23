@@ -542,6 +542,27 @@ class LoginViewModelTest {
         assertEquals(0, repository.loginCallCount)
     }
 
+    @Test
+    fun `a denied local network offers the settings`() = runTest {
+        val sut = viewModel()
+        sut.fillCredentials()
+
+        sut.uiState.value.onLocalNetworkDenied()
+
+        assertTrue(sut.uiState.value.isLocalNetworkDenied)
+    }
+
+    @Test
+    fun `editing the url after a denied local network takes the settings offer away`() = runTest {
+        val sut = viewModel()
+        sut.fillCredentials()
+        sut.uiState.value.onLocalNetworkDenied()
+
+        sut.uiState.value.onServerUrlChange(OTHER_SERVER_URL)
+
+        assertFalse(sut.uiState.value.isLocalNetworkDenied)
+    }
+
     // --- 28.5: custom headers, edited on their own screen ---
 
     /** Without them the probe was asked a question the proxy answered, not the instance. */
