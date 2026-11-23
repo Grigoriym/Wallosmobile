@@ -87,7 +87,8 @@ jobs:
         run: ./gradlew :androidApp:assembleGplayDebug
 
       - name: Run the unit tests
-        run: ./gradlew allTests
+        # `allTests` covers only the KMP modules; `:detekt-rules` is plain Kotlin/JVM.
+        run: ./gradlew allTests :detekt-rules:test
 
       - name: Run detekt and ktlint
         run: ./gradlew detekt ktlintCheck

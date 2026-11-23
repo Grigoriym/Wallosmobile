@@ -4,10 +4,6 @@ Findings worth fixing that are bigger than "small and isolated" — deferred her
 inline, per `docs/CHECKLIST.md`'s M17 instructions. Numbered, not dated; each entry stays until
 it's actually done, then gets deleted (git has the history).
 
-Empty as of 2026-08-14 (M26/26.1) — its only entry, a custom `lintChecks` detector unable to see a
-dependency module's own source, closed with the `detekt-rules` port; see `docs/CHECKLIST.md`'s
-26.1 `Note:` for the account.
-
 ## 1. Subscriptions list's FAB overlaps the last row
 
 Found 2026-08-15 during 27.5's device pass (on-screen at both the default font scale and 1.3x —
@@ -130,10 +126,3 @@ mechanism rather than re-deriving it.
   an API 36 AVD never asks). Turning the permission off in system settings stood in for the update.
 
 Delete each bullet as it's closed.
-
-## 7. CI never runs `:detekt-rules:test`
-
-`ci.yml`'s `allTests` only covers KMP modules, and `:detekt-rules` is plain Kotlin/JVM. So a broken
-test there can't fail a PR. Found 2026-11-01: Renovate's #60 moved the module's Kotlin test pins to
-2.4.21, which failed all 4 tests with `NoClassDefFoundError`, and its CI couldn't have shown that.
-The fix is to add the task to `ci.yml`, a `.github/` change that needs a `Gate-change:` line.
