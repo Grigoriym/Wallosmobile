@@ -394,8 +394,9 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   listing can't distinguish from a real one. A name that isn't already confirmed above still needs
   an actual compile, not just a `ls`.
 - **Material 3's own source is in the Gradle cache, and it is the authority on which colour role a
-  component reads** — `unzip` `material3-desktop-*-sources.jar` from
-  `~/.gradle/caches/modules-2/files-2.1/org.jetbrains.compose.material3/` and read
+  component reads** — `unzip` a `material3-*-sources.jar` (`find ~/.gradle/caches -name
+  'material3*sources.jar'`; which ones exist varies by machine — `androidx.compose.material3`'s
+  `material3-<ver>-sources.jar` carries `commonMain/`) and read
   `commonMain/androidx/compose/material3/tokens/*Tokens.kt` or `ColorScheme.kt`, rather than
   guessing which token a component reads.
 - **Same technique for AGP's own DSL, when a `build-logic` convention plugin needs an exact
@@ -593,6 +594,9 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   checking which token it reads (see the sources-jar note under Architecture) and, if that role is
   still unset, setting it rather than passing a colour at the call site.
 - Fixed-item screens (settings) use `Column`, not `LazyColumn`.
+- **A list on a route with a `FabConfig.Standard` uses `FabClearance` (`uikit`) as its bottom
+  `contentPadding`.** `Scaffold` leaves the FAB out of `innerPadding`, so a uniform
+  `PaddingValues(SCREEN_PADDING)` lets the last row sit under the FAB with no scroll room left.
 - **A `Row` pairing a wrapping label with a trailing fixed-size control (`Switch`, an icon) needs
   `Modifier.weight(1f)` on the label's `Column`**, or `Arrangement.SpaceBetween` lets the label's
   `Text` measure at up to the row's full width and the control ends up centered over wherever the

@@ -30,6 +30,7 @@ import com.grappim.wallosmobile.strings.RString
 import com.grappim.wallosmobile.strings.generated.resources.household_empty
 import com.grappim.wallosmobile.strings.generated.resources.household_title
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
+import com.grappim.wallosmobile.uikit.FabClearance
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import kotlinx.collections.immutable.persistentListOf
@@ -84,7 +85,15 @@ private fun HouseholdList(
     onMemberClick: (id: Int, name: String, email: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(modifier = modifier, contentPadding = PaddingValues(SCREEN_PADDING)) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            start = SCREEN_PADDING,
+            top = SCREEN_PADDING,
+            end = SCREEN_PADDING,
+            bottom = FabClearance
+        )
+    ) {
         items(items = uiState.items, key = { it.id }) { item ->
             HouseholdMemberRow(item = item, onClick = { onMemberClick(item.id, item.name, item.email) })
         }
