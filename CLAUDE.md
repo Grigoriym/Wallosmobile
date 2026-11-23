@@ -603,6 +603,10 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   checking which token it reads (see the sources-jar note under Architecture) and, if that role is
   still unset, setting it rather than passing a colour at the call site.
 - Fixed-item screens (settings) use `Column`, not `LazyColumn`.
+- **A value a composable remembers and changes is `var x by remember { mutableStateOf(…) }`**, even
+  when nothing draws it. No one-element array (`booleanArrayOf(…)`, `arrayOfNulls(1)`) used as a
+  box to dodge recomposition: writing a `State` that no composition reads recomposes nothing
+  anyway, so the trick saves nothing and reads as magic (user's call, 2026-11-23).
 - **A list on a route with a `FabConfig.Standard` uses `FabClearance` (`uikit`) as its bottom
   `contentPadding`.** `Scaffold` leaves the FAB out of `innerPadding`, so a uniform
   `PaddingValues(SCREEN_PADDING)` lets the last row sit under the FAB with no scroll room left.
