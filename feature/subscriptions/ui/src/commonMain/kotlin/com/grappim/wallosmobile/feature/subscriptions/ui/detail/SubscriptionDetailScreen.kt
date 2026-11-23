@@ -55,6 +55,7 @@ import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_
 import com.grappim.wallosmobile.strings.generated.resources.subscription_detail_url
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
+import com.grappim.wallosmobile.uikit.permission.LocalNetworkAllowEffect
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import com.grappim.wallosmobile.uikit.widgets.network.LocalIsOffline
 import com.grappim.wallosmobile.utils.ui.ObserveAsEvents
@@ -107,6 +108,8 @@ fun SubscriptionDetailScreen(
     }
 
     ObserveAsEvents(flow = viewModel.deleted) { onBackClick() }
+
+    LocalNetworkAllowEffect(onAllow = uiState.onRetryClick)
 
     SubscriptionDetailContent(uiState = uiState)
 }

@@ -31,6 +31,7 @@ import com.grappim.wallosmobile.strings.generated.resources.dashboard_title
 import com.grappim.wallosmobile.strings.generated.resources.dashboard_upcoming_empty
 import com.grappim.wallosmobile.strings.generated.resources.dashboard_upcoming_title
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
+import com.grappim.wallosmobile.uikit.permission.LocalNetworkAllowEffect
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import kotlinx.collections.immutable.persistentListOf
 import org.jetbrains.compose.resources.stringResource
@@ -52,6 +53,8 @@ fun DashboardScreen(
             )
         )
     }
+
+    LocalNetworkAllowEffect(onAllow = uiState.onRetryClick)
 
     DashboardContent(uiState = uiState, onSubscriptionClick = onSubscriptionClick)
 }

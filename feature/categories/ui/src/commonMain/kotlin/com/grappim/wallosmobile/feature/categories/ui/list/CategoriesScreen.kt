@@ -32,6 +32,7 @@ import com.grappim.wallosmobile.strings.generated.resources.categories_title
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
 import com.grappim.wallosmobile.uikit.FabClearance
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
+import com.grappim.wallosmobile.uikit.permission.LocalNetworkAllowEffect
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import kotlinx.collections.immutable.persistentListOf
 import org.jetbrains.compose.resources.stringResource
@@ -58,6 +59,8 @@ fun CategoriesScreen(
     // screen — the first open and a return trip from the editor after an add/edit/delete — is the
     // refresh, since a covered Nav3 entry is disposed and this restarts on the way back to it.
     LaunchedEffect(Unit) { uiState.onRetryClick() }
+
+    LocalNetworkAllowEffect(onAllow = uiState.onRetryClick)
 
     CategoriesContent(uiState = uiState, onCategoryClick = onCategoryClick)
 }

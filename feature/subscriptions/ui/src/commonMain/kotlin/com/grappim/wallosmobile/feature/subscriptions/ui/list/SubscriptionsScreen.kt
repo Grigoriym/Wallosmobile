@@ -44,6 +44,7 @@ import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_title
 import com.grappim.wallosmobile.uikit.FabClearance
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
+import com.grappim.wallosmobile.uikit.permission.LocalNetworkAllowEffect
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import kotlinx.collections.immutable.persistentListOf
 import org.jetbrains.compose.resources.stringResource
@@ -77,6 +78,8 @@ fun SubscriptionsScreen(
             )
         )
     }
+
+    LocalNetworkAllowEffect(onAllow = uiState.onRetryClick)
 
     SubscriptionsContent(uiState = uiState, onSubscriptionClick = onSubscriptionClick)
 }

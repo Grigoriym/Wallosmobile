@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -32,10 +33,10 @@ private class PendingResult(val onAllowed: () -> Unit, val onDenied: () -> Unit)
 actual fun rememberLocalNetworkPermissionRequest(): LocalNetworkPermissionRequest {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val pending = remember { arrayOfNulls<PendingResult>(1) }
+    var pending by remember { mutableStateOf<PendingResult?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-        val result = pending[0]
-        pending[0] = null
+        val result = pending
+        pending = null
         if (isGranted) result?.onAllowed?.invoke() else result?.onDenied?.invoke()
     }
 
@@ -43,7 +44,7 @@ actual fun rememberLocalNetworkPermissionRequest(): LocalNetworkPermissionReques
         LocalNetworkPermissionRequest { serverUrl, onAllowed, onDenied ->
             scope.launch {
                 if (context.needsLocalNetworkPermission() && resolvesToLocalNetwork(serverUrl)) {
-                    pending[0] = PendingResult(onAllowed, onDenied)
+                    pending = PendingResult(onAllowed, onDenied)
                     launcher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
                 } else {
                     onAllowed()
@@ -66,6 +67,20 @@ actual fun rememberIsLocalNetworkBlocked(serverUrl: String): Boolean {
         onPauseOrDispose { check.cancel() }
     }
     return isBlocked
+}
+
+@Composable
+actual fun LocalNetworkAllowEffect(onAllow: () -> Unit) {
+    val context = LocalContext.current
+    val currentOnAllowed by rememberUpdatedState(onAllow)
+    var wasBlocked by remember(context) { mutableStateOf(context.needsLocalNetworkPermission()) }
+
+    LifecycleResumeEffect(context) {
+        val isBlocked = context.needsLocalNetworkPermission()
+        if (wasBlocked && !isBlocked) currentOnAllowed()
+        wasBlocked = isBlocked
+        onPauseOrDispose {}
+    }
 }
 
 @Composable
