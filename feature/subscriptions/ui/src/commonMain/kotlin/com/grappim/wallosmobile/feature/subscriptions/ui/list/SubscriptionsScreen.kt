@@ -42,6 +42,7 @@ import com.grappim.wallosmobile.strings.generated.resources.subscriptions_filter
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_filter_no_match
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_title
+import com.grappim.wallosmobile.uikit.FabClearance
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import kotlinx.collections.immutable.persistentListOf
@@ -143,7 +144,12 @@ private fun SubscriptionsList(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(SCREEN_PADDING),
+        contentPadding = PaddingValues(
+            start = SCREEN_PADDING,
+            top = SCREEN_PADDING,
+            end = SCREEN_PADDING,
+            bottom = FabClearance
+        ),
         verticalArrangement = Arrangement.spacedBy(ITEM_SPACING)
     ) {
         items(items = uiState.items, key = { it.id }) { item ->

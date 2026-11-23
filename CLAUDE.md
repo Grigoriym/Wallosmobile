@@ -62,6 +62,15 @@ N" trigger and launch the step immediately. Corrected 2026-08-11.
    **Edit a PR's body with `gh api repos/Grigoriym/Wallosmobile/pulls/<n> -X PATCH -F body=@file`,
    not `gh pr edit`** — the latter fails on this repo with `GraphQL: Projects (classic) is being
    deprecated … (repository.pullRequest.projectCards)` (hit twice: PR #14, PR #107).
+   **A PR that changes something visible on screen carries before/after screenshots in its
+   body** — the user's rule, 2026-11-23. Before = `dev`'s code (`git stash -u`, `git checkout
+   dev -- <changed paths>`, install, screenshot, then restore), after = the PR, same AVD and same
+   screen state, side by side (`ffmpeg … hstack` — no ImageMagick/Pillow on this machine). `gh`
+   can't attach images to a PR, so commit them to the orphan `pr-assets` branch under
+   `pr-<n>/` and embed `https://raw.githubusercontent.com/Grigoriym/Wallosmobile/<sha>/pr-<n>/…`
+   with `<img width="600">`. Never delete `pr-assets` — merged PRs' images point into it. The
+   repo is public, so the screenshots are too; avoid screens that show more than the change
+   needs (Household lists a real email address).
 
 **Decomposing a new milestone is its own commit, made the moment it happens — not left
 for the session that does step 1 to discover via `git status`.** Every milestone from M3
@@ -394,8 +403,9 @@ worked examples and which step established each one live in `docs/IMPLEMENTATION
   listing can't distinguish from a real one. A name that isn't already confirmed above still needs
   an actual compile, not just a `ls`.
 - **Material 3's own source is in the Gradle cache, and it is the authority on which colour role a
-  component reads** — `unzip` `material3-desktop-*-sources.jar` from
-  `~/.gradle/caches/modules-2/files-2.1/org.jetbrains.compose.material3/` and read
+  component reads** — `unzip` a `material3-*-sources.jar` (`find ~/.gradle/caches -name
+  'material3*sources.jar'`; which ones exist varies by machine — `androidx.compose.material3`'s
+  `material3-<ver>-sources.jar` carries `commonMain/`) and read
   `commonMain/androidx/compose/material3/tokens/*Tokens.kt` or `ColorScheme.kt`, rather than
   guessing which token a component reads.
 - **Same technique for AGP's own DSL, when a `build-logic` convention plugin needs an exact
@@ -593,6 +603,9 @@ Naming follows MealieMobile: `FeatureUiState` / `uiState` (not Taiga's `FeatureS
   checking which token it reads (see the sources-jar note under Architecture) and, if that role is
   still unset, setting it rather than passing a colour at the call site.
 - Fixed-item screens (settings) use `Column`, not `LazyColumn`.
+- **A list on a route with a `FabConfig.Standard` uses `FabClearance` (`uikit`) as its bottom
+  `contentPadding`.** `Scaffold` leaves the FAB out of `innerPadding`, so a uniform
+  `PaddingValues(SCREEN_PADDING)` lets the last row sit under the FAB with no scroll room left.
 - **A `Row` pairing a wrapping label with a trailing fixed-size control (`Switch`, an icon) needs
   `Modifier.weight(1f)` on the label's `Column`**, or `Arrangement.SpaceBetween` lets the label's
   `Text` measure at up to the row's full width and the control ends up centered over wherever the

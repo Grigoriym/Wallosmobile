@@ -34,6 +34,7 @@ import com.grappim.wallosmobile.strings.generated.resources.currencies_main_labe
 import com.grappim.wallosmobile.strings.generated.resources.currencies_title
 import com.grappim.wallosmobile.strings.generated.resources.currency_row_details
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
+import com.grappim.wallosmobile.uikit.FabClearance
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import kotlinx.collections.immutable.persistentListOf
@@ -88,7 +89,15 @@ private fun CurrenciesList(
     onCurrencyClick: (id: Int, name: String, symbol: String, code: String, rate: Double) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(modifier = modifier, contentPadding = PaddingValues(SCREEN_PADDING)) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            start = SCREEN_PADDING,
+            top = SCREEN_PADDING,
+            end = SCREEN_PADDING,
+            bottom = FabClearance
+        )
+    ) {
         items(items = uiState.items, key = { it.id }) { item ->
             CurrencyRow(
                 item = item,

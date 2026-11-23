@@ -28,11 +28,6 @@ comment:
     require_base: no
     require_head: yes
 
-# Branch configuration
-branches:
-    - master
-    - dev
-
 # Ignore paths
 ignore:
     - "**/*.md"

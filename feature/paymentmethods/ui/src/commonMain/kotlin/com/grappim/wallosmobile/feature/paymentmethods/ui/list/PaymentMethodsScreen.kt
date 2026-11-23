@@ -34,6 +34,7 @@ import com.grappim.wallosmobile.strings.generated.resources.payment_methods_disa
 import com.grappim.wallosmobile.strings.generated.resources.payment_methods_empty
 import com.grappim.wallosmobile.strings.generated.resources.payment_methods_title
 import com.grappim.wallosmobile.strings.generated.resources.subscriptions_retry
+import com.grappim.wallosmobile.uikit.FabClearance
 import com.grappim.wallosmobile.uikit.WallosMobilePreviewTheme
 import com.grappim.wallosmobile.uikit.utils.PreviewWallosDarkLight
 import kotlinx.collections.immutable.persistentListOf
@@ -92,7 +93,15 @@ private fun PaymentMethodsList(
     onPaymentMethodClick: (id: Int, name: String, enabled: Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(modifier = modifier, contentPadding = PaddingValues(SCREEN_PADDING)) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            start = SCREEN_PADDING,
+            top = SCREEN_PADDING,
+            end = SCREEN_PADDING,
+            bottom = FabClearance
+        )
+    ) {
         items(items = uiState.items, key = { it.id }) { item ->
             PaymentMethodRow(
                 item = item,

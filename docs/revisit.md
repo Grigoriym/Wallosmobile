@@ -4,25 +4,7 @@ Findings worth fixing that are bigger than "small and isolated" — deferred her
 inline, per `docs/CHECKLIST.md`'s M17 instructions. Numbered, not dated; each entry stays until
 it's actually done, then gets deleted (git has the history).
 
-## 1. Subscriptions list's FAB overlaps the last row
-
-Found 2026-08-15 during 27.5's device pass (on-screen at both the default font scale and 1.3x —
-not a font-scale-specific regression, just where the pass happened to look). `SubscriptionsScreen`'s
-`LazyColumn` (`feature/subscriptions/ui/.../list/SubscriptionsScreen.kt`) uses a uniform
-`contentPadding = PaddingValues(SCREEN_PADDING)`, and Material3's `Scaffold` (`MainScaffold` in
-`composeApp/.../AuthenticatedMainScreen.kt`) does **not** include the `floatingActionButton` in the
-`innerPadding` it hands to content — that's normal Material behavior (a FAB is meant to float over
-content), but it means the list's last row can render underneath the `+` FAB with no scroll room to
-clear it, confirmed with the local instance's 8-row-tall list (last row "Claude Code"'s price cut
-off behind the FAB in every screenshot taken this session, scaled or not).
-
-Not a one-line fix: needs a deliberate bottom-clearance value (FAB touch target + Material's usual
-16dp margin, not a guessed number) added to the list's `contentPadding`, and a check for whether any
-other FAB-bearing screen has the same gap — out of scope for M27 (accessibility), which is why this
-wasn't fixed inline during 27.5. Fix by giving `SubscriptionsList`'s `contentPadding` an asymmetric
-`bottom` value sized to actually clear the FAB.
-
-## 2. No mobile-side renewal notifications
+## 1. No mobile-side renewal notifications
 
 Raised 2026-08-24 while explaining what the subscription editor's "Notify before renewal" switch
 (`SubscriptionEditorScreen.kt`) actually does: it only writes the server's own `notify` /
@@ -42,7 +24,7 @@ that doesn't fight the existing refresh cadence, and a decision on whether it du
 replaces the subtitle now on that switch (added the same session, `SubscriptionEditorScreen.kt`'s
 `SwitchRow` `subtitle` param) once it exists.
 
-## 3. Only Subscriptions survives offline — Dashboard (and everything else) has no cache
+## 2. Only Subscriptions survives offline — Dashboard (and everything else) has no cache
 
 Raised 2026-08-24: offline, the Dashboard's Monthly/Period budget cards show the raw "Couldn't
 reach that server…" error instead of a stale banner over old numbers, and the "Showing saved data"
@@ -64,7 +46,7 @@ snapshot, or would a cached number just be actively misleading once it's a day o
 subscription row, which doesn't change shape when stale) before deciding which of these four
 modules actually gets one, rather than mechanically repeating M3 four times.
 
-## 4. `MoneyFormatter` (and anything built on it) is fixed-format, not locale-aware
+## 3. `MoneyFormatter` (and anything built on it) is fixed-format, not locale-aware
 
 Raised 2026-08-24 while looking at `DashboardViewModel.kt:106`'s
 `usedPercent = monthlyBudget?.let { "${moneyFormatter.format(it.used, "")}%" }.orEmpty()` — the
@@ -86,7 +68,7 @@ platform `NumberFormat`) and the tradeoff (out of reach of a host test) — this
 make sure it doesn't get re-litigated from scratch, and to catch every fixed-format call site
 (not just this one `usedPercent` line) in the same pass rather than one at a time.
 
-## 5. No deep-link readiness plan yet
+## 4. No deep-link readiness plan yet
 
 Found 2026-09-01 while triaging the HedvigInsurance findings from `agentic-grappim`'s old
 reference-app-scouting investigation doc (since retired/folded into
@@ -112,7 +94,7 @@ adding the marker interfaces/split/queue speculatively would be exactly the kind
 `docs/architecture/navigation-and-di.md` in `/home/gregory/proj/HedvigInsurance` for the worked
 mechanism rather than re-deriving it.
 
-## 6. Android 17 local network access: what 28.10 left open
+## 5. Android 17 local network access: what 28.10 left open
 
 **Plan §4.5c has the design.** Found 2026-10-30 testing PR #107 on a Pixel 11 Pro.
 
