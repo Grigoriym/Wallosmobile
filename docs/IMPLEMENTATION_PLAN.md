@@ -1701,7 +1701,9 @@ is a normal setup, and 1.0.4 already targets 37 without the permission.
   through it too, not off the URL field: a dialog fired by typing is the same objection the probe
   has to raising the trust prompt.
 - **Denied at login means no request**, and `login_error_local_network_denied` says why, since the
-  request could only time out and blame the URL.
+  request could only time out and blame the URL. An "Open settings" button sits under that error
+  alone (`LoginUiState.isLocalNetworkDenied`, read off `error` rather than stored beside it): it is
+  the one login failure fixed outside the app.
 - **Asked once more on opening the shell**, for someone who connected before the permission
   existed. That's `LocalNetworkBanner`, composed above `MainNavHost` in `AuthenticatedMainScreen`.
 - **Blocked while connected means one banner above every screen**, with an "Open settings" action,
