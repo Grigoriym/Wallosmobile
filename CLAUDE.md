@@ -282,7 +282,8 @@ driving the emulator rather than re-deriving any of it.
 
 CI (`.github/workflows/ci.yml`, plan §3.5, §3.8, §3.10) runs `assembleFdroidDebug` then
 `assembleGplayDebug -PgplayBuild` (split since 16.2 — a single `assembleDebug` can't pass
-`-PgplayBuild` to only one flavor) + `allTests` + `detekt ktlintCheck` + `lintFdroidDebug
+`-PgplayBuild` to only one flavor) + `allTests :detekt-rules:test` (`allTests` misses that plain-JVM
+module) + `detekt ktlintCheck` + `lintFdroidDebug
 lintGplayDebug -PgplayBuild` (21.1) + `koverXmlReport` (uploaded
 to Codecov) on push and PR to `dev` and `master`, but `paths-ignore` skips `**.md` and `docs/**` —
 a docs-only commit produces **no CI run**, which is not a failure. The gplay assemble step restores
