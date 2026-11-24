@@ -58,6 +58,12 @@ section and `docs/local-info.txt` — this file only covers the device side.
   `uiautomator dump`'s real-pixel `bounds` instead. Mixing scaled and unscaled
   coordinates mid-session is silent: no error, the tap just lands on whatever was
   underneath.
+- **An unfiltered Subscriptions list can look filtered.** The default sort is Next payment,
+  and on the real dataset every Inactive row has a past date, so the first screen is all
+  Inactive rows. Scroll *down* before concluding a status filter is on, or read the stored
+  criteria instead: `run-as com.grappim.wallosmobile.debug cat
+  files/datastore/wallos_storage.preferences_pb | strings`, key `subscriptions_criteria`
+  (absent = nothing saved). An agent-qa executor misread exactly this (2026-11-24).
 - **A `DateField`'s own placeholder** (e.g. "Next payment", "Start date" on the
   subscription editor) **is invisible to a dump text search while empty** — unlike a
   plain `OutlinedTextField`'s placeholder, which shows up fine. The transparent

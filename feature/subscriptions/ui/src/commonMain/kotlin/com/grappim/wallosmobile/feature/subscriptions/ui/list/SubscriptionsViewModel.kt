@@ -1,12 +1,12 @@
 package com.grappim.wallosmobile.feature.subscriptions.ui.list
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.grappim.kit.logger.LogPriority
 import com.grappim.kit.logger.logcat
 import com.grappim.kit.uikit.NativeText
 import com.grappim.wallosmobile.core.api.BaseUrlProvider
+import com.grappim.wallosmobile.core.storage.subscriptions.SubscriptionCriteriaStorage
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.PriceConversion
 import com.grappim.wallosmobile.feature.subscriptions.domain.model.Subscription
 import com.grappim.wallosmobile.feature.subscriptions.domain.repo.SubscriptionsRepository
@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -27,7 +28,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.koin.core.annotation.InjectedParam
 import org.koin.core.annotation.KoinViewModel
 
 /**
@@ -39,10 +39,8 @@ import org.koin.core.annotation.KoinViewModel
  * rather than in the UI state: they are *inputs* to what the screen shows, combined with the rows
  * on one path, so a changed filter and an arriving refresh render through the same code.
  *
- * Since 5.2 those two outlive the process. [savedStateHandle] is the vehicle — the same one the
- * nav back stack rides, so a kill that restores the detail screen restores the list behind it in
- * the state the user left it. It arrives as an [InjectedParam] because Koin resolves a
- * `SavedStateHandle` from the `CreationExtras`, not from the graph.
+ * Those two outlive the screen, the process and the launch: [criteriaStorage] keeps them on disk,
+ * and a disconnect drops them with the rest of the account's data.
  */
 @KoinViewModel
 class SubscriptionsViewModel(
@@ -51,12 +49,12 @@ class SubscriptionsViewModel(
     private val moneyFormatter: MoneyFormatter,
     private val dateFormatter: DateFormatter,
     private val subscriptionSorter: SubscriptionSorter,
-    @InjectedParam private val savedStateHandle: SavedStateHandle
+    private val criteriaStorage: SubscriptionCriteriaStorage,
+    private val json: Json
 ) : ViewModel() {
 
-    private val restoredCriteria = restoreCriteria()
-    private val filter = MutableStateFlow(restoredCriteria.toFilter())
-    private val sort = MutableStateFlow(restoredCriteria.sort)
+    private val filter = MutableStateFlow(SubscriptionFilter())
+    private val sort = MutableStateFlow(SubscriptionSort.NEXT_PAYMENT)
 
     /**
      * Bumped only by a refresh that succeeds (5.6) — never a failed one, which left the rows and
@@ -73,10 +71,6 @@ class SubscriptionsViewModel(
             // text before `load` gets a chance to say otherwise.
             isLoading = true,
             filters = SubscriptionsFilterUiState(
-                // Seeded rather than left on the defaults: `onCached` sets these too, but the first
-                // frame after a restore is drawn before the cache has emitted anything.
-                filter = filter.value,
-                sort = sort.value,
                 onFilterChange = ::onFilterChange,
                 onSortChange = ::onSortChange,
                 onOpen = ::onFilterOpen,
@@ -89,10 +83,18 @@ class SubscriptionsViewModel(
     )
     val uiState: StateFlow<SubscriptionsUiState> = _uiState.asStateFlow()
 
+    /**
+     * The stored criteria are read before anything else starts, so the first rows drawn are already
+     * narrowed and ordered — an unfiltered list that then jumps to the filtered one would be the
+     * flicker this avoids — and so [persistCriteria] never writes the defaults over them.
+     */
     init {
-        observeCache()
-        persistCriteria()
-        load(isRefresh = false)
+        viewModelScope.launch {
+            restoreCriteria(criteriaStorage.criteria.first())
+            observeCache()
+            persistCriteria()
+            load(isRefresh = false)
+        }
     }
 
     private fun onRefresh() {
@@ -131,24 +133,29 @@ class SubscriptionsViewModel(
     /**
      * The one place the criteria are written down, for the same reason [observeCache] is the one
      * place the rows are read: a save driven off the flows themselves cannot disagree with them,
-     * where a write next to each of the three setters could miss one.
+     * where a write next to each of the three setters could miss one. The first emission is what
+     * was just restored, so it is skipped: only a change the user made is written.
      */
     private fun persistCriteria() {
         combine(filter, sort, SubscriptionFilter::toSaved)
-            .onEach { savedStateHandle[KEY_CRITERIA] = Json.encodeToString(it) }
+            .drop(1)
+            .onEach { criteriaStorage.setCriteria(json.encodeToString(it)) }
             .launchIn(viewModelScope)
     }
 
-    private fun restoreCriteria(): SavedCriteria {
-        val stored = savedStateHandle.get<String>(KEY_CRITERIA) ?: return SavedCriteria()
-        return try {
-            Json.decodeFromString<SavedCriteria>(stored)
-        } catch (e: IllegalArgumentException) {
-            // A build that renamed a sort or a status leaves the previous one's state unreadable.
-            // Pre-v1 that state is disposable, but discarding it is not the same as crashing on it.
-            logcat(priority = LogPriority.WARN, throwable = e) { "Stored filter and sort were unreadable" }
-            SavedCriteria()
-        }
+    private fun restoreCriteria(stored: String?) {
+        val criteria = stored?.let(::decodeCriteria) ?: return
+        filter.value = criteria.toFilter()
+        sort.value = criteria.sort
+    }
+
+    private fun decodeCriteria(stored: String): SavedCriteria? = try {
+        json.decodeFromString<SavedCriteria>(stored)
+    } catch (e: IllegalArgumentException) {
+        // A build that renamed a sort or a status leaves the previous one's state unreadable.
+        // Pre-v1 that state is disposable, but discarding it is not the same as crashing on it.
+        logcat(priority = LogPriority.WARN, throwable = e) { "Stored filter and sort were unreadable" }
+        null
     }
 
     /**
@@ -286,17 +293,12 @@ class SubscriptionsViewModel(
         isActive = subscription.isActive,
         logoRefreshToken = refreshGeneration
     )
-
-    private companion object {
-        const val KEY_CRITERIA = "subscriptions_criteria"
-    }
 }
 
 /**
- * 3.6's two criteria in the shape a [SavedStateHandle] can carry across a process. The handle's
- * values have to be Bundle-safe on Android and [SubscriptionFilter]'s `ImmutableSet`s have no
- * serializer, so what is stored is one JSON string under one key — which is also the only form a
- * host test can read back, since `SavedState` is `Bundle` and no Android runtime is available there.
+ * 3.6's two criteria in the shape [SubscriptionCriteriaStorage] keeps: one JSON string, since
+ * [SubscriptionFilter]'s `ImmutableSet`s have no serializer and `core:storage` cannot name these
+ * types anyway.
  */
 @Serializable
 private data class SavedCriteria(

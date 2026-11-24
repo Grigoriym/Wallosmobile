@@ -62,6 +62,10 @@ kotlin {
             // put in front of it (API doc §4), and that is the one place the root is normalized.
             implementation(projects.core.api)
 
+            // `SubscriptionCriteriaStorage`, the list's filter and sort across launches — a single
+            // storage seam read straight from the ViewModel, as `feature:settings:ui` does.
+            implementation(projects.core.storage)
+
             implementation(projects.utils.formatter.decimal)
             implementation(projects.utils.formatter.datetime)
 
